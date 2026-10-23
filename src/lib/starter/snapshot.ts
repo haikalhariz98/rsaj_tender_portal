@@ -1,12 +1,12 @@
 /**
  * What the organisation holds now, for the planner (`plan.ts`): its own row, its security settings, the one row of each table a pack's
- * groups write, and how many rows each pack list's list holds. Reads only. Called inside the loader's transaction, after the
- * organisation's lock, so the plan is made from what the writes will meet.
+ * groups write, how many rows each pack list's list holds, and how many matrices and models it has (a draft loads beside none). Reads only.
+ * Called inside the loader's transaction, after the organisation's lock, so the plan is made from what the writes will meet.
  */
 
 import type { Tx } from "@/lib/audit/record";
 
-import { listKey, type PackSnapshot } from "./plan";
+import { columnsOf, listKey, type PackSnapshot } from "./plan";
 import type { StarterPack } from "./types";
 
 type Reader = { findUnique(a: unknown): Promise<Record<string, unknown> | null>; count(a: unknown): Promise<number> };
@@ -26,8 +26,13 @@ export async function readSnapshot(tx: Tx, organisationId: string, packs: readon
     }
     for (const l of p.lists) {
       const key = listKey(l);
-      if (!(key in listSizes)) listSizes[key] = delegateOf(tx, l.model) ? await delegateOf(tx, l.model).count({ where: { organisationId, ...l.scope } }) : 0;
+      // A list with no organisation column is a list of another list's rows: empty by construction when its parents are new (the planner).
+      if (!(key in listSizes)) listSizes[key] = delegateOf(tx, l.model) && (columnsOf(l.model) ?? []).includes("organisationId") ? await delegateOf(tx, l.model).count({ where: { organisationId, ...l.scope } }) : 0;
     }
   }
-  return { now: facts.now, rows, listSizes, demoIsLoaded: facts.demoIsLoaded };
+  // Drafts (ADR 0043 D2): the organisation's own matrices (a funder's rule set is not its limits) and its models, in force or not.
+  const drafts = packs.some((p) => p.drafts)
+    ? { matrices: await tx.authorityMatrix.count({ where: { organisationId, fundingRouteCode: null } }), evaluationModels: await tx.evaluationModel.count({ where: { organisationId } }) }
+    : undefined;
+  return { now: facts.now, rows, listSizes, demoIsLoaded: facts.demoIsLoaded, drafts };
 }

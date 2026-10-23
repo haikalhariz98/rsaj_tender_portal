@@ -9,6 +9,7 @@ const snap = (over: Partial<PackSnapshot> = {}): PackSnapshot => ({
   rows: { Organisation: { id: "o1", timeZone: "Asia/Kuala_Lumpur" }, SecurityPolicy: { twoPersonChanges: false }, ...over.rows },
   listSizes: over.listSizes ?? {},
   demoIsLoaded: over.demoIsLoaded ?? false,
+  drafts: over.drafts,
 });
 
 const limits = (values: Record<string, unknown> = { portalDailyLimit: 200, portalDailyLimitPerNumber: 3 }) => ({ model: "SupplierPolicy", label: "Daily limits", values, provenanceColumn: "portalLimitProvenance", source: "s" });
@@ -118,5 +119,81 @@ describe("planPacks: approval by another admin (SP-3, SP-23)", () => {
     const p = planPacks([fill], snap({ demoIsLoaded: true, rows: { SecurityPolicy: { twoPersonChanges: true } } }));
     expect(p.writes).toMatchObject([{ kind: "SWITCH_OFF", create: false, actor: "Development fill (founder's instruction 2026-10-23)" }]);
     expect(planPacks([fill], snap({ demoIsLoaded: true })).writes).toEqual([]);
+  });
+});
+
+describe("planPacks: drafts (ADR 0043 D2)", () => {
+  const roles = { model: "AuthorityRole", label: "Office", rows: [{ code: "HOD", values: { nameEn: "Head of Department", nameMs: "Head of Department" }, source: "s" }] };
+  const rule = { ruleKey: "R1", domain: "requisition", method: null, cond: null, minValue: null, maxValue: 500, pctMin: null, pctMax: null, contractValueMin: null, contractValueMax: null, followsBoundarySwitch: false, labelEn: "Requisition up to RM500", labelMs: null, proposerCode: null, approverCode: "HOD", committeeCode: null, committeeAct: null, nonDelegable: false, approverMandatory: false, isGap: false, gapNote: null, note: "", clause: "cl. 1", sortOrder: 1, recommenders: [], provenance: "STATED" as const, source: "cl. 1" };
+  const matrix = { label: "Limits, draft", policy: { boundaryValue: 300_000, boundaryInclusive: true, quotationFloor: 15_000, tenderFloor: 300_000, requisitionBoundary: 50_000, currency: "MYR" }, coreRouting: [{ approverCode: "HOD", clause: "cl. 2", provenance: "STATED" as const, steps: [] }], rules: [rule], source: "cl." };
+  const model = { content: { code: "M", nameEn: "Model", nameMs: null, route: "TRADITIONAL" as const, provenance: "OBSERVED" as const, governingSource: "s", stages: [], bandSets: [] }, source: "s" };
+  const rsaj = (over: Partial<StarterPack> = {}) => pack({ name: "rsaj", provenance: "STATED", lists: [roles], drafts: { matrices: [matrix], evaluationModels: [model] }, ...over });
+
+  it("writes a draft matrix and a draft model, the matrix dated the organisation's day, never in force", () => {
+    const p = planPacks([rsaj()], snap());
+    expect(p.faults).toEqual([]);
+    expect(p.writes.map((w) => w.kind)).toEqual(["ROW", "DRAFT_MATRIX", "DRAFT_MODEL"]);
+    expect(p.writes[1]).toMatchObject({ values: { effectiveFrom: new Date("2026-10-23T00:00:00Z") } });
+  });
+
+  it("skips a draft beside a matrix or a model the organisation already has", () => {
+    const p = planPacks([rsaj()], snap({ drafts: { matrices: 1, evaluationModels: 2 } }));
+    expect(p.writes.map((w) => w.kind)).toEqual(["ROW"]);
+    expect(p.skips).toMatchObject([
+      { target: "Limits, draft", reason: "DRAFT_EXISTS" },
+      { target: "Model", reason: "DRAFT_EXISTS" },
+    ]);
+  });
+
+  it("skips a draft whose offices the run did not write, and refuses one naming an office no pack has", () => {
+    const skipped = planPacks([rsaj()], snap({ listSizes: { AuthorityRole: 3 } }));
+    expect(skipped.skips.map((s) => s.reason)).toEqual(["LIST_NOT_EMPTY", "REFERENCE_SKIPPED"]);
+    const unknown = planPacks([rsaj({ drafts: { matrices: [{ ...matrix, rules: [{ ...rule, approverCode: "CEO" }] }] } })], snap());
+    expect(unknown.faults[0]).toMatch(/CEO names no AuthorityRole row/);
+  });
+
+  it("refuses a draft that would be in force or name its maker, and a rule labelled with its key", () => {
+    const issued = planPacks([rsaj({ drafts: { matrices: [{ ...matrix, issuedAt: new Date() } as typeof matrix] } })], snap());
+    expect(issued.faults).toEqual(["rsaj · Limits, draft: a draft never sets issuedAt."]);
+    expect(planPacks([rsaj({ drafts: { matrices: [{ ...matrix, rules: [{ ...rule, labelEn: "R1" }] }] } })], snap()).faults[0]).toMatch(/label in words/);
+  });
+
+  it("judges the draft as issuing would: an approval beneath the approver in the core routing is refused", () => {
+    const bad = { ...matrix, coreRouting: [{ approverCode: "HOD", clause: "c", provenance: "STATED" as const, steps: [{ roleCode: "HOD", act: "R" as const, provenance: "STATED" as const }] }] };
+    expect(planPacks([rsaj({ drafts: { matrices: [bad] } })], snap()).faults[0]).toMatch(/APPROVER_BENEATH/);
+  });
+});
+
+describe("planPacks: lists of another list's rows, and the product's validators", () => {
+  const methods = { model: "SourcingMethod", label: "Method", rows: [{ code: "selected", values: { nameEn: "Selected tender" }, source: "s" }] };
+  const items = (values: Record<string, unknown>) => ({ model: "MethodChecklistItem", label: "Proposal item", rows: [{ code: "a", values: { key: "a", labelEn: "The work", ...values }, source: "s" }] });
+
+  it("loads a list with no organisation column only where each row names its parent", () => {
+    const p = planPacks([pack({ lists: [methods, items({ sourcingMethodId: { ref: "SourcingMethod:selected" } })] })], snap());
+    expect(p.faults).toEqual([]);
+    expect(p.writes.map((w) => w.model)).toEqual(["SourcingMethod", "MethodChecklistItem"]);
+    expect(planPacks([pack({ lists: [methods, items({})] })], snap()).faults[0]).toMatch(/names the row it belongs to/);
+    expect(planPacks([pack({ lists: [methods, items({ sourcingMethodId: { ref: "SourcingMethod:selected" } })] })], snap({ listSizes: { SourcingMethod: 1 } })).skips.map((s) => s.reason)).toEqual(["LIST_NOT_EMPTY", "REFERENCE_SKIPPED"]);
+  });
+
+  it("refuses selling online without releasing documents online, and never sets the submission channel online", () => {
+    const sale = { model: "WindowPolicy", label: "Sale", values: { documentSaleMode: "ONLINE" }, source: "s" };
+    expect(planPacks([pack({ groups: [sale] })], snap()).faults[0]).toMatch(/^Invitation controls: /);
+    expect(planPacks([pack({ groups: [{ ...sale, values: { documentSaleMode: "ONLINE", electronicDocumentRelease: true } }] })], snap()).faults).toEqual([]);
+    expect(planPacks([pack({ groups: [{ ...sale, values: { submissionChannel: "ONLINE" } }] })], snap()).faults[0]).toMatch(/^Invitation controls: /);
+  });
+
+  it("refuses a bank statement class that is not SULIT, but not what was wrong before the run", () => {
+    const g = { model: "SupplierPolicy", label: "Classes", values: { supplierBankStatementClassId: { ref: "DocumentClass:internal" } }, provenanceColumn: "uploadClassProvenance", source: "s" };
+    expect(planPacks([pack({ lists: [classes()], groups: [g] })], snap()).faults[0]).toMatch(/SULIT/);
+    const halfLimits = { SupplierPolicy: { uploadMaxFilesPerApplication: 3, uploadMaxBytesPerApplication: null } };
+    expect(planPacks([pack({ groups: [limits()] })], snap({ rows: halfLimits })).faults).toEqual([]);
+  });
+
+  it("refuses two live tender parts of one role on one basis, and a loop outcome with no stage to return to", () => {
+    const part = (code: string) => ({ code, values: { packKind: "TENDER", printedNumber: "1", labelEn: "Form of tender", role: "FORM_OF_TENDER", content: "STANDARD", source: "UPLOAD" }, source: "s" });
+    expect(planPacks([pack({ lists: [{ model: "TenderDocumentPart", label: "Part", rows: [part("a"), part("b")] }] })], snap()).faults).toEqual(["Part · Form of tender: Another live part has this role. Retire it first, or change the basis.", "Part · Form of tender: Another live part has this role. Retire it first, or change the basis."]);
+    const loop = { model: "NotApprovedOutcome", label: "Not approved", rows: [{ code: "x", values: { nameEn: "Recall", kind: "LOOP", returnsToStage: "somewhere" }, source: "s" }] };
+    expect(planPacks([pack({ lists: [loop] })], snap()).faults[0]).toMatch(/evaluation's stages/);
   });
 });

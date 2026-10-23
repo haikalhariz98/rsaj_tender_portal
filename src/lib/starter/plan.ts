@@ -9,7 +9,14 @@
  * - a reference (`{ ref: "<Model>:<code>" }`) resolves to a row this run writes; if that row is skipped, the referring group or list is too;
  * - packs load in the order given, and the first pack wins: a later pack finds what an earlier one wrote already set.
  *
- * A list row is given what its table has and the pack leaves out: its code, its order as listed, the pack's provenance and the row's source.
+ * A list row is given what its table has and the pack leaves out: its code, its order as listed, the pack's provenance and the row's source. A list
+ * whose table has no organisation column (a method's proposal items) belongs to rows of another list: each of its rows names its parent by
+ * reference, so it is empty by construction when its parent is written in the same run, and skipped with it.
+ *
+ * Drafts (ADR 0043 D2): an approval matrix or an evaluation model is loaded only as a draft, never in force, with no issuer and no maker, so a
+ * named person adopts it and puts it in force through the normal issue path. A draft matrix is skipped (DRAFT_EXISTS) where the organisation has
+ * any matrix of its own, draft or issued; draft models are skipped where it has any model. A draft names offices and committees by code: each
+ * must be a row the same run writes, or the draft is skipped with it. The issue triggers still guard the tables.
  *
  * Packs load only while two-person approval is off (SP-23). A run may create a new organisation's first security settings with it off
  * (`WHEN_CREATING_ROW`, the generic pack at setup, SP-3); the development fill may turn it off on a database holding the demonstration
@@ -18,14 +25,23 @@
 
 import { Prisma } from "@/generated/prisma/browser";
 import { policyFault } from "@/lib/auth/policy";
+import { coreChainFaultsAcross, coreLevelFaults } from "@/lib/authority/core-routing";
 import { destinationRowFaults, type RejectionKind } from "@/lib/authority/rejection";
+import { boundaryFaultsAcross } from "@/lib/authority/resolve";
+import type { Role } from "@/lib/authority/types";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { documentFaultText } from "@/lib/documents/labels";
 import { policyFaults } from "@/lib/documents/policy";
+import { isLoopKey } from "@/lib/evaluation/loop";
 import { patternFaults, type NumberingReset } from "@/lib/numbering/series";
+import { channelSettingFaults } from "@/lib/sealing/switch";
 import { listValueFaults } from "@/lib/suppliers/config";
+import { megabytesOfBytes, registrationSettingErrors } from "@/lib/suppliers/registration-settings";
+import { PART_CONFIG_FAULT_TEXT, partConfigFaults } from "@/lib/tender-docs/config";
+import type { ConfiguredPart } from "@/lib/tender-docs/types";
+import { configFaultText, policyFaults as windowPolicyFaults } from "@/lib/window/config";
 
-import type { PackName, PackPlan, PackProvenance, PackSkip, StarterPack } from "./types";
+import type { PackMatrixDraft, PackModelDraft, PackName, PackPlan, PackProvenance, PackSkip, StarterPack } from "./types";
 
 /// A value standing for the organisation's day when the pack loads (a dated row's `effectiveFrom`). Needs the organisation's time zone.
 export const LOAD_DAY = { loadDay: true } as const;
@@ -40,6 +56,8 @@ export interface PackSnapshot {
   listSizes: Record<string, number>;
   /// The database holds the demonstration (`demoIsLoaded`).
   demoIsLoaded: boolean;
+  /// How many approval matrices of its own (not a funder's) and evaluation models the organisation has, draft or in force. Absent: none.
+  drafts?: { matrices: number; evaluationModels: number };
 }
 
 interface WriteBase {
@@ -54,7 +72,9 @@ interface WriteBase {
 export type PackWrite =
   | (WriteBase & { kind: "SWITCH_OFF"; create: boolean; reason: string })
   | (WriteBase & { kind: "GROUP"; label: string; create: boolean; values: Record<string, unknown>; before: Record<string, unknown> | null; provenanceColumn?: string; sourceColumn?: string })
-  | (WriteBase & { kind: "ROW"; listLabel: string; code: string; label: string; values: Record<string, unknown> });
+  | (WriteBase & { kind: "ROW"; listLabel: string; code: string; label: string; values: Record<string, unknown> })
+  | (WriteBase & { kind: "DRAFT_MATRIX"; label: string; draft: PackMatrixDraft; values: { effectiveFrom: unknown } })
+  | (WriteBase & { kind: "DRAFT_MODEL"; label: string; draft: PackModelDraft; values: Record<string, never> });
 export type PlannedSkip = PackSkip & { pack: PackName; provenance: PackProvenance };
 export interface PlannedPacks extends PackPlan {
   writes: PackWrite[];
@@ -128,12 +148,92 @@ function shapeFaults(pack: StarterPack): string[] {
     for (const r of l.rows) check(l.model, Object.keys(r.values), `${pack.name} · ${l.label} · ${r.code}`);
     if (new Set(l.rows.map((r) => r.code)).size !== l.rows.length) out.push(`${pack.name} · ${l.label}: two rows share a code.`);
   }
-  if (pack.drafts) out.push(`${pack.name}: this loader does not load drafts yet.`);
+  for (const l of pack.lists) {
+    // A list with no organisation column belongs to rows of another list, and is told apart only by its parent.
+    if (!(columnsOf(l.model) ?? []).includes("organisationId") && l.rows.some((r) => !Object.values(r.values).some((v) => refOf(v) != null))) out.push(`${pack.name} · ${l.label}: each row names the row it belongs to, by reference.`);
+  }
+  for (const m of pack.drafts?.matrices ?? []) out.push(...matrixShapeFaults(m).map((f) => `${pack.name} · ${m.label}: ${f}`));
+  for (const d of pack.drafts?.evaluationModels ?? []) out.push(...modelShapeFaults(d).map((f) => `${pack.name} · ${d.content.nameEn}: ${f}`));
   return out;
 }
 
+/// Keys that would put a draft in force or name who made it: a pack sets none of them (ADR 0043 D2). Checked at run time, whatever the type says.
+const IN_FORCE_KEYS = ["issuedAt", "issuedByPersonId", "issuedBy", "status", "makersUnknownAtLanding", "makers", "contentSnapshot", "effectiveTo", "retiredAt"];
+const inForceKeys = (o: object) => Object.keys(o).filter((k) => IN_FORCE_KEYS.includes(k));
+
+function matrixShapeFaults(m: PackMatrixDraft): string[] {
+  const out = inForceKeys(m).map((k) => `a draft never sets ${k}.`);
+  if (m.rules.length === 0) out.push("the draft has no rules.");
+  if (new Set(m.rules.map((r) => r.ruleKey)).size !== m.rules.length) out.push("two rules share a key.");
+  for (const r of m.rules) if (!r.labelEn.trim() || r.labelEn === r.ruleKey) out.push(`the rule ${r.ruleKey} needs a label in words.`);
+  return out;
+}
+
+function modelShapeFaults(d: PackModelDraft): string[] {
+  const c = d.content;
+  const out = inForceKeys(c).map((k) => `a draft never sets ${k}.`);
+  const unique = (xs: readonly unknown[], what: string) => {
+    if (new Set(xs).size !== xs.length) out.push(`two ${what} are the same.`);
+  };
+  unique(c.stages.map((s) => s.order), "stages' orders");
+  unique(c.stages.map((s) => s.code), "stages' codes");
+  unique(c.bandSets.map((b) => b.code), "band sets' codes");
+  for (const s of c.stages) {
+    unique(s.criteria.map((x) => x.code), `codes of the criteria of ${s.labelEn}`);
+    unique(s.factors.map((x) => x.code), `codes of the factors of ${s.labelEn}`);
+    for (const [i, x] of s.criteria.entries()) {
+      if (x.parentCode && !s.criteria.slice(0, i).some((p) => p.code === x.parentCode)) out.push(`${s.labelEn} · ${x.labelEn}: its group comes before it in the same stage.`);
+      if (x.bandSetCode && !c.bandSets.some((b) => b.code === x.bandSetCode)) out.push(`${s.labelEn} · ${x.labelEn}: the model has no band set ${x.bandSetCode}.`);
+    }
+  }
+  return out;
+}
+
+/// The invitation controls' rules (`policyFaults`, with the channel rule of ruling 13), on a window policy row.
+function windowFaults(window: Record<string, unknown>): string[] {
+  const n = (c: string) => (window[c] == null ? null : Number(window[c]));
+  const input = {
+    minAdvertisementDays: n("minAdvertisementDays"),
+    targetAdvertisementDays: n("targetAdvertisementDays"),
+    newspaperWarnDays: n("newspaperWarnDays"),
+    purchaseCutoffDays: n("purchaseCutoffDays"),
+    defaultClosingTime: (window.defaultClosingTime as string | null | undefined) ?? null,
+    advertisementDayRule: (window.advertisementDayRule as "LATEST_REQUIRED_CHANNEL" | "NAMED_CHANNEL" | null | undefined) ?? null,
+    // Whether a named channel or calendar exists is the reference's question, not the policy's.
+    advertisementChannelId: window.advertisementChannelId == null ? null : "named",
+    calendarId: null,
+    templateIds: [],
+    documentSaleMode: (window.documentSaleMode as "COUNTER" | "ONLINE" | null | undefined) ?? null,
+    electronicDocumentRelease: (window.electronicDocumentRelease as boolean | null | undefined) ?? null,
+    // Ruling 13: a pack cannot know the deployment allows online bids, so it never sets the channel online.
+    channelOnlineNotAllowed: channelSettingFaults((window.submissionChannel as "PAPER" | "ONLINE" | null | undefined) ?? null, { allowed: false, demonstration: false, fault: "ONLINE_NOT_ALLOWED" }).length > 0,
+  };
+  return windowPolicyFaults(input, { channels: [{ id: "named", retiredOn: null }], calendars: [], templateIds: [], today: null }).map((f) => `Invitation controls: ${configFaultText(f)}`);
+}
+
+/// The supplier register's rules (`registrationSettingErrors`) on a supplier policy row. A class named by reference is the run's own; a class id
+/// already set was judged when it was saved.
+function supplierFaults(supplier: Record<string, unknown>, classes: { id: string; classification: string | null }[]): string[] {
+  const str = (c: string) => (supplier[c] == null ? null : String(supplier[c]));
+  const bytes = supplier.uploadMaxBytesPerApplication as bigint | number | null | undefined;
+  const input = {
+    helpEmail: str("helpEmail"),
+    helpPhone: str("helpPhone"),
+    helpProvenance: str("helpProvenance"),
+    maxFiles: supplier.uploadMaxFilesPerApplication == null ? null : Number(supplier.uploadMaxFilesPerApplication),
+    maxMegabytes: bytes == null ? null : megabytesOfBytes(bytes),
+    uploadLimitProvenance: str("uploadLimitProvenance"),
+    uploadClassId: refOf(supplier.supplierUploadClassId),
+    statementClassId: refOf(supplier.supplierBankStatementClassId),
+    uploadClassProvenance: str("uploadClassProvenance"),
+    onlineDeclarationReplacesPaper: (supplier.onlineDeclarationReplacesPaper as boolean | null | undefined) ?? null,
+    onlineDeclarationProvenance: str("onlineDeclarationProvenance"),
+  };
+  return registrationSettingErrors(input, { classes }).map((e) => `Supplier register: ${e.message}`);
+}
+
 /// The faults of the values as they would stand after the run, judged by the product's own validators.
-function valueFaults(writes: PackWrite[], rows: PackSnapshot["rows"]): string[] {
+function valueFaults(writes: PackWrite[], rows: PackSnapshot["rows"], before: PackSnapshot["rows"]): string[] {
   const out: string[] = [];
   const sp = rows.SecurityPolicy;
   if (writes.some((w) => w.kind === "GROUP" && w.model === "SecurityPolicy") && sp) {
@@ -155,7 +255,29 @@ function valueFaults(writes: PackWrite[], rows: PackSnapshot["rows"]): string[] 
     effectiveTo: (w.values.effectiveTo as Date | null | undefined) ?? null,
   });
   for (const w of destinations) for (const f of destinationRowFaults(asDestination(w), destinations.map(asDestination), [])) out.push(`${w.listLabel} · ${w.code}: ${f}`);
+
+  // The register's and the invitation controls' rules on the row as it would stand, less what was already wrong with it before the run.
+  const fresh = (judge: (row: Record<string, unknown>) => string[], model: string) => {
+    const after = rows[model];
+    if (!after || !writes.some((w) => w.kind === "GROUP" && w.model === model)) return [];
+    const was = new Set(before[model] ? judge(before[model]!) : []);
+    return judge(after).filter((f) => !was.has(f));
+  };
+  out.push(...fresh(windowFaults, "WindowPolicy"));
+  const classes = writes.filter((w): w is Extract<PackWrite, { kind: "ROW" }> => w.kind === "ROW" && w.model === "DocumentClass").map((w) => ({ id: `DocumentClass:${w.code}`, classification: (w.values.classification as string | null) ?? null }));
+  out.push(...fresh((row) => supplierFaults(row, classes), "SupplierPolicy"));
+  const parts = writes.filter((w): w is Extract<PackWrite, { kind: "ROW" }> => w.kind === "ROW" && w.model === "TenderDocumentPart");
+  const bases = writes.filter((w): w is Extract<PackWrite, { kind: "ROW" }> => w.kind === "ROW" && w.model === "ContractBasis").map((w) => w.code);
+  const asPart = (w: Extract<PackWrite, { kind: "ROW" }>) => {
+    const v = w.values as Partial<ConfiguredPart>;
+    return { ...(v as ConfiguredPart), id: w.code, contractBasisCode: v.contractBasisCode ?? null, ownerOrgUnitCode: v.ownerOrgUnitCode ?? null, templateCode: v.templateCode ?? null, retiredOn: null };
+  };
+  for (const w of parts) {
+    const others = parts.filter((o) => o !== w).map(asPart);
+    for (const f of partConfigFaults(asPart(w), { others, bases, templates: [], units: [], today: "0000-00-00" })) out.push(`${w.listLabel} · ${w.label}: ${PART_CONFIG_FAULT_TEXT[f.code]}`);
+  }
   for (const w of writes) {
+    if (w.kind === "ROW" && w.model === "NotApprovedOutcome" && w.values.kind === "LOOP" && !isLoopKey(w.values.returnsToStage as string | null)) out.push(`${w.listLabel} · ${w.label}: a loop returns to one of the evaluation's stages.`);
     if (w.kind === "ROW" && w.model === "SupplierListValue") {
       const v = w.values as { code: string; nameEn: string; provenance: string; callingCode?: string | null; list: string };
       for (const f of listValueFaults(v, { codeTaken: false, kindListed: true, list: v.list })) out.push(`${w.listLabel} · ${w.code}: ${f.code}`);
@@ -223,7 +345,7 @@ export function planPacks(packs: readonly StarterPack[], snap: PackSnapshot): Pl
         if (columns.includes("code") && !("code" in values)) values.code = r.code;
         if (columns.includes("provenance") && !("provenance" in values)) values.provenance = pack.provenance;
         if (columns.includes("governingSource") && !("governingSource" in values)) values.governingSource = r.source;
-        writes.push({ kind: "ROW", pack: pack.name, actor, model: list.model, listLabel: list.label, code: r.code, label: r.label ?? String(r.values.nameEn ?? r.values.name ?? r.code), values, source: r.source, requirement: r.requirement, provenance: pack.provenance });
+        writes.push({ kind: "ROW", pack: pack.name, actor, model: list.model, listLabel: list.label, code: r.code, label: r.label ?? String(r.values.nameEn ?? r.values.name ?? r.values.labelEn ?? r.code), values, source: r.source, requirement: r.requirement, provenance: pack.provenance });
         written.add(`${list.model}:${r.code}`);
       }
       sizes[key] = list.rows.length;
@@ -252,6 +374,57 @@ export function planPacks(packs: readonly StarterPack[], snap: PackSnapshot): Pl
       writes.push({ kind: "GROUP", pack: pack.name, actor, model: g.model, label: g.label, create: !row, values, before, provenanceColumn: g.provenanceColumn, sourceColumn: g.sourceColumn, source: g.source, requirement: g.requirement, provenance: pack.provenance });
       rows[g.model] = { ...(row ?? {}), ...values };
     }
+    planDrafts(pack, actor, skip);
+  }
+
+  // Drafts (ADR 0043 D2): never one beside a matrix or a model the organisation already has, and never naming an office or a committee this
+  // run did not write. Judged by the checks issuing makes, so a draft the run loads can be put in force once a person has reviewed it.
+  function planDrafts(pack: StarterPack, actor: string, skip: (target: string, reason: PackSkip["reason"]) => void) {
+    const has = { matrices: snap.drafts?.matrices ?? 0, evaluationModels: snap.drafts?.evaluationModels ?? 0 };
+    for (const w of writes) if (w.kind === "DRAFT_MATRIX") has.matrices++;
+    else if (w.kind === "DRAFT_MODEL") has.evaluationModels++;
+    const base = { pack: pack.name, actor, provenance: pack.provenance };
+    const named = (codes: (string | null | undefined)[], model: string, where: string) => {
+      let missing = false;
+      for (const c of new Set(codes.filter((x): x is string => !!x))) {
+        if (!defined.has(`${model}:${c}`)) faults.push(`${where}: ${c} names no ${model} row of any pack in this run.`);
+        if (!written.has(`${model}:${c}`)) missing = true;
+      }
+      return missing;
+    };
+    for (const m of pack.drafts?.matrices ?? []) {
+      if (has.matrices > 0) {
+        skip(m.label, "DRAFT_EXISTS");
+        continue;
+      }
+      const offices = [...m.rules.flatMap((r) => [r.proposerCode, r.approverCode, r.committeeCode, ...r.recommenders.map((x) => x.roleCode)]), ...m.coreRouting.flatMap((l) => [l.approverCode, ...l.steps.map((x) => x.roleCode)])];
+      if (named(offices, "AuthorityRole", `${pack.name} · ${m.label}`)) {
+        skip(m.label, "REFERENCE_SKIPPED");
+        continue;
+      }
+      const roles: Record<string, Role> = Object.fromEntries(
+        writes.filter((w): w is Extract<PackWrite, { kind: "ROW" }> => w.kind === "ROW" && w.model === "AuthorityRole").map((w) => [w.code, w.values as unknown as Role]),
+      );
+      for (const l of m.coreRouting) for (const f of coreLevelFaults(l, roles)) faults.push(`${pack.name} · ${m.label} · core routing of ${l.approverCode}: ${f.fault} (${f.roleCode})`);
+      for (const f of coreChainFaultsAcross(m.rules, m.coreRouting, roles)) faults.push(`${pack.name} · ${m.label} · ${f.rule.labelEn}: ${f.fault}${f.roleCode ? ` (${f.roleCode})` : ""}`);
+      for (const f of boundaryFaultsAcross(m.rules, m.policy)) faults.push(`${pack.name} · ${m.label} · ${f.rule.labelEn}: ${f.fault}`);
+      writes.push({ ...base, kind: "DRAFT_MATRIX", model: "AuthorityMatrix", label: m.label, draft: m, values: { effectiveFrom: LOAD_DAY }, source: m.source, requirement: m.requirement });
+      has.matrices++;
+    }
+    // The models are one set, as a list is: none loads beside a model the organisation (or an earlier pack) already has.
+    const modelsExist = has.evaluationModels > 0;
+    for (const d of pack.drafts?.evaluationModels ?? []) {
+      if (modelsExist) {
+        skip(d.content.nameEn, "DRAFT_EXISTS");
+        continue;
+      }
+      const where = `${pack.name} · ${d.content.nameEn}`;
+      if (named(d.content.stages.map((s) => s.committeeCode), "Committee", where) || named(d.content.stages.map((s) => s.shortlistOfficeCode), "AuthorityRole", where)) {
+        skip(d.content.nameEn, "REFERENCE_SKIPPED");
+        continue;
+      }
+      writes.push({ ...base, kind: "DRAFT_MODEL", model: "EvaluationModel", label: d.content.nameEn, draft: d, values: {}, source: d.source, requirement: d.requirement });
+    }
   }
 
   // A dated row takes the organisation's day, in the time zone it will have once this run is done.
@@ -261,9 +434,9 @@ export function planPacks(packs: readonly StarterPack[], snap: PackSnapshot): Pl
     for (const [c, v] of Object.entries(w.values)) {
       if (!isLoadDay(v)) continue;
       if (today == null) faults.push(`${w.kind === "ROW" ? w.listLabel : w.label}: a dated value needs the organisation's time zone.`);
-      else w.values[c] = dayToDate(today);
+      else (w.values as Record<string, unknown>)[c] = dayToDate(today);
     }
   }
-  if (faults.length === 0) faults.push(...valueFaults(writes, rows));
+  if (faults.length === 0) faults.push(...valueFaults(writes, rows, snap.rows));
   return faults.length > 0 ? { writes: [], skips, faults } : { writes, skips, faults };
 }

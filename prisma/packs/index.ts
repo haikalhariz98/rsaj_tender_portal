@@ -44,7 +44,7 @@ export function describeRun(r: LoadResult, apply: boolean): string[] {
   const out: string[] = [];
   const counts = new Map<string, number>();
   for (const w of r.writes) {
-    const line = w.kind === "SWITCH_OFF" ? "Security settings · approval by another admin off" : w.kind === "GROUP" ? w.label : w.listLabel;
+    const line = w.kind === "SWITCH_OFF" ? "Security settings · approval by another admin off" : w.kind === "ROW" ? w.listLabel : w.kind === "GROUP" ? w.label : `${w.label} (draft, not in force)`;
     counts.set(`${w.pack}: ${line}`, (counts.get(`${w.pack}: ${line}`) ?? 0) + 1);
   }
   if (r.faults.length > 0) {

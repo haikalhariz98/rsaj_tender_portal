@@ -1,6 +1,10 @@
 /**
  * The shape of a starter pack (ADR 0043 D1). A pack is data, loaded on purpose by `scripts/load-pack.ts`, never a literal in product code.
  */
+
+import type { CoreLevel, Policy, Rule } from "@/lib/authority/types";
+import type { ModelContent } from "@/lib/evaluation/model";
+
 export type PackName = "generic" | "rsaj" | "dev-fill";
 export type PackProvenance = "STATED" | "ASSUMED";
 
@@ -24,13 +28,38 @@ export interface PackList {
   rows: Array<{ code: string; label?: string; values: Record<string, unknown>; source: string; requirement?: string }>;
 }
 
+/// One rule of a draft approval matrix, as the resolver reads it, with where it comes from: ASSUMED where the rule is a reading of the source
+/// rather than its words (the slashed DAL codes, SP-2a). The table has no provenance column; it is kept in the rule's note and its audit row.
+export type PackRule = Rule & { provenance: PackProvenance; source: string; requirement?: string };
+
+/**
+ * A draft approval matrix (ADR 0043 D2): never in force. It has no issue date, no issuer and no maker, so a person adopts it and puts it in force
+ * through the normal issue path. Its offices are the AuthorityRole rows of the same run.
+ */
+export interface PackMatrixDraft {
+  label: string;
+  policy: Omit<Policy, "clauses">;
+  coreRouting: CoreLevel[];
+  rules: PackRule[];
+  source: string;
+  requirement?: string;
+}
+
+/// A draft evaluation model (ADR 0043 D2): status DRAFT, version 1, no issuer and no maker. Its content carries its own provenance.
+export interface PackModelDraft {
+  content: Omit<ModelContent, "version">;
+  notes?: string;
+  source: string;
+  requirement?: string;
+}
+
 export interface StarterPack {
   name: PackName;
   version: number; // in the SYSTEM actor label: "Starter pack: RSAJ v1"
   provenance: PackProvenance;
   groups: PackGroup[];
   lists: PackList[]; // in dependency order: a list another refers to comes first
-  drafts?: { matrices?: unknown[]; evaluationModels?: unknown[] }; // RSAJ only; typed in 4.4 from the matrix and model writers' inputs
+  drafts?: { matrices?: PackMatrixDraft[]; evaluationModels?: PackModelDraft[] }; // RSAJ only (ADR 0043 D2)
   setsTwoPersonOff?: "WHEN_CREATING_ROW" | "DEMO_DATABASE_ONLY"; // generic | dev-fill (the only exception to SP-23)
 }
 
