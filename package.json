@@ -29,6 +29,7 @@
     "db:generate": "prisma generate",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
+    "pack": "tsx scripts/load-pack.ts",
     "postinstall": "prisma generate",
     "demo:load": "tsx prisma/demo.ts load",
     "demo:wipe": "tsx prisma/demo.ts wipe",

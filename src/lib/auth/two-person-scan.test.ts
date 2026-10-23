@@ -152,8 +152,15 @@ describe("each table a two-person change writes has one writer", () => {
     expect(writersOf(/\brolePermission\.(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\(/g)).toEqual([STORE]);
   });
 
-  it("the organisation's sign-in settings are written only by applying a change, and by the bootstrap command that sets the first", () => {
-    expect(writersOf(/\bsecurityPolicy\.(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\(/g)).toEqual([STORE, "src/lib/auth/bootstrap.ts"].sort());
+  it("the organisation's sign-in settings are written only by applying a change, by the bootstrap command that sets the first, and by the pack loader", () => {
+    const ALLOWED: Readonly<Record<string, string>> = {
+      [STORE]: "Applying a decided change, or one applied at once while the switch is off (ADR 0043 D3).",
+      "src/lib/auth/bootstrap.ts": "The bootstrap command sets the first settings of a new organisation.",
+      // Written by step 4.3 of the simplification plan: allowed once it exists.
+      "src/lib/starter/apply.ts": "operator pack, only while the switch is off; ADR 0043 D1",
+    };
+    const expected = Object.keys(ALLOWED).filter((f) => FILES.some((x) => x.file === f));
+    expect(writersOf(/\bsecurityPolicy\.(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\(/g)).toEqual(expected.sort());
   });
 
   it("a change is written only by the store that proposes and decides it", () => {
