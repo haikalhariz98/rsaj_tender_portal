@@ -10,7 +10,7 @@ import { APPEND_ONLY_TABLES, FIGURE_READER, grantStatements, HELD_APPLICATION_TA
 // Wave 3b (SR-13, build plan step 2, ADR 0036 D12): SealedAccessEvent and PublishedKeyChange joined the append-only tables, and the rest of the sealed tables
 // (SEALED_TABLES) lose DELETE and TRUNCATE (migration 20261103110000), so the "every table exists" set has them all.
 // N6 (ruling 20ch, threat model F10): CompanyEstimateVersion joins the set, so the column wall is built for it, and `grants` passes its columns and the reader.
-const ALL = new Set(["Organisation", "CompanyEstimateVersion", "AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "BlobContent", "_prisma_migrations", "SealedAccessEvent", "PublishedKeyChange", ...SEALED_TABLES, "PortalApplicationValue", ...HELD_APPLICATION_TABLES, "ProjectDocumentVersion", "ProjectDocumentRequest", "ProjectDocumentDecision", ...PROJECT_WRITE_ONCE_TABLES]);
+const ALL = new Set(["Organisation", "CompanyEstimateVersion", "AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "BlobContent", "_prisma_migrations", "SealedAccessEvent", "PublishedKeyChange", ...SEALED_TABLES, "PortalApplicationValue", ...HELD_APPLICATION_TABLES, "ProjectDocumentVersion", "ProjectDocumentRequest", "ProjectDocumentDecision", "KickOffAttendance", ...PROJECT_WRITE_ONCE_TABLES]);
 const VERSION_COLUMNS = ["id", "organisationId", "estimateId", "versionNo", "value", "reason", "preparedById", "createdAt"];
 const COLUMNS: ReadonlyMap<string, readonly string[]> = new Map([["CompanyEstimateVersion", VERSION_COLUMNS]]);
 const grants = (existing: ReadonlySet<string> = ALL, more: { columns?: ReadonlyMap<string, readonly string[]>; figureReaderPresent?: boolean } = {}) =>
@@ -55,7 +55,10 @@ describe("the app role's grants (ADR 0034 D11)", () => {
       expect(APPEND_ONLY_TABLES).toContain(t);
       expect(s).toContain(`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE "public"."${t}" FROM "perolehan_app"`);
     }
-    expect([...PROJECT_WRITE_ONCE_TABLES]).toEqual(["ProjectDocument", "ProjectDocumentApprover"]);
+    // Plan step 7 (ADR 0042 D10): the kick-off meeting joins them (changed until held, never removed), and its attendance is append-only.
+    expect([...PROJECT_WRITE_ONCE_TABLES]).toEqual(["ProjectDocument", "ProjectDocumentApprover", "KickOffMeeting"]);
+    expect(APPEND_ONLY_TABLES).toContain("KickOffAttendance");
+    expect(s).toContain(`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE "public"."KickOffAttendance" FROM "perolehan_app"`);
     for (const t of PROJECT_WRITE_ONCE_TABLES) {
       expect(s).toContain(`REVOKE DELETE, TRUNCATE ON TABLE "public"."${t}" FROM "perolehan_app"`);
       expect(s.some((x) => x.startsWith("REVOKE") && x.includes(`"${t}"`) && x.includes("UPDATE"))).toBe(false);
@@ -109,7 +112,7 @@ describe("the app role's grants (ADR 0034 D11)", () => {
     const now = new Set(["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "BlobContent"]);
     expect(grants(now).some((x) => x.includes("SulitAccessEvent") || x.includes("RegistrationDeclaration") || x.includes("AddendumAcknowledgement") || x.includes("TenderInspectionEvent") || x.includes("NonAwardNotice") || x.includes("PaymentAttempt") || x.includes("PurchaseDownload"))).toBe(false);
     // Wave 3b (step 2): the sealed-bid tables are listed too, so they are reported until they exist.
-    expect(notYetPresent(now)).toEqual(["SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange", "PortalApplicationValue", "ProjectDocumentVersion", "ProjectDocumentRequest", "ProjectDocumentDecision", ...SEALED_TABLES, ...HELD_APPLICATION_TABLES, ...PROJECT_WRITE_ONCE_TABLES]);
+    expect(notYetPresent(now)).toEqual(["SulitAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange", "PortalApplicationValue", "ProjectDocumentVersion", "ProjectDocumentRequest", "ProjectDocumentDecision", "KickOffAttendance", ...SEALED_TABLES, ...HELD_APPLICATION_TABLES, ...PROJECT_WRITE_ONCE_TABLES]);
     expect(notYetPresent(ALL)).toEqual([]);
   });
 });

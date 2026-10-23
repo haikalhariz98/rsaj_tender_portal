@@ -219,6 +219,10 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("ProjectDocumentApprover", "removedBy", "Recorded by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/document-actions.ts#removeProjectApprover"] }),
   // Plan step 6 (PW-9, PW-24): the mark on a version of one of the six kinds (Taken up, Noted, Returned) is a decision row with no approver, on the same slot, from its own action.
   slot("ProjectDocumentDecision", "decidedBy", "Decided by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/document-actions.ts#decideProjectVersion", "src/app/projects/[id]/document-actions.ts#markProjectVersion"] }),
+  // ADR 0042 D10 (plan step 7, PW-18, PW-29): the kick-off meeting's two staff acts, scheduling it and recording it held, each the signed-in person's own under the same
+  // authority (PW-5). Changing it before it is held writes no person column (it is audited before and after). No holder yet: the act step wires each with its entry point.
+  slot("KickOffMeeting", "scheduledBy", "Recorded by"),
+  slot("KickOffMeeting", "heldRecordedBy", "Recorded by"),
   // Phase 4e (FR-VND-014): the officer who published an announcement to the supplier board, and the one who withdrew it. Each is the signed-in holder's own act, gated by
   // `announcements.publish`; an administrator is refused as at every act outside configuration (taken in the refusing direction; an open item for the product owner).
   slot("Announcement", "publishedBy", "Published by", { holder: "TRANSACTION", entryPoints: ["src/app/suppliers/announcement-actions.ts#publishAnnouncement"] }),
@@ -460,6 +464,7 @@ export const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "Requisition.returnedTo": "A routing target: the person a requisition is returned to, who did nothing by being named.",
   "CustodyItem.custodian": "A state: who holds an original now, changed only by a custody movement (`CustodyMovement.person`).",
   "ProjectDocumentApprover.person": "The approver named: who is asked to decide, not who acted. The act is the addition, whose slot is `ProjectDocumentApprover.addedBy`.",
+  "KickOffAttendance.person": "An attendee ticked on the organisation's side of a kick-off meeting: who was there, not who acted. The act is recording the meeting held, whose slot is `KickOffMeeting.heldRecordedBy`.",
 };
 
 export const slotKey = (entity: string, field: string): string => `${entity}.${field}`;

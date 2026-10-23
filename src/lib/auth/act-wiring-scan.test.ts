@@ -31,6 +31,9 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   "LossExpenseClaim.valuedBy": { why: "Valuing a loss-and-expense claim is a later 6.13 Part B increment: no act writes the valuation.", writer: /valuedByPersonId/ },
   // Wave 3b (SR-13): the two attestations of the bid sealing policy are wired since step 7 (`bid-sealing/core.ts`), so they leave this list.
   // ADR 0042 (plan step 4): the Project workspace's six staff slots are wired (`document-actions.ts`, `project-docs/store.ts`) and have left this list.
+  // ADR 0042 D10 (plan step 7): the kick-off meeting's two slots are registered with the schema; the act step (`kick-off-actions.ts`) builds their acts and takes each off this list.
+  "KickOffMeeting.scheduledBy": { why: "Scheduling the kick-off meeting is plan step 7's act step: no act writes the meeting yet.", writer: /\.kickOffMeeting\.(?:create|createMany|createManyAndReturn|upsert)\(|INSERT\s+INTO\s+"KickOffMeeting"/ },
+  "KickOffMeeting.heldRecordedBy": { why: "Recording the kick-off meeting held is plan step 7's act step: no act updates the meeting yet.", writer: /\.kickOffMeeting\.(?:update|updateMany|upsert)\(|UPDATE\s+"KickOffMeeting"/ },
 };
 
 function walk(dir: string, out: string[] = []): string[] {

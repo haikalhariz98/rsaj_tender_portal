@@ -433,6 +433,10 @@ export const OUT_MODELS: Readonly<Record<string, OutReason>> = {
   ContractorSubmission: "NOT_YET_EXPORTED",
   SiteDiaryEntry: "NOT_YET_EXPORTED",
   CertificateSignature: "NOT_YET_EXPORTED",
+  // ADR 0042 D10 (plan step 7): the kick-off meeting and who attended it. No reader exists yet: the act step builds the meeting and its reader together, and moves both into
+  // EXPORT_COLUMNS then (PW-19: attendance by the supplier's own accounts is IN). The minutes already reach the export as an ordinary shared Project document.
+  KickOffMeeting: "NOT_YET_EXPORTED",
+  KickOffAttendance: "NOT_YET_EXPORTED",
 };
 
 /// The IN columns of a model, as a Prisma `select`.

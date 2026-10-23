@@ -20,8 +20,9 @@ export const APP_ROLE_DEFAULT = "perolehan_app";
  * Wave 3b (SR-13, ADR 0036 D12) adds the sealed access log and the recorded changes of a published exercise key (migration `20261103110000_sr13_sealed_tables_triggers`).
  * The one-submission registration (ADR 0041, security audit L2) adds the codes held on an online application's certificates (migration `20261117001000_one_submission_registration`).
  * The Project workspace (ADR 0042 D1) adds a document's versions, its requests and the decisions on its versions (migration `20261122000100_project_workspace`).
+ * Its kick-off meeting (ADR 0042 D10) adds who attended (migration `20261123000000_kick_off_meeting`).
  */
-export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange", "PortalApplicationValue", "ProjectDocumentVersion", "ProjectDocumentRequest", "ProjectDocumentDecision"] as const;
+export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange", "PortalApplicationValue", "ProjectDocumentVersion", "ProjectDocumentRequest", "ProjectDocumentDecision", "KickOffAttendance"] as const;
 
 /**
  * Stored document bytes (OD-9). A trigger refuses UPDATE and TRUNCATE for every login (migration `20261007120000_blob_content_kept`);
@@ -45,11 +46,11 @@ export const SEALED_TABLES = ["BidSealingPolicy", "OfficerExerciseKey", "Exercis
 export const HELD_APPLICATION_TABLES = ["PortalApplicationDocument", "PortalApplicationCreditor", "PortalFormToken"] as const;
 
 /**
- * The Project workspace's two tables with one write-once change each (ADR 0042 D1): a document, whose kind is set once from null, and an approver, removed once with a reason. Their rows
- * change only as their triggers allow and are never removed: a trigger refuses DELETE and TRUNCATE for every login (migration `20261122000100_project_workspace`), and the grants are the
- * second wall. UPDATE stays, for the one change each trigger allows.
+ * The Project workspace's tables whose rows change only as their triggers allow and are never removed (ADR 0042): a document, whose kind is set once from null, and an approver, removed
+ * once with a reason (D1, migration `20261122000100_project_workspace`), and the kick-off meeting, changed only until it is recorded held and then frozen (D10, migration
+ * `20261123000000_kick_off_meeting`). A trigger refuses DELETE and TRUNCATE for every login, and the grants are the second wall. UPDATE stays, for the changes each trigger allows.
  */
-export const PROJECT_WRITE_ONCE_TABLES = ["ProjectDocument", "ProjectDocumentApprover"] as const;
+export const PROJECT_WRITE_ONCE_TABLES = ["ProjectDocument", "ProjectDocumentApprover", "KickOffMeeting"] as const;
 
 /// Prisma's own bookkeeping. The app has no business reading or writing it.
 export const MIGRATIONS_TABLE = "_prisma_migrations";

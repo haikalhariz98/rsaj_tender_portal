@@ -380,6 +380,9 @@ model Organisation {
   projectDocumentRequests  ProjectDocumentRequest[]
   projectDocumentApprovers ProjectDocumentApprover[]
   projectDocumentDecisions ProjectDocumentDecision[]
+  /// ADR 0042 D10: the kick-off meetings and who attended them.
+  kickOffMeetings          KickOffMeeting[]
+  kickOffAttendance        KickOffAttendance[]
   registrationDrafts         RegistrationDraft[]
   registrationDraftDocuments RegistrationDraftDocument[]
   registrationDraftValues    RegistrationDraftValue[]
@@ -597,6 +600,10 @@ model Person {
   projectApproversAdded    ProjectDocumentApprover[] @relation("ProjectDocumentApproverAddedBy")
   projectApproversRemoved  ProjectDocumentApprover[] @relation("ProjectDocumentApproverRemovedBy")
   projectDocumentDecisions ProjectDocumentDecision[] @relation("ProjectDocumentDecidedBy")
+  /// ADR 0042 D10: the kick-off meetings this person scheduled or recorded as held, and attended.
+  kickOffMeetingsScheduled KickOffMeeting[]          @relation("KickOffScheduledBy")
+  kickOffMeetingsRecorded  KickOffMeeting[]          @relation("KickOffHeldRecordedBy")
+  kickOffAttended          KickOffAttendance[]       @relation("KickOffAttendee")
   announcementsPublished   Announcement[]           @relation("AnnouncementPublishedBy")
   announcementsWithdrawn   Announcement[]           @relation("AnnouncementWithdrawnBy")
   envelopesReceived        BidEnvelope[]            @relation("EnvelopeReceivedBy")
@@ -4170,6 +4177,8 @@ model Contract {
   contractorSubmissions  ContractorSubmission[]
   /// ADR 0042 D1: the Project workspace's documents.
   projectDocuments       ProjectDocument[]
+  /// ADR 0042 D10: its one kick-off meeting.
+  kickOffMeeting         KickOffMeeting?
   siteMeetings           SiteMeeting[]
   complianceObservations ComplianceObservation[]
   programmeDirections    ProgrammeDirection[]
@@ -4724,6 +4733,8 @@ model DocumentVersion {
 
   @@unique([documentId, versionNo])
   @@index([organisationId, sha256])
+  /// ADR 0042 PW-32: the portal upload's rolling window counts an account's stored versions, on every upload.
+  @@index([recordedBySupplierAccountId, storedAt])
 }
 
 /// A version pinned to one owner for one purpose. Exactly one owner key is set (CHECK
@@ -12658,6 +12669,8 @@ model SupplierAccount {
   projectDocumentsCreated  ProjectDocument[]         @relation("ProjectDocumentCreatedBySupplier")
   projectVersionsUploaded  ProjectDocumentVersion[]  @relation("ProjectDocumentVersionUploadedBySupplier")
   projectRequestsMade      ProjectDocumentRequest[]  @relation("ProjectDocumentRequestedBySupplier")
+  /// ADR 0042 D10: the kick-off meetings this account attended.
+  kickOffAttended          KickOffAttendance[]       @relation("KickOffAttendeeAccount")
   diaryEntriesAttested     SiteDiaryEntry[]          @relation("DiaryAgentAttestedBy")
   diaryEntriesDisputed     SiteDiaryEntry[]          @relation("DiaryDisputedBy")
   certificateBlocksSigned  CertificateSignature[]    @relation("CertificateSignedBySupplier")
@@ -13265,6 +13278,8 @@ model ProjectDocument {
   versions  ProjectDocumentVersion[]
   requests  ProjectDocumentRequest[]
   approvers ProjectDocumentApprover[]
+  /// ADR 0042 D10: the kick-off meeting whose minutes this document is, if it is.
+  kickOffMinutesOf KickOffMeeting? @relation("KickOffMinutes")
 
   @@index([contractId, createdAt])
   @@index([organisationId])
@@ -13379,6 +13394,55 @@ model ProjectDocumentDecision {
 
   @@unique([versionId, approverId])
   @@index([versionId])
+}
+
+/// The contract's one kick-off meeting (ADR 0042 D10, PW-18), from EXECUTED. Changed only before it is held; then frozen.
+/// Never deleted (a trigger). Recording it held sets the four held columns together, with the minutes and the attendance, in one act (PW-29).
+model KickOffMeeting {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  contractId     String       @unique
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  /// When it meets: an instant, shown in the organisation's time zone.
+  meetsAt    DateTime
+  place      String @default("")
+  /// Plain text, shown as text, never rendered as a link.
+  onlineLink String @default("")
+  agenda     String @db.Text
+
+  scheduledByPersonId String
+  scheduledBy         Person   @relation("KickOffScheduledBy", fields: [scheduledByPersonId], references: [id], onDelete: Restrict)
+  scheduledAt         DateTime
+
+  heldOn                 DateTime?
+  heldRecordedByPersonId String?
+  heldRecordedBy         Person?   @relation("KickOffHeldRecordedBy", fields: [heldRecordedByPersonId], references: [id], onDelete: Restrict)
+  heldRecordedAt         DateTime?
+  /// The minutes: a Project document of side ORGANISATION, with no approver, shared for information.
+  minutesDocumentId      String?          @unique
+  minutesDocument        ProjectDocument? @relation("KickOffMinutes", fields: [minutesDocumentId], references: [id], onDelete: Restrict)
+
+  attendance KickOffAttendance[]
+}
+
+/// Who attended (PW-18): ticked from either side, or another name. Written once, with the held record. Append-only (a trigger).
+model KickOffAttendance {
+  id                String         @id @default(cuid())
+  organisationId    String
+  organisation      Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  meetingId         String
+  meeting           KickOffMeeting @relation(fields: [meetingId], references: [id], onDelete: Restrict)
+  /// Null for another name, someone on neither side's list.
+  side              ProjectSide?
+  personId          String?
+  person            Person?          @relation("KickOffAttendee", fields: [personId], references: [id], onDelete: Restrict)
+  supplierAccountId String?
+  supplierAccount   SupplierAccount? @relation("KickOffAttendeeAccount", fields: [supplierAccountId], references: [id], onDelete: Restrict)
+  name              String @default("")
+
+  @@index([meetingId])
 }
 
 /// The vendor announcements board (FR-VND-014): published by an officer the organisation has granted `announcements.publish`, shown to every signed-in supplier,

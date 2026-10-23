@@ -61,6 +61,8 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   // with the password (it keeps the step-up of `ContractorSubmission.submittedBy`, PW-10). An ordinary version still signs nothing; no attribution is written for it.
   "ProjectDocument.createdBySupplierAccount": "Who made a Project workspace document from the portal (ADR 0042 D1): the column is the record, with exactly one creator by CHECK, and the act is audited with the account. It signs nothing.",
   "ProjectDocumentRequest.requestedBySupplierAccount": "Who asked the organisation for a document from the portal (ADR 0042 D1): the column is the record, with exactly one requester by CHECK, append-only, and audited with the account. It signs nothing.",
+  // ADR 0042 D10 (plan step 7): the kick-off meeting's attendance names the contractor's accounts that were there. Staff record it; the account did nothing by being ticked.
+  "KickOffAttendance.supplierAccount": "An attendee ticked on the contractor's side of a kick-off meeting (ADR 0042 D10): who was there, not who acted. Staff record the meeting held (`KickOffMeeting.heldRecordedBy`); the row is append-only and the account signs nothing.",
 };
 
 describe("the schema scan finds what it should", () => {
