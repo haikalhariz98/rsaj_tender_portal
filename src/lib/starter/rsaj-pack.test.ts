@@ -9,18 +9,31 @@ import { CONTRACTS } from "../../../prisma/rsaj/starter-pack/contracts";
 import { SUPPLIERS } from "../../../prisma/rsaj/starter-pack/suppliers";
 import { SYSTEM } from "../../../prisma/rsaj/starter-pack/system";
 import { DAL_FIXTURE } from "@/lib/authority/dal-fixture";
+import { resolveApproval } from "@/lib/authority/resolve";
+import type { Matrix, ResolveQuery, Role } from "@/lib/authority/types";
 import { matchesFormat } from "@/lib/integration/award-commitment";
+import { ratioOfPercent } from "@/lib/percent-band";
 import { toPosix } from "@/lib/scan/files";
 import { documentTypeFaults } from "@/lib/suppliers/config";
 
 import { columnsOf, planPacks } from "./plan";
 
 /**
- * The RSAJ starter pack, parts 1 and 2 (plan steps 4.4 and 4.6): every entry cites its requirement and its clause, and none is ASSUMED but the three DAL rules
- * whose slashed codes are a reading (SP-2a, named one by one); the DAL's figures are the Appendix B fixture's; the DAL and the models are
- * drafts only; nothing outside the pack imports it; and `rsaj,generic` plans clean into a fresh organisation.
+ * The RSAJ starter pack, parts 1 and 2 (plan steps 4.4 and 4.6): every entry cites its requirement and its clause; the only ASSUMED entries are
+ * named one by one (the three DAL rules whose slashed codes are a reading, SP-2a; the document parts whose class is not stated; the evaluation
+ * stages whose side the form does not assign); the DAL's figures are the Appendix B fixture's, except the post-award rows, which are banded by
+ * the contract's value rather than keyed by method (product owner's fix-up, 2026-10-24); the DAL and the models are drafts only; nothing
+ * outside the pack imports it; and `rsaj,generic` plans clean into a fresh organisation.
  */
 const SLASHED = ["DP_ABOVE_5M", "TERMINATION", "ADVANCE_PAYMENT"];
+/// The document parts whose class FR-DOC-003 does not state, and the quotation declaration placed last (FR-DOC-008).
+const ASSUMED_PARTS = ["t_invitation", "t_conditions", "t_bond_forms", "t_summary_and_rates", "t_registration_background", "t_declaration", "t_instructions", "q_notice", "q_corrigendum", "q_instructions", "q_conditions", "q_specification", "q_form", "q_tenderer_background", "q_declaration"];
+/// The evaluation stages whose side the form does not assign, set to Contract & Procurement.
+const ASSUMED_STAGES = ["checklist", "combined", "recommendation", "phase_1", "phase_1_shortlist", "phase_5"];
+/// The post-award rows: B.6 and B.7 are headed by the contract's value, so these name no method and carry the regime's contract band.
+const Q_VO = ["Q_VO_UP_TO_20", "Q_VO_20_TO_50", "Q_VO_ABOVE_50"];
+const T_VO = ["T_VO_A_I", "T_VO_A_II", "T_VO_B_I", "T_VO_B_II", "T_VO_B_III", "T_VO_C_I", "T_VO_C_II", "T_VO_C_III", "T_VO_C_IV"];
+const REGIME_BANDED = [...Q_VO, ...T_VO, "EOT_FIN_NOT_AUTHORITY", "EOT_FIN_AUTHORITY", "LAD_WAIVER_ABOVE_30", "LAD_WAIVER_UP_TO_30", "TERMINATION", "ADVANCE_PAYMENT", "IPC_UP_TO_100K", "IPC_100K_TO_500K", "IPC_ABOVE_500K"];
 const dal = RSAJ_PACK.drafts!.matrices![0];
 const models = RSAJ_PACK.drafts!.evaluationModels!;
 const fresh = { now: new Date("2026-10-23T02:00:00Z"), rows: { Organisation: { id: "o1", timeZone: null }, SecurityPolicy: null }, listSizes: {}, demoIsLoaded: false };
@@ -43,9 +56,14 @@ describe("the RSAJ pack's entries", () => {
     for (const m of models) expect(m.requirement, m.content.nameEn).toMatch(/^FR-/);
   });
 
-  it("is STATED, and the only ASSUMED entries are the three slashed-code DAL rules", () => {
+  it("is STATED, and the only ASSUMED entries are named one by one", () => {
     expect(RSAJ_PACK.provenance).toBe("STATED");
     expect(dal.rules.filter((r) => r.provenance === "ASSUMED").map((r) => r.ruleKey)).toEqual(SLASHED);
+    const assumedRows = RSAJ_PACK.lists.flatMap((l) => l.rows.filter((r) => r.values.provenance === "ASSUMED").map((r) => r.code));
+    expect(assumedRows).toEqual(ASSUMED_PARTS);
+    for (const r of RSAJ_PACK.lists.flatMap((l) => l.rows)) if (r.values.provenance != null && r.values.provenance !== "ASSUMED") throw new Error(`${r.code}: ${String(r.values.provenance)}`);
+    const parts = RSAJ_PACK.lists.find((l) => l.model === "TenderDocumentPart")!.rows;
+    for (const r of parts.filter((x) => ASSUMED_PARTS.includes(x.code))) expect(r.values.notes, r.code).toMatch(/stated \(FR-DOC-001\/013\); its class is not|Bound in by FR-DOC-008/);
     for (const r of dal.rules.filter((x) => SLASHED.includes(x.ruleKey))) expect(r.source, r.ruleKey).toMatch(/read as .*SP-2a/);
     for (const l of dal.coreRouting) expect([l.provenance, ...l.steps.map((s) => s.provenance)].every((p) => p === "STATED")).toBe(true);
     for (const t of dal.termsBands ?? []) expect(t.provenance).toBe("STATED");
@@ -55,12 +73,15 @@ describe("the RSAJ pack's entries", () => {
     for (const [c, v] of own) expect(v, c).toBe("STATED");
   });
 
-  it("marks the evaluation models OBSERVED, as the specification says they are practice (decision D1), never ASSUMED", () => {
+  it("marks the evaluation models OBSERVED, as the specification says they are practice (decision D1), except the stages whose side is assumed", () => {
     for (const m of models) {
       const c = m.content;
-      const all = [c.provenance, ...c.stages.flatMap((s) => [s.provenance, ...s.criteria.map((x) => x.provenance), ...s.factors.map((f) => f.provenance)]), ...c.bandSets.map((b) => b.provenance)];
+      const all = [c.provenance, ...c.stages.filter((s) => !ASSUMED_STAGES.includes(s.code)).flatMap((s) => [s.provenance, ...s.criteria.map((x) => x.provenance), ...s.factors.map((f) => f.provenance)]), ...c.bandSets.map((b) => b.provenance)];
       expect(new Set(all), c.nameEn).toEqual(new Set(["OBSERVED"]));
     }
+    const assumed = models.flatMap((m) => m.content.stages.filter((s) => s.provenance === "ASSUMED"));
+    expect(assumed.map((s) => s.code)).toEqual(ASSUMED_STAGES);
+    for (const s of assumed) expect(s.governingSource, s.code).toMatch(/side not assigned by the form; set to Contract & Procurement$/);
   });
 });
 
@@ -81,7 +102,21 @@ describe("the DAL draft", () => {
       followsBoundarySwitch: r.followsBoundarySwitch,
       generateCoreChain: r.generateCoreChain ?? null,
     });
-    for (const f of shared) expect(figures(dal.rules.find((r) => r.ruleKey === f.ruleKey)!), f.ruleKey).toEqual(figures(f));
+    const { quotationFloor, tenderFloor } = dal.policy;
+    for (const f of shared) {
+      const r = dal.rules.find((x) => x.ruleKey === f.ruleKey)!;
+      if (!REGIME_BANDED.includes(f.ruleKey) || T_VO.includes(f.ruleKey)) {
+        expect(figures(r), f.ruleKey).toEqual(figures(f));
+        if (T_VO.includes(f.ruleKey)) expect(r.method, f.ruleKey).toBeNull();
+        continue;
+      }
+      // The recorded exception: no method, and the regime's contract band in place of the fixture's (it has none).
+      expect({ ...figures(r), band: null }, f.ruleKey).toEqual({ ...figures(f), band: null });
+      expect(r.method, f.ruleKey).toBeNull();
+      expect([r.contractValueMin, r.contractValueMax], f.ruleKey).toEqual(Q_VO.includes(f.ruleKey) ? [quotationFloor, tenderFloor] : [tenderFloor, null]);
+      expect([r.minValue, r.maxValue, r.pctMin, r.pctMax], f.ruleKey).toEqual([f.minValue, f.maxValue, f.pctMin, f.pctMax]);
+    }
+    expect(dal.rules.filter((r) => REGIME_BANDED.includes(r.ruleKey)).every((r) => r.method == null)).toBe(true);
     expect({ ...dal.policy }).toEqual({ ...DAL_FIXTURE.policy });
     expect(dal.coreRouting).toEqual(DAL_FIXTURE.coreRouting);
   });
@@ -93,6 +128,39 @@ describe("the DAL draft", () => {
     }
     const p = planPacks([RSAJ_PACK, GENERIC_PACK], fresh);
     expect(p.writes.filter((w) => w.kind === "DRAFT_MATRIX" || w.kind === "DRAFT_MODEL").map((w) => w.label)).toEqual([dal.label, ...models.map((m) => m.content.nameEn)]);
+  });
+});
+
+describe("the DAL draft, put in force, routes a contract's matters whatever its method (fix-up 2026-10-24)", () => {
+  const offices = RSAJ_PACK.lists.find((l) => l.model === "AuthorityRole")!.rows;
+  const roles: Record<string, Role> = Object.fromEntries(offices.map((o) => [o.code, { code: o.code, ...(o.values as Omit<Role, "code">) }]));
+  const matrix: Matrix = { policy: dal.policy, roles, rules: dal.rules, coreRouting: dal.coreRouting };
+  const route = (q: ResolveQuery) => {
+    const r = resolveApproval(matrix, q);
+    return { rule: r.rule?.ruleKey ?? null, approver: r.approverCode, errors: r.warnings.filter((w) => w.level === "err").map((w) => w.code) };
+  };
+  const pct = (p: string) => ratioOfPercent(p);
+
+  it("routes an interim payment by its value on a tendered contract (spec example: RM620,000 to the CEO, RM80,000 to the Head of Division)", () => {
+    for (const method of ["open_selective", "direct"]) {
+      expect(route({ domain: "payment", method, value: 620_000, contractValue: 3_500_000 }), method).toEqual({ rule: "IPC_ABOVE_500K", approver: "CEO", errors: [] });
+      expect(route({ domain: "payment", method, value: 80_000, contractValue: 3_500_000 }), method).toEqual({ rule: "IPC_UP_TO_100K", approver: "HODIV", errors: [] });
+    }
+  });
+
+  it("routes a variation on a contract of exactly RM300,000.00 as a quotation contract, and one cent more as a tender contract", () => {
+    for (const method of ["open_selective", "direct"]) {
+      expect(route({ domain: "vo", method, pctRatio: pct("8"), contractValue: 300_000 }).rule, method).toBe("Q_VO_UP_TO_20");
+      expect(route({ domain: "vo", method, pctRatio: pct("8"), contractValue: 300_000.01 }).rule, method).toBe("T_VO_C_III");
+    }
+  });
+
+  it("routes a 25% variation on a RM2 million direct contract to the CEO", () => {
+    expect(route({ domain: "vo", method: "direct", pctRatio: pct("25"), contractValue: 2_000_000 })).toEqual({ rule: "T_VO_B_II", approver: "CEO", errors: [] });
+  });
+
+  it("finds no rule for a waiver of LAD on a RM200,000 contract, and says so", () => {
+    expect(route({ domain: "lad_waiver", method: "open_selective", pctRatio: pct("10"), contractValue: 200_000 })).toEqual({ rule: null, approver: null, errors: ["NO_RULE"] });
   });
 });
 

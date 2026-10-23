@@ -9,7 +9,8 @@
  * - a reference (`{ ref: "<Model>:<code>" }`) resolves to a row this run writes; if that row is skipped, the referring group or list is too;
  * - packs load in the order given, and the first pack wins: a later pack finds what an earlier one wrote already set.
  *
- * A list row is given what its table has and the pack leaves out: its code, its order as listed, the pack's provenance and the row's source. A list
+ * A list row is given what its table has and the pack leaves out: its code, its order as listed, the pack's provenance and the row's source. A row
+ * that names its own provenance (an ASSUMED row in a STATED pack) keeps it, and its audit row says so. A list
  * whose table has no organisation column (a method's proposal items) belongs to rows of another list: each of its rows names its parent by
  * reference, so it is empty by construction when its parent is written in the same run, and skipped with it.
  *
@@ -345,7 +346,7 @@ export function planPacks(packs: readonly StarterPack[], snap: PackSnapshot): Pl
         if (columns.includes("code") && !("code" in values)) values.code = r.code;
         if (columns.includes("provenance") && !("provenance" in values)) values.provenance = pack.provenance;
         if (columns.includes("governingSource") && !("governingSource" in values)) values.governingSource = r.source;
-        writes.push({ kind: "ROW", pack: pack.name, actor, model: list.model, listLabel: list.label, code: r.code, label: r.label ?? String(r.values.nameEn ?? r.values.name ?? r.values.labelEn ?? r.code), values, source: r.source, requirement: r.requirement, provenance: pack.provenance });
+        writes.push({ kind: "ROW", pack: pack.name, actor, model: list.model, listLabel: list.label, code: r.code, label: r.label ?? String(r.values.nameEn ?? r.values.name ?? r.values.labelEn ?? r.code), values, source: r.source, requirement: r.requirement, provenance: (values.provenance as PackProvenance | undefined) ?? pack.provenance });
         written.add(`${list.model}:${r.code}`);
       }
       sizes[key] = list.rows.length;

@@ -38,6 +38,15 @@ describe("planPacks: the fill rules (ADR 0043 D1)", () => {
     expect(p.writes).toMatchObject([{ kind: "GROUP", create: false }]);
   });
 
+  it("gives a row the pack's provenance, unless the row names its own (an ASSUMED row in a STATED pack), and records that one", () => {
+    const rows = { model: "DocumentClass", label: "Document class", rows: [{ code: "a", values: { nameEn: "A", classification: "INTERNAL" }, source: "s" }, { code: "b", values: { nameEn: "B", classification: "INTERNAL", provenance: "ASSUMED" }, source: "s" }] };
+    const p = planPacks([pack({ name: "rsaj", provenance: "STATED", lists: [rows] })], snap());
+    expect(p.writes.map((w) => (w.kind === "ROW" ? [w.code, w.values.provenance, w.provenance] : null))).toEqual([
+      ["a", "STATED", "STATED"],
+      ["b", "ASSUMED", "ASSUMED"],
+    ]);
+  });
+
   it("skips a list that is not empty", () => {
     const p = planPacks([pack({ lists: [classes()] })], snap({ listSizes: { DocumentClass: 2 } }));
     expect(p.writes).toEqual([]);

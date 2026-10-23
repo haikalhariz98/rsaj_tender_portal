@@ -267,7 +267,7 @@ export const ONE_PERSON_REASON = "Applied without a second person: two-person ap
     - the DAL as **one draft matrix** (Appendix B, Issue A, Revision 00): the three band families with the method bands
       RM500, RM5,000, RM15,000 and RM300,000 (FR-MTD-002), the core routing rows (§2.2.1), and the rules;
     - the offices it names, as `AuthorityRole` rows;
-    - the six committees with no members (FR-CTE-001, FR-OPN-001);
+    - the eight committees of FR-CTE-001 with no members (FR-CTE-001, FR-OPN-001);
     - Tender Board quorum 3 (FR-CTE-003);
     - opening panel 2 (FR-OPN-002);
     - the three not-approved outcomes (FR-CTE-009);

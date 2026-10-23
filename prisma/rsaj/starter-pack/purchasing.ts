@@ -124,10 +124,11 @@ export const PROPOSAL_ITEMS = list("MethodChecklistItem", "Selected tender propo
 
 // ------------------------------------------------------------------ tender and quotation document parts (FR-DOC-001, 002, 003, 013)
 
-/// FR-DOC-003 classes some instruments as standard and some as bespoke; for the rest the product needs a class, so "both" stands until RSAJ
-/// confirms it. SR-11: every part is uploaded, so the class has no effect on how a part is issued.
-const UNCLASSED = "FR-DOC-003 does not class this part as standard or bespoke; recorded as both, to confirm. Every part is uploaded (SR-11).";
-type PartIn = { code: string; packKind: "TENDER" | "QUOTATION"; printedNumber: string; labelEn: string; role: string; content: "STANDARD" | "BESPOKE" | "MIXED"; basis?: "bq" | "ds"; mandatory?: boolean | null; inTable?: boolean | null; declaration?: boolean };
+/// FR-DOC-003 classes some instruments as standard and some as bespoke; only those parts keep a STATED class. For the rest the product needs a
+/// class, so "both" stands, ASSUMED, until RSAJ confirms it. SR-11: every part is uploaded, so the class has no effect on how a part is issued.
+const CLASS_STATED = ["t_form_of_tender", "t_loa_specimen", "t_specification", "t_bills_of_quantities", "t_drawings", "q_bill_of_quantities", "q_drawings"];
+const UNCLASSED = "The part and its order are stated (FR-DOC-001/013); its class is not (FR-DOC-003).";
+type PartIn = { code: string; packKind: "TENDER" | "QUOTATION"; printedNumber: string; labelEn: string; role: string; content: "STANDARD" | "BESPOKE" | "MIXED"; basis?: "bq" | "ds"; mandatory?: boolean | null; inTable?: boolean | null; declaration?: boolean; note?: string };
 const part = (p: PartIn, cited: Cited, sortOrder: number) => ({
   code: p.code,
   values: {
@@ -144,7 +145,7 @@ const part = (p: PartIn, cited: Cited, sortOrder: number) => ({
     inTableDocument: p.inTable ?? null,
     // FR-DOC-008: a bid without the signed declaration and letter of authorisation fails the mandatory check at opening.
     ...(p.declaration ? { returnedByBidder: true, returnedByBidderProvenance: "STATED" as const, openingCheck: true, openingCheckProvenance: "STATED" as const } : {}),
-    notes: p.content === "MIXED" && !["CONDITIONS", "SPECIFICATION", "SUMMARY_AND_RATES"].includes(p.role) ? UNCLASSED : "",
+    ...(CLASS_STATED.includes(p.code) ? { notes: "" } : { provenance: "ASSUMED" as const, notes: p.note ?? UNCLASSED }),
   },
   ...cited,
 });
@@ -179,9 +180,24 @@ const QUOTATION_PARTS: PartIn[] = [
   { code: "q_tenderer_background", packKind: "QUOTATION", printedNumber: "8", labelEn: "Tenderer's background", role: "REGISTRATION_BACKGROUND", content: "MIXED" },
   { code: "q_drawings", packKind: "QUOTATION", printedNumber: "9", labelEn: "Drawings", role: "DRAWINGS", content: "BESPOKE" },
 ];
+/// FR-DOC-008: a bid without the signed declaration fails the mandatory check at opening, so a quotation needs the part too. OM/P/005 does not
+/// list it among its nine, so it is placed last (a question for RSAJ: is it bound into the quotation form?).
+const Q_DECLARATION: PartIn = {
+  code: "q_declaration",
+  packKind: "QUOTATION",
+  printedNumber: "10",
+  labelEn: "Bidder's declaration letter, with the letter of authorisation",
+  role: "DECLARATION",
+  content: "MIXED",
+  mandatory: true,
+  inTable: null,
+  declaration: true,
+  note: "Bound in by FR-DOC-008; not on OM/P/005's list of nine, so placed last.",
+};
 export const DOCUMENT_PARTS = list("TenderDocumentPart", "Tender document part", [
   ...TENDER_PARTS.map((p, i) => part(p, TENDER, (i + 1) * 10)),
   ...QUOTATION_PARTS.map((p, i) => part(p, QUOTATION, (i + 1) * 10)),
+  part(Q_DECLARATION, { requirement: "FR-DOC-008, FR-EVL-009", source: "SK001 7.3.4(j)" }, (QUOTATION_PARTS.length + 1) * 10),
 ]);
 
 // ------------------------------------------------------------------ the invitation window (FR-ADV-001, 004, 006, 007; SR-10)
@@ -189,18 +205,18 @@ export const DOCUMENT_PARTS = list("TenderDocumentPart", "Tender document part",
 const ADV = { requirement: "FR-ADV-001", source: "SK002 7.4.1" };
 export const CHANNELS = list("PublicationChannel", "Publication channel", [
   { code: "newspaper", values: { nameEn: "Newspaper", requiredWhenAdvertised: true }, ...ADV },
-  { code: "notice_board", values: { nameEn: "K&P Department notice board", requiredWhenAdvertised: true }, ...ADV },
+  { code: "notice_board", values: { nameEn: "Contract & Procurement Department notice board", requiredWhenAdvertised: true }, ...ADV },
   { code: "website", values: { nameEn: "Ranhill SAJ website", requiredWhenAdvertised: true }, ...ADV },
 ]);
 
 export const WINDOW_GROUPS = [
-  // FR-ADV-004: two weeks the floor. Its note's three-week target comes from a form (CPD/DFA/PRE T-QUO), not SK002, so it is not under this
-  // group's one source; how near the newspaper's day warns is not stated. Both stay unset, so a re-run reads this group as partly set.
+  // FR-ADV-004: two weeks the floor and, from its note, three weeks the target. How near the newspaper's day warns is not stated, so it stays
+  // unset and a re-run reads this group as partly set.
   group(
     "WindowPolicy",
     "Invitation · date rules",
-    { minAdvertisementDays: 14, targetAdvertisementDays: null, newspaperWarnDays: null, purchaseCutoffDays: 2 },
-    { requirement: "FR-ADV-004, FR-ADV-007", source: "SK002 7.4.2(g), 7.4.2(c)" },
+    { minAdvertisementDays: 14, targetAdvertisementDays: 21, newspaperWarnDays: null, purchaseCutoffDays: 2 },
+    { requirement: "FR-ADV-004, FR-ADV-007", source: "SK002 7.4.2(g), 7.4.2(c); CPD/DFA/PRE T-QUO three-week target (FR-ADV-004 note)" },
     { provenance: "dateRulesProvenance", source: "dateRuleSource" },
   ),
   group("WindowPolicy", "Invitation · closing time", { defaultClosingTime: "14:30" }, { requirement: "FR-ADV-006", source: "SK002 7.4.2(g)" }, { provenance: "closingTimeProvenance" }),
@@ -272,6 +288,8 @@ const band = (sortOrder: number, labelEn: string, outcome: BandSnap["outcome"], 
 const LEFT_OPEN = "To complete before it is put in force: the side of the stages the form does not assign (set to Contract & Procurement, SK003 7.1.1); whether a figure exactly on a pass mark passes; and where the four aspects of FR-EVL-003 are assessed.";
 
 const TA109 = "TA 109 Stages 1–6 (practice; FR-EVL-008, decision D1)";
+/// A stage whose side the form does not assign: set to Contract & Procurement (SK003 7.1.1), so ASSUMED rather than the form's practice.
+const unassigned = (form: string) => ({ provenance: "ASSUMED" as const, governingSource: `${form}: side not assigned by the form; set to Contract & Procurement` });
 const TENDER_MODEL: PackModelDraft = {
   requirement: "FR-EVL-006, FR-EVL-008, FR-EVL-002",
   source: TA109,
@@ -285,7 +303,7 @@ const TENDER_MODEL: PackModelDraft = {
     governingSource: TA109,
     bandSets: [],
     stages: [
-      stage({ order: 1, code: "checklist", labelEn: "Stage 1: mandatory submission checklist", kind: "CHECKLIST", side: "CONTRACT_PROCUREMENT", mustPass: true, governingSource: TA109 }),
+      stage({ order: 1, code: "checklist", labelEn: "Stage 1: mandatory submission checklist", kind: "CHECKLIST", side: "CONTRACT_PROCUREMENT", mustPass: true, ...unassigned(TA109) }),
       stage({ order: 2, code: "shortlist", labelEn: "Stage 2: shortlist by Form of Tender price", kind: "SHORTLIST", side: "CONTRACT_PROCUREMENT", shortlistRule: "DECIDED_BY_OFFICE", shortlistOfficeCode: "CP", governingSource: TA109 }),
       stage({
         order: 3,
@@ -333,13 +351,13 @@ const TENDER_MODEL: PackModelDraft = {
           criterion(5, "current_ratio", "Current ratio", { maxMarks: "10" }),
         ],
       }),
-      stage({ order: 5, code: "combined", labelEn: "Stage 5: combined score (technical 60%, financial 40%)", kind: "COMPOSITE", side: "CONTRACT_PROCUREMENT", passMark: "60", mustPass: true, governingSource: TA109 }),
-      stage({ order: 6, code: "recommendation", labelEn: "Stage 6: recommendation", kind: "RECOMMENDATION", side: "CONTRACT_PROCUREMENT", governingSource: TA109 }),
+      stage({ order: 5, code: "combined", labelEn: "Stage 5: combined score (technical 60%, financial 40%)", kind: "COMPOSITE", side: "CONTRACT_PROCUREMENT", passMark: "60", mustPass: true, ...unassigned(TA109) }),
+      stage({ order: 6, code: "recommendation", labelEn: "Stage 6: recommendation", kind: "RECOMMENDATION", side: "CONTRACT_PROCUREMENT", ...unassigned(TA109) }),
     ],
   },
 };
 
-const LPS = "LAPORAN PENILAIAN SEBUTHARGA template (practice; FR-EVL-009 to 012)";
+const LPS = "Quotation evaluation report template (practice; FR-EVL-009 to 012)";
 const QUOTATION_MODEL: PackModelDraft = {
   requirement: "FR-EVL-006, FR-EVL-009, FR-EVL-010, FR-EVL-011, FR-EVL-012",
   source: LPS,
@@ -400,14 +418,14 @@ const QUOTATION_MODEL: PackModelDraft = {
         kind: "CHECKLIST",
         side: "CONTRACT_PROCUREMENT",
         mustPass: true,
-        governingSource: LPS,
+        ...unassigned(LPS),
         criteria: [
           criterion(1, "before_closing", "Documents received before 2.30 p.m.", { scale: "PASS_FAIL" }),
           criterion(2, "eligible", "Tenderer eligible", { scale: "PASS_FAIL" }),
           criterion(3, "forms_complete", "Quotation form and bidder's declaration complete, signed and officially stamped", { scale: "PASS_FAIL" }),
         ],
       }),
-      stage({ order: 2, code: "phase_1_shortlist", labelEn: "Phase 1: shortlist of three or four tenderers", kind: "SHORTLIST", side: "CONTRACT_PROCUREMENT", shortlistRule: "COUNT_RANGE", shortlistMin: 3, shortlistMax: 4, governingSource: LPS }),
+      stage({ order: 2, code: "phase_1_shortlist", labelEn: "Phase 1: shortlist of three or four tenderers", kind: "SHORTLIST", side: "CONTRACT_PROCUREMENT", shortlistRule: "COUNT_RANGE", shortlistMin: 3, shortlistMax: 4, ...unassigned(LPS) }),
       stage({
         order: 3,
         code: "phase_2",
@@ -453,7 +471,7 @@ const QUOTATION_MODEL: PackModelDraft = {
           criterion(2, "against_lowest", "Against the lowest bid", { scale: "BANDED", computedInput: "VARIANCE_VS_LOWEST", bandSetCode: "variance" }),
         ],
       }),
-      stage({ order: 6, code: "phase_5", labelEn: "Phase 5: recommendation", kind: "RECOMMENDATION", side: "CONTRACT_PROCUREMENT", governingSource: LPS }),
+      stage({ order: 6, code: "phase_5", labelEn: "Phase 5: recommendation", kind: "RECOMMENDATION", side: "CONTRACT_PROCUREMENT", ...unassigned(LPS) }),
     ],
   },
 };

@@ -98,6 +98,12 @@ describe("loading rsaj,generic", () => {
     expect(rule.note).toMatch(/read as a joint recommendation/);
     const trail = await db.auditEntry.findFirstOrThrow({ where: { organisationId: orgId, entity: "AuthorityRule", entityId: rule.id } });
     expect(trail.changes).toContainEqual(expect.objectContaining({ field: "whereItComesFrom", after: "Assumed" }));
+    // A row that names its own provenance keeps it, and its audit row says so (the quotation declaration, placed last).
+    const declaration = await db.tenderDocumentPart.findFirstOrThrow({ where: { organisationId: orgId, code: "q_declaration" } });
+    expect(declaration).toMatchObject({ provenance: "ASSUMED", printedNumber: "10", returnedByBidder: true });
+    const partTrail = await db.auditEntry.findFirstOrThrow({ where: { organisationId: orgId, entity: "TenderDocumentPart", entityId: declaration.id } });
+    expect(partTrail.changes).toContainEqual(expect.objectContaining({ field: "whereItComesFrom", after: "Assumed" }));
+    expect((await db.committee.findMany({ where: { organisationId: orgId }, select: { aliases: true } })).flatMap((c) => c.aliases)).toEqual(["Variation Order Committee"]);
     // The window and the Tender Board read as stated.
     expect(await db.windowPolicy.findUniqueOrThrow({ where: { organisationId: orgId } })).toMatchObject({ minAdvertisementDays: 14, purchaseCutoffDays: 2, defaultClosingTime: "14:30", documentSaleMode: "ONLINE", electronicDocumentRelease: true, dateRulesProvenance: "STATED" });
     expect(await db.committee.findFirstOrThrow({ where: { organisationId: orgId, code: "TBC" } })).toMatchObject({ quorum: 3, quorumProvenance: "STATED" });
