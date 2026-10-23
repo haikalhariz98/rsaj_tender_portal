@@ -114,8 +114,8 @@
     One administrator can never switch the control off and then act alone.
   - **The only exception (SP-23):** the development fill, on a database where `demoIsLoaded` holds, may turn the switch
     off itself. Its audit row has a SYSTEM actor, "Development fill (founder's instruction 2026-10-23)", and the founder's
-    instruction as the reason. On any other database the development fill refuses. No other pack, script or screen turns
-    the switch off while it is on.
+    instruction as the reason. On any other database the development fill refuses. Nothing else turns the switch off
+    while it is on without a second person's decision.
   - Creating the row is not moving the switch: the generic pack writes a new organisation's first `SecurityPolicy` row
     with the switch off at setup (SP-3). It never changes an existing row's switch.
 - **Nothing fakes a second person.** No row names a decider who did not decide.
