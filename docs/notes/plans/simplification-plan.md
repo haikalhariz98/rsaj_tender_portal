@@ -907,7 +907,7 @@ Every row keeps its data, its editor and its History. Only where the row shows c
 | 20–22 | Terms bands, funder's rules, rejection destination | FR-AWD-007, FR-REQ-006, FR-APR-013, FR-APR-016 | Adv; 22 G-pack (back to the originator) | Unchanged |
 | 23 | Draft and issue lifecycle | FR-APR-020 | Kept | Put in force is where the checker attaches |
 | 24 | Simulator | prototype | "Test a route" button | Unchanged logic |
-| 25, 26 | Committees, membership | FR-CTE-001/002, FR-OPN-001 | Top; R-pack (six committees, no members); checklist 5 | Unchanged |
+| 25, 26 | Committees, membership | FR-CTE-001/002, FR-OPN-001 | Top; R-pack (the eight committees of FR-CTE-001, no members); checklist 5 | Unchanged |
 | 27–29 | Quorum, not-approved outcomes, opening panel | FR-CTE-003, FR-CTE-009, FR-OPN-002, FR-CTE-011 | R-pack (3, the three outcomes, 2), Adv | A vote against can now be recorded; `assessQuorum` unchanged |
 | 30 | Alternate voting, voting rule, labels | build rulings | Adv | Unchanged |
 | 31–35 | Funding routes, methods, contract types, bases, proposal items | FR-REQ-004–006, FR-MTD-004/006/011/012/013 | R-pack, Adv | Unchanged editors |
