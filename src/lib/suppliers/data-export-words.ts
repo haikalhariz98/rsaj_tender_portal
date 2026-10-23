@@ -6,10 +6,10 @@
 
 import type { AccountStatus, DeclarationKind, OnlineBidKind, OnlineBidStatus, PaymentChannel, PaymentOutcome, PurchaseDownloadKind, PurchaseState } from "@/generated/prisma/client";
 
-export type ExportSectionKey = "company" | "contacts" | "accounts" | "declarations" | "bank" | "documents" | "standing" | "standingChanges" | "applications" | "purchases" | "bidReceipts" | "projectDocuments";
+export type ExportSectionKey = "company" | "contacts" | "accounts" | "declarations" | "bank" | "documents" | "standing" | "standingChanges" | "applications" | "purchases" | "bidReceipts" | "projectDocuments" | "kickOffMeetings";
 
 /// The sections, in the order the export carries them.
-export const EXPORT_SECTION_ORDER: readonly ExportSectionKey[] = ["company", "contacts", "accounts", "declarations", "bank", "documents", "standing", "standingChanges", "applications", "purchases", "bidReceipts", "projectDocuments"];
+export const EXPORT_SECTION_ORDER: readonly ExportSectionKey[] = ["company", "contacts", "accounts", "declarations", "bank", "documents", "standing", "standingChanges", "applications", "purchases", "bidReceipts", "projectDocuments", "kickOffMeetings"];
 
 export const EXPORT_SECTION_TITLE: Readonly<Record<ExportSectionKey, string>> = {
   company: "Company",
@@ -25,6 +25,7 @@ export const EXPORT_SECTION_TITLE: Readonly<Record<ExportSectionKey, string>> = 
   purchases: "Tender document purchases",
   bidReceipts: "Online bid receipts",
   projectDocuments: "Project documents",
+  kickOffMeetings: "Kick-off meetings",
 };
 
 /// Every label a row of the export carries.
@@ -183,6 +184,14 @@ export const EXPORT_LABEL = {
   pdAskedOf: "Asked of",
   pdAskedBy: "Asked by",
   pdAskedOn: "Asked on",
+  // Kick-off meetings (ADR 0042 D10, PW-19). The value of a meeting's row is its contract.
+  kickOffMeeting: "Kick-off meeting",
+  komWhen: "When",
+  komPlace: "Place",
+  komOnlineLink: "Online link",
+  komAgenda: "Agenda",
+  komHeldOn: "Held on",
+  komAttended: "Attended for you",
 } as const satisfies Readonly<Record<string, string>>;
 
 export type ExportLabelKey = keyof typeof EXPORT_LABEL;

@@ -7,7 +7,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { story, type Story } from "@/lib/project-docs/story.fixture";
 
 import { SUPPLIER_ENTITY, SUPPLIER_ENTITY_LABEL, SUPPLIER_FIELD_NAME } from "./audit-view";
-import { buildSupplierExport, ExportFileNameError, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportRow, type ProjectDocumentSource, type SourceRow, type SupplierExport, type SupplierExportSource } from "./data-export";
+import { buildSupplierExport, ExportFileNameError, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportRow, type KickOffMeetingSource, type ProjectDocumentSource, type SourceRow, type SupplierExport, type SupplierExportSource } from "./data-export";
 import { classificationFaults, EXPORT_COLUMNS, inColumns, OUT_MODELS, pickIn, schemaScalars, supplierLinkedModels, type Classified, type ExportModel } from "./data-export-fields";
 import * as WORDS from "./data-export-words";
 
@@ -119,6 +119,7 @@ function source(over: Partial<SupplierExportSource> = {}): SupplierExportSource 
       },
     ],
     projectDocuments: projectDocuments(),
+    kickOffMeetings: kickOffMeetings(),
     bidReceipts: [{ row: fixture("OnlineBid", { kind: "BID", status: "SUBMITTED", statusAt: null, receiptDigest: "ab12cd34" }), exerciseName: "Supply of office furniture", receivedAt: t("2026-09-20T01:00:00Z"), late: false, keyFingerprint: "KF-1234" }],
     ...over,
   };
@@ -162,6 +163,23 @@ function projectDocuments(): ProjectDocumentSource[] {
     projectDoc(own, { title: "Method statement", side: "CONTRACTOR", files: { v1: "method-v1.pdf", v2: "method-v2.pdf" } }),
     projectDoc(shared, { title: "Site plan", side: "ORGANISATION", files: { v1: "plan-v1.pdf", v2: "HIDDEN-plan-v2.pdf" } }),
     projectDoc(unlisted, { title: "HIDDEN-Internal costing", side: "ORGANISATION", files: { v1: "HIDDEN-costing.pdf" } }),
+  ];
+}
+
+/// The kick-off meeting of the supplier's contract, held, with four attendance rows: its own account (named by the reader), an officer, another name, and an account that is not its
+/// own (as no row can be, but the gate is the builder's, not the reader's). Only the first may leave (PW-19).
+function kickOffMeetings(): KickOffMeetingSource[] {
+  return [
+    {
+      row: fixture("KickOffMeeting", { meetsAt: t("2026-11-02T01:30:00Z"), place: "Site office", onlineLink: "meet.example.test/kick-off", agenda: "Introductions. Programme. Safety.", heldOn: d("2026-11-02") }),
+      contractLabel: "WK/2026/7 · Drainage works",
+      attendance: [
+        { row: fixture("KickOffAttendance", { side: "CONTRACTOR" }), ownAccountName: "Aminah binti Ali" },
+        { row: fixture("KickOffAttendance", { side: "ORGANISATION" }), ownAccountName: null },
+        { row: fixture("KickOffAttendance", { side: null }), ownAccountName: null },
+        { row: fixture("KickOffAttendance", { side: "CONTRACTOR" }), ownAccountName: null },
+      ],
+    },
   ];
 }
 
@@ -484,9 +502,9 @@ describe("a worked example a finance person can check by hand", () => {
     // its current standing; two changes to it; one application; one exercise bought from at RM 50.00; one online bid; and two project documents (a third, the organisation's own working that the
     // contractor did not ask for and may not see, is left out whole).
     const e = build();
-    expect(exportSectionCounts(e)).toEqual({ company: 1, contacts: 2, accounts: 2, declarations: 1, bank: 2, documents: 3, standing: 1, standingChanges: 2, applications: 1, purchases: 1, bidReceipts: 1, projectDocuments: 2 });
+    expect(exportSectionCounts(e)).toEqual({ company: 1, contacts: 2, accounts: 2, declarations: 1, bank: 2, documents: 3, standing: 1, standingChanges: 2, applications: 1, purchases: 1, bidReceipts: 1, projectDocuments: 2, kickOffMeetings: 1 });
     expect(exportAuditChanges(e, "PAGE", null)[1].after).toBe(
-      "Company: 1 · Contacts: 2 · Portal accounts: 2 · Declarations and agreements: 1 · Bank details: 2 · Documents: 3 · Current standing: 1 · Changes to your standing: 2 · Applications and outcomes: 1 · Tender document purchases: 1 · Online bid receipts: 1 · Project documents: 2",
+      "Company: 1 · Contacts: 2 · Portal accounts: 2 · Declarations and agreements: 1 · Bank details: 2 · Documents: 3 · Current standing: 1 · Changes to your standing: 2 · Applications and outcomes: 1 · Tender document purchases: 1 · Online bid receipts: 1 · Project documents: 2 · Kick-off meetings: 1",
     );
     const app = section(e, "applications").rows[0];
     expect(app.value).toBe("First registration");
@@ -577,5 +595,38 @@ describe("project documents (PW-19, PW-28)", () => {
     expect(values).toContain("Returned");
     expect(values).toContain("Work programme");
     for (const v of values) expect(v).not.toMatch(/^[A-Z][A-Z0-9_]+$/);
+  });
+});
+
+describe("kick-off meetings (ADR 0042 D10, PW-19)", () => {
+  const meeting = () => section(build(), "kickOffMeetings").rows[0]!;
+
+  it("the meeting as the portal's card shows it: the contract, when, where, the link as text, the agenda and the day it was held", () => {
+    const m = meeting();
+    expect(m.label).toBe("Kick-off meeting");
+    expect(m.value).toBe("WK/2026/7 · Drainage works");
+    expect(find(m.rows!, "When")).toMatchObject({ value: "2026-11-02T01:30:00.000Z", kind: "instant" });
+    expect(find(m.rows!, "Place")?.value).toBe("Site office");
+    expect(find(m.rows!, "Online link")?.value).toBe("meet.example.test/kick-off");
+    expect(find(m.rows!, "Agenda")?.value).toBe("Introductions. Programme. Safety.");
+    expect(find(m.rows!, "Held on")).toMatchObject({ value: "2026-11-02", kind: "day" });
+  });
+
+  it("who attended for the supplier: its own accounts only, by their contact's name; never an officer, another name, another supplier's account, or who scheduled or recorded it", () => {
+    const m = meeting();
+    expect(m.rows!.filter((r) => r.label === "Attended for you").map((r) => r.value)).toEqual(["Aminah binti Ali"]);
+    const json = JSON.stringify(m);
+    expect(json).not.toContain(SENTINEL);
+    expect(json).not.toMatch(/scheduledBy|heldRecordedBy|personId/);
+  });
+
+  it("a meeting not yet held carries no held day and no attendee", () => {
+    const e = build({ kickOffMeetings: [{ row: fixture("KickOffMeeting", { meetsAt: t("2026-11-02T01:30:00Z"), place: "", onlineLink: "meet.example.test/x", agenda: "Introductions.", heldOn: null }), contractLabel: "WK/2026/8 · Roads", attendance: [] }] });
+    const m = section(e, "kickOffMeetings").rows[0]!;
+    expect(m.rows!.map((r) => r.label)).toEqual(["When", "Online link", "Agenda"]);
+  });
+
+  it("no meeting, no row", () => {
+    expect(section(build({ kickOffMeetings: [] }), "kickOffMeetings").rows).toEqual([]);
   });
 });

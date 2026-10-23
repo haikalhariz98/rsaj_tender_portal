@@ -400,6 +400,34 @@ export const EXPORT_COLUMNS = {
     decidedAt: TECH,
     decidedOn: IN,
   },
+  // ADR 0042 D10, PW-19 (plan step 7): the kick-off meeting of a contract the supplier holds, as its portal card shows it: when, where, the agenda and the day it was held.
+  // Who scheduled it and who recorded it held are never shown to the contractor. The minutes are an ordinary shared Project document, already in `ProjectDocument`.
+  KickOffMeeting: {
+    id: KEY,
+    organisationId: KEY,
+    contractId: KEY,
+    meetsAt: IN,
+    place: IN,
+    onlineLink: IN,
+    agenda: IN,
+    scheduledByPersonId: STAFF,
+    scheduledAt: TECH,
+    heldOn: IN,
+    heldRecordedByPersonId: STAFF,
+    heldRecordedAt: TECH,
+    minutesDocumentId: KEY,
+  },
+  // PW-19: attendance by the supplier's OWN accounts is IN (named by the account's contact, as the reader hands it). `buildSupplierExport` lets only those rows through:
+  // the organisation's attendees and the other names are other people, not the supplier's own data, and are left out (the portal card shows them; this export does not yet).
+  KickOffAttendance: {
+    id: KEY,
+    organisationId: KEY,
+    meetingId: KEY,
+    side: IN,
+    personId: STAFF,
+    supplierAccountId: KEY,
+    name: out("NOT_YET_EXPORTED"),
+  },
 } as const satisfies Readonly<Record<string, Columns>>;
 
 export type ExportModel = keyof typeof EXPORT_COLUMNS;
@@ -433,10 +461,7 @@ export const OUT_MODELS: Readonly<Record<string, OutReason>> = {
   ContractorSubmission: "NOT_YET_EXPORTED",
   SiteDiaryEntry: "NOT_YET_EXPORTED",
   CertificateSignature: "NOT_YET_EXPORTED",
-  // ADR 0042 D10 (plan step 7): the kick-off meeting and who attended it. No reader exists yet: the act step builds the meeting and its reader together, and moves both into
-  // EXPORT_COLUMNS then (PW-19: attendance by the supplier's own accounts is IN). The minutes already reach the export as an ordinary shared Project document.
-  KickOffMeeting: "NOT_YET_EXPORTED",
-  KickOffAttendance: "NOT_YET_EXPORTED",
+  // ADR 0042 D10 (plan step 7): the kick-off meeting and who attended it are classified above (EXPORT_COLUMNS), read and exported since the act step.
 };
 
 /// The IN columns of a model, as a Prisma `select`.

@@ -212,6 +212,7 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   // ADR 0042 D2 (plan step 4): the Project workspace's staff acts, each the signed-in person's own (PW-5: the S.O., an acting holder, or a representative whose letter lists
   // contractor communication). An approval or a rejection is not a signature (PW-26): `signatureClass` stays false, and no password is asked. Creating a document also fills the
   // version's, the request's and the approvers' slots beside its own (`writeAlso`, listed in `act-wiring-scan.test.ts` HANDED).
+  // Plan step 7: recording the kick-off meeting held also writes these two slots, for its minutes, beside its own (its entry point is named once, on `KickOffMeeting.heldRecordedBy`).
   slot("ProjectDocument", "createdByPerson", "Raised by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/document-actions.ts#createProjectDocument"] }),
   slot("ProjectDocumentVersion", "uploadedByPerson", "Sent by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/document-actions.ts#uploadProjectVersion"] }),
   slot("ProjectDocumentRequest", "requestedByPerson", "Requested by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/document-actions.ts#requestProjectDocument"] }),
@@ -220,9 +221,10 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   // Plan step 6 (PW-9, PW-24): the mark on a version of one of the six kinds (Taken up, Noted, Returned) is a decision row with no approver, on the same slot, from its own action.
   slot("ProjectDocumentDecision", "decidedBy", "Decided by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/document-actions.ts#decideProjectVersion", "src/app/projects/[id]/document-actions.ts#markProjectVersion"] }),
   // ADR 0042 D10 (plan step 7, PW-18, PW-29): the kick-off meeting's two staff acts, scheduling it and recording it held, each the signed-in person's own under the same
-  // authority (PW-5). Changing it before it is held writes no person column (it is audited before and after). No holder yet: the act step wires each with its entry point.
-  slot("KickOffMeeting", "scheduledBy", "Recorded by"),
-  slot("KickOffMeeting", "heldRecordedBy", "Recorded by"),
+  // authority (PW-5). Changing it before it is held writes no person column (it is audited before and after, and listed in OTHER_HOLDER_ENTRY_POINTS). Recording it held also
+  // writes the minutes' "Raised by" and "Sent by" beside its own slot (`writeAlso`, listed in `act-wiring-scan.test.ts` HANDED).
+  slot("KickOffMeeting", "scheduledBy", "Recorded by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/kick-off-actions.ts#scheduleKickOff"] }),
+  slot("KickOffMeeting", "heldRecordedBy", "Recorded by", { holder: "TRANSACTION", entryPoints: ["src/app/projects/[id]/kick-off-actions.ts#recordKickOffHeld"] }),
   // Phase 4e (FR-VND-014): the officer who published an announcement to the supplier board, and the one who withdrew it. Each is the signed-in holder's own act, gated by
   // `announcements.publish`; an administrator is refused as at every act outside configuration (taken in the refusing direction; an open item for the product owner).
   slot("Announcement", "publishedBy", "Published by", { holder: "TRANSACTION", entryPoints: ["src/app/suppliers/announcement-actions.ts#publishAnnouncement"] }),
@@ -416,6 +418,8 @@ export const OTHER_HOLDER_ENTRY_POINTS: readonly { entry: string; holder: Admini
   { entry: "src/app/documents/actions.ts#attachDocument", holder: "TRANSACTION", why: "Attaches a stored version to a record for a purpose, among them the schedule of tenders published on Results." },
   { entry: "src/app/documents/actions.ts#attachNewVersion", holder: "TRANSACTION", why: "Replaces the version an attachment pins with a newer one of the same document, with a reason: how a published schedule is corrected." },
   { entry: "src/app/documents/actions.ts#detachDocument", holder: "TRANSACTION", why: "Takes an attachment off its record, with a reason: how a published schedule is withdrawn." },
+  // ADR 0042 D10 (plan step 7): changing the kick-off meeting before it is held writes no Person column, so it has no slot; it is a transaction's act, under PW-5, audited before and after.
+  { entry: "src/app/projects/[id]/kick-off-actions.ts#changeKickOff", holder: "TRANSACTION", why: "Changes when, where or the agenda of the contract's kick-off meeting before it is held: the S.O.'s or a representative's act, never an administrator's." },
 ];
 
 /**

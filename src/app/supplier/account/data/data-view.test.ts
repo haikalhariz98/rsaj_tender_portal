@@ -44,6 +44,7 @@ function sample(): SupplierExport {
     purchases: [],
     bidReceipts: [],
     projectDocuments: [],
+    kickOffMeetings: [],
   };
   return buildSupplierExport(src, { generatedAt: new Date("2026-10-19T01:00:00Z"), timeZone: "Asia/Kuala_Lumpur", officeName: "" });
 }

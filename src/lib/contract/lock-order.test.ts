@@ -778,3 +778,92 @@ describe("the Project workspace: staff actions lock the contract, the store lock
     expect(written).toBeGreaterThanOrEqual(10);
   });
 });
+
+// ------------------------------------------------------------------ ADR 0042 D10, plan step 7: the kick-off meeting's acts
+//
+// The plan names CONTRACT_ACT_FILES; its scans read a file of fifteen acts or more with its own domain lock, so the kick-off meeting is held here instead, in the same split as
+// the workspace's: the staff server actions own the edge and the contract's lock (`kick-off-actions.ts`), and the cores (`project-docs/kick-off-store.ts`) take the one row
+// lock of these acts, the meeting's, after it. None of the scans above is loosened. Recording it held is one act at the transaction's top level (the meeting's trigger reads
+// `xmin`), so the store opens no transaction and no savepoint.
+
+const KICK_OFF_ACTIONS = "src/app/projects/[id]/kick-off-actions.ts";
+const KICK_OFF_STORE = "src/lib/project-docs/kick-off-store.ts";
+
+describe("the kick-off meeting: staff actions lock the contract, the store locks the meeting", () => {
+  const actionsSrc = read(KICK_OFF_ACTIONS);
+  const storeSrc = read(KICK_OFF_STORE);
+  const acts = actions(actionsSrc);
+  const cores = actions(storeSrc);
+
+  it("three actions, each reading the clock once before it enters the lock; scheduling and recording it held begin their attribution before it, a change (no Person column) begins none", () => {
+    expect([...acts.keys()].sort()).toEqual(["changeKickOff", "recordKickOffHeld", "scheduleKickOff"]);
+    for (const [name, body] of acts) {
+      const entry = body.indexOf("return inContract(");
+      expect(entry, name).toBeGreaterThan(-1);
+      expect(body.indexOf("const now = toSecond(new Date());"), name).toBeGreaterThan(-1);
+      expect(body.indexOf("const now = toSecond(new Date());"), name).toBeLessThan(entry);
+      expect((body.match(/new Date\(\)/g) ?? []).length, name).toBe(1);
+      const begun = [...body.matchAll(/\bbeginAct\(/g)].map((m) => m.index!);
+      expect(begun.length, name).toBe(name === "changeKickOff" ? 0 : 1);
+      for (const at of begun) expect(at, `${name}: beginAct after the lock was taken`).toBeLessThan(entry);
+    }
+    expect((actionsSrc.match(/new Date\(\)/g) ?? []).length).toBe(acts.size);
+  });
+
+  it("the actions' own helper locks the contract (withLockedContract) and asks the PROJECT_WORKSPACE row, then the day, inside it; the file locks no row, opens no transaction and never uses the global client", () => {
+    const at = actionsSrc.indexOf("async function inContract(");
+    const helper = actionsSrc.slice(at, actionsSrc.indexOf("\n}\n", at));
+    expect(helper).toContain("withLockedContract(");
+    expect(helper.indexOf('actStatusFault("PROJECT_WORKSPACE", l.contract.status as ContractStatus)')).toBeGreaterThan(helper.indexOf("withLockedContract("));
+    expect(helper.indexOf("dayOf(now, l.org.timeZone)")).toBeGreaterThan(helper.indexOf("actStatusFault("));
+    expect(helper.indexOf("fn({ tx, l, now, today })")).toBeGreaterThan(helper.indexOf("dayOf("));
+    expect(lex(actionsSrc)).not.toMatch(/FOR UPDATE|FOR SHARE|\$transaction|\bdb\./);
+  });
+
+  it("the store has the three cores, never locks the contract, opens no transaction or savepoint, never uses the global client, and never reads the clock", () => {
+    expect([...cores.keys()].sort()).toEqual(["changeMeeting", "recordMeetingHeld", "scheduleMeeting"]);
+    const code = lex(storeSrc);
+    expect(code).not.toMatch(/withLockedContract|withLockedAward|inHeldContract|\bdb\.|\$transaction|auditedCreate|auditedUpdate/);
+    expect(code).not.toMatch(/new Date\(\)/);
+    expect(lex(storeSrc, { only: "comments" })).not.toMatch(/SAVEPOINT/i);
+  });
+
+  it("the meeting is the only row the store locks, by its contract, with SELECT ... FOR UPDATE (never a no-op UPDATE); each core locks it after PW-5 is read and before it judges", () => {
+    expect([...storeSrc.matchAll(/FROM "(\w+)" WHERE "?\w+"? = \$\{[\w.]+\} FOR UPDATE/g)].map((m) => m[1])).toEqual(["KickOffMeeting"]);
+    const at = storeSrc.indexOf("async function lockedMeeting(");
+    const locker = storeSrc.slice(at, storeSrc.indexOf("\n}\n", at));
+    expect(locker).toMatch(/SELECT id FROM "KickOffMeeting" WHERE "contractId" = \$\{c\.l\.contract\.id\} FOR UPDATE/);
+    expect(locker.indexOf("FOR UPDATE")).toBeLessThan(locker.indexOf("kickOffMeeting.findFirst("));
+    for (const [name, body] of cores) {
+      expect(body.indexOf("authorityToday(c, a.personId)"), name).toBeGreaterThan(-1);
+      expect(body.indexOf("lockedMeeting(c)"), name).toBeGreaterThan(body.indexOf("authorityToday(c, a.personId)"));
+      const judged = body.search(/(?:schedule|change|held)Faults\(/);
+      expect(judged, name).toBeGreaterThan(body.indexOf("lockedMeeting(c)"));
+      const written = body.search(/\.kickOffMeeting\.(?:create|update)\(/);
+      expect(written, name).toBeGreaterThan(judged);
+    }
+  });
+
+  it("recording it held writes in the one order the triggers need: the minutes (createDocument), then ONE update of the meeting, then the attendance", () => {
+    const body = cores.get("recordMeetingHeld")!;
+    const minutes = body.indexOf("createDocument(");
+    const update = body.indexOf(".kickOffMeeting.update(");
+    const attendance = body.indexOf(".kickOffAttendance.create(");
+    expect(minutes).toBeGreaterThan(body.indexOf("heldFaults("));
+    expect(update).toBeGreaterThan(minutes);
+    expect(attendance).toBeGreaterThan(update);
+    expect((body.match(/\.kickOffMeeting\.update\(/g) ?? []).length).toBe(1);
+  });
+
+  it("an attribution is written only on the act's own tx: the meeting's slot on the meeting, the minutes' beside it", () => {
+    let written = 0;
+    for (const m of storeSrc.matchAll(/\bact\.(?:write|writeAlso)\(\s*([^,)]+)/g)) {
+      written++;
+      expect(m[1].trim(), `an attribution written on another client: ${m[0]}`).toMatch(/^(?:c\.)?tx$/);
+    }
+    expect(written).toBeGreaterThanOrEqual(4);
+    expect(cores.get("scheduleMeeting")).toContain("act.write(c.tx, m.id)");
+    expect(cores.get("recordMeetingHeld")).toContain("act.write(c.tx, meeting.id)");
+    expect(cores.get("changeMeeting")).not.toMatch(/\bact\.(?:write|writeAlso)\(|PreparedAct/);
+  });
+});

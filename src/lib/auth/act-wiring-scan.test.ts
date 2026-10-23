@@ -31,9 +31,7 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   "LossExpenseClaim.valuedBy": { why: "Valuing a loss-and-expense claim is a later 6.13 Part B increment: no act writes the valuation.", writer: /valuedByPersonId/ },
   // Wave 3b (SR-13): the two attestations of the bid sealing policy are wired since step 7 (`bid-sealing/core.ts`), so they leave this list.
   // ADR 0042 (plan step 4): the Project workspace's six staff slots are wired (`document-actions.ts`, `project-docs/store.ts`) and have left this list.
-  // ADR 0042 D10 (plan step 7): the kick-off meeting's two slots are registered with the schema; the act step (`kick-off-actions.ts`) builds their acts and takes each off this list.
-  "KickOffMeeting.scheduledBy": { why: "Scheduling the kick-off meeting is plan step 7's act step: no act writes the meeting yet.", writer: /\.kickOffMeeting\.(?:create|createMany|createManyAndReturn|upsert)\(|INSERT\s+INTO\s+"KickOffMeeting"/ },
-  "KickOffMeeting.heldRecordedBy": { why: "Recording the kick-off meeting held is plan step 7's act step: no act updates the meeting yet.", writer: /\.kickOffMeeting\.(?:update|updateMany|upsert)\(|UPDATE\s+"KickOffMeeting"/ },
+  // ADR 0042 D10 (plan step 7): the kick-off meeting's two slots are wired since the act step (`kick-off-actions.ts`, `project-docs/kick-off-store.ts`), so they leave this list.
 };
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -164,6 +162,9 @@ describe("a slot written beside an act can be recorded the way the act is", () =
     "src/lib/evaluation/versions.ts": [{ target: "Evaluation.startedBy", main: "EstimateEvent.person", mainFile: "src/app/sourcing/[id]/opening/actions.ts", mainFn: "finaliseOpening" }],
     // ADR 0042: creating a Project workspace document also writes its first version's, its first request's and its approvers' slots, in the one act the officer begins (`onBehalf: false`).
     "src/lib/project-docs/store.ts": ["ProjectDocumentVersion.uploadedByPerson", "ProjectDocumentRequest.requestedByPerson", "ProjectDocumentApprover.addedBy"].map((target) => ({ target, main: "ProjectDocument.createdByPerson", mainFile: "src/app/projects/[id]/document-actions.ts", mainFn: "createProjectDocument" })),
+    // Plan step 7 (PW-29): recording the kick-off meeting held makes its minutes through `createDocument` in the same act, whose "Raised by" is written beside the meeting's
+    // "Recorded by" (`minutesAct`), the officer's own act (`onBehalf: false`). The version's "Sent by" is then `store.ts`'s writeAlso, forwarded unchanged.
+    "src/lib/project-docs/kick-off-store.ts": [{ target: "ProjectDocument.createdByPerson", main: "KickOffMeeting.heldRecordedBy", mainFile: "src/app/projects/[id]/kick-off-actions.ts", mainFn: "recordKickOffHeld" }],
   };
   const paperCapable = (key: string) => ACT_SLOTS.find((s) => slotKey(s.entity, s.field) === key)?.onBehalf === true;
   /// The `beginAct` calls of a source text, each with the slot it is for and whether it narrows the slot to the officer's own.

@@ -82,6 +82,15 @@ export interface ProjectDocumentSource {
   requests: readonly { row: SourceRow; by: string; answeredByVersionId: string | null }[];
 }
 
+/// The kick-off meeting of a contract the supplier holds (ADR 0042 D10, PW-19), as the reader read it: the meeting (KickOffMeeting) and every attendance row (KickOffAttendance),
+/// each with the name of the supplier's OWN account it names (its contact's), or null for any other row. `buildSupplierExport` lets only the supplier's own rows through.
+export interface KickOffMeetingSource {
+  row: SourceRow;
+  /// The contract's number and title, as the contractor knows it.
+  contractLabel: string;
+  attendance: readonly { row: SourceRow; ownAccountName: string | null }[];
+}
+
 export interface SupplierExportSource {
   organisationName: string;
   /// The reader's own account: the only one whose sign-in details are exported (decisions log 2026-10-19).
@@ -111,6 +120,8 @@ export interface SupplierExportSource {
   bidReceipts: readonly { row: SourceRow; exerciseName: string; receivedAt: Date; late: boolean; keyFingerprint: string }[];
   /// Every Project workspace document on the contracts the supplier holds.
   projectDocuments: readonly ProjectDocumentSource[];
+  /// The kick-off meeting of each contract the supplier holds that has one.
+  kickOffMeetings: readonly KickOffMeetingSource[];
 }
 
 /// How a value that is not plain text is to be shown.
@@ -532,7 +543,25 @@ function projectDocuments(src: SupplierExportSource): ExportRow[] {
   });
 }
 
-const BUILD: Readonly<Record<ExportSectionKey, (src: SupplierExportSource) => ExportRow[]>> = { company, contacts, accounts, declarations, bank, documents, standing, standingChanges, applications, purchases, bidReceipts, projectDocuments };
+/**
+ * The kick-off meetings (PW-19): when, where, the agenda, and the day it was held, as the portal's card shows them; and who attended FOR THE SUPPLIER, its own accounts by their
+ * contact's name. The organisation's attendees and the other names are left out (not the supplier's own data), and so are who scheduled and who recorded it. The minutes are a
+ * shared Project document, in that section.
+ */
+function kickOffMeetings(src: SupplierExportSource): ExportRow[] {
+  return src.kickOffMeetings.map((k) => {
+    const m = pick("KickOffMeeting", k.row);
+    const own = k.attendance.flatMap((a) => {
+      const r = pick("KickOffAttendance", a.row);
+      return r.side === "CONTRACTOR" && a.ownAccountName ? [row("komAttended", text(a.ownAccountName))] : [];
+    });
+    return row("kickOffMeeting", text(k.contractLabel), {
+      rows: details([row("komWhen", instant(m.meetsAt)), row("komPlace", text(m.place)), row("komOnlineLink", text(m.onlineLink)), row("komAgenda", text(m.agenda)), row("komHeldOn", day(m.heldOn)), ...own]),
+    });
+  });
+}
+
+const BUILD: Readonly<Record<ExportSectionKey, (src: SupplierExportSource) => ExportRow[]>> = { company, contacts, accounts, declarations, bank, documents, standing, standingChanges, applications, purchases, bidReceipts, projectDocuments, kickOffMeetings };
 
 /// The supplier's export, from what the reader read.
 export function buildSupplierExport(src: SupplierExportSource, ctx: ExportContext): SupplierExport {

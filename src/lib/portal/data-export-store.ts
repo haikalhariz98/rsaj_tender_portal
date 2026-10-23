@@ -16,7 +16,7 @@ import { standingView } from "@/lib/portal/company/standing-view";
 import { loadRegistrationSettings } from "@/lib/portal/registration/context-store";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { CONTACT_FIELDS } from "@/lib/suppliers/contact-fields";
-import { buildSupplierExport, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportLists, type ProjectDocumentSource, type SupplierExport, type SupplierExportSource } from "@/lib/suppliers/data-export";
+import { buildSupplierExport, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportLists, type KickOffMeetingSource, type ProjectDocumentSource, type SupplierExport, type SupplierExportSource } from "@/lib/suppliers/data-export";
 import { inColumns } from "@/lib/suppliers/data-export-fields";
 import { standingOf } from "@/lib/suppliers/standing-repo";
 import { inOrder } from "@/lib/series";
@@ -61,6 +61,27 @@ const exerciseName = (ex: { reference: string; title: string }) => `${ex.title} 
 /// approved from. The columns the export may show, and two keys read to word a row (agreed, not signed), never written.
 export function ownDeclarationRows(tx: Tx, organisationId: string, supplierId: string) {
   return tx.registrationDeclaration.findMany({ where: { organisationId, OR: [{ application: { supplierId } }, { portalApplication: { supplierApplication: { supplierId } } }] }, orderBy: [{ signedAt: "asc" }, { kind: "asc" }], select: { ...inColumns("RegistrationDeclaration"), portalApplicationId: true, signedBySupplierAccountId: true } });
+}
+
+/**
+ * The kick-off meeting of each contract the supplier holds (ADR 0042 D10, PW-19), scoped by the contract as `readProjectDocuments` is. Every attendance row is read, with the
+ * contact's name of the account it names only where that account is this supplier's own; `buildSupplierExport` lets only those rows through.
+ */
+export async function readKickOffMeetings(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">): Promise<KickOffMeetingSource[]> {
+  const meetings = await tx.kickOffMeeting.findMany({
+    where: { organisationId: actor.organisationId, contract: { award: { vendorId: actor.supplierId, status: { in: [...STANDING_AWARD] } } } },
+    orderBy: [{ meetsAt: "asc" }, { id: "asc" }],
+    select: {
+      ...inColumns("KickOffMeeting"),
+      contract: { select: { number: true, award: { select: { exercise: { select: { title: true } } } } } },
+      attendance: { orderBy: { id: "asc" }, select: { ...inColumns("KickOffAttendance"), supplierAccount: { select: { supplierId: true, contact: { select: { name: true } } } } } },
+    },
+  });
+  return meetings.map(({ contract, attendance, ...row }) => ({
+    row,
+    contractLabel: `${contract.number} · ${contract.award.exercise.title}`,
+    attendance: attendance.map(({ supplierAccount, ...a }) => ({ row: a, ownAccountName: supplierAccount && supplierAccount.supplierId === actor.supplierId ? supplierAccount.contact.name : null })),
+  }));
 }
 
 /**
@@ -200,6 +221,7 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
     });
 
     const projectDocuments = await readProjectDocuments(tx, actor, settings.org.name);
+    const kickOffMeetings = await readKickOffMeetings(tx, actor);
 
     const src: SupplierExportSource = {
       organisationName: settings.org.name,
@@ -215,6 +237,7 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
       applications: applications.map(({ decisions, ...row }) => ({ row, decisions: decisions.map(({ items, ...d }) => ({ row: d, items })) })),
       purchases: purchaseSource,
       projectDocuments,
+      kickOffMeetings,
       bidReceipts: receipts.flatMap((r) => (seen.has(r.exerciseId) ? [{ row: r.row, exerciseName: seen.get(r.exerciseId)!, receivedAt: r.receivedAt, late: r.late, keyFingerprint: r.keyFingerprint }] : [])),
     };
 

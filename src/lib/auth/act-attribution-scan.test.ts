@@ -64,6 +64,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   "src/app/configuration/budget/core.ts#holderPersonId": CONFIGURATION,
   "src/app/projects/[id]/document-actions.ts#approverPersonId": "The approver named on a Project workspace document: who is asked to decide, not who acted (ProjectDocumentApprover.person is NOT_AN_ACT, with its reason). The act is the addition, begun with beginAct on the signed-in officer, and the person named is judged for authority today by the store.",
   "src/app/committees/actions.ts#personId": "A member's attendance at a sitting: a roster entry, not an act (MeetingAttendance.person is NOT_AN_ACT, with its reason).",
+  "src/app/projects/[id]/kick-off-actions.ts#attendeePersonId": "An attendee of the contract's kick-off meeting, ticked on the organisation's side: who was there, not who acted (KickOffAttendance.person is NOT_AN_ACT, with its reason). The act is recording the meeting held, begun with beginAct on the signed-in officer.",
 };
 
 function found(): Map<string, string[]> {
