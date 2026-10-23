@@ -1,5 +1,7 @@
 # 0002 — Keeping Configuration organised as it grows
 
+> **Superseded by simplification plan step 5** (`docs/notes/plans/simplification-plan.md`) and ADR 0043 (`docs/notes/architecture/0043-starter-packs-getting-started-checklist-and-the-two-person-switch.md`). Settings is now six sections from one table (`SETTINGS_SECTIONS` in `src/lib/nav.ts`); the 24-section rail below is retired. Kept for the history of the decision.
+
 Status: ruled 2026-10-08 (founder request; product-owner ruling with four binding
 amendments). This text is the proposal as corrected by that ruling. The two corrections
 that changed the proposal's text: Routing sheets sit in Records, giving Contracts 2

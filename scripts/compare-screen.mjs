@@ -351,6 +351,10 @@ const ALLOWED_EXTRA = [
   // Wave 3c step 5 (SR-15 "Where: Received", ruling 20ct): once an opening is finalised, Received shows the schedule of tenders and the Grand Summary with their two downloads, through the
   // same components and the same read as the Schedule section. Before finalising it shows none of it.
   /^(Schedule of tenders.*|Grand Summary|Download .* \(CSV\))$/,
+  // Simplification plan step 5 (ADR 0043; decisions log 2026-10-24, steps 5.1, 5.4, 5.7): the Settings frame and its renamed acts. Neither the sample nor its rail has them.
+  // "Getting started", the six section pages and their "Advanced" fold (5.1), "Test a route" opening the simulator in a drawer, "Issue" reading "Put in force" and "Retire"
+  // reading "Stop using" (5.4), and the Settings changes tab of My approvals (5.7).
+  /^(Getting started|Advanced|Test a route|Put in force|Stop using|Settings changes( \(\d+\))?)$/,
 ];
 
 const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));
@@ -361,6 +365,28 @@ const isAllowed = (label) => ALLOWED_EXTRA.some((re) => re.test(label));
  * kept rather than silently tolerated, and any other missing field still fails.
  */
 const DECIDED_ABSENT = [
+  // Simplification plan step 5 (ADR 0043; founder 2026-10-23: simple, minimal words, English only). What the Settings passes moved or removed, on Configuration screens only.
+  // Written from the decisions log, not from a run: the comparator needs a signed-in session and reads the retired prototype classes of our markup (see the step 5.9 report).
+  {
+    screen: /^[/]configuration(?:[/].*)?$/,
+    match: /^(Source|Where it comes from)$/,
+    why: "5.1 to 5.7 (SP-18): no screen shows a Source column or a provenance chip; a gap reads plain \"Not set\" and History carries the source as \"Source: From a written rule / Usual practice / Assumed\". The drawer field is \"Kind of source\" (5.2) or \"Basis\" (5.5, 5.7)",
+  },
+  {
+    screen: /^[/]configuration[/](?:committees|routing-sheets|accounts|evaluation|changes)$/,
+    match: /^(Accounts|Waiting for activation|Locked now|Issued models|Policy settings not set|Contract bases with no route|Types in use|Without a target|Band edge undecided|Waiting for you|Proposed by you|Waiting in all)$/,
+    why: "5.3, 5.4, 5.7: stat tiles are removed from Committees, Routing sheets, Evaluation, Sign-in accounts (now People, with Not activated and Locked views) and the changes queue (now a tab of My approvals); the facts they counted are in the list, the section banner or a popover",
+  },
+  {
+    screen: /^[/]configuration[/]approval-matrix$/,
+    match: /^(Standard route|Core routing|Boundary ruling|Band famil.*|Three band families)$/,
+    why: "5.4: the band-families card is deleted as a duplicate; the standard route, terms bands, rejection destinations and funder rule sets sit under Advanced; \"Exact amount at a limit\", with a popover, replaces \"Boundary ruling\"",
+  },
+  {
+    screen: /^[/]configuration[/](?:awards|contracts|post-award|budget|suppliers)$/,
+    match: /\((?:Malay|BM|MS)\)$|^The same words in Malay$/,
+    why: "5.5, 5.6 (English only, 2026-10-19): the Malay stamp, part, recipient, budget description and supplier-list fields are deleted from screens, editors and saves; the columns stay and a save leaves stored Malay untouched",
+  },
   {
     // The approval matrix's "Order-splitting window" (6.1 ruling OD-9), on that screen only.
     screen: /approval-matrix/,
