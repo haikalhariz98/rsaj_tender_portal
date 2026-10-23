@@ -28,7 +28,7 @@ export interface Crumb {
 
 /// A record's name is data: the same in both languages, and never marked as untranslated.
 // A blank name (an organisation set up with none) falls back to a fixed word rather than a pair `say` would refuse.
-const named = (name: string): Words => (name.trim() ? w(name) : SHELL_WORDS.dashboard);
+const named = (name: string): Words => (name.trim() ? w(name) : SHELL_WORDS.home);
 
 /**
  * The breadcrumb's crumbs for a path, given the names the page gave its record (and the record it sits
@@ -170,16 +170,9 @@ export function Topbar({
   const parentName = useRecordParentCrumb();
   const crumbs = crumbTrail(segments, recordName, parentName);
 
-  // The organisation's name is data, the same in both languages.
-  const rootLabel: Words = workspace === "supplier" ? SHELL_WORDS.supplierPortal : named(organisation);
-  const rootHref = workspace === "supplier" ? "/supplier" : "/";
-  const trail = workspace === "supplier" ? crumbs.slice(1) : crumbs;
-  const all = [
-    { label: rootLabel, href: rootHref },
-    ...(trail.length === 0
-      ? [{ label: workspace === "supplier" ? SHELL_WORDS.home : SHELL_WORDS.dashboard, href: pathname }]
-      : trail),
-  ];
+  // The root is the sidebar's label of the area, on lists and records alike: no organisation crumb in front of it. The supplier side's
+  // root is its portal. The home screens, which have no trail, are their own one crumb.
+  const all: Crumb[] = workspace === "supplier" ? [{ label: SHELL_WORDS.supplierPortal, href: "/supplier" }, ...(crumbs.length <= 1 ? [{ label: SHELL_WORDS.home, href: pathname }] : crumbs.slice(1))] : crumbs.length === 0 ? [{ label: SHELL_WORDS.home, href: pathname }] : crumbs;
 
   return (
     <header className="sticky top-0 z-20 flex print:hidden h-16 items-center gap-2 border-b border-line/60 bg-canvas/80 px-4 backdrop-blur-md sm:px-6 lg:px-8">
@@ -192,25 +185,25 @@ export function Topbar({
         <MenuIcon size={20} />
       </button>
 
+      {/* The organisation's name is written once, here; the sidebar shows its logo only. */}
+      {workspace !== "supplier" && organisation.trim() && (
+        <span title={organisation} className="hidden max-w-56 shrink-0 truncate border-r border-line-2 pr-4 text-[13.5px] font-bold text-ink xl:block">
+          {organisation}
+        </span>
+      )}
+
       <nav aria-label={say(SHELL_WORDS.breadcrumb)} className="flex min-w-0 shrink items-center gap-1.5 text-[13.5px]">
         {all.map((crumb, i) => {
           const last = i === all.length - 1;
           return (
-            <span
-              key={crumb.href + i}
-              // The organisation's crumb gives way below 2xl, so the record and its section keep their width beside the search box.
-              className={i === 0 && workspace !== "supplier" && all.length > 2 ? "hidden min-w-0 items-center gap-1.5 2xl:flex" : i < all.length - 1 ? "hidden shrink-0 items-center gap-1.5 whitespace-nowrap sm:flex" : "flex min-w-0 items-center gap-1.5"}
-            >
+            <span key={crumb.href + i} className={last ? "flex min-w-0 items-center gap-1.5" : "hidden shrink-0 items-center gap-1.5 whitespace-nowrap sm:flex"}>
               {last ? (
                 <span aria-current="page" className="truncate font-semibold text-ink">
                   {say(crumb.label)}
                 </span>
               ) : (
                 <>
-                  <Link
-                    href={crumb.href}
-                    className="truncate text-ink-3 no-underline hover:text-ink hover:no-underline"
-                  >
+                  <Link href={crumb.href} className="truncate text-ink-3 no-underline hover:text-ink hover:no-underline">
                     {say(crumb.label)}
                   </Link>
                   <ChevronRight size={14} className="shrink-0 text-ink-4" />

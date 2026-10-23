@@ -33,60 +33,55 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-/// Grouped by where a matter is in its life (founder, 2026-10-04), not as the prototype grouped
-/// them: what needs me, procuring, the contract after award, governance, records, set-up.
-/// Reporting is not in this build (the founder removed it on 2026-10-04, 613A-C3), so the
-/// sidebar promises no module that will not be built.
+/// Four groups (simplification plan 6.1): what needs me, buying, records, settings. A group of one item is drawn without a
+/// heading. Addresses are unchanged (SP-10); only labels moved ("Sourcing" is Tenders & quotations, "Contracts" is Projects).
+/// There is no Reports item until step 7 builds Reports (SP-12), so the sidebar promises nothing unbuilt.
 export const STAFF_NAV: NavGroup[] = [
   {
-    label: w("Overview"),
+    label: w("Work"),
     items: [
-      { href: "/", label: w("Dashboard"), icon: "grid", built: true },
-      // Not in the prototype (close-out ruling CO-7): the steps waiting for the person signed in, and every open approval's next step by the office
-      // deciding it. The count beside it is the steps waiting for them (FR-APR-018).
+      { href: "/", label: w("Home"), icon: "grid", built: true },
+      // The steps waiting for the person signed in, and every open approval's next step by the office deciding it. The count is the steps waiting for them (FR-APR-018).
       { href: "/approvals", label: w("My approvals"), icon: "clock", built: true },
-      // The staff inbox (Phase 3c): notices shown in the portal, since email is not connected (INT-09). The count is the unread ones.
+      // The staff inbox: notices shown in the portal, since email is not connected (INT-09). The count is the unread ones.
       { href: "/inbox", label: w("Inbox"), icon: "inbox", built: true },
     ],
   },
   {
-    label: w("Procurement"),
+    label: w("Buying"),
     items: [
-      // Not in the prototype, whose requisition screen no route renders. Above
-      // Sourcing, not under it: a supervision-only matter never becomes sourcing (6.1).
+      // Above Tenders & quotations, not under it: a supervision-only matter never becomes sourcing.
       { href: "/requisitions", label: w("Requisitions"), icon: "clipboard", built: true },
-      { href: "/sourcing", label: w("Sourcing"), icon: "globe", built: true },
-      // AC-17 (C-1): Awards is not a menu; an award is the first stage of a case on the Contracts list.
-    ],
-  },
-  {
-    label: w("Contracts"),
-    items: [
-      // 6.12 (OD-6 A): the contracts after award, formed, signed and on their baseline.
-      { href: "/projects", label: w("Contracts"), icon: "tools", built: true },
-    ],
-  },
-  {
-    label: w("Governance"),
-    items: [
-      // Not in the prototype, which shows committee votes only on each matter's own
-      // record. Sittings run before those modules exist (ruling 5.1).
-      { href: "/committees", label: w("Committee sittings"), icon: "users", built: true },
+      { href: "/sourcing", label: w("Tenders & quotations"), icon: "globe", built: true },
+      // The contracts after award, formed, signed and on their baseline. Awards is not a menu: an award is the first stage of a Project.
+      { href: "/projects", label: w("Projects"), icon: "tools", built: true },
     ],
   },
   {
     label: w("Records"),
     items: [
-      // 6.15a: the staff-side register (ADR 0019). The supplier's own workspace (bids, projects, company) waits for sign-in (6.15b); the public pages do not.
       { href: "/suppliers", label: w("Suppliers"), icon: "building", built: true },
-      // MN-02 (AC-16): the Documents menu is gone; /documents redirects. Each contract holds its certificates, copies and submissions.
+      { href: "/committees", label: w("Committees"), icon: "users", built: true },
     ],
   },
   {
-    label: w("Administration"),
+    label: w("Settings"),
     items: [{ href: "/configuration", label: w("Settings"), icon: "sliders", built: true }],
   },
 ];
+
+/// Settings shows in the sidebar only to those who can draft or issue a setting, or read the trail, and to administrators (SP-21).
+/// Presentation only: the pages and their actions judge the permission themselves.
+export function maySeeSettings(who: { isAdministrator: boolean; permissions: ReadonlySet<string> }): boolean {
+  return who.isAdministrator || ["configuration.draft", "configuration.issue", "audit.read"].some((p) => who.permissions.has(p));
+}
+
+/// The groups a sidebar draws: Settings left out for someone who may not open it, and any group that leaves empty.
+export function visibleGroups(groups: readonly NavGroup[], showSettings: boolean): NavGroup[] {
+  return groups
+    .map((g) => ({ ...g, items: g.items.filter((i) => showSettings || i.href !== "/configuration") }))
+    .filter((g) => g.items.length > 0);
+}
 
 export const SUPPLIER_NAV: NavGroup[] = [
   {

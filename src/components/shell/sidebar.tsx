@@ -28,10 +28,10 @@ import {
 import { useSay } from "@/components/i18n/language-context";
 import { cx } from "@/components/ui/cx";
 import { SHELL_WORDS } from "@/lib/i18n/catalogues/shell";
-import { showsNameBesideLogo } from "@/lib/organisation/details";
 import type { ShellOrganisation } from "@/lib/shell";
 import {
   navFor,
+  visibleGroups,
   SETTINGS_RAIL,
   sectionOfPath,
   navItemDisabled,
@@ -63,7 +63,7 @@ const ICONS: Record<string, ComponentType<{ size?: number }>> = {
 
 export function Sidebar({
   organisation,
-  strapline,
+  showSettings = true,
   counts,
   onNavigate,
   onClose,
@@ -71,7 +71,8 @@ export function Sidebar({
   supplierSignedIn = false,
 }: {
   organisation: ShellOrganisation;
-  strapline: string;
+  /// Settings is drawn only for those who may open it (SP-21).
+  showSettings?: boolean;
   /// Outstanding-work counts keyed by href, shown as a badge on the nav item.
   counts: Record<string, number>;
   /// Called after a link is followed, so the mobile drawer can close.
@@ -89,7 +90,7 @@ export function Sidebar({
   const workspace = workspaceFor(pathname);
   const inConfig = pathname === "/configuration" || pathname.startsWith("/configuration/");
   // Inside Settings the sidebar is its navigator (the settings pattern): Getting started, then the six sections, with no group headers.
-  const groups = inConfig ? [] : navFor(workspace);
+  const groups = inConfig ? [] : visibleGroups(navFor(workspace), showSettings);
   const pinned = inConfig ? SETTINGS_RAIL : [];
 
   const [switching, setSwitching] = useState(false);
@@ -139,9 +140,10 @@ export function Sidebar({
     router.push(to === "supplier" ? SUPPLIER_NAV[0].items[0].href : STAFF_NAV[0].items[0].href);
   };
 
+  // The organisation's name is written once, in the top bar; here the logo stands for it (its alt text carries the name for a screen reader).
   const orgName = organisation.name;
   const logo = organisation.logo;
-  const workspaceName = workspace === "supplier" ? say(SHELL_WORDS.supplierPortal) : orgName;
+  const workspaceName = say(workspace === "supplier" ? SHELL_WORDS.supplierPortal : SHELL_WORDS.staffWorkspace);
 
   // Each section owns its subtree; the two workspace roots need an exact match so
   // /supplier/bids does not light Home as well.
@@ -215,14 +217,8 @@ export function Sidebar({
     <nav className="flex h-full flex-col gap-2 px-4 pt-5 pb-4" aria-label="Main">
       <div className="flex items-center gap-2.5 px-2 pb-3">
         {logo ? (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element -- the address is the logo's own fingerprint, so there is nothing for the image optimiser to add */}
-            <img src={`/organisation/logo/${logo.sha}`} alt={showsNameBesideLogo(logo.width, logo.height) ? "" : orgName} className={showsNameBesideLogo(logo.width, logo.height) ? "max-h-16 max-w-[128px] object-contain" : "max-h-16 max-w-[232px] object-contain"} />
-            {showsNameBesideLogo(logo.width, logo.height) && (
-              // Founder, 2026-10-04: a long name stays to the right of the logo and wraps onto more lines there, never cut.
-              <span className="min-w-0 flex-1 break-words text-[15px] leading-snug font-extrabold tracking-tight text-ink">{orgName}</span>
-            )}
-          </>
+          // eslint-disable-next-line @next/next/no-img-element -- the address is the logo's own fingerprint, so there is nothing for the image optimiser to add
+          <img src={`/organisation/logo/${logo.sha}`} alt={orgName} className="max-h-14 max-w-[232px] object-contain" />
         ) : (
           <>
             <span className="grid size-9 place-items-center rounded-xl bg-brand-700 text-white shadow-brand">
@@ -257,30 +253,24 @@ export function Sidebar({
             <div className="text-[18px] font-bold tracking-tight text-ink">{say(SHELL_WORDS.configuration)}</div>
           </div>
         </div>
-      ) : (
+      ) : portalOnly ? null : (
       /* The workspace you are in, which is also how you leave it. */
       <div className="relative" ref={brand}>
         <button
           type="button"
           ref={trigger}
-          aria-haspopup={portalOnly ? undefined : "menu"}
-          aria-expanded={portalOnly ? undefined : switching}
-          aria-label={portalOnly ? workspaceName : `${say(SHELL_WORDS.viewingAs)} ${workspaceName}. ${say(SHELL_WORDS.switchWorkspace)}`}
-          disabled={portalOnly}
+          aria-haspopup="menu"
+          aria-expanded={switching}
+          aria-label={`${say(SHELL_WORDS.viewingAs)} ${workspaceName}. ${say(SHELL_WORDS.switchWorkspace)}`}
           onClick={() => setSwitching((open) => !open)}
-          className="flex w-full items-center gap-3 rounded-2xl border border-line bg-sunken px-3 py-2.5 text-left transition not-disabled:hover:border-line-2 not-disabled:hover:bg-surface disabled:cursor-default"
+          className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-sunken px-3 py-2 text-left text-[13.5px] font-semibold text-ink transition hover:border-line-2 hover:bg-surface"
         >
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface text-brand-700 shadow-[0_1px_2px_rgb(15_23_42/0.08)]">
-            {workspace === "supplier" ? <UserIcon size={16} /> : <BuildingIcon size={16} />}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13.5px] font-bold text-ink">{workspaceName}</span>
-            <span className="block truncate text-[12px] text-ink-3">{strapline}</span>
-          </span>
-          {!portalOnly && <ChevronDown size={16} className="shrink-0 text-ink-3" />}
+          {workspace === "supplier" ? <UserIcon size={16} className="shrink-0 text-brand-700" /> : <BuildingIcon size={16} className="shrink-0 text-brand-700" />}
+          <span className="min-w-0 flex-1 truncate">{workspaceName}</span>
+          <ChevronDown size={16} className="shrink-0 text-ink-3" />
         </button>
 
-        {switching && !portalOnly && (
+        {switching && (
           <div
             role="menu"
             aria-label={say(SHELL_WORDS.switchWorkspace)}
@@ -289,7 +279,7 @@ export function Sidebar({
             <div className="px-3 pt-2 pb-1 text-[11.5px] font-semibold text-ink-3">{say(SHELL_WORDS.viewingAs)}</div>
             {(
               [
-                ["internal", orgName, BuildingIcon],
+                ["internal", say(SHELL_WORDS.staffWorkspace), BuildingIcon],
                 ["supplier", say(SHELL_WORDS.supplierPortal), UserIcon],
               ] as const
             ).map(([id, label, Ico]) => (
@@ -315,7 +305,8 @@ export function Sidebar({
         {pinned.length > 0 && <div className="mt-1 mb-1 flex flex-col gap-0.5">{pinned.map(renderItem)}</div>}
         {groups.map((group, i) => (
           <div key={group.label.en} className={cx("mt-3.5", i === 0 && pinned.length === 0 && "first:mt-1")}>
-            <div className="px-3 pb-1.5 text-[11.5px] font-semibold text-ink-4">{say(group.label)}</div>
+            {/* A group of one item is drawn without a heading. */}
+            {group.items.length > 1 && <div className="px-3 pb-1.5 text-[11.5px] font-semibold text-ink-3">{say(group.label)}</div>}
             <div className="flex flex-col gap-0.5">{group.items.map(renderItem)}</div>
           </div>
         ))}

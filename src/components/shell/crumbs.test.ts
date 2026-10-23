@@ -3,6 +3,8 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { STAFF_NAV } from "@/lib/nav";
+
 import { crumbTrail } from "./topbar";
 
 /**
@@ -31,12 +33,12 @@ const labels = (c: { label: { en: string } }[]) => c.map((x) => x.label.en);
 describe("breadcrumbs of the certificate core's pages (S-1)", () => {
   it("a certificate: Projects › its contract › Certificates (the contract's tab, id `documents`, renamed in plan step 6) › the certificate", () => {
     const c = trail("/projects/demo_con3/certificates/demo_hct1", "DEMO/CERT/1", "XI202600799");
-    expect(labels(c)).toEqual(["Contracts", "XI202600799", "Certificates", "DEMO/CERT/1"]);
+    expect(labels(c)).toEqual(["Projects", "XI202600799", "Certificates", "DEMO/CERT/1"]);
     expect(c[2].href).toBe("/projects/demo_con3?tab=documents");
     for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
   });
   it("before the page names them, the crumbs say what kind of record, never a key or \"Details\"", () => {
-    expect(labels(trail("/projects/demo_con3/certificates/demo_hct1", null))).toEqual(["Contracts", "Contract", "Certificates", "Certificate"]);
+    expect(labels(trail("/projects/demo_con3/certificates/demo_hct1", null))).toEqual(["Projects", "Contract", "Certificates", "Certificate"]);
   });
   it("a routing sheet type: Settings › Approvals › Routing sheets › the type", () => {
     const c = trail("/configuration/routing-sheets/demo_hrt1", "Demo interim certificate routing sheet");
@@ -52,15 +54,15 @@ describe("breadcrumbs of the certificate core's pages (S-1)", () => {
   });
   it("6.13 Part A step 4, a variation: Projects › its contract › Variations (the contract's tab) › the variation", () => {
     const c = trail("/projects/demo_con3/variations/demo_vvo1", "Variation VO/1", "XI202600799");
-    expect(labels(c)).toEqual(["Contracts", "XI202600799", "Variations", "Variation VO/1"]);
+    expect(labels(c)).toEqual(["Projects", "XI202600799", "Variations", "Variation VO/1"]);
     expect(c[2].href).toBe("/projects/demo_con3?tab=variations");
-    expect(labels(trail("/projects/demo_con3/variations/demo_vvo1", null))).toEqual(["Contracts", "Contract", "Variations", "Variation"]);
+    expect(labels(trail("/projects/demo_con3/variations/demo_vvo1", null))).toEqual(["Projects", "Contract", "Variations", "Variation"]);
   });
-  it("a Project document: Contracts › its contract › Documents (the contract's tab, id `submissions`) › the document", () => {
+  it("a Project document: Projects › its contract › Documents (the contract's tab, id `submissions`) › the document", () => {
     const c = trail("/projects/demo_con3/documents/demo_pd1", "Drainage layout", "XI202600799");
-    expect(labels(c)).toEqual(["Contracts", "XI202600799", "Documents", "Drainage layout"]);
+    expect(labels(c)).toEqual(["Projects", "XI202600799", "Documents", "Drainage layout"]);
     expect(c[2].href).toBe("/projects/demo_con3?stage=project&tab=submissions");
-    expect(labels(trail("/projects/demo_con3/documents/demo_pd1", null))).toEqual(["Contracts", "Contract", "Documents", "Document"]);
+    expect(labels(trail("/projects/demo_con3/documents/demo_pd1", null))).toEqual(["Projects", "Contract", "Documents", "Document"]);
   });
   it("a Project document in the portal: My Projects › its contract › Documents (the contract's tab) › the document", () => {
     const c = trail("/supplier/projects/demo_con3/documents/demo_pd1", "Drainage layout", "XI202600799");
@@ -70,7 +72,7 @@ describe("breadcrumbs of the certificate core's pages (S-1)", () => {
     expect(labels(trail("/supplier/projects/demo_con3/documents/demo_pd1", null)).slice(-2)).toEqual(["Documents", "Document"]);
   });
   it("the contract itself is unchanged: Projects › its number", () => {
-    expect(labels(trail("/projects/demo_con3", "XI202600799"))).toEqual(["Contracts", "XI202600799"]);
+    expect(labels(trail("/projects/demo_con3", "XI202600799"))).toEqual(["Projects", "XI202600799"]);
   });
   it("the page check itself finds a missing page", () => {
     expect(hasPage("/projects/demo_con3/certificates")).toBe(false);
@@ -97,16 +99,27 @@ describe("breadcrumbs on every page (6.14 residual)", () => {
       expect(c.filter((x) => x.label.en === "Details").map((x) => x.href), `${name ?? "unnamed"}: Details`).toEqual([]);
     }
   });
+  it("the root crumb is the sidebar's label of the area, on lists and records alike (plan 6.1)", () => {
+    const items = STAFF_NAV.flatMap((g) => g.items).filter((i) => i.href !== "/");
+    let checked = 0;
+    for (const segs of all) {
+      const item = items.find((i) => i.href === `/${segs[0] === "awards" ? "projects" : segs[0]}`);
+      if (!item) continue;
+      for (const name of [null, "REC"]) expect(crumbTrail(segs, name, null)[0].label.en, `/${segs.join("/")}`).toBe(item.label.en);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(40);
+  });
   it("a page under an exercise names the exercise at the exercise's crumb, and its own section and page in words", () => {
-    expect(labels(trail("/sourcing/sx1/evaluation/report", "EX/1"))).toEqual(["Sourcing", "EX/1", "Evaluation", "Evaluation report"]);
-    expect(labels(trail("/sourcing/sx1/evaluation/proposal", "EX/1"))).toEqual(["Sourcing", "EX/1", "Evaluation", "Proposal paper"]);
-    expect(labels(trail("/sourcing/sx1/label/s1", "EX/1"))).toEqual(["Sourcing", "EX/1", "Sales", "Sale label"]);
-    expect(labels(trail("/sourcing/sx1/opening/print", "EX/1"))).toEqual(["Sourcing", "EX/1", "Bid opening", "Print"]);
-    expect(labels(trail("/sourcing/sx1/documents/print", "EX/1"))).toEqual(["Sourcing", "EX/1", "Tender documents", "Print"]);
-    expect(labels(trail("/sourcing/sx1/appendix", "EX/1"))).toEqual(["Sourcing", "EX/1", "Appendix"]);
-    expect(labels(trail("/sourcing/sx1/edit", "EX/1"))).toEqual(["Sourcing", "EX/1", "Edit"]);
-    expect(labels(trail("/sourcing/sx1", null))).toEqual(["Sourcing", "Exercise"]);
-    expect(labels(trail("/sourcing/new", null))).toEqual(["Sourcing", "New exercise"]);
+    expect(labels(trail("/sourcing/sx1/evaluation/report", "EX/1"))).toEqual(["Tenders & quotations", "EX/1", "Evaluation", "Evaluation report"]);
+    expect(labels(trail("/sourcing/sx1/evaluation/proposal", "EX/1"))).toEqual(["Tenders & quotations", "EX/1", "Evaluation", "Proposal paper"]);
+    expect(labels(trail("/sourcing/sx1/label/s1", "EX/1"))).toEqual(["Tenders & quotations", "EX/1", "Sales", "Sale label"]);
+    expect(labels(trail("/sourcing/sx1/opening/print", "EX/1"))).toEqual(["Tenders & quotations", "EX/1", "Bid opening", "Print"]);
+    expect(labels(trail("/sourcing/sx1/documents/print", "EX/1"))).toEqual(["Tenders & quotations", "EX/1", "Tender documents", "Print"]);
+    expect(labels(trail("/sourcing/sx1/appendix", "EX/1"))).toEqual(["Tenders & quotations", "EX/1", "Appendix"]);
+    expect(labels(trail("/sourcing/sx1/edit", "EX/1"))).toEqual(["Tenders & quotations", "EX/1", "Edit"]);
+    expect(labels(trail("/sourcing/sx1", null))).toEqual(["Tenders & quotations", "Exercise"]);
+    expect(labels(trail("/sourcing/new", null))).toEqual(["Tenders & quotations", "New exercise"]);
     expect(trail("/sourcing/sx1/evaluation/report", "EX/1")[2].href).toBe("/sourcing/sx1?tab=evaluation&section=report");
     // SR-06 (ruling 9): the Invitation tab is gone; the sale register is Sales and briefing on Bids and opening.
     expect(trail("/sourcing/sx1/label/s1", "EX/1")[2].href).toBe("/sourcing/sx1?tab=bids&section=sales");
@@ -115,7 +128,7 @@ describe("breadcrumbs on every page (6.14 residual)", () => {
   it("a printed award document's crumb is the page itself; configuration's sections are named", () => {
     const c = trail("/awards/aw1/print/loa", "AW/1");
     // AC-17, AC-23 (C9): Awards left the menu, so the print view's first crumb is the Contracts list.
-    expect(labels(c)).toEqual(["Contracts", "AW/1", "Print"]);
+    expect(labels(c)).toEqual(["Projects", "AW/1", "Print"]);
     expect(c[0].href).toBe("/projects");
     expect(c[2].href).toBe("/awards/aw1/print/loa");
     expect(labels(trail("/configuration/contracts", null))).toEqual(["Settings", "Contracts & payments", "Contract controls"]);

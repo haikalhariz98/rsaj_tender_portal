@@ -14,7 +14,8 @@ import { Badge, Chip, SulitLock, SulitWithheld } from "@/components/ui/badge";
 import type { Language } from "@/lib/i18n/language";
 import { Button, buttonClass, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
-import { EmptyState, Meter } from "@/components/ui/feedback";
+import { EmptyState, Meter, Note } from "@/components/ui/feedback";
+import { MoreText } from "@/components/ui/more-text";
 import { provenanceLabel, ProvenanceBadge } from "@/components/ui/provenance";
 import { Select } from "@/components/ui/select";
 import { listToCsv } from "@/lib/csv-cell";
@@ -122,6 +123,19 @@ export function exportColumns(columns: readonly Column[]): Column[] {
 /// Whether a list may offer a client export: when at least one column is not SULIT.
 export function canExport(columns: readonly Column[]): boolean {
   return exportColumns(columns).length > 0;
+}
+
+/// The SULIT columns in which every row is withheld from this reader (FR-EVL-014): a column of nothing but "SULIT · withheld" says it once, above the
+/// list. Presentation only: a withheld cell carries no value, and the export already leaves SULIT columns out. A column with one value shown stays.
+export function withheldColumns(columns: readonly Column[], rows: readonly Row[]): Column[] {
+  if (rows.length === 0) return [];
+  return columns.filter((c) => c.sulit && rows.every((r) => r.cells[c.key]?.kind === "withheld"));
+}
+
+/// Why the values are withheld, in the cells' own words (each says who is entitled), said once.
+function withheldReason(gone: readonly Column[], rows: readonly Row[]): string {
+  const words = rows.flatMap((r) => gone.map((c) => r.cells[c.key])).flatMap((cell) => (cell?.kind === "withheld" ? [cell.words] : []));
+  return [...new Set(words)].join(" ");
 }
 
 /// The mark a SULIT column's header carries: the shared lock beside the column name, the
@@ -440,7 +454,7 @@ const smallControl =
   "h-9 rounded-full border border-line-2 bg-surface px-3.5 text-[13px] text-ink transition hover:border-ink-4";
 
 export function DataList({
-  columns,
+  columns: allColumns,
   rows,
   views = [],
   filters = [],
@@ -513,6 +527,8 @@ export function DataList({
   /// The view the list opens on (a view named in the address). Ignored if no such view exists.
   initialView?: string;
 }) {
+  const gone = withheldColumns(allColumns, rows);
+  const columns = gone.length > 0 ? allColumns.filter((c) => !gone.includes(c)) : allColumns;
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   // The list's own words, in the language being read (NFR-LNG-001); a screen's words are passed in and left as they come.
@@ -615,8 +631,8 @@ export function DataList({
     </button>
   );
 
-  const exportable = canExport(columns);
-  const leavesOutSulit = columns.some((c) => c.sulit);
+  const exportable = canExport(allColumns);
+  const leavesOutSulit = allColumns.some((c) => c.sulit);
 
   function exportCsv() {
     // The guard lives here as well as in the button: a SULIT column never leaves in the file.
@@ -667,6 +683,14 @@ export function DataList({
         !flat && "overflow-hidden rounded-card border border-line/70 bg-surface shadow-card",
       )}
     >
+      {gone.length > 0 && (
+        <Note className="px-4 pt-3 sm:px-5">
+          <span className="inline-flex items-center gap-1.5">
+            {say(WORDS.valuesHidden)}
+            <MoreText text={withheldReason(gone, rows) || say(WORDS.sulitColumn)} label={say(WORDS.valuesHiddenWhy)} />
+          </span>
+        </Note>
+      )}
       {showTools && (
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5">
           {toolbarLead}

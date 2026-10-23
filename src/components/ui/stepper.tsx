@@ -19,13 +19,13 @@ const STATE_WORDS = {
 
 const DOT: Record<StepState, string> = {
   done: "bg-emerald-600 text-white",
-  current: "bg-amber-400 text-white ring-4 ring-amber-100",
+  current: "bg-brand-600 text-white ring-4 ring-brand-100",
   waiting: "border-2 border-line-2 bg-surface text-ink-3",
   rejected: "bg-rose-600 text-white",
   parked: "border-2 border-dashed border-line-2 bg-surface text-ink-3",
 };
 
-/// The step being viewed (`selected`): a brand ring round the dot and an underlined label, set apart from the amber of an in-progress step. No words, so nothing for a screen reader to add: `aria-current` already says it.
+/// The step being viewed (`selected`): a brand ring round the dot and an underlined label, set apart from the ring of an in-progress step. No words, so nothing for a screen reader to add: `aria-current` already says it.
 const VIEWED_DOT = "outline-2 outline-offset-2 outline-brand-600";
 const VIEWED_LABEL = "underline decoration-brand-600 decoration-2 underline-offset-4";
 
@@ -34,6 +34,8 @@ const VIEWED_LABEL = "underline decoration-brand-600 decoration-2 underline-offs
  * "Submitted → Head of Department → Chief Executive → Approved", not as its rule). Wide screens
  * show a row joined by a line; a phone shows the same steps as a column. The state is in words
  * as well as colour, for a screen reader and for anyone who cannot tell the colours apart.
+ *
+ * Colours (SP-17): done is emerald, the current step brand indigo with a ring, and amber only where a step is a warning (a return).
  *
  * Without `selected`, every `current` step carries aria-current="step", as ever. With it, only the
  * step with that key does, so several steps can be `current` (running in parallel) while one is the
@@ -65,7 +67,7 @@ export function Stepper({ steps, label, selected }: { steps: StepperStep[]; labe
               {s.state === "done" ? <CheckIcon size={16} strokeWidth={2.5} /> : s.state === "rejected" ? <XIcon size={16} strokeWidth={2.5} /> : i + 1}
             </span>
             <span className="min-w-0 sm:px-2">
-              <span className={cx("block text-[13.5px] leading-snug font-semibold break-words", viewed && VIEWED_LABEL, s.state === "waiting" || s.state === "parked" ? "text-ink-3" : "text-ink")}>
+              <span title={s.label} className={cx("line-clamp-2 block text-[13.5px] leading-snug font-semibold break-words", viewed && VIEWED_LABEL, s.state === "waiting" || s.state === "parked" ? "text-ink-3" : "text-ink")}>
                 {s.href ? (
                   <Link href={s.href} className="rounded-sm underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
                     {s.label}
@@ -78,6 +80,7 @@ export function Stepper({ steps, label, selected }: { steps: StepperStep[]; labe
                   s.label
                 )}
               </span>
+              {s.owner && <span className="mt-0.5 block text-[12px] leading-snug break-words text-ink-3">{s.owner}</span>}
               {s.sub && <span className="mt-0.5 block text-[12.5px] leading-snug break-words text-ink-3">{s.sub}</span>}
               <span className="sr-only">, {s.stateText ?? <Say words={STATE_WORDS[s.state]} />}</span>
             </span>

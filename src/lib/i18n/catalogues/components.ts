@@ -75,6 +75,7 @@ export const COMPONENT_WORDS = {
   uploadProgress: w("Upload progress"),
   uploaded: w("Uploaded."),
   showFullDescription: w("More information"),
+  moreActions: w("More actions"),
   // The step bar (Stepper): a step's state, said after its name for a screen reader
   stepDone: w("done"),
   stepCurrent: w("waiting now"),
@@ -83,6 +84,9 @@ export const COMPONENT_WORDS = {
   stepParked: w("parked"),
   // The SULIT marks (SulitLock, SulitTag, SulitWithheld and a SULIT column's header). SULIT itself is the classification mark and stays.
   sulitWithheld: w("SULIT · withheld"),
+  // A list column in which every row is withheld from the reader collapses into this one note (FR-EVL-014, presentation only).
+  valuesHidden: w("Values hidden: SULIT"),
+  valuesHiddenWhy: w("Why the values are hidden"),
   sulitValue: w("SULIT. Shown only to the people entitled to it, and every reading is logged."),
   sulitColumn: w(
     "SULIT. Shown to the people entitled to it and withheld from everyone else, and every reading is logged. Not exported.",

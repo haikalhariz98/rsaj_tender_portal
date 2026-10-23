@@ -15,6 +15,7 @@ export const SHELL_WORDS = {
   switchWorkspace: w("Switch workspace"),
   switchWorkspaceButton: w("Switch workspace"),
   supplierPortal: w("Supplier portal"),
+  staffWorkspace: w("Staff"),
   openNavigation: w("Open navigation"),
   closeNavigation: w("Close navigation"),
   soon: w("soon"),
@@ -57,8 +58,8 @@ export const SEGMENT_LABEL: Readonly<Record<string, Words>> = {
   accounts: CONFIG_LABELS["accounts"],
   security: CONFIG_LABELS["security"],
   changes: CONFIG_LABELS["changes"],
-  sourcing: w("Sourcing"),
-  projects: w("Contracts"),
+  sourcing: w("Tenders & quotations"),
+  projects: w("Projects"),
   suppliers: w("Suppliers"),
   documents: w("Documents"),
   requisitions: w("Requisitions"),
@@ -146,12 +147,12 @@ export const NESTED_LABEL: Readonly<Record<string, Words>> = {
 
 /// The crumbs `crumbTrail` writes itself, outside the three tables above.
 export const CRUMB_WORDS = {
-  committeeSittings: w("Committee sittings"),
+  committeeSittings: w("Committees"),
   sitting: w("Sitting"),
   edit: w("Edit"),
   details: w("Details"),
   print: w("Print"),
-  contracts: w("Contracts"),
+  contracts: w("Projects"),
   tenderDocuments: w("Tender documents"),
   exercise: w("Exercise"),
   evaluation: w("Evaluation"),

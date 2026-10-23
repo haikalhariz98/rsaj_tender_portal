@@ -6,6 +6,8 @@ export type StepState = "done" | "current" | "waiting" | "rejected" | "parked";
 export interface StepperStep {
   key: string;
   label: string;
+  /// The role that owns the step, shown under the label ("Procurement officer"): a flow of role-owned steps reads as who does what.
+  owner?: string;
   /// A short second line: who decided it and when, or what it waits for.
   sub?: string;
   state: StepState;

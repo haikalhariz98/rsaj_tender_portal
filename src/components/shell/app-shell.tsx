@@ -20,7 +20,7 @@ const COUNTS_FRESH_MS = 30_000;
 
 export function AppShell({
   organisation,
-  strapline,
+  showSettings = true,
   counts: served,
   user,
   portalOnly = false,
@@ -29,7 +29,8 @@ export function AppShell({
   children,
 }: {
   organisation: ShellOrganisation;
-  strapline: string;
+  /// Settings is drawn only for those who may open it (SP-21).
+  showSettings?: boolean;
   counts: Record<string, number>;
   user: ShellUser | null;
   /// The public copy of the product: only the supplier portal is served, so the frame offers nothing else.
@@ -97,7 +98,7 @@ export function AppShell({
           overscroll never shows the canvas under it. */}
       <div aria-hidden="true" className="absolute inset-y-0 left-0 z-0 hidden w-68 border-r border-line/70 bg-surface lg:block print:hidden" />
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-68 border-r border-line/70 bg-surface lg:block print:hidden">
-        <Sidebar organisation={organisation} strapline={strapline} counts={counts} portalOnly={portalOnly} supplierSignedIn={supplierSignedIn} />
+        <Sidebar organisation={organisation} showSettings={showSettings} counts={counts} portalOnly={portalOnly} supplierSignedIn={supplierSignedIn} />
       </aside>
 
       {open && (
@@ -110,7 +111,7 @@ export function AppShell({
           <aside className="absolute inset-y-0 left-0 w-[min(20rem,86vw)] bg-surface shadow-pop">
             <Sidebar
               organisation={organisation}
-              strapline={strapline}
+              showSettings={showSettings}
               counts={counts}
               onNavigate={() => setOpen(false)}
               onClose={() => setOpen(false)}

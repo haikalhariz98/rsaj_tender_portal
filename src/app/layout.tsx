@@ -4,12 +4,12 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import { DialogFocus } from "@/components/ui/dialog-focus-mount";
 import { ActorProvider } from "@/components/auth/actor-context";
 import { AppShell } from "@/components/shell/app-shell";
+import { maySeeSettings } from "@/lib/nav";
 import { loadShell } from "@/lib/shell";
 import { currentStaffOrNull } from "./_auth/actor";
 import { currentSupplierOrNull } from "./_auth/supplier";
 import { staffCounts } from "./_auth/worklist";
 import { signOutAction } from "./sign-in/actions";
-import { ORGANISATION_STRAPLINE } from "@/lib/org";
 import { deploymentOrganisation } from "@/lib/portal/deployment";
 import { SURFACE_ENV, surfaceOf } from "@/lib/portal/surface";
 import "./globals.css";
@@ -20,7 +20,8 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Perolehan",
+  // Every page sets only its own name (`metadata.title = "Requisitions"`); the template makes it "Requisitions · Perolehan" (SP-20).
+  title: { template: "%s · Perolehan", default: "Perolehan" },
   description: "Procurement and contract administration",
 };
 
@@ -46,7 +47,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <ActorProvider name={actor?.personName ?? null} personId={actor?.personId ?? null}>
           <AppShell
             organisation={shell.organisation}
-            strapline={ORGANISATION_STRAPLINE}
+            showSettings={actor != null && maySeeSettings(actor)}
             counts={portalOnly ? {} : personal}
             user={user}
             portalOnly={portalOnly}

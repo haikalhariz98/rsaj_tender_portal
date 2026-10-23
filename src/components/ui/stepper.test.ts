@@ -78,4 +78,20 @@ describe("Stepper", () => {
     expect(count(html, "<button")).toBe(1);
     expect(html).not.toContain("<a ");
   });
+
+  it("colours by state: done emerald, current brand indigo with a ring, amber only for a warning (SP-17)", () => {
+    const dot = (state: StepperStep["state"], tone?: "warn") => render([{ key: "a", label: "A", state, tone }]).match(/<span aria-hidden="true" class="relative z-10[^"]*"/)![0];
+    expect(dot("done")).toContain("bg-emerald-600");
+    expect(dot("current")).toContain("bg-brand-600");
+    expect(dot("current")).toContain("ring-brand-100");
+    for (const s of ["done", "current", "waiting", "rejected", "parked"] as const) expect(dot(s), s).not.toContain("amber");
+    expect(dot("rejected", "warn")).toContain("bg-amber-500");
+  });
+
+  it("shows an owner under the label, and none when there is not one; a label wraps at two lines", () => {
+    const html = render([{ key: "a", label: "Review", owner: "Procurement officer", sub: "waits", state: "current" }]);
+    expect(html).toMatch(/Review[^]*Procurement officer[^]*waits/);
+    expect(html).toContain("line-clamp-2");
+    expect(render([{ key: "a", label: "Review", state: "current" }])).not.toContain("Procurement officer");
+  });
 });

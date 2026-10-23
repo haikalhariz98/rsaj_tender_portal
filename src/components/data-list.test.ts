@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { SULIT_COLUMN_WORDS } from "@/lib/sulit-fields";
 
-import { canExport, DataList, exportColumns, hasRowAction, type Column, type Row } from "./data-list";
+import { canExport, DataList, exportColumns, hasRowAction, withheldColumns, type Column, type Row } from "./data-list";
 
 const rows: Row[] = [{ id: "1", search: "a", cells: { name: { kind: "text", text: "A" }, value: { kind: "money", value: 1500 } } }];
 const html = (columns: Column[]) => renderToStaticMarkup(createElement(DataList, { columns, rows }));
@@ -120,5 +120,34 @@ describe("a chip's provenance tag (6.13A residual: the shared badge, never '(ass
   });
   it("without it, no badge", () => {
     expect(render(row())).not.toContain(">Assumed<");
+  });
+});
+
+describe("a SULIT column withheld in every row collapses into one note (plan 6.1, FR-EVL-014)", () => {
+  const cols: Column[] = [{ key: "name", label: "Name" }, { key: "price", label: "Price", numeric: true, sulit: true }];
+  const row = (id: string, price: Row["cells"][string]): Row => ({ id, search: id, cells: { name: { kind: "text", text: `Bidder ${id}` }, price } });
+  const hidden = (id: string) => row(id, { kind: "withheld", words: "Only the opening committee may read prices." });
+  const render = (rows: Row[]) => renderToStaticMarkup(createElement(DataList, { columns: cols, rows }));
+
+  it("drops the column and says so once, with the reason, when every row is withheld", () => {
+    const out = render([hidden("1"), hidden("2")]);
+    expect(withheldColumns(cols, [hidden("1"), hidden("2")]).map((c) => c.key)).toEqual(["price"]);
+    expect(out).toContain("Values hidden: SULIT");
+    expect(out).toContain("Only the opening committee may read prices.");
+    expect(out).not.toContain(">Price<");
+    expect(out).not.toContain("SULIT · withheld");
+    expect(out).toContain("Bidder 1");
+    expect(out.match(/<col\b/g)?.length).toBe(2);
+    expect(out).toContain("Download CSV (SULIT left out)");
+  });
+  it("keeps the column when one row shows its value, and writes no note", () => {
+    const out = render([hidden("1"), row("2", { kind: "money", value: 1500 })]);
+    expect(out).toContain(">Price<");
+    expect(out).not.toContain("Values hidden");
+    expect(out).toContain("SULIT · withheld");
+  });
+  it("an empty list, and a column that is not SULIT, never collapse", () => {
+    expect(withheldColumns(cols, [])).toEqual([]);
+    expect(withheldColumns([{ key: "price", label: "Price" }], [hidden("1")])).toEqual([]);
   });
 });
