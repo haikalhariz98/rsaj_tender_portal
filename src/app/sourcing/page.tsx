@@ -29,13 +29,15 @@ const TONE = { brand: "brand", info: "info", ok: "ok", neutral: undefined } as c
  * Sourcing exercises (6.3): classified here in Phase 1 — bands, method, contract type
  * and basis — while the sourcing itself still runs outside the portal (§13.3).
  */
-export default async function SourcingPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+export default async function SourcingPage({ searchParams }: { searchParams: Promise<{ view?: string; page?: string }> }) {
   const actor = await requireStaff();
-  const { view } = await searchParams;
+  const { view, page: p } = await searchParams;
+  const page = Math.max(0, Number.parseInt(p ?? "0", 10) || 0);
   // FR-MTD-007: a restricted exercise the reader is not named on is not in the list, the counts or the search.
-  const { org, rows, total } = await listExercises(actor.organisationId, await hiddenExercises(actor));
-  // The department estimate is SULIT: each row's is judged for this reader and the access logged (ADR 0034 D14).
-  const values = await sulitExerciseValues(actor, rows.map((r) => ({ id: r.id, reference: r.reference })), "estimatedValue", (id) => Number(rows.find((r) => r.id === id)!.estimatedValue.toString()));
+  const { org, rows, total, byStatus, awaitingName, onBoundary: boundarySet } = await listExercises(actor.organisationId, await hiddenExercises(actor), page);
+  // The department estimate is SULIT: each row's is judged for this reader and the access logged (ADR 0034 D14). The boundary set is judged as well, for the header's count.
+  const shown = new Map([...rows, ...boundarySet].map((r) => [r.id, r]));
+  const values = await sulitExerciseValues(actor, [...shown.values()].map((r) => ({ id: r.id, reference: r.reference })), "estimatedValue", (id) => Number(shown.get(id)!.estimatedValue.toString()), "exercise", { list: true });
   const cfg = org ? await loadMethodConfig(org.id) : null;
   const methodName = (c: string) => cfg?.config.methods.find((m) => m.code === c)?.nameEn ?? "A method no longer configured";
   const typeName = (c: string | null) => (c ? (cfg?.config.types.find((t) => t.code === c)?.nameEn ?? "A type no longer configured") : "Not set");
@@ -43,11 +45,11 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
   // 6.5: each exercise's closing and phase, derived now from the stored instants (ADR 0014).
   const win = await windowColumns(actor.organisationId, rows.map((r) => r.id));
   const today = org?.today ?? null;
-  const awaitingName = rows.filter((r) => r.status !== "CANCELLED" && nameRoutesOf(r.approvalInstances).some((i) => i.status === "PENDING")).length;
   // "On the boundary" states the estimate (ruling of 2026-10-08 on log line 1716), so it is said only for the rows whose estimate this reader may read: the chip, the view, the count.
   const onBoundary = (r: (typeof rows)[number]) => boundaryShown(r.onBoundary, values.get(r.id)?.state === "GRANTED");
-  const boundaryRows = rows.filter((r) => onBoundary(r) && r.status !== "CANCELLED").length;
-  const boundaryLeftOut = rows.filter((r) => r.onBoundary && r.status !== "CANCELLED" && !onBoundary(r)).length;
+  // The header counts the whole set, not the page: the boundary count over every not-cancelled exercise on it, judged for this reader.
+  const boundaryRows = boundarySet.filter((r) => values.get(r.id)?.state === "GRANTED").length;
+  const boundaryLeftOut = boundarySet.length - boundaryRows;
   const list: Row[] = rows.map((r) => {
     const status = r.status as ExerciseStatus;
     const nameOpen = status !== "CANCELLED" && nameRoutesOf(r.approvalInstances).some((i) => i.status === "PENDING");
@@ -99,7 +101,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
         }}
         meta={[
           // The state's own label, as the dashboard counts it: one name for one state.
-          ...(["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "ADVERTISED", "INVITED"] as const).map((s) => `${rows.filter((r) => r.status === s).length} ${EXERCISE_STATUS_LABEL[s].toLowerCase()}`),
+          ...(["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "ADVERTISED", "INVITED"] as const).map((s) => `${byStatus.get(s) ?? 0} ${EXERCISE_STATUS_LABEL[s].toLowerCase()}`),
           `${awaitingName} awaiting name approval`,
           `${boundaryRows} on the boundary`,
           // Said in words, so that a count of zero is never read as "none are": the rows whose estimate is withheld from this reader are not counted.
@@ -149,7 +151,19 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
           { key: "checks", label: "Band and checks", width: "168px", hideBelow: "2xl", mobile: "meta" },
         ]}
         rows={list}
-        footer={total > rows.length ? <CardFooter className="text-[12.5px] text-ink-3">Showing the latest {EXERCISES_PAGE} of {total}.</CardFooter> : undefined}
+        footer={
+          total > EXERCISES_PAGE ? (
+            <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
+              <span>
+                {page * EXERCISES_PAGE + 1} to {Math.min(total, (page + 1) * EXERCISES_PAGE)} of {total}
+              </span>
+              <span className="flex gap-2">
+                {page > 0 && <ButtonLink href={page > 1 ? `/sourcing?page=${page - 1}` : "/sourcing"} size="sm" variant="ghost">Previous</ButtonLink>}
+                {(page + 1) * EXERCISES_PAGE < total && <ButtonLink href={`/sourcing?page=${page + 1}`} size="sm" variant="ghost">Next</ButtonLink>}
+              </span>
+            </CardFooter>
+          ) : undefined
+        }
       />
     </>
   );

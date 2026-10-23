@@ -612,7 +612,7 @@ export async function recordSiteMeeting(_prev: FormState, data: FormData): Promi
     const who = await recordedFor(c, s, act, { soOnly: true }, d);
     const policy = await loadPostAwardPolicy(c.l.org.id, c.tx);
     const latest = latestValues(c);
-    const reading = delayOn(s, { today: d, dateForCompletion: latest?.values.dateForCompletion ?? null, policyPct: policy?.inDelayProgressPct?.toString() ?? null });
+    const reading = delayOn(s, { today: d, dateForCompletion: latest?.values.dateForCompletion ?? null, policyPct: policy?.inDelayProgressPct?.toString() ?? null, status: c.l.contract.status });
     const fs = meetingFaults({ inDelay: reading.state === "IN_DELAY", heldOn: d, today: c.today, minutes, attendees });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.siteMeeting.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, heldOn, chairPersonId: who.person.id, attendees, minutes, inDelayReading: reading as unknown as Prisma.InputJsonValue, recordedAt: c.now } });

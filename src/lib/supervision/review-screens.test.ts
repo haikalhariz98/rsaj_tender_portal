@@ -32,7 +32,7 @@ describe("review 14: the In Delay view is judged over the whole set, then paged"
     expect(l).toMatch(/const listed = only \? \{ \.\.\.where, id: \{ in: \[\.\.\.only\] \} \} : where;/);
     expect(l).toMatch(/db\.contract\.count\(\{ where: listed \}\)/);
     const s = read("src/lib/supervision/load.ts");
-    expect(s).toMatch(/where: \{ organisationId, possession: \{ isNot: null \} \}/);
+    expect(s).toMatch(/where: \{ organisationId, possession: \{ isNot: null \}, status: \{ notIn: \[\.\.\.FINISHED_CONTRACT_STATUSES\] \} \}/);
   });
 });
 

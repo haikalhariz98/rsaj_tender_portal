@@ -15,6 +15,9 @@ import { Topbar } from "./topbar";
 
 /// The frame around every screen. Owns one piece of state: whether the navigation
 /// drawer is open on a narrow screen. On wide screens the sidebar is always there.
+/// A count read less than this long ago is not read again on a navigation.
+const COUNTS_FRESH_MS = 30_000;
+
 export function AppShell({
   organisation,
   strapline,
@@ -47,20 +50,21 @@ export function AppShell({
   // read afresh; a count read here is used only while the layout's own have not changed since (a new render of the layout supersedes it). Derived, not synchronised.
   const [fresh, setFresh] = useState<{ base: Record<string, number>; value: Record<string, number> } | null>(null);
   const first = useRef(true);
+  // When the counts were last read (the layout's own, at load): a click within COUNTS_FRESH_MS of it does not read them again, so moving about does not rebuild the worklist each time.
+  const readAt = useRef(0);
   const staffSide = !portalOnly && user?.kind === "staff";
   useEffect(() => {
     if (first.current) {
       first.current = false;
+      readAt.current = Date.now();
       return;
     }
-    if (!staffSide) return;
-    let current = true;
+    if (!staffSide || Date.now() - readAt.current < COUNTS_FRESH_MS) return;
+    readAt.current = Date.now();
+    // Not dropped when the next click supersedes it: that click may be skipped as fresh, and `served` (the base) already says when a read is out of date.
     shellCountsAction()
-      .then((value) => current && setFresh({ base: served, value }))
+      .then((value) => setFresh({ base: served, value }))
       .catch(() => {});
-    return () => {
-      current = false;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- asked after a navigation only; `served` is the base it supersedes
   }, [pathname]);
   const counts = fresh && fresh.base === served ? fresh.value : served;

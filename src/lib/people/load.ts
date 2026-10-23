@@ -162,7 +162,8 @@ export interface StoredDelegation {
   recommendationTextOnlyAtLanding?: boolean;
 }
 
-export async function loadDelegations(organisationCode: string, client: Tx = db): Promise<StoredDelegation[]> {
+/// `inForceOn`: only the delegations in force that day (begun, and not yet ended, as `inForceOn` in `effective.ts` reads it), for a reader that asks about no other.
+export async function loadDelegations(organisationCode: string, client: Tx = db, opts: { inForceOn?: Date } = {}): Promise<StoredDelegation[]> {
   const organisation = await client.organisation.findUnique({
     where: { code: organisationCode },
     select: { id: true },
@@ -170,7 +171,7 @@ export async function loadDelegations(organisationCode: string, client: Tx = db)
   if (!organisation) return [];
 
   const rows = await client.delegation.findMany({
-    where: { organisationId: organisation.id },
+    where: { organisationId: organisation.id, ...(opts.inForceOn ? { effectiveFrom: { lte: opts.inForceOn }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: opts.inForceOn } }] } : {}) },
     orderBy: { effectiveFrom: "desc" },
     include: { attachments: { where: { purpose: "HOLDER_RECOMMENDATION" }, select: { detachedAt: true, version: { select: { withdrawnAt: true } } } } },
   });

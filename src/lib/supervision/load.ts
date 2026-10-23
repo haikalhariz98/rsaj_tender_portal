@@ -17,7 +17,7 @@ import { db } from "@/lib/db";
 import { recorderFaultOver, type ActNeed, type AuthorityFault, type DelegationFacts, type RecorderDay, type SoOffice } from "./authority";
 import { supervisedHolders, type SupervisedRule } from "./blocks";
 import { delayReadingsOf as delayReadingsBatch } from "./delay-batch";
-import { assumedDelayIds, inDelay, inDelayIds, type DelayReading } from "./delay";
+import { assumedDelayIds, contractEnded, FINISHED_CONTRACT_STATUSES, inDelay, inDelayIds, type DelayReading } from "./delay";
 import { programmeInForce, type PointIn, type RevisionFacts } from "./programme";
 import { soOn } from "./so";
 import type { DelegateKind, Finding, ProgrammeDecision, SupervisionAct } from "./types";
@@ -120,7 +120,7 @@ export const revisionsOf = (s: SupervisionRows): (RevisionFacts & { id: string; 
 
 /// In Delay on a day (FR-SUP-010), from the approved programme in force, the latest progress on or before the
 /// day, the baseline's date for completion and the policy's percentage.
-export function delayOn(s: SupervisionRows, i: { today: string; dateForCompletion: string | null; policyPct: string | null }): DelayReading {
+export function delayOn(s: SupervisionRows, i: { today: string; dateForCompletion: string | null; policyPct: string | null; status: string }): DelayReading {
   const revs = revisionsOf(s);
   const prog = programmeInForce(revs, i.today);
   const latest = [...s.progressRecords].reverse().find((r) => storedDay(r.day) <= i.today) ?? null;
@@ -131,6 +131,7 @@ export function delayOn(s: SupervisionRows, i: { today: string; dateForCompletio
     programme: prog ? prog.points : null,
     latest: latest ? { day: storedDay(latest.day), actualPct: latest.actualPct.toString() } : null,
     policyPct: i.policyPct,
+    ended: contractEnded(i.status),
   });
 }
 
@@ -187,7 +188,8 @@ export async function methodKeyOf(l: LoadedContract, client: Tx = db): Promise<s
  */
 export async function inDelayContractIds(organisationId: string, today: string, client: Tx = db): Promise<{ ids: string[]; assumed: Set<string> }> {
   const possessed = await client.contract.findMany({
-    where: { organisationId, possession: { isNot: null } },
+    // An ended contract is never In Delay (`contractEnded`): not read at all.
+    where: { organisationId, possession: { isNot: null }, status: { notIn: [...FINISHED_CONTRACT_STATUSES] } },
     select: { id: true, baselines: { where: { version: { not: null } }, select: { id: true, version: true, reason: true, recordedOn: true, dateForCompletion: true } } },
   });
   const rows = possessed.map((c) => {

@@ -11,7 +11,7 @@ import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal, type Sen } from "@/lib/money";
 import { PAID_FIGURE } from "@/lib/payment/finance";
 import { contractorClaimDocuments, contractorDocumentTally } from "@/lib/project-docs/portal-read";
-import { inDelay, type DelayReading } from "@/lib/supervision/delay";
+import { contractEnded, inDelay, type DelayReading } from "@/lib/supervision/delay";
 import { entryState, type EntryState } from "@/lib/supervision/diary";
 import { loadPostAwardPolicy, loadSupervision, revisionsOf } from "@/lib/supervision/load";
 import { contractorSigningFaultOf } from "./signing-store";
@@ -126,7 +126,7 @@ export async function programmeTab(client: Tx, actor: Who, ctx: ProjectContext):
   const planned = latest && inForce ? plannedOn(inForce.points, latest.day) : null;
   const baseline = today ? baselineFor(baselines.map((b) => ({ ...b, recordedOn: day(b.recordedOn) })), today) : null;
   const policyPct = policy?.inDelayProgressPct?.toString() ?? null;
-  const delay = today ? inDelay({ today, possessed: s.possession != null, dateForCompletion: day(baseline?.dateForCompletion), programme: inForce?.points ?? null, latest, policyPct }) : null;
+  const delay = today ? inDelay({ today, possessed: s.possession != null, dateForCompletion: day(baseline?.dateForCompletion), programme: inForce?.points ?? null, latest, policyPct, ended: contractEnded(ctx.contract.status) }) : null;
   return {
     inForce: inForce ? { revision: inForce.revision, approvedOn: inForce.decidedOn ? formatDate(inForce.decidedOn) : null, points: inForce.points } : null,
     revisions: revisions.map((r) => ({ id: r.id, revision: r.revision, submittedOn: formatDate(r.submittedOn), decision: r.decision, decidedOn: r.decidedOn ? formatDate(r.decidedOn) : null, note: s.workProgrammes.find((p) => p.id === r.id)?.decisionNote ?? "", scrutinised: r.scrutinisedOn != null })).reverse(),

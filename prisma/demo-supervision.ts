@@ -243,7 +243,7 @@ export async function checkSupervisionDemo(db: Db) {
   const s = await loadSupervision(CON);
   const latest = latestVersion(baselineRows(l.contract).versions)!;
   if (latest.reason !== "POSSESSION") throw new Error("demo check: the latest version is not the POSSESSION version");
-  const r = delayOn(s, { today: "2026-10-02", dateForCompletion: valuesOf(latest).dateForCompletion, policyPct: "75" });
+  const r = delayOn(s, { today: "2026-10-02", dateForCompletion: valuesOf(latest).dateForCompletion, policyPct: "75", status: l.contract.status });
   if (r.state !== "IN_DELAY") throw new Error(`demo check: ${CON} not In Delay on 2 Oct (${r.state})`);
   if (s.soAssignments.length !== 1 || s.soDelegations.length !== 1) throw new Error("demo check: the S.O. or the delegation is missing");
   void db;

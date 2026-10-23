@@ -182,7 +182,7 @@ async function WaitingToBeTabled({ actor, waiting }: { actor: StaffActor; waitin
   const entries = waiting?.entries ?? [];
   // The value a route waits on is SULIT (founder, 2026-10-05; Phase 3b): a requisition's is the department estimate, a name approval's the exercise's, a variation's or a contract matter's
   // a figure of the contract. An appointment's is the awarded value, ruled not SULIT. Judged for each entry by the record it belongs to, and logged.
-  const gates = await sulitGates(actor, entries.flatMap((e) => { const g = waitingSubject(e); return g ? [g] : []; }), ["waitingValue"]);
+  const gates = await sulitGates(actor, entries.flatMap((e) => { const g = waitingSubject(e); return g ? [g] : []; }), ["waitingValue"], { list: true });
   const rows: Row[] = entries.map((e) => ({
     id: e.stepId,
     search: [e.reference, e.title, e.committeeName, WAITING_KIND_WORDS[e.kind].en].join(" "),

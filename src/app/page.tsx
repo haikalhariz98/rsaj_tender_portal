@@ -86,8 +86,8 @@ export default async function Dashboard() {
   // judged for the reader and logged; a figure the reader may not read is "SULIT · withheld" with the reason, in the list, the sort and the total.
   // The two gates read independently and run together; the "Value approved" total, and its gate, are gone (GN-03, AC-9c).
   const [matterGates, requisitionGates] = await Promise.all([
-    sulitMatterAmounts(actor, data.queue.map((q) => ({ id: q.decisionId, label: q.subject, kind: q.matterKind, hasAmount: q.amount != null }))),
-    sulitGates(actor, data.requisitions.map((q) => ({ scope: "requisition" as const, entity: "Requisition", id: q.id, label: q.reference })), ["estimatedValue"]),
+    sulitMatterAmounts(actor, data.queue.map((q) => ({ id: q.decisionId, label: q.subject, kind: q.matterKind, hasAmount: q.amount != null })), { list: true }),
+    sulitGates(actor, data.requisitions.map((q) => ({ scope: "requisition" as const, entity: "Requisition", id: q.id, label: q.reference })), ["estimatedValue"], { list: true }),
   ]);
   const now = new Date();
   // Greet by the name of whoever is signed in, from their session. Nobody signed in: the greeting alone.

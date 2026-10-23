@@ -27,8 +27,8 @@ describe("the screens that say it ask the helper", () => {
   it("the sourcing list's chip, view membership, header count and view text all go through it", () => {
     const src = read("src/app/sourcing/page.tsx");
     expect(src).toMatch(/const onBoundary = \(r: \(typeof rows\)\[number\]\) => boundaryShown\(r\.onBoundary, values\.get\(r\.id\)\?\.state === "GRANTED"\)/);
-    // The raw flag is read twice only: by the helper (with the reader's gate) and to count the rows left out.
-    expect(src.match(/\br\.onBoundary\b/g)).toHaveLength(2);
+    // The raw flag is read once only, by the helper (with the reader's gate); the header counts the boundary set it was given.
+    expect(src.match(/\br\.onBoundary\b/g)).toHaveLength(1);
     expect(src).toMatch(/boundaryCountNote\(/);
     expect(src).toMatch(/about: BOUNDARY_VIEW_ABOUT/);
   });

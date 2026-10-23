@@ -7,6 +7,7 @@
 
 import { liveAttachmentWhere } from "@/lib/documents/repo";
 import type { Tx } from "@/lib/audit/record";
+import type { Prisma } from "@/generated/prisma/client";
 import type { BudgetCode as PureBudgetCode } from "@/lib/budget/codes";
 import { decisionRecord, type DecisionRecord } from "@/lib/committee/record";
 import { isRegisterSnapshot } from "@/lib/committee/assess-sitting";
@@ -220,8 +221,8 @@ export async function withLockedRequisition<T>(organisationId: string, id: strin
 
 export const REQUISITIONS_PAGE = 100;
 
-/// The organisation's requisitions for the list, newest first, with what the list shows.
-export async function listRequisitions(organisationId: string) {
+/// The organisation's requisitions for the list, newest first, one `page` (from 0) of REQUISITIONS_PAGE, with what the list shows.
+export async function listRequisitions(organisationId: string, page = 0) {
   const org = await requisitionOrg(organisationId);
   if (!org) return { org: null, rows: [], total: 0, counts: { open: 0, pending: 0, overBudget: 0, flagged: 0 } };
   const where = { organisationId: org.id };
@@ -229,6 +230,7 @@ export async function listRequisitions(organisationId: string) {
     db.requisition.findMany({
       where,
       orderBy: [{ raisedOn: "desc" }, { reference: "desc" }],
+      skip: page * REQUISITIONS_PAGE,
       take: REQUISITIONS_PAGE,
       include: {
         requestingPerson: { select: { name: true } },
@@ -412,35 +414,47 @@ export function gateMattersOf(gate: LoadedRequisition["req"]["gates"][number]): 
  * from the route's setting and rules as they stand now, so the blocker names what to
  * set. Read inside the caller's transaction where it guards a write.
  */
-export async function gatesForRequisition(
-  requisitionId: string,
-  client: Tx = db,
-): Promise<{ gates: { id: string; committeeLabel: string; state: GateState; decisive: GateMatter | null }[]; finding: GateFinding } | null> {
-  const req = await client.requisition.findUnique({
-    where: { id: requisitionId },
-    select: {
-      organisationId: true,
-      fundingRouteCode: true,
-      gatesDeterminedOn: true,
-      estimatedValue: true,
-      organisation: { select: { timeZone: true } },
-      approvalInstances: { where: { status: "APPROVED" }, select: { value: true }, take: 1 },
-      gates: { orderBy: { committeeLabel: "asc" }, include: { decisions: { include: { meeting: { include: { committee: { select: { nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } } } } },
-    },
-  });
+export async function gatesForRequisition(requisitionId: string, client: Tx = db) {
+  const req = await client.requisition.findUnique({ where: { id: requisitionId }, select: GATE_REQUISITION });
   if (!req) return null;
+  const open = !req.gatesDeterminedOn;
+  const route = open && req.fundingRouteCode ? await client.fundingRoute.findFirst({ where: { organisationId: req.organisationId, code: req.fundingRouteCode }, select: GATE_ROUTE }) : null;
+  return gateViewOf(req, route, open ? await loadGateRules(req.organisationId, client) : []);
+}
+
+/// `gatesForRequisition` for many requisitions of one organisation at once: the gates in one query, and the routes and rules read once, not for each. A requisition that is not found is absent from the map.
+export async function gatesForRequisitions(organisationId: string, ids: readonly string[], client: Tx = db) {
+  const out = new Map<string, NonNullable<Awaited<ReturnType<typeof gatesForRequisition>>>>();
+  if (ids.length === 0) return out;
+  const reqs = await client.requisition.findMany({ where: { id: { in: [...ids] }, organisationId }, select: GATE_REQUISITION });
+  const open = reqs.some((r) => !r.gatesDeterminedOn);
+  const [routes, rules] = await Promise.all([open ? client.fundingRoute.findMany({ where: { organisationId }, select: GATE_ROUTE }) : [], open ? loadGateRules(organisationId, client) : []]);
+  for (const r of reqs) out.set(r.id, gateViewOf(r, r.gatesDeterminedOn ? null : (routes.find((x) => x.code === r.fundingRouteCode) ?? null), rules));
+  return out;
+}
+
+const GATE_ROUTE = { code: true, committeeGateRequired: true } as const;
+const GATE_REQUISITION = {
+  id: true,
+  organisationId: true,
+  fundingRouteCode: true,
+  gatesDeterminedOn: true,
+  estimatedValue: true,
+  organisation: { select: { timeZone: true } },
+  approvalInstances: { where: { status: "APPROVED" }, select: { value: true }, take: 1 },
+  gates: { orderBy: { committeeLabel: "asc" }, include: { decisions: { include: { meeting: { include: { committee: { select: { nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } } } } },
+} satisfies Prisma.RequisitionSelect;
+
+function gateViewOf(req: Prisma.RequisitionGetPayload<{ select: typeof GATE_REQUISITION }>, route: Prisma.FundingRouteGetPayload<{ select: typeof GATE_ROUTE }> | null, rules: GateRuleRow[]): { gates: { id: string; committeeLabel: string; state: GateState; decisive: GateMatter | null }[]; finding: GateFinding } {
   const gates = req.gates.map((g) => ({
     id: g.id,
     committeeLabel: g.committeeLabel,
     ...gateState(g.decisions.map((d) => ({ id: d.id, tabledAt: d.tabledAt, withdrawn: d.withdrawnAt != null, record: recordOf(d) }))),
   }));
   if (req.gatesDeterminedOn) return { gates, finding: gateFinding(true, "NOT_CHECKED", gates) };
-  const route = req.fundingRouteCode
-    ? await client.fundingRoute.findFirst({ where: { organisationId: req.organisationId, code: req.fundingRouteCode }, select: { code: true, committeeGateRequired: true } })
-    : null;
   const today = todayIn(new Date(), req.organisation.timeZone);
   const on = today ? dayToDate(today) : new Date();
-  const live = gatesFor(route, await loadGateRules(req.organisationId, client), senFromDecimal(req.approvalInstances[0]?.value ?? req.estimatedValue), on);
+  const live = gatesFor(route, rules, senFromDecimal(req.approvalInstances[0]?.value ?? req.estimatedValue), on);
   const why = live.state === "NOT_SET" ? "NOT_SET" : live.state === "RULE_MISSING" ? "RULE_MISSING" : "NOT_CHECKED";
   return { gates, finding: gateFinding(false, why, gates) };
 }

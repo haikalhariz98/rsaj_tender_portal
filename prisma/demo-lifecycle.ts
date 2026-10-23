@@ -686,7 +686,7 @@ export async function checkLifecycleDemo(db: Db) {
   const latest = latestVersion(baselineRows(l.contract).versions)!;
   const completion = valuesOf(latest).dateForCompletion;
   if (completion !== "2026-08-31") fail(`date for completion ${completion}, not 2026-08-31`);
-  const d = delayOn(s, { today: "2026-10-02", dateForCompletion: completion, policyPct: "75" });
+  const d = delayOn(s, { today: "2026-10-02", dateForCompletion: completion, policyPct: "75", status: l.contract.status });
   if (d.state !== "IN_DELAY") fail(`not In Delay on 2 Oct (${d.state})`);
   // Payments: three interims issued from their valuations, the advance recouped on 1 and 2, the damages decided.
   const p = await loadPayment(CON);

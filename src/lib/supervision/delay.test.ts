@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { inDelay } from "./delay";
+import { contractEnded, inDelay } from "./delay";
 import { plannedOn } from "./programme";
 
 /**
@@ -34,6 +34,13 @@ describe("the worked example", () => {
     expect(inDelay({ ...late, policyPct: null })).toMatchObject({ state: "IN_DELAY", why: "LAPSED" });
     expect(inDelay({ ...late, today: "2026-09-01" }).state).not.toBe("IN_DELAY");
     expect(inDelay({ ...late, latest: { day: "2026-09-01", actualPct: "100" } }).state).toBe("ON_TRACK");
+  });
+  it("an ended contract is not judged, however late and however short of 100%", () => {
+    const late = { ...base, today: "2026-09-02", latest: { day: "2026-09-01", actualPct: "40" } };
+    expect(inDelay(late).state).toBe("IN_DELAY");
+    expect(inDelay({ ...late, ended: true })).toEqual({ state: "NOT_JUDGED", why: "ENDED" });
+    expect(["ACTIVE", "EXECUTED"].some(contractEnded)).toBe(false);
+    expect(["PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED", "TERMINATED", "CLOSED", "CANCELLED"].every(contractEnded)).toBe(true);
   });
   it("policy not set: NOT_SET, never on track", () => {
     expect(inDelay({ ...base, policyPct: null, latest: { day: "2026-06-01", actualPct: "10" } })).toEqual({ state: "NOT_SET" });

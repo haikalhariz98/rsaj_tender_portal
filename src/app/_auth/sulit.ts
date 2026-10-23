@@ -48,18 +48,23 @@ const permissionOf = cache((actor: StaffActor) => organisationPermissionState(db
 const creditorPermissionOf = cache((actor: StaffActor) => creditorPermissionState(db, actor));
 
 /// Write the events this request has not written yet. False where the log could not be written: the caller shows nothing.
-async function log(actor: Reader, rows: SulitEventRow[]): Promise<boolean> {
+async function log(actor: Reader, rows: SulitEventRow[], list = false): Promise<boolean> {
   const seen = loggedThisRequest();
   const fresh = rows.filter((r) => !seen.has(eventKey(r)));
   if (fresh.length === 0) return true;
   try {
-    await writeSulitEvents(db, actor, fresh);
+    await writeSulitEvents(db, actor, fresh, { list });
     for (const r of fresh) seen.add(eventKey(r));
     return true;
   } catch (error) {
     console.error("The SULIT access log could not be written, so the values are withheld:", error);
     return false;
   }
+}
+
+/// `list`: the read is a list's, so each record is logged once for each person and day rather than on every visit (single-record reads are logged every time).
+export interface ListRead {
+  list?: boolean;
 }
 
 export interface ExerciseRef {
@@ -71,7 +76,7 @@ export interface ExerciseRef {
  * One field of each of these exercises, as `Sulit<T>`. The facts of who is named are read once for all of them. `value` is called only for an
  * exercise where the field is granted. A row whose exercise is not in the actor's organisation is withheld (it is not theirs to read).
  */
-export async function sulitExerciseValues<T>(actor: StaffActor, exercises: readonly ExerciseRef[], field: string, value: (id: string) => T, scope: SulitScope = "exercise"): Promise<Map<string, Sulit<T>>> {
+export async function sulitExerciseValues<T>(actor: StaffActor, exercises: readonly ExerciseRef[], field: string, value: (id: string) => T, scope: SulitScope = "exercise", opts: ListRead = {}): Promise<Map<string, Sulit<T>>> {
   const out = new Map<string, Sulit<T>>();
   if (exercises.length === 0) return out;
   const [facts, permission] = await Promise.all([exerciseAccessFacts(db, actor.organisationId, exercises.map((e) => e.id)), permissionOf(actor)]);
@@ -86,7 +91,7 @@ export async function sulitExerciseValues<T>(actor: StaffActor, exercises: reado
     decided.set(e.id, decision);
     if (f) rows.push({ scope, entity: "SourcingExercise", entityId: e.id, entityLabel: e.reference, fields: [field], decision });
   }
-  const logged = await log(actor, rows);
+  const logged = await log(actor, rows, opts.list);
   for (const e of exercises) {
     const decision = decided.get(e.id)!;
     out.set(e.id, !logged ? sulitWithheld<T>("NOT_LOGGED", scope) : applyDecision(decision, scope, () => value(e.id)));
@@ -115,7 +120,7 @@ export type GateSubject =
  * `SulitAccessEvent` is written per record and field set, allowed or refused, and written once within a request. If the log cannot be written nothing is
  * granted (NFR-AUD-004). The key of the map is the subject's id.
  */
-export async function sulitGates(actor: StaffActor, subjects: readonly GateSubject[], fields: readonly string[]): Promise<Map<string, Sulit<true>>> {
+export async function sulitGates(actor: StaffActor, subjects: readonly GateSubject[], fields: readonly string[], opts: ListRead = {}): Promise<Map<string, Sulit<true>>> {
   const out = new Map<string, Sulit<true>>();
   if (subjects.length === 0) return out;
   const creditors = subjects.filter((x): x is Extract<GateSubject, { scope: "creditorProfile" }> => x.scope === "creditorProfile");
@@ -151,7 +156,7 @@ export async function sulitGates(actor: StaffActor, subjects: readonly GateSubje
       rows.push({ scope: x.scope, entity: x.entity, entityId: x.id, entityLabel: x.label, fields: [...fields], decision });
     }
   }
-  const logged = await log(actor, rows);
+  const logged = await log(actor, rows, opts.list);
   for (const x of subjects) {
     const decision = decided.get(x.id)!;
     out.set(x.id, !logged ? sulitWithheld<true>("NOT_LOGGED", x.scope, { routeStarted: routeStarted.get(x.id) ?? true }) : applyDecision(decision, x.scope, true as const, { routeStarted: routeStarted.get(x.id) ?? true }));
@@ -180,7 +185,7 @@ export async function heldCreditorGate(actor: StaffActor, subject: { portalAppli
  * (the awarded value of an appointment), else a requisition's or a contract's, which only the organisation-wide permission opens. The map holds a gate for the matters whose
  * amount is SULIT and nothing for the others, which are shown as they are; a matter with no amount is not asked about.
  */
-export async function sulitMatterAmounts(actor: StaffActor, matters: readonly { id: string; label: string; kind: MatterKind | null; hasAmount: boolean }[]): Promise<Map<string, Sulit<true>>> {
+export async function sulitMatterAmounts(actor: StaffActor, matters: readonly { id: string; label: string; kind: MatterKind | null; hasAmount: boolean }[], opts: ListRead = {}): Promise<Map<string, Sulit<true>>> {
   const asked = matters.flatMap((m) => {
     const scope = m.hasAmount ? matterAmountScope(m.kind) : null;
     return scope ? [{ scope, entity: "CommitteeDecision", id: m.id, label: m.label }] : [];
@@ -199,6 +204,7 @@ export async function sulitMatterAmounts(actor: StaffActor, matters: readonly { 
       return { ...a, routedFrom };
     }),
     ["matterAmount"],
+    opts,
   );
 }
 

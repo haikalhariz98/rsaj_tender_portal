@@ -138,6 +138,28 @@ describe("the access log", () => {
     const e = await db.sulitAccessEvent.findFirstOrThrow({ where: { entityId: "e_sys" } });
     expect(e).toMatchObject({ actorPersonId: null, actorSystemLabel: "demo loader", actorSessionId: null });
   });
+  it("a list read is logged once for each person, record, kind and day; a single-record read every time", async () => {
+    const ev = (entityId: string, over: Record<string, unknown> = {}) => ({ scope: "exercise" as const, entity: "SourcingExercise", entityId, entityLabel: "SU/EX/9", fields: ["estimatedValue"], decision: { state: "WITHHELD" as const, basis: "RESTRICTED_NOT_NAMED" as const }, ...over });
+    const count = (entityId: string, personId = people.outsider) => db.sulitAccessEvent.count({ where: { entityId, actorPersonId: personId } });
+    // Three visits to a list, one of them in the same batch twice: one row.
+    await writeSulitEvents(db, actorOf(people.outsider), [ev("e_list")], { list: true });
+    await writeSulitEvents(db, actorOf(people.outsider), [ev("e_list"), ev("e_list_2")], { list: true });
+    await writeSulitEvents(db, actorOf(people.outsider), [ev("e_list")], { list: true });
+    expect(await count("e_list")).toBe(1);
+    expect(await count("e_list_2")).toBe(1);
+    // Another person, another outcome or other fields is another kind of read; so is the same record read singly.
+    await writeSulitEvents(db, actorOf(people.team), [ev("e_list")], { list: true });
+    await writeSulitEvents(db, actorOf(people.outsider), [ev("e_list", { fields: ["companyEstimate"] })], { list: true });
+    await writeSulitEvents(db, actorOf(people.outsider), [ev("e_list", { decision: { state: "WITHHELD", basis: "SEALED" } })], { list: true });
+    expect(await count("e_list", people.team)).toBe(1);
+    expect(await count("e_list")).toBe(3);
+    await writeSulitEvents(db, actorOf(people.outsider), [ev("e_single")]);
+    await writeSulitEvents(db, actorOf(people.outsider), [ev("e_single")]);
+    expect(await count("e_single")).toBe(2);
+    // A list read after a single read of the same record today is still its own row, and rows written before the day column existed are untouched (listDay null).
+    await writeSulitEvents(db, actorOf(people.outsider), [ev("e_single")], { list: true });
+    expect(await count("e_single")).toBe(3);
+  });
   it("refuses a basis that is never stored, and an event that names no field, before the database", async () => {
     await expect(writeSulitEvents(db, actorOf(people.outsider), [{ scope: "exercise", entity: "X", entityId: "x", entityLabel: "", fields: ["a"], decision: { state: "WITHHELD", basis: "NOT_LOGGED" } }])).rejects.toThrow(/never stored/);
     await expect(writeSulitEvents(db, actorOf(people.outsider), [{ scope: "exercise", entity: "X", entityId: "x", entityLabel: "", fields: [], decision: { state: "WITHHELD", basis: "ADMINISTRATOR" } }])).rejects.toThrow(/names the fields/);

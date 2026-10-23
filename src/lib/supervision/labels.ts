@@ -182,6 +182,7 @@ function delayText(r: DelayReading): { title: Words; detail: Words; tone: "err" 
       return { tone: "warn", title: w("Not judged: the percentage is not set"), detail: w("In Delay threshold not set. See Configuration › Post-award.") };
     case "NOT_JUDGED": {
       const why: Record<typeof r.why, Words> = {
+        ENDED: w("The works are complete or the contract has ended."),
         NOT_POSSESSED: w("Possession of site is not recorded."),
         NO_PROGRAMME: w("No work programme is approved."),
         NO_PROGRESS: w("No progress is recorded."),

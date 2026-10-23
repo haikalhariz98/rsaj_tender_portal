@@ -126,7 +126,7 @@ export async function supervisionView(l: LoadedContract, today: string | null) {
   const { versions } = baselineRows(c);
   const latest = latestVersion(versions);
   const values = latest ? valuesOf(latest) : null;
-  const delay = today ? delayOn(s, { today, dateForCompletion: values?.dateForCompletion ?? null, policyPct: policy?.inDelayProgressPct?.toString() ?? null }) : null;
+  const delay = today ? delayOn(s, { today, dateForCompletion: values?.dateForCompletion ?? null, policyPct: policy?.inDelayProgressPct?.toString() ?? null, status: c.status }) : null;
   return { s, policy, type, so, values, versions: versions.length, delay };
 }
 export type SupervisionView = Awaited<ReturnType<typeof supervisionView>>;

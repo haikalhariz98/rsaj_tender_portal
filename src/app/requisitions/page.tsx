@@ -23,13 +23,14 @@ const TONE = { neutral: undefined, brand: "brand", ok: "ok", warn: "warn", err: 
  * Not in the prototype, whose requisition screen is reachable from no route. Under
  * Work rather than Sourcing: a supervision-only requisition never becomes sourcing.
  */
-export default async function RequisitionsPage() {
+export default async function RequisitionsPage(props: PageProps<"/requisitions">) {
   const actor = await requireStaff();
-  const { org, rows, total, counts } = await listRequisitions(actor.organisationId);
+  const page = Math.max(0, Number.parseInt(((await props.searchParams) as { page?: string }).page ?? "0", 10) || 0);
+  const { org, rows, total, counts } = await listRequisitions(actor.organisationId, page);
 
   // The department estimate is SULIT: a requisition keeps no list of who is named, so only the organisation-wide permission opens it (undecided until decided).
   // Judged for each row and logged, as a record's own page would; a withheld cell carries no figure and no sort key.
-  const gates = await sulitGates(actor, rows.map((r) => ({ scope: "requisition" as const, entity: "Requisition", id: r.id, label: r.reference })), ["estimatedValue"]);
+  const gates = await sulitGates(actor, rows.map((r) => ({ scope: "requisition" as const, entity: "Requisition", id: r.id, label: r.reference })), ["estimatedValue"], { list: true });
   const list: Row[] = rows.map((r) => {
     const erp = r.erpRequisitionNo ?? null;
     const statusText = r.sentBack ? SENT_BACK_LABEL : STATUS_LABEL[r.status];
@@ -119,9 +120,15 @@ export default async function RequisitionsPage() {
           ]}
           rows={list}
         />
-        {total > rows.length && (
-          <CardFooter className="text-[12.5px] text-ink-3">
-            Showing the latest {REQUISITIONS_PAGE} of {total}.
+        {total > REQUISITIONS_PAGE && (
+          <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
+            <span>
+              {page * REQUISITIONS_PAGE + 1} to {Math.min(total, (page + 1) * REQUISITIONS_PAGE)} of {total}
+            </span>
+            <span className="flex gap-2">
+              {page > 0 && <ButtonLink href={page > 1 ? `/requisitions?page=${page - 1}` : "/requisitions"} size="sm" variant="ghost">Previous</ButtonLink>}
+              {(page + 1) * REQUISITIONS_PAGE < total && <ButtonLink href={`/requisitions?page=${page + 1}`} size="sm" variant="ghost">Next</ButtonLink>}
+            </span>
           </CardFooter>
         )}
       </Card>

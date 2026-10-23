@@ -10,6 +10,8 @@
  * before the programme's first point is NOT_JUDGED, saying which. The lapsed reading needs no policy. Pure.
  */
 
+import { COMPLETED_CONTRACT_STATUSES, ENDED_CONTRACT_STATUSES } from "@/lib/contract/case-stage";
+import type { ContractStatus } from "@/lib/contract/types";
 import { parsePercent } from "@/lib/securities/money";
 
 import { plannedOn, type PointIn } from "./programme";
@@ -20,7 +22,13 @@ export type DelayReading =
   | { state: "IN_DELAY"; why: "BEHIND"; day: Day; actualPct: string; plannedPct: string; policyPct: string }
   | { state: "ON_TRACK"; day: Day; actualPct: string; plannedPct: string; policyPct: string }
   | { state: "NOT_SET" }
-  | { state: "NOT_JUDGED"; why: "NOT_POSSESSED" | "NO_PROGRAMME" | "NO_PROGRESS" | "BEFORE_PROGRAMME" };
+  | { state: "NOT_JUDGED"; why: "ENDED" | "NOT_POSSESSED" | "NO_PROGRAMME" | "NO_PROGRESS" | "BEFORE_PROGRAMME" };
+
+/// The stored states in which a contract has ended or its works are complete: nothing is behind a programme any more, so it is never In Delay (a lapsed date with progress short of 100% is
+/// not a delay once the works are certified complete, terminated or closed). The Projects list's batch leaves these out in the query; the single readings pass `ended`.
+/// The classification is the case stage's (`case-stage.ts`): complete, cancelled or terminated, and closed.
+export const FINISHED_CONTRACT_STATUSES: readonly ContractStatus[] = [...COMPLETED_CONTRACT_STATUSES, ...ENDED_CONTRACT_STATUSES, "CLOSED"];
+export const contractEnded = (status: string): boolean => (FINISHED_CONTRACT_STATUSES as readonly string[]).includes(status);
 
 /// A fraction of ten-thousandths of a percent, as a decimal string to four places (display only).
 function fractionText(num: bigint, den: bigint): string {
@@ -39,7 +47,10 @@ export function inDelay(i: {
   /// The latest progress recorded on or before today; null: none.
   latest: { day: Day; actualPct: string } | null;
   policyPct: string | null;
+  /// The contract has ended (`contractEnded`): not judged.
+  ended?: boolean;
 }): DelayReading {
+  if (i.ended) return { state: "NOT_JUDGED", why: "ENDED" };
   if (!i.possessed) return { state: "NOT_JUDGED", why: "NOT_POSSESSED" };
   const incomplete = !i.latest || parsePercent(i.latest.actualPct) < 100_0000n;
   if (i.dateForCompletion && i.today > i.dateForCompletion && incomplete) return { state: "IN_DELAY", why: "LAPSED", dateForCompletion: i.dateForCompletion, actualPct: i.latest?.actualPct ?? null };

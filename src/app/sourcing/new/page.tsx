@@ -10,7 +10,7 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { gatesForRequisition } from "@/lib/requisition/repo";
+import { gatesForRequisition, gatesForRequisitions } from "@/lib/requisition/repo";
 import { openFault } from "@/lib/method/exercise";
 import { exerciseFormOptions } from "@/lib/method/form-options";
 import { findingText } from "@/lib/method/labels";
@@ -65,19 +65,24 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       orderBy: { reference: "desc" },
       include: { approvalInstances: { select: { status: true, value: true, ruleKey: true, ruleLabel: true, checkedAgainstMatrix: true } }, exercises: { select: { id: true, estimatedValue: true, status: true } } },
     });
-    // Whether an exercise can be opened on each (UX 7).
-    const judged = await Promise.all(reqs.map(async (q) => {
+    // Whether an exercise can be opened on each (UX 7). One that cannot be opened whatever its gates say (sourcing not permitted, no approved route, nothing left to source) is
+    // dropped first, so only the rest have their gates read, all in one go.
+    const live = reqs.flatMap((q) => {
       const approved = approvedRouteOf(q);
       const remaining = remainingOf(approved, q.exercises.map((x, i) => ({ id: String(i), value: parseSen(x.estimatedValue.toString()), status: x.status as ExerciseStatus })));
-      const gate = (await gatesForRequisition(q.id))?.finding ?? { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const };
+      return q.sourcingPermitted === true && approved && !(remaining != null && remaining <= 0n) ? [{ q, approved, remaining }] : [];
+    });
+    const gateOf = await gatesForRequisitions(org.id, live.map((x) => x.q.id));
+    const judged = live.map(({ q, approved, remaining }) => {
+      const gate = gateOf.get(q.id)?.finding ?? { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const };
       const fault = openFault({ status: q.status, sourcingPermitted: q.sourcingPermitted, approvedRoute: !!approved, remaining }, { today: org.today, methodsConfigured: true, gate });
       // What is still to source is the approved value less every exercise's: where one of them is restricted to people this reader is not among, the figure
       // would give its value away, so it is not stated (FR-MTD-007).
       const partHidden = q.exercises.some((x) => hidden.includes(x.id));
       return { q, approved, remaining, fault, partHidden };
-    }));
+    });
     // The approved value and what is still to source are made of the department estimate, which is SULIT: judged for each requisition, logged (Phase 3b).
-    const gates = await sulitGates(actor, judged.map((x) => ({ scope: "requisition" as const, entity: "Requisition", id: x.q.id, label: x.q.reference })), ["estimatedValue"]);
+    const gates = await sulitGates(actor, judged.map((x) => ({ scope: "requisition" as const, entity: "Requisition", id: x.q.id, label: x.q.reference })), ["estimatedValue"], { list: true });
     // Founder, 2026-10-05: only the requisitions an exercise can be opened on are listed.
     const row = (x: (typeof judged)[number]): Row => ({
       id: x.q.id,

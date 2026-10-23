@@ -24,7 +24,7 @@ import { byValue } from "./bands";
 import { EXERCISE_ROUTES_WHERE, type FunderContext } from "./approval";
 import type { EvaluationContext, ExerciseDraft, MethodConfig } from "./evaluate";
 import { classificationTaxonomies } from "./taxonomy";
-import type { ContractTypeRow, DeliverableKind, ExerciseStatus, Method, TermsBand } from "./types";
+import { NAME_APPROVAL_DOMAIN, type ContractTypeRow, type DeliverableKind, type ExerciseStatus, type Method, type TermsBand } from "./types";
 import type { ApprovedRoute } from "./value";
 import { inOrder } from "@/lib/series";
 
@@ -258,15 +258,17 @@ export async function evaluationContext(
 export const EXERCISES_PAGE = 100;
 
 /// `hidden`: the restricted exercises the reader may not see (`hiddenExercises`, FR-MTD-007). They are left out of the rows and of the count, so
-/// neither the list nor "Showing the latest 100 of N" gives away that one exists. A caller says so with `[]` rather than leaving it out.
-export async function listExercises(organisationId: string, hidden: readonly string[]) {
+/// neither the list nor its page count gives away that one exists. A caller says so with `[]` rather than leaving it out.
+/// One `page` (from 0) of EXERCISES_PAGE rows; `byStatus`, `awaitingName` and `onBoundary` (the not-cancelled exercises on the boundary: few, so all of them) are over the whole set, for the header.
+export async function listExercises(organisationId: string, hidden: readonly string[], page = 0) {
   const org = await exerciseOrg(organisationId);
-  if (!org) return { org: null, rows: [], total: 0 };
+  if (!org) return { org: null, rows: [], total: 0, byStatus: new Map<string, number>(), awaitingName: 0, onBoundary: [] as { id: string; reference: string; estimatedValue: { toString(): string } }[] };
   const where = { organisationId: org.id, ...exerciseNotHidden(hidden) };
-  const [rows, total] = await Promise.all([
+  const [rows, total, statuses, awaitingName, onBoundary] = await Promise.all([
     db.sourcingExercise.findMany({
       where,
       orderBy: [{ createdAt: "desc" }, { reference: "desc" }],
+      skip: page * EXERCISES_PAGE,
       take: EXERCISES_PAGE,
       include: {
         requisition: { select: { id: true, reference: true, erpRequisitionNo: true } },
@@ -274,8 +276,11 @@ export async function listExercises(organisationId: string, hidden: readonly str
       },
     }),
     db.sourcingExercise.count({ where }),
+    db.sourcingExercise.groupBy({ by: ["status"], where, _count: { _all: true } }),
+    db.sourcingExercise.count({ where: { ...where, status: { not: "CANCELLED" }, approvalInstances: { some: { awardId: null, domain: NAME_APPROVAL_DOMAIN, status: "PENDING" } } } }),
+    db.sourcingExercise.findMany({ where: { ...where, onBoundary: true, status: { not: "CANCELLED" } }, select: { id: true, reference: true, estimatedValue: true } }),
   ]);
-  return { org, rows, total };
+  return { org, rows, total, byStatus: new Map(statuses.map((s) => [s.status as string, s._count._all])), awaitingName, onBoundary };
 }
 
 export const HISTORY_PAGE = 200;

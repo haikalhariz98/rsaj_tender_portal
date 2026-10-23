@@ -47,9 +47,9 @@ const CASES: Case[] = [
   { name: "active", awardStatus: "ACCEPTED", contract: "ACTIVE" },
   { name: "active in delay", awardStatus: "ACCEPTED", contract: "ACTIVE", inDelay: true },
   { name: "indent commenced", awardStatus: "ISSUED", instrument: "WORK_INDENT", contract: null, commencedOn: "2026-10-05" },
-  { name: "practically complete", awardStatus: "ACCEPTED", contract: "PRACTICALLY_COMPLETE" },
-  { name: "closed", awardStatus: "ACCEPTED", contract: "CLOSED" },
-  { name: "terminated", awardStatus: "ACCEPTED", contract: "TERMINATED" },
+  { name: "practically complete", awardStatus: "ACCEPTED", contract: "PRACTICALLY_COMPLETE", inDelay: true },
+  { name: "closed", awardStatus: "ACCEPTED", contract: "CLOSED", inDelay: true },
+  { name: "terminated", awardStatus: "ACCEPTED", contract: "TERMINATED", inDelay: true },
   { name: "cancelled before issue", awardStatus: "CANCELLED", contract: null },
   { name: "restricted draft", awardStatus: "DRAFT", contract: null, restricted: true },
   { name: "restricted approved", awardStatus: "APPROVED", contract: null, restricted: true },
@@ -290,6 +290,8 @@ describe("listCases (C-1, AC-17, AC-18)", () => {
     const todayKl = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(new Date());
     const set = await inDelayContractIds(organisationId, todayKl);
     expect(set.ids).toContain(ids["active in delay"].contractId);
+    // The works are certified complete, or the contract is closed or terminated: late and short of 100%, but never In Delay.
+    for (const ended of ["practically complete", "closed", "terminated"]) expect(set.ids).not.toContain(ids[ended].contractId);
     const page = await listCases(organisationId, hidden, { view: "delay" });
     expect(page.rows.map((r) => r.contractId).sort()).toEqual([...set.ids].sort());
     expect(page.total).toBe(set.ids.length);

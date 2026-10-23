@@ -8,6 +8,16 @@ const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
 const ok = { today: "2026-09-30", methodsConfigured: true, gate: { code: "CLEAR" } as const };
 
 describe("opening an exercise (spec §7.3.2, ruling R-6)", () => {
+  it("a requisition that cannot take an exercise whatever its gates say is refused with a fault other than the time zone (the new-exercise list leaves it out before reading its gates)", () => {
+    const base = { status: "APPROVED", sourcingPermitted: true, approvedRoute: true, remaining: 1n };
+    for (const over of [{ sourcingPermitted: false }, { sourcingPermitted: null }, { approvedRoute: false }, { remaining: 0n }, { remaining: -1n }]) {
+      for (const gate of [{ code: "CLEAR" }, { code: "GATES_NOT_DETERMINED", why: "NOT_CHECKED" }] as const) {
+        const f = openFault({ ...base, ...over }, { today: null, methodsConfigured: true, gate });
+        expect(f).not.toBeNull();
+        expect(f!.code).not.toBe("TIME_ZONE_UNSET");
+      }
+    }
+  });
   it("only against an approved requisition whose route lets the organisation procure", () => {
     expect(openFault({ status: "APPROVED", sourcingPermitted: true, approvedRoute: true }, ok)).toBeNull();
     expect(openFault({ status: "SOURCING", sourcingPermitted: true, approvedRoute: true }, ok)).toBeNull();

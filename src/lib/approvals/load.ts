@@ -16,8 +16,7 @@ import type { OrgScope } from "@/lib/org-scope";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
-import { loadReportingLines } from "@/lib/people/reporting-line-store";
-import { anyLineRecorded } from "@/lib/people/reporting-lines";
+import { anyReportingLine } from "@/lib/people/reporting-line-store";
 import { holdersFor } from "@/lib/requisition/holders";
 import { APPLICATION_KIND_LABEL, REQUEST_KIND_LABEL } from "@/lib/suppliers/labels";
 import { supplierHolders } from "@/lib/suppliers/route";
@@ -31,7 +30,8 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
   const org = await db.organisation.findUnique({ where: { id: scope.organisationId }, select: { id: true, timeZone: true } });
   if (!org) return null;
   const today = todayIn(new Date(), org.timeZone);
-  const [routes, units, roster, delegations, lines] = await Promise.all([
+  const on = today ? dayToDate(today) : new Date();
+  const [routes, units, roster, delegations, linesRecorded] = await Promise.all([
     db.approvalInstance.findMany({
       where: { organisationId: org.id, status: "PENDING", ...approvalRouteNotHidden(hidden) },
       orderBy: [{ openedAt: "asc" }, { createdAt: "asc" }],
@@ -56,10 +56,10 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
     }),
     db.orgUnit.findMany({ where: { organisationId: org.id } }),
     loadRoster(scope.organisationCode),
-    loadDelegations(scope.organisationCode),
-    loadReportingLines(db, org.id),
+    // Only the delegations in force today are asked about (`holdersFor`), so the others are not read.
+    loadDelegations(scope.organisationCode, db, { inForceOn: on }),
+    anyReportingLine(db, org.id),
   ]);
-  const on = today ? dayToDate(today) : new Date();
   const people = new Map(roster.people.map((p) => [p.id, p]));
   const available = (pid: string) => !!people.get(pid)?.isActive && !!people.get(pid)?.isAvailable;
   const unitOf = new Map<string, string>();
@@ -147,5 +147,5 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
       return h ? { holderIds: h.holderIds, delegateIds: decidingDelegates(h.delegates, step ?? {}, valueOfRoute.get(routeId)).map((d) => d.personId) } : { holderIds: [], delegateIds: [] };
     },
   );
-  return { today, timeZone: org.timeZone, groups, linesRecorded: anyLineRecorded(lines) };
+  return { today, timeZone: org.timeZone, groups, linesRecorded };
 }

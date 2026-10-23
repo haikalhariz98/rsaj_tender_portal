@@ -305,8 +305,10 @@ export const eventKey = (r: SulitEventRow): string => `${r.entity}|${r.entityId}
 /**
  * Write the events: one row each, in one statement, in the caller's client. The actor is the signed-in person with their session and address, or a
  * loader run by its label. A basis that is never stored (the write failed) is refused here rather than at the database.
+ *
+ * `list`: the rows are a list's reads, logged once for each person, record, kind and day (a unique index on `listDay`; a repeat is skipped). Every other read is logged every time.
  */
-export async function writeSulitEvents(client: Tx, actor: Reader, rows: readonly SulitEventRow[]): Promise<void> {
+export async function writeSulitEvents(client: Tx, actor: Reader, rows: readonly SulitEventRow[], opts: { list?: boolean } = {}): Promise<void> {
   if (rows.length === 0) return;
   for (const r of rows) {
     if (r.fields.length === 0) throw new Error("A SULIT access event names the fields it was for.");
@@ -325,8 +327,10 @@ export async function writeSulitEvents(client: Tx, actor: Reader, rows: readonly
     fields: r.fields,
     outcome: r.decision.state,
     basis: r.decision.basis,
+    // The calendar day in UTC: the index only needs one stable day, not the organisation's.
+    listDay: opts.list ? new Date(new Date().toISOString().slice(0, 10)) : null,
   }));
-  const write = (c: object) => (c as Tx).sulitAccessEvent.createMany({ data }).then(() => undefined);
+  const write = (c: object) => (c as Tx).sulitAccessEvent.createMany({ data, skipDuplicates: !!opts.list }).then(() => undefined);
   // Inside an editor that is being rehearsed or applied, the row is written after its savepoint settles (`deferPastRollback`), so a refusal is never undone with the editor's writes.
   if (deferPastRollback(write)) return;
   await write(client);
