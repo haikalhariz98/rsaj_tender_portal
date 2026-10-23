@@ -131,7 +131,6 @@ export async function saveRecipient(_prev: FormState, data: FormData): Promise<F
     code: current ? current.code : r.code("code", "Code", { taken: existing.map((e) => e.code) }),
     instrumentKind: r.choice("instrumentKind", "Instrument", INSTRUMENTS, { required: true }),
     nameEn: r.text("nameEn", "Name", { required: true, max: 200 }),
-    nameMs: r.optionalText("nameMs"),
     mandatory: r.bool("mandatory"),
     onlyWhenRegulated: r.bool("onlyWhenRegulated"),
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),

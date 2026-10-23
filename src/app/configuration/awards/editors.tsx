@@ -12,6 +12,7 @@ import { retireRow, saveAwardPolicy, saveNonAwardPolicy, saveBand, saveCondition
 type Option = { value: string; label: string };
 type Values = Record<string, string | boolean | null>;
 const hidden = (name: string): Field => ({ kind: "hidden", name });
+const ghost = buttonClass("ghost", "sm");
 const INSTRUMENTS: Option[] = [
   { value: "LETTER_OF_ACCEPTANCE", label: "Letter of Acceptance" },
   { value: "WORK_INDENT", label: "Work indent and appointment letter" },
@@ -19,7 +20,7 @@ const INSTRUMENTS: Option[] = [
 const PROVENANCE: Field = {
   kind: "select",
   name: "provenance",
-  label: "Where this came from",
+  label: "Basis",
   required: true,
   placeholder: "Choose",
   options: [
@@ -33,7 +34,7 @@ const NOTES: Field = { kind: "textarea", name: "notes", label: "Notes" };
 const code = (editing: boolean): Field[] => (editing ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Used internally. Never shown on a screen." }]);
 const edit = (label: string) => ({ label: `Edit ${label}`, iconOnly: <PencilIcon size={15} /> });
 
-export function EditAwardPolicy({ values, templates, units, label = "Edit controls", quiet }: { values: Values; templates: Option[]; units: Option[]; label?: string; quiet?: boolean }) {
+export function EditAwardPolicy({ values, templates, units, aria = "Edit award controls" }: { values: Values; templates: Option[]; units: Option[]; aria?: string }) {
   return (
     <RecordEditor
       title="Award controls"
@@ -60,14 +61,14 @@ export function EditAwardPolicy({ values, templates, units, label = "Edit contro
         { kind: "select", name: "loaTemplateId", label: "Template: Letter of Acceptance", placeholder: "Not set", options: templates },
         { kind: "select", name: "declarationTemplateId", label: "Template: successful bidder's declaration", placeholder: "Not set", options: templates },
         { kind: "select", name: "coveringMemoTemplateId", label: "Template: indent covering memo", placeholder: "Not set", options: templates },
-        { kind: "select", name: "provenance", label: "Where these controls came from", placeholder: "Not recorded", options: (PROVENANCE as Extract<Field, { kind: "select" }>).options },
+        { kind: "select", name: "provenance", label: "Basis", placeholder: "Not recorded", options: (PROVENANCE as Extract<Field, { kind: "select" }>).options },
         NOTES,
       ]}
       values={values}
       action={saveAwardPolicy}
       reason={{ label: "Why the controls are changed" }}
       submitLabel="Save controls"
-      trigger={{ label, className: buttonClass(quiet ? "secondary" : "primary", "sm") }}
+      trigger={{ label: "Edit", className: ghost, ariaLabel: aria }}
       size="lg"
     />
   );
@@ -84,15 +85,15 @@ export function EditNonAwardPolicy({ values }: { values: Values }) {
       title="Notices to unsuccessful tenderers"
       description="Policy not decided: nothing is issued. A tenderer's own score is never in a notice."
       fields={[
-        { kind: "select", name: "nonAwardNotices", label: "Send unsuccessful tenderers a notice of the outcome", placeholder: "Not decided", options: YES_NO, hint: "Shown in the supplier portal, not emailed." },
+        { kind: "select", name: "nonAwardNotices", label: "Send unsuccessful tenderers a notice of the outcome", placeholder: "Not decided", options: YES_NO, hint: "Shown in the supplier portal." },
         { kind: "select", name: "debriefIncludesReason", label: "The notice carries the reason for non-award", placeholder: "Not decided (it carries none)", options: YES_NO, hint: "Written per tenderer when the notice is issued." },
-        { kind: "select", name: "nonAwardProvenance", label: "Where the decision came from", placeholder: "Not recorded", options: (PROVENANCE as Extract<Field, { kind: "select" }>).options },
+        { kind: "select", name: "nonAwardProvenance", label: "Basis", placeholder: "Not recorded", options: (PROVENANCE as Extract<Field, { kind: "select" }>).options },
       ]}
       values={values}
       action={saveNonAwardPolicy}
       reason={{ label: "Why this is changed" }}
       submitLabel="Save"
-      trigger={{ label: "Edit", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Edit", className: ghost, ariaLabel: "Edit notices to unsuccessful tenderers" }}
       size="md"
     />
   );
@@ -102,7 +103,6 @@ const recipientFields = (editing: boolean): Field[] => [
   ...code(editing),
   { kind: "select", name: "instrumentKind", label: "Receives a copy of", required: true, placeholder: "Choose", options: INSTRUMENTS },
   { kind: "text", name: "nameEn", label: "Recipient", required: true },
-  { kind: "hidden", name: "nameMs" },
   { kind: "switch", name: "mandatory", label: "Mandatory: distribution is not complete without this copy" },
   { kind: "switch", name: "onlyWhenRegulated", label: "Only where the works are the regulated activity" },
   PROVENANCE,

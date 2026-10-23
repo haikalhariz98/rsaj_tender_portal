@@ -12,12 +12,13 @@ import { retireContractRow, saveContractPolicy, saveCopyRecipient, saveDocumentP
 type Option = { value: string; label: string };
 type Values = Record<string, string | boolean | null>;
 const hidden = (name: string): Field => ({ kind: "hidden", name });
+const ghost = buttonClass("ghost", "sm");
 const PROVENANCE_OPTIONS = [
   { value: "STATED", label: "Stated — written in a governing document" },
   { value: "OBSERVED", label: "Observed — seen in practice" },
   { value: "ASSUMED", label: "Assumed — a working default, needs sign-off" },
 ];
-const PROVENANCE: Field = { kind: "select", name: "provenance", label: "Where this came from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS };
+const PROVENANCE: Field = { kind: "select", name: "provenance", label: "Basis", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS };
 const ORDER: Field = { kind: "number", name: "sortOrder", label: "Order", min: 0 };
 const NOTES: Field = { kind: "textarea", name: "notes", label: "Notes" };
 const code = (editing: boolean): Field[] => (editing ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Used internally. Never shown on a screen." }]);
@@ -33,16 +34,15 @@ export function EditContractPolicy({ values, units, conditions, offices }: { val
         { kind: "select", name: "signatoryCond", label: "The approval matrix's signatory rows for the contract agreement", placeholder: conditions.length ? "Not set" : "No signatory rows other than the award's instruments", options: conditions, hint: "Set on the approval matrix." },
         { kind: "select", name: "employerSigningRoleCode", label: "The office that signs a reconciliation amendment for the employer", placeholder: "Not set", options: offices, orphanLabel: "An office no longer configured", hint: "Unset: amendments show the office as not set." },
         { kind: "text", name: "controlledCopyStampEn", label: "Words stamped on a controlled copy", placeholder: "e.g. Controlled copy" },
-        { kind: "text", name: "controlledCopyStampMs", label: "The same words in Malay" },
         { kind: "text", name: "frontLoadingRatio", label: "Front loading: list rates above this multiple of the estimate's", placeholder: "e.g. 1.5", hint: "Unset: no list, the officer's judgement only." },
-        { kind: "select", name: "provenance", label: "Where these controls came from", placeholder: "Not recorded", options: PROVENANCE_OPTIONS },
+        { kind: "select", name: "provenance", label: "Basis", placeholder: "Not recorded", options: PROVENANCE_OPTIONS },
         NOTES,
       ]}
       values={values}
       action={saveContractPolicy}
       reason={{ label: "Why the controls are changed" }}
       submitLabel="Save controls"
-      trigger={{ label: "Edit controls", className: buttonClass("primary", "sm") }}
+      trigger={{ label: "Edit", className: ghost, ariaLabel: "Edit contract controls" }}
       size="lg"
     />
   );
@@ -53,7 +53,6 @@ const partFields = (editing: boolean, bases: Option[]): Field[] => [
   { kind: "select", name: "contractBasisCode", label: "Contract basis", required: true, placeholder: "Choose", options: bases },
   { kind: "text", name: "printedNumber", label: "Printed number", placeholder: "e.g. 3" },
   { kind: "text", name: "labelEn", label: "Part", required: true },
-  { kind: "text", name: "labelMs", label: "Part (Malay)" },
   PROVENANCE,
   ORDER,
   NOTES,
@@ -69,7 +68,6 @@ export function EditDocumentPart({ id, values, name, bases }: { id: string; valu
 const recipientFields = (editing: boolean): Field[] => [
   ...code(editing),
   { kind: "text", name: "nameEn", label: "Recipient", required: true },
-  { kind: "text", name: "nameMs", label: "Recipient (Malay)" },
   { kind: "text", name: "copyForm", label: "What they receive", placeholder: "e.g. one original with drawings and a PDF" },
   { kind: "switch", name: "mandatory", label: "Mandatory: distribution is not complete without this copy" },
   { kind: "switch", name: "onlyWithConsultingEngineer", label: "Only where a consulting engineer is engaged" },

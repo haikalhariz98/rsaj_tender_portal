@@ -46,7 +46,6 @@ export async function saveContractPolicy(_prev: FormState, data: FormData): Prom
     legalOfficeCode: r.optionalText("legalOfficeCode"),
     frontLoadingRatio: ratio || null,
     controlledCopyStampEn: r.optionalText("controlledCopyStampEn"),
-    controlledCopyStampMs: r.optionalText("controlledCopyStampMs"),
     signatoryCond: r.optionalText("signatoryCond"),
     employerSigningRoleCode: r.optionalText("employerSigningRoleCode"),
     provenance: r.choice("provenance", "Provenance", PROVENANCE),
@@ -82,7 +81,6 @@ export async function saveDocumentPart(_prev: FormState, data: FormData): Promis
   const v = {
     contractBasisCode: r.text("contractBasisCode", "Contract basis", { required: true }),
     labelEn: r.text("labelEn", "Part", { required: true, max: 240 }),
-    labelMs: r.optionalText("labelMs"),
     printedNumber: r.text("printedNumber", "Printed number", { max: 20 }),
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
@@ -114,7 +112,6 @@ export async function saveCopyRecipient(_prev: FormState, data: FormData): Promi
   const id = r.optionalText("id");
   const v = {
     nameEn: r.text("nameEn", "Recipient", { required: true, max: 240 }),
-    nameMs: r.optionalText("nameMs"),
     copyForm: r.text("copyForm", "What they receive", { max: 400 }),
     mandatory: r.bool("mandatory"),
     onlyWithConsultingEngineer: r.bool("onlyWithConsultingEngineer"),

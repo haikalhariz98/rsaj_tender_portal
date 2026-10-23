@@ -28,21 +28,21 @@ export function EditPostAwardPolicy({ values, forms }: { values: Record<string, 
       columns={2}
       fields={[
         { kind: "text", name: "inDelayProgressPct", label: "In Delay below this share of planned progress (%)", hint: "Unset: In Delay ignores progress." },
-        provenance("inDelayProvenance", "Where the percentage came from"),
+        provenance("inDelayProvenance", "Basis (In Delay)"),
         { kind: "select", name: "soReResolve", label: "The S.O. changes when an adjustment moves the contract sum across a band", placeholder: "Not decided", options: [{ value: "yes", label: "Yes: resolved again at the new sum" }, { value: "no", label: "No: the S.O. stays as resolved" }] },
-        provenance("soReResolveProvenance", "Where that came from"),
+        provenance("soReResolveProvenance", "Basis (S.O.)"),
         form("delegationLetterConventionalId", "Letter of delegation, conventional contracts", forms),
         form("delegationNoticeConventionalId", "Notification of delegation, conventional contracts", forms),
         form("delegationLetterDesignBuildId", "Letter of delegation, design and build and turnkey", forms),
         form("delegationNoticeDesignBuildId", "Notification of delegation, design and build and turnkey", forms),
-        provenance("delegationFormsProvenance", "Where the forms came from"),
+        provenance("delegationFormsProvenance", "Basis (delegation forms)"),
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
       values={values}
       action={savePostAwardPolicy}
       reason={{ label: "Why the controls are changed" }}
       submitLabel="Save controls"
-      trigger={{ label: "Edit controls", className: buttonClass("primary", "sm") }}
+      trigger={{ label: "Edit", className: buttonClass("ghost", "sm"), ariaLabel: "Edit supervision and delegation letters" }}
     />
   );
 }
@@ -59,21 +59,21 @@ export function EditPaymentPolicy({ values, figures, remainders }: { values: Rec
       columns={2}
       fields={[
         pctField("unfixedMaterialsDefaultPct", "Allowance on unfixed materials (%)", "Where the contract states none. Unset: a materials line is refused, naming this setting."),
-        provenance("unfixedMaterialsProvenance", "Where the allowance came from"),
+        provenance("unfixedMaterialsProvenance", "Basis (allowance)"),
         pctField("firstReleasePct", "First release of retention (%)", "The share released at practical completion. Unset: the first release is refused, naming this setting."),
-        provenance("firstReleaseProvenance", "Where the release came from"),
+        provenance("firstReleaseProvenance", "Basis (release)"),
         { kind: "select", name: "paymentRouteFigure", label: "The figure an interim certificate is routed on", placeholder: "Not set", options: figures, hint: "Unset: no interim certificate can be sent." },
-        provenance("paymentRouteProvenance", "Where that came from"),
-        { kind: "select", name: "waterfallRemainder", label: "Where the sen of a pro-rata split go", placeholder: "Not set", options: remainders, hint: "Unset: underpaying certificates are refused." },
-        provenance("waterfallProvenance", "Where that came from"),
+        provenance("paymentRouteProvenance", "Basis (routing figure)"),
+        { kind: "select", name: "waterfallRemainder", label: "Odd sen when a payment is shared", placeholder: "Not set", options: remainders, hint: "Unset: underpaying certificates are refused." },
+        provenance("waterfallProvenance", "Basis (odd sen)"),
         { kind: "number", name: "preExecutionInterimLimit", label: "Interim certificates that may issue before the contract is signed", min: 0, hint: "Unset: none issues before the contract is executed." },
-        provenance("preExecutionProvenance", "Where the number came from"),
+        provenance("preExecutionProvenance", "Basis (limit before signing)"),
       ]}
       values={values}
       action={savePaymentPolicy}
       reason={{ label: "Why the controls are changed" }}
       submitLabel="Save controls"
-      trigger={{ label: "Edit", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Edit", className: buttonClass("ghost", "sm"), ariaLabel: "Edit interim payment controls" }}
     />
   );
 }
@@ -88,7 +88,7 @@ export function EditKindSetting({ kind, label, values, forms, sheets, noSheet = 
         { kind: "hidden", name: "certificateKind" },
         form("templateId", "Form", forms),
         ...(noSheet ? [] : [{ kind: "select", name: "routingTypeId", label: "Routing sheet", placeholder: sheets.length ? "None: no routing sheet" : "No routing sheets configured", options: sheets } as Field]),
-        { kind: "select", name: "provenance", label: "Where these came from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
+        { kind: "select", name: "provenance", label: "Basis", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
       values={{ ...values, certificateKind: kind }}
@@ -111,7 +111,7 @@ export function EditClockRule({ clock, label, values }: { clock: string; label: 
         { kind: "hidden", name: "clock" },
         { kind: "number", name: "length", label: "Length", min: 1 },
         { kind: "select", name: "unit", label: "Unit", placeholder: "Choose", options: [{ value: "DAYS", label: "Calendar days" }, { value: "WEEKS", label: "Weeks" }, { value: "MONTHS", label: "Months" }] },
-        provenance("provenance", "Where it came from"),
+        provenance("provenance", "Basis"),
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
       values={{ ...values, clock }}
@@ -132,7 +132,7 @@ export function EditContractorPortalSigning({ values }: { values: Record<string,
       columns={2}
       fields={[
         { kind: "select", name: "contractorPortalSigning", label: "A contractor's portal account signs for it", placeholder: "Not decided", options: [{ value: "yes", label: "Yes: its account signs, with its password" }, { value: "no", label: "No: on paper only" }] },
-        provenance("contractorPortalSigningProvenance", "Where that came from"),
+        provenance("contractorPortalSigningProvenance", "Basis"),
       ]}
       values={values}
       action={saveContractorPortalSigning}
@@ -154,18 +154,18 @@ export function EditVariationPolicy({ values, bases, sums, forms, committees }: 
       fields={[
         { kind: "select", name: "variationPctBasis", label: "A variation's percentage is of", placeholder: "Not set", options: bases, hint: "Unset: variations cannot be submitted." },
         { kind: "select", name: "variationBase", label: "Taken over", placeholder: "Not set", options: sums, hint: "Also the contract value its band reads." },
-        provenance("variationProvenance", "Where that came from"),
+        provenance("variationProvenance", "Basis (percentage)"),
         { kind: "select", name: "scheduleFormAgreedRate", label: "The schedule form where an agreed rate exists", placeholder: "Not set", options: forms },
         { kind: "select", name: "scheduleFormNoAgreedRate", label: "The schedule form where none does", placeholder: "Not set", options: forms, hint: "Unset: the instruction is refused, naming this setting." },
-        provenance("scheduleFormProvenance", "Where those came from"),
+        provenance("scheduleFormProvenance", "Basis (schedule forms)"),
         { kind: "select", name: "funderConsentCommitteeId", label: "The committee that decides a funder's consent", placeholder: committees.length ? "Not set" : "No committees configured", options: committees, hint: "Unset: consent cannot be tabled." },
-        provenance("funderConsentProvenance", "Where that came from"),
+        provenance("funderConsentProvenance", "Basis (funder consent)"),
       ]}
       values={values}
       action={saveVariationPolicy}
       reason={{ label: "Why the controls are changed" }}
       submitLabel="Save controls"
-      trigger={{ label: "Edit", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Edit", className: buttonClass("ghost", "sm"), ariaLabel: "Edit variation controls" }}
     />
   );
 }

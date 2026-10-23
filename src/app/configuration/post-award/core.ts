@@ -42,11 +42,11 @@ export async function savePostAwardPolicy(_prev: FormState, data: FormData): Pro
   const forms = Object.fromEntries(FORM_FIELDS.map((f) => [f, r.optionalText(f)])) as Record<(typeof FORM_FIELDS)[number], string | null>;
   const v = {
     inDelayProgressPct: pct || null,
-    inDelayProvenance: r.choice("inDelayProvenance", "Where the percentage came from", PROVENANCE),
+    inDelayProvenance: r.choice("inDelayProvenance", "Basis", PROVENANCE),
     soReResolve: follow == null ? null : follow === "yes",
-    soReResolveProvenance: r.choice("soReResolveProvenance", "Where that came from", PROVENANCE),
+    soReResolveProvenance: r.choice("soReResolveProvenance", "Basis", PROVENANCE),
     ...forms,
-    delegationFormsProvenance: r.choice("delegationFormsProvenance", "Where the forms came from", PROVENANCE),
+    delegationFormsProvenance: r.choice("delegationFormsProvenance", "Basis", PROVENANCE),
     notes: r.text("notes", "Notes", { max: 4000 }),
   };
   const reason = r.text("reason", "Reason", { max: 2000 });
@@ -106,15 +106,15 @@ export async function savePaymentPolicy(_prev: FormState, data: FormData): Promi
   if (limitRaw && !/^\d{1,3}$/.test(limitRaw)) r.reject("preExecutionInterimLimit", "A whole number of certificates (none is 0).");
   const v = {
     unfixedMaterialsDefaultPct: pctOf(r, "unfixedMaterialsDefaultPct", "The allowance on unfixed materials"),
-    unfixedMaterialsProvenance: r.choice("unfixedMaterialsProvenance", "Where it came from", PROVENANCE),
+    unfixedMaterialsProvenance: r.choice("unfixedMaterialsProvenance", "Basis", PROVENANCE),
     firstReleasePct: pctOf(r, "firstReleasePct", "The first release of retention"),
-    firstReleaseProvenance: r.choice("firstReleaseProvenance", "Where it came from", PROVENANCE),
+    firstReleaseProvenance: r.choice("firstReleaseProvenance", "Basis", PROVENANCE),
     paymentRouteFigure: r.choice("paymentRouteFigure", "The figure an interim certificate is routed on", PAYMENT_ROUTE_FIGURES),
-    paymentRouteProvenance: r.choice("paymentRouteProvenance", "Where it came from", PROVENANCE),
-    waterfallRemainder: r.choice("waterfallRemainder", "Where a pro-rata split's sen go", WATERFALL_REMAINDERS),
-    waterfallProvenance: r.choice("waterfallProvenance", "Where it came from", PROVENANCE),
+    paymentRouteProvenance: r.choice("paymentRouteProvenance", "Basis", PROVENANCE),
+    waterfallRemainder: r.choice("waterfallRemainder", "Odd sen when a payment is shared", WATERFALL_REMAINDERS),
+    waterfallProvenance: r.choice("waterfallProvenance", "Basis", PROVENANCE),
     preExecutionInterimLimit: limitRaw ? Number.parseInt(limitRaw, 10) : null,
-    preExecutionProvenance: r.choice("preExecutionProvenance", "Where it came from", PROVENANCE),
+    preExecutionProvenance: r.choice("preExecutionProvenance", "Basis", PROVENANCE),
   };
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
@@ -151,7 +151,7 @@ export async function saveKindSetting(_prev: FormState, data: FormData): Promise
   const kind = r.choice("certificateKind", "Certificate", PAYMENT_KINDS, { required: true });
   const templateId = r.optionalText("templateId");
   const routingTypeId = r.optionalText("routingTypeId");
-  const provenance = r.choice("provenance", "Where it came from", PROVENANCE, { required: true });
+  const provenance = r.choice("provenance", "Basis", PROVENANCE, { required: true });
   const notes = r.text("notes", "Notes", { max: 2000 });
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed || !kind || !provenance) return { ok: false, errors: r.errors };
@@ -184,7 +184,7 @@ export async function saveClockRule(_prev: FormState, data: FormData): Promise<F
   const clock = r.choice("clock", "Clock", CONTRACT_CLOCKS, { required: true });
   const length = r.int("length", "Length", { min: 1 });
   const unit = r.choice("unit", "Unit", ["DAYS", "WEEKS", "MONTHS"] as const);
-  const provenance = r.choice("provenance", "Where it came from", PROVENANCE);
+  const provenance = r.choice("provenance", "Basis", PROVENANCE);
   const notes = r.text("notes", "Notes", { max: 2000 });
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (length != null && (!unit || !provenance)) {
@@ -228,7 +228,7 @@ export async function saveContractorPortalSigning(_prev: FormState, data: FormDa
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const choice = r.choice("contractorPortalSigning", "Whether a contractor signs from its portal account", ["yes", "no"] as const);
-  const provenance = r.choice("contractorPortalSigningProvenance", "Where that came from", PROVENANCE);
+  const provenance = r.choice("contractorPortalSigningProvenance", "Basis", PROVENANCE);
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (choice != null && !provenance) r.reject("contractorPortalSigningProvenance", "Say where the decision came from: there is no default.");
   if (r.failed) return { ok: false, errors: r.errors };
@@ -266,12 +266,12 @@ export async function saveVariationPolicy(_prev: FormState, data: FormData): Pro
   const v = {
     variationPctBasis: r.choice("variationPctBasis", "What a variation's percentage is of", VARIATION_PCT_BASES),
     variationBase: r.choice("variationBase", "The sum it is taken over", VARIATION_BASES),
-    variationProvenance: r.choice("variationProvenance", "Where that came from", PROVENANCE),
+    variationProvenance: r.choice("variationProvenance", "Basis", PROVENANCE),
     scheduleFormAgreedRate: r.choice("scheduleFormAgreedRate", "The schedule form where an agreed rate exists", SCHEDULE_FORMS),
     scheduleFormNoAgreedRate: r.choice("scheduleFormNoAgreedRate", "The schedule form where none does", SCHEDULE_FORMS),
-    scheduleFormProvenance: r.choice("scheduleFormProvenance", "Where that came from", PROVENANCE),
+    scheduleFormProvenance: r.choice("scheduleFormProvenance", "Basis", PROVENANCE),
     funderConsentCommitteeId: r.optionalText("funderConsentCommitteeId"),
-    funderConsentProvenance: r.choice("funderConsentProvenance", "Where that came from", PROVENANCE),
+    funderConsentProvenance: r.choice("funderConsentProvenance", "Basis", PROVENANCE),
   };
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };

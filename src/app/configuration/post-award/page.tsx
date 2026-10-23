@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 import { decimalText } from "@/lib/format";
 import { BuildingIcon, ClockIcon, FileIcon, ScaleIcon, WalletIcon } from "@/components/icons";
 import { HistoryButton } from "@/components/history-drawer";
@@ -7,7 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { ProvenanceBadge } from "@/components/ui/provenance";
+import { RuleInfo } from "@/components/ui/rule-info";
+import { MoreText } from "@/components/ui/more-text";
+import { Disclosure } from "@/components/ui/disclosure";
+import { SettingValue, settingLine } from "@/components/setup/setting-value";
 import { KeyValues } from "@/components/ui/stat";
 import { KIND_WORDS } from "@/lib/certificate/labels";
 import { db } from "@/lib/db";
@@ -38,23 +39,7 @@ const CLOCK_UNSET: Readonly<Record<ContractClock, string>> = {
 const UNIT_WORDS = { DAYS: "calendar days", WEEKS: "weeks", MONTHS: "months" } as const;
 
 export const dynamic = "force-dynamic";
-
-/// A setting's value, or "Not set" and what that stops.
-function Setting({ value, unset, provenance }: { value: ReactNode | null; unset: string; provenance?: string | null }) {
-  if (value != null && value !== "")
-    return (
-      <span className="flex flex-col items-start gap-1.5">
-        <span>{value}</span>
-        <ProvenanceBadge value={provenance ?? null} />
-      </span>
-    );
-  return (
-    <span className="flex flex-col items-start gap-1.5">
-      <Badge tone="warn">Not set</Badge>
-      <span className="text-[12.5px] text-ink-3">{unset}</span>
-    </span>
-  );
-}
+export const metadata = { title: "Post-award controls" };
 
 /**
  * Post-award controls (6.13 Part A): when a contract is In Delay, whether its S.O. follows the contract sum across
@@ -129,167 +114,144 @@ export default async function PostAwardControlsPage() {
   };
   const forms = templates.map((t) => ({ value: t.id, label: t.formCode ? `${t.nameEn} (${t.formCode})` : t.nameEn }));
   const formUnset = "A delegation on a contract of this kind is refused, naming this setting.";
+  const editPolicy = <EditPostAwardPolicy values={values} forms={forms} />;
+  const editPayment = <EditPaymentPolicy values={paymentValues} figures={PAYMENT_ROUTE_FIGURES.map((f) => ({ value: f, label: ROUTE_FIGURE_WORDS[f].en }))} remainders={WATERFALL_REMAINDERS.map((f) => ({ value: f, label: REMAINDER_WORDS[f].en }))} />;
+  const editVariation = <EditVariationPolicy values={variationValues} bases={VARIATION_PCT_BASES.map((b) => ({ value: b, label: BASIS_WORDS[b].en }))} sums={VARIATION_BASES.map((b) => ({ value: b, label: BASE_WORDS[b].en }))} forms={SCHEDULE_FORMS.map((f) => ({ value: f, label: SCHEDULE_FORM_WORDS[f].en }))} committees={committees.map((x) => ({ value: x.id, label: x.nameEn }))} />;
+  /// A value with the one-line reading behind it in a popover; usual practice or an assumption is flagged there (SP-18).
+  const read = (value: string | null, rule: string, provenance?: string | null, unset?: string) =>
+    value == null ? (
+      <SettingValue value={null} unset={unset ?? ""} />
+    ) : (
+      <span className="inline-flex items-center gap-1">
+        {value}
+        {(rule || provenance === "OBSERVED" || provenance === "ASSUMED") && <RuleInfo rule={rule} source={provenance} label="How this is read" />}
+      </span>
+    );
+  const certificateLines = (kindsList: readonly (typeof PAYMENT_KINDS)[number][] | readonly (typeof VARIATION_KINDS)[number][]) =>
+    kindsList.map((k) => {
+      const x = kindOf(k);
+      const sheetsFor = sheets.filter((t) => t.certificateKind == null || t.certificateKind === k).map((t) => ({ value: t.id, label: t.labelEn }));
+      const own = k === "VARIATION_APPLICATION" || k === "SO_INSTRUCTION" || k === "VARIATION";
+      const sheet = own ? "Approved on the variation's own routes" : x?.routingType ? `${x.routingType.labelEn}${x.routingType.retiredOn ? " (retired: choose one in use)" : ""}` : "No routing sheet";
+      return settingLine(KIND_WORDS[k].en, <SettingValue value={x?.templateId ? `${formName(x.templateId)} · ${sheet}` : null} unset="It cannot be raised: the refusal names this setting." />, <EditKindSetting kind={k} label={KIND_WORDS[k].en} values={{ templateId: x?.templateId ?? null, routingTypeId: x?.routingTypeId ?? null, provenance: x?.provenance ?? null, notes: x?.notes ?? "" }} forms={forms} sheets={sheetsFor} noSheet={own} />);
+    });
+
   return (
     <>
       <PageHeader
         title="Post-award controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
         info={{ title: "Post-award controls", text: "Supervision, the delegation letters, interim payments and damages, and variations." }}
-        actions={
-          <>
-            {p?.id && <HistoryButton entity="PostAwardPolicy" entityId={p.id} label="Post-award controls" />}
-            <EditPostAwardPolicy values={values} forms={forms} />
-          </>
-        }
+        actions={p?.id && <HistoryButton entity="PostAwardPolicy" entityId={p.id} label="Post-award controls" />}
       />
       <div className="flex flex-col gap-6">
         <Card>
-          <CardHeader icon={<BuildingIcon size={17} />} title="Supervising a contract" subtitle="Read when a contract is judged" />
+          <CardHeader icon={<BuildingIcon size={17} />} title="Supervising a contract" />
           <CardBody>
             <KeyValues
               columns={2}
               items={[
-                { label: "In Delay", value: <Setting value={pct ? `Below ${pct}% of the approved programme's planned progress. Exactly on it is not below it.` : null} provenance={p?.inDelayProvenance} unset="Progress is not judged against the plan: each contract says In Delay is not judged. A lapsed completion date with the work incomplete is In Delay all the same." /> },
-                { label: "The S.O. and the contract sum", value: <Setting value={p?.soReResolve == null ? null : p.soReResolve ? "Resolved again when an adjustment moves the sum across a band." : "Stays as resolved when the sum moves."} provenance={p?.soReResolveProvenance} unset="Not decided: each contract and each S.O. signature block warns that the office shown is the one resolved for it." /> },
+                settingLine("In Delay", read(pct ? `Below ${pct}% of planned progress` : null, "Below the set share of the approved programme's planned progress. Exactly on it is not below it.", p?.inDelayProvenance, "Progress is not judged against the plan. A lapsed completion date with the work incomplete is In Delay all the same."), editPolicy),
+                settingLine("The S.O. and the contract sum", read(p?.soReResolve == null ? null : p.soReResolve ? "Resolved again across a band" : "Stays as resolved", "When an adjustment moves the contract sum across a band, the S.O. is either resolved again at the new sum or kept.", p?.soReResolveProvenance, "Not decided: each contract and S.O. signature block warns that the office shown is the one resolved for it.")),
               ]}
             />
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Delegation letters" subtitle="By the contract type's letters" />
+          <CardHeader icon={<WalletIcon size={17} />} title="Interim payment" />
           <CardBody>
             <KeyValues
               columns={2}
               items={[
-                { label: "Letter, conventional contracts", value: <Setting value={formName(p?.delegationLetterConventionalId)} provenance={p?.delegationFormsProvenance} unset={formUnset} /> },
-                { label: "Notification, conventional contracts", value: <Setting value={formName(p?.delegationNoticeConventionalId)} provenance={p?.delegationFormsProvenance} unset={formUnset} /> },
-                { label: "Letter, design and build and turnkey", value: <Setting value={formName(p?.delegationLetterDesignBuildId)} provenance={p?.delegationFormsProvenance} unset={formUnset} /> },
-                { label: "Notification, design and build and turnkey", value: <Setting value={formName(p?.delegationNoticeDesignBuildId)} provenance={p?.delegationFormsProvenance} unset={formUnset} /> },
+                settingLine("Allowance on unfixed materials", read(materials ? `${materials}%` : null, "Of their value, where the contract states no allowance of its own.", p?.unfixedMaterialsProvenance, "A materials line on a contract that states no allowance is refused. It is never taken as nothing."), editPayment),
+                settingLine("First release of retention", read(firstRelease ? `${firstRelease}%` : null, "The share of what is held, released at practical completion.", p?.firstReleaseProvenance, "The first release of retention is refused, naming this setting.")),
+                settingLine("Figure an interim certificate is routed on", read(p?.paymentRouteFigure ? ROUTE_FIGURE_WORDS[p.paymentRouteFigure].en : null, "A contract's own baseline figure wins.", p?.paymentRouteProvenance, "An interim certificate cannot be sent for approval.")),
+                settingLine("Odd sen when a payment is shared", read(p?.waterfallRemainder ? REMAINDER_WORDS[p.waterfallRemainder].en : null, "Where the sen left over go when a payment is split between parties.", p?.waterfallProvenance, "A certificate that cannot pay every party in full, and leaves sen over, is refused.")),
+                settingLine("The certificate's minimum", <span className="inline-flex items-center gap-1">{"From each contract's baseline"}<RuleInfo rule={`${MINIMUM_MEASURE_WORDS.first.en}, ${MINIMUM_MEASURE_WORDS.subsequent.en}. The measure is ${MINIMUM_MEASURE_WORDS.assumed.en}.`} source="ASSUMED" label="How the minimum is read" /></span>),
+                settingLine("Interim certificates before signing", read(p?.preExecutionInterimLimit == null ? null : p.preExecutionInterimLimit === 0 ? "None" : `Up to ${p.preExecutionInterimLimit}`, "Allowed only with the securities, insurances and social security registration in place.", p?.preExecutionProvenance, "None issues before the contract is executed; one raised says so.")),
               ]}
             />
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<WalletIcon size={17} />} title="Interim payment" subtitle="A contract's own baseline figure wins" actions={<EditPaymentPolicy values={paymentValues} figures={PAYMENT_ROUTE_FIGURES.map((f) => ({ value: f, label: ROUTE_FIGURE_WORDS[f].en }))} remainders={WATERFALL_REMAINDERS.map((f) => ({ value: f, label: REMAINDER_WORDS[f].en }))} />} />
+          <CardHeader icon={<ScaleIcon size={17} />} title="Variations" />
           <CardBody>
             <KeyValues
               columns={2}
               items={[
-                { label: "Allowance on unfixed materials", value: <Setting value={materials ? `${materials}% of their value, where the contract states none` : null} provenance={p?.unfixedMaterialsProvenance} unset="A materials line on a contract that states no allowance is refused, naming this setting. It is never taken as nothing." /> },
-                { label: "First release of retention", value: <Setting value={firstRelease ? `${firstRelease}% of what is held, at practical completion` : null} provenance={p?.firstReleaseProvenance} unset="The first release of retention is refused, naming this setting." /> },
-                { label: "The figure an interim certificate is routed on", value: <Setting value={p?.paymentRouteFigure ? ROUTE_FIGURE_WORDS[p.paymentRouteFigure].en : null} provenance={p?.paymentRouteProvenance} unset="An interim certificate cannot be sent for approval: the refusal names this setting." /> },
-                { label: "Where the sen of a pro-rata split go", value: <Setting value={p?.waterfallRemainder ? REMAINDER_WORDS[p.waterfallRemainder].en : null} provenance={p?.waterfallProvenance} unset="A certificate that cannot pay every nominated party and assignee in full, and leaves sen over, is refused." /> },
-                { label: "The certificate's minimum", value: <span className="flex flex-col items-start gap-1.5"><span>{`From each contract's baseline: ${MINIMUM_MEASURE_WORDS.first.en}, ${MINIMUM_MEASURE_WORDS.subsequent.en}.`}</span><ProvenanceBadge value="ASSUMED" /><span className="text-[12.5px] text-ink-3">{`The measure is ${MINIMUM_MEASURE_WORDS.assumed.en}.`}</span></span> },
-                { label: "Interim certificates before the contract is signed", value: <Setting value={p?.preExecutionInterimLimit == null ? null : p.preExecutionInterimLimit === 0 ? "None" : `Up to ${p.preExecutionInterimLimit}, with the securities, insurances and social security registration in place`} provenance={p?.preExecutionProvenance} unset="None issues before the contract is executed; one raised says so." /> },
+                settingLine("A variation's percentage is of", read(p?.variationPctBasis ? BASIS_WORDS[p.variationPctBasis].en : null, "A change moves nothing already sent.", p?.variationProvenance, "A variation cannot be submitted or sent for approval. Nothing is assumed."), editVariation),
+                settingLine("Taken over (and the value its band is read at)", read(p?.variationBase ? BASE_WORDS[p.variationBase].en : null, "Also the contract value the approval band is read at.", p?.variationProvenance, "A variation cannot be submitted or sent for approval. Nothing is assumed.")),
+                settingLine("Schedule form where an agreed rate exists", read(p?.scheduleFormAgreedRate ? SCHEDULE_FORM_WORDS[p.scheduleFormAgreedRate].en : null, "The form the instruction of a variation with an agreed rate uses.", p?.scheduleFormProvenance, "The instruction of a variation with an agreed rate is refused.")),
+                settingLine("Schedule form where none does", read(p?.scheduleFormNoAgreedRate ? SCHEDULE_FORM_WORDS[p.scheduleFormNoAgreedRate].en : null, "The form the instruction of a variation without an agreed rate uses.", p?.scheduleFormProvenance, "The instruction of a variation without an agreed rate is refused.")),
+                settingLine("Committee that decides a funder's consent", read(committeeName(p?.funderConsentCommitteeId), "Decides a variation that affects a funder's assets.", p?.funderConsentProvenance, "A variation affecting a funder's assets cannot be tabled for consent, so it is not instructed.")),
+                settingLine("Where a variation the S.O. does not support goes", <span className="inline-flex items-center gap-1">Set on the approval matrix<MoreText text="As the rejection destinations under Settings, Approvals, Approval matrix say for a variation. Where none is set, the officer says where (back to its originator, or it ends) when recording the decision." label="Where it goes" /></span>),
               ]}
             />
           </CardBody>
         </Card>
-        <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Payment and damages certificates" subtitle="Form and routing sheet" />
-          <CardBody>
-            <KeyValues
-              columns={2}
-              items={PAYMENT_KINDS.map((k) => {
-                const x = kindOf(k);
-                const sheetsFor = sheets.filter((t) => t.certificateKind == null || t.certificateKind === k).map((t) => ({ value: t.id, label: t.labelEn }));
-                const sheet = x?.routingType ? `${x.routingType.labelEn}${x.routingType.retiredOn ? " (retired: choose one in use)" : ""}` : "No routing sheet";
-                return {
-                  label: (
-                    <span className="flex flex-wrap items-center justify-between gap-2">
-                      <span>{KIND_WORDS[k].en}</span>
-                      <EditKindSetting kind={k} label={KIND_WORDS[k].en} values={{ templateId: x?.templateId ?? null, routingTypeId: x?.routingTypeId ?? null, provenance: x?.provenance ?? null, notes: x?.notes ?? "" }} forms={forms} sheets={sheetsFor} />
-                    </span>
-                  ),
-                  value: <Setting value={x?.templateId ? `${formName(x.templateId)} · ${sheet}` : null} provenance={x?.provenance} unset="It cannot be raised: the refusal names this setting." />,
-                };
-              })}
-            />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="Contractor's portal signature" subtitle="Signing from the portal" />
-          <CardBody>
-            <KeyValues
-              columns={2}
-              items={[
-                {
-                  label: (
-                    <span className="flex flex-wrap items-center justify-between gap-2">
-                      <span>A contractor signs from its portal account</span>
-                      <EditContractorPortalSigning values={{ contractorPortalSigning: p?.contractorPortalSigning == null ? null : p.contractorPortalSigning ? "yes" : "no", contractorPortalSigningProvenance: p?.contractorPortalSigningProvenance ?? null }} />
-                    </span>
-                  ),
-                  value: (
-                    <Setting
-                      value={p?.contractorPortalSigning == null ? null : p.contractorPortalSigning ? "Yes: the account of a contact marked as authorised to sign for the company signs its block on a variation or adjustment certificate, and its notice that the statutory declaration is lodged" : "No: on paper only, recorded by an officer"}
-                      provenance={p?.contractorPortalSigningProvenance}
-                      unset="The portal refuses the contractor's block and its notice that the statutory declaration is lodged, saying so; the contractor signs on paper."
-                    />
-                  ),
-                },
-              ]}
-            />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader icon={<ScaleIcon size={17} />} title="Variations" subtitle="A change moves nothing already sent" actions={<EditVariationPolicy values={variationValues} bases={VARIATION_PCT_BASES.map((b) => ({ value: b, label: BASIS_WORDS[b].en }))} sums={VARIATION_BASES.map((b) => ({ value: b, label: BASE_WORDS[b].en }))} forms={SCHEDULE_FORMS.map((f) => ({ value: f, label: SCHEDULE_FORM_WORDS[f].en }))} committees={committees.map((x) => ({ value: x.id, label: x.nameEn }))} />} />
-          <CardBody>
-            <KeyValues
-              columns={2}
-              items={[
-                { label: "A variation's percentage is of", value: <Setting value={p?.variationPctBasis ? BASIS_WORDS[p.variationPctBasis].en : null} provenance={p?.variationProvenance} unset="A variation cannot be submitted or sent for approval: the refusal names this setting. Nothing is assumed." /> },
-                { label: "Taken over (and the contract value its band is read at)", value: <Setting value={p?.variationBase ? BASE_WORDS[p.variationBase].en : null} provenance={p?.variationProvenance} unset="A variation cannot be submitted or sent for approval: the refusal names this setting. Nothing is assumed." /> },
-                { label: "The schedule form where an agreed rate exists", value: <Setting value={p?.scheduleFormAgreedRate ? SCHEDULE_FORM_WORDS[p.scheduleFormAgreedRate].en : null} provenance={p?.scheduleFormProvenance} unset="The instruction of a variation with an agreed rate is refused, naming this setting." /> },
-                { label: "The schedule form where none does", value: <Setting value={p?.scheduleFormNoAgreedRate ? SCHEDULE_FORM_WORDS[p.scheduleFormNoAgreedRate].en : null} provenance={p?.scheduleFormProvenance} unset="The instruction of a variation without an agreed rate is refused, naming this setting." /> },
-                { label: "The committee that decides a funder's consent", value: <Setting value={committeeName(p?.funderConsentCommitteeId)} provenance={p?.funderConsentProvenance} unset="A variation affecting a funder's assets cannot be tabled for consent, so it is not instructed." /> },
-                { label: "Where a variation the S.O. does not support goes", value: <span className="text-[13px] text-ink-2">As the rejection destinations under Configuration › Approval matrix say for a variation; where none is set, the officer says where (back to its originator, or it ends) when recording the decision.</span> },
-              ]}
-            />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Variation and adjustment certificates" subtitle="Form and routing sheet" />
-          <CardBody>
-            <KeyValues
-              columns={2}
-              items={VARIATION_KINDS.map((k) => {
-                const x = kindOf(k);
-                const sheetsFor = sheets.filter((t) => t.certificateKind == null || t.certificateKind === k).map((t) => ({ value: t.id, label: t.labelEn }));
-                const sheet = k !== "SUM_ADJUSTMENT" ? "Approved on the variation's own routes (no routing sheet)" : x?.routingType ? `${x.routingType.labelEn}${x.routingType.retiredOn ? " (retired: choose one in use)" : ""}` : "No routing sheet";
-                return {
-                  label: (
-                    <span className="flex flex-wrap items-center justify-between gap-2">
-                      <span>{KIND_WORDS[k].en}</span>
-                      <EditKindSetting kind={k} label={KIND_WORDS[k].en} values={{ templateId: x?.templateId ?? null, routingTypeId: x?.routingTypeId ?? null, provenance: x?.provenance ?? null, notes: x?.notes ?? "" }} forms={forms} sheets={sheetsFor} noSheet={k !== "SUM_ADJUSTMENT"} />
-                    </span>
-                  ),
-                  value: <Setting value={x?.templateId ? `${formName(x.templateId)} · ${sheet}` : null} provenance={x?.provenance} unset="It cannot be raised: the refusal names this setting." />,
-                };
-              })}
-            />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="Contract clocks" subtitle="Unset clock says so" />
-          <CardBody>
-            <KeyValues
-              columns={2}
-              items={CONTRACT_CLOCKS.map((k) => {
-                const x = clockOf(k);
-                return {
-                  label: (
-                    <span className="flex flex-wrap items-center justify-between gap-2">
-                      <span>{CLOCK_WORDS[k].en}</span>
-                      <EditClockRule clock={k} label={CLOCK_WORDS[k].en} values={{ length: x ? String(x.length) : null, unit: x?.unit ?? null, provenance: x?.provenance ?? null, notes: x?.notes ?? "" }} />
-                    </span>
-                  ),
-                  value: <Setting value={x ? `${x.length} ${UNIT_WORDS[x.unit]}` : null} provenance={x?.provenance} unset={CLOCK_UNSET[k]} />,
-                };
-              })}
-            />
-          </CardBody>
-        </Card>
+
+        <Disclosure id="advanced" title="Advanced" summary="Delegation letters, certificate forms, portal signing, clocks">
+          <div className="flex flex-col gap-6">
+            <Card>
+              <CardHeader icon={<FileIcon size={17} />} title="Delegation letters" />
+              <CardBody>
+                <KeyValues
+                  columns={2}
+                  items={[
+                    settingLine("Letter, conventional contracts", read(formName(p?.delegationLetterConventionalId), "", p?.delegationFormsProvenance, formUnset), editPolicy),
+                    settingLine("Notification, conventional contracts", read(formName(p?.delegationNoticeConventionalId), "", p?.delegationFormsProvenance, formUnset)),
+                    settingLine("Letter, design and build and turnkey", read(formName(p?.delegationLetterDesignBuildId), "", p?.delegationFormsProvenance, formUnset)),
+                    settingLine("Notification, design and build and turnkey", read(formName(p?.delegationNoticeDesignBuildId), "", p?.delegationFormsProvenance, formUnset)),
+                  ]}
+                />
+              </CardBody>
+            </Card>
+            <Card>
+              <CardHeader icon={<FileIcon size={17} />} title="Payment and damages certificates" />
+              <CardBody>
+                <KeyValues columns={2} items={certificateLines(PAYMENT_KINDS)} />
+              </CardBody>
+            </Card>
+            <Card>
+              <CardHeader icon={<FileIcon size={17} />} title="Variation and adjustment certificates" />
+              <CardBody>
+                <KeyValues columns={2} items={certificateLines(VARIATION_KINDS)} />
+              </CardBody>
+            </Card>
+            <Card>
+              <CardHeader icon={<ClockIcon size={17} />} title="Contractor's portal signature" />
+              <CardBody>
+                <KeyValues
+                  columns={2}
+                  items={[
+                    settingLine(
+                      "A contractor signs from its portal account",
+                      read(
+                        p?.contractorPortalSigning == null ? null : p.contractorPortalSigning ? "Yes" : "No, on paper only",
+                        "Yes: the account of a contact marked as authorised to sign signs its block on a variation or adjustment certificate, and its notice that the statutory declaration is lodged. No: an officer records the paper.",
+                        p?.contractorPortalSigningProvenance,
+                        "The portal refuses the contractor's block and its notice that the statutory declaration is lodged; the contractor signs on paper.",
+                      ),
+                      <EditContractorPortalSigning values={{ contractorPortalSigning: p?.contractorPortalSigning == null ? null : p.contractorPortalSigning ? "yes" : "no", contractorPortalSigningProvenance: p?.contractorPortalSigningProvenance ?? null }} />,
+                    ),
+                  ]}
+                />
+              </CardBody>
+            </Card>
+            <Card>
+              <CardHeader icon={<ClockIcon size={17} />} title="Contract clocks" />
+              <CardBody>
+                <KeyValues
+                  columns={2}
+                  items={CONTRACT_CLOCKS.map((k) => {
+                    const x = clockOf(k);
+                    return settingLine(CLOCK_WORDS[k].en, read(x ? `${x.length} ${UNIT_WORDS[x.unit]}` : null, "", x?.provenance, CLOCK_UNSET[k]), <EditClockRule clock={k} label={CLOCK_WORDS[k].en} values={{ length: x ? String(x.length) : null, unit: x?.unit ?? null, provenance: x?.provenance ?? null, notes: x?.notes ?? "" }} />);
+                  })}
+                />
+              </CardBody>
+            </Card>
+          </div>
+        </Disclosure>
       </div>
     </>
   );

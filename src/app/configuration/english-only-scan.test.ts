@@ -10,9 +10,7 @@ import { describe, expect, it } from "vitest";
  */
 
 const HERE = __dirname;
-const HELD: Record<string, string> = {
-  "contracts/editors.tsx": "contract copy stamp, parts and recipients: issued-document content",
-};
+const HELD: Record<string, string> = {};
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {

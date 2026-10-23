@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Budget" };
 
 /**
  * Budget, in the prototype's shape.

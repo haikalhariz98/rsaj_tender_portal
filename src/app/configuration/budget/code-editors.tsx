@@ -48,7 +48,6 @@ function budgetCodeFields(units: Unit[], people: Person[], accounts: Account[]):
       orphanLabel: "A department no longer configured",
     },
     { kind: "text", name: "descriptionEn", label: "Description (EN)", required: true },
-    { kind: "hidden", name: "descriptionMs" },
     {
       kind: "text",
       name: "accountCode",
@@ -157,7 +156,6 @@ export function EditBudgetCode({
         type: budgetCode.type,
         owningUnitCode: budgetCode.owningUnitCode,
         descriptionEn: budgetCode.descriptionEn,
-        descriptionMs: budgetCode.descriptionMs,
         accountCode: budgetCode.accountCode,
         holderPersonId: budgetCode.holderPersonId,
         effectiveFrom: day(budgetCode.effectiveFrom),

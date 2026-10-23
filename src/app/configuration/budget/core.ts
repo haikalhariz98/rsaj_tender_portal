@@ -73,7 +73,6 @@ export async function saveBudgetCode(_prev: FormState, data: FormData): Promise<
 
   const v = {
     descriptionEn: r.text("descriptionEn", "Description (EN)", { required: true, max: 200 }),
-    descriptionMs: r.optionalText("descriptionMs"),
     type: r.optionalText("type") ?? "",
     owningUnitCode: r.optionalText("owningUnitCode"),
     accountCode: r.text("accountCode", "Account code", { required: true }),

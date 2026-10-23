@@ -1,13 +1,13 @@
-import type { ReactNode } from "react";
-
 import { decimalText } from "@/lib/format";
 import { FileIcon, InboxIcon, ScaleIcon } from "@/components/icons";
 import { HistoryButton } from "@/components/history-drawer";
+import { SettingValue, settingLine } from "@/components/setup/setting-value";
 import { Badge } from "@/components/ui/badge";
+import { MoreText } from "@/components/ui/more-text";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Disclosure } from "@/components/ui/disclosure";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { SIGNATORY_DOMAIN } from "@/lib/award/types";
@@ -22,17 +22,7 @@ import { AddCopyRecipient, AddDocumentPart, EditContractPolicy, EditCopyRecipien
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
-
-/// A setting's value, or "Not set" and what that stops.
-function Setting({ value, unset }: { value: ReactNode | null; unset: string }) {
-  if (value != null && value !== "") return <>{value}</>;
-  return (
-    <span className="flex flex-col items-start gap-1.5">
-      <Badge tone="warn">Not set</Badge>
-      <span className="text-[12.5px] text-ink-3">{unset}</span>
-    </span>
-  );
-}
+export const metadata = { title: "Contract controls" };
 
 const INSTRUMENTS = ["LETTER_OF_ACCEPTANCE", "WORK_INDENT"];
 
@@ -79,119 +69,118 @@ export default async function ContractControlsPage() {
     signatoryCond: p?.signatoryCond ?? null,
     employerSigningRoleCode: p?.employerSigningRoleCode ?? null,
     controlledCopyStampEn: p?.controlledCopyStampEn ?? null,
-    controlledCopyStampMs: p?.controlledCopyStampMs ?? null,
     frontLoadingRatio: decimalText(p?.frontLoadingRatio),
     provenance: p?.provenance ?? null,
     notes: p?.notes ?? "",
   };
 
+  const editPolicy = <EditContractPolicy values={values} units={units} conditions={conditions} offices={offices} />;
+
   return (
     <>
-      <PageHeader
+        <PageHeader
         title="Contract controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
         info={{ title: "Contract controls", text: "The legal office, the signatory rows, controlled copies and the Contract Document's parts." }}
-        meta={[
-          <span key="p" className="inline-flex items-center gap-1.5">
-            Where these controls come from <ProvenanceBadge value={p?.provenance} />
-          </span>,
-        ]}
-        actions={
-          <>
-            {p?.id && <HistoryButton entity="ContractPolicy" entityId={p.id} label="Contract controls" />}
-            <EditContractPolicy values={values} units={units} conditions={conditions} offices={offices} />
-          </>
-        }
+        actions={p?.id && <HistoryButton entity="ContractPolicy" entityId={p.id} label="Contract controls" />}
       />
       <div className="flex flex-col gap-6">
         <Card>
-          <CardHeader icon={<ScaleIcon size={17} />} title="Forming a contract" subtitle="Frozen at preparation" />
+          <CardHeader icon={<ScaleIcon size={17} />} title="Forming a contract" />
           <CardBody>
             <KeyValues
               columns={2}
               items={[
-                { label: "Legal office", value: <Setting value={org.today ? cfg.unitName(p?.legalOfficeCode ?? null, org.today) : null} unset="Preparation does not start: nothing could go for legal review." /> },
-                { label: "The contract agreement's signatory", value: <Setting value={condLabel(p?.signatoryCond ?? null)} unset="Preparation does not start: nobody could be resolved to sign." /> },
-                { label: "Employer's signing office", value: <Setting value={roles.find((r) => r.code === p?.employerSigningRoleCode)?.nameEn ?? (p?.employerSigningRoleCode ? "An office no longer configured" : null)} unset={`${EMPLOYER_SIGNING_NOT_SET}. ${EMPLOYER_SIGNING_NOT_SET_WHY} Nothing is refused while it is unset.`} /> },
-                { label: "Controlled-copy stamp", value: <Setting value={[p?.controlledCopyStampEn, p?.controlledCopyStampMs].filter(Boolean).join(" / ") || null} unset="Preparation does not start: no copy could be stamped." /> },
-                { label: "Front-loading ratio", value: <Setting value={values.frontLoadingRatio ? `Rates above ${values.frontLoadingRatio} times the estimate's are listed. A rate exactly at ${values.frontLoadingRatio} times is listed apart, for the officer's judgement: which side of the ratio counts is not set.` : null} unset="Allowed: the front-loading check is the officer's judgement alone, and says so." /> },
+                settingLine("Legal office", <SettingValue value={org.today ? cfg.unitName(p?.legalOfficeCode ?? null, org.today) : null} unset="Preparation does not start: nothing could go for legal review." />, editPolicy),
+                settingLine("Contract agreement's signatory", <SettingValue value={condLabel(p?.signatoryCond ?? null)} unset="Preparation does not start: nobody could be resolved to sign." />),
+                settingLine("Employer's signing office", <SettingValue value={roles.find((r) => r.code === p?.employerSigningRoleCode)?.nameEn ?? (p?.employerSigningRoleCode ? "An office no longer configured" : null)} unset={`${EMPLOYER_SIGNING_NOT_SET}. ${EMPLOYER_SIGNING_NOT_SET_WHY} Nothing is refused while it is unset.`} />),
+                settingLine(
+                  "Front-loading ratio",
+                  <SettingValue
+                    value={values.frontLoadingRatio ? <>{values.frontLoadingRatio} times the estimate <MoreText text={`Rates above ${values.frontLoadingRatio} times the estimate's are listed. A rate exactly at it is listed apart for the officer's judgement; which side counts is not set.`} /></> : null}
+                    unset="Allowed: the front-loading check is the officer's judgement alone, and says so."
+                  />,
+                ),
               ]}
             />
           </CardBody>
         </Card>
 
-        <Card className="overflow-hidden">
-          <CardHeader icon={<FileIcon size={17} />} title="Contract Document parts" subtitle="By basis, in order" actions={<AddDocumentPart bases={bases} />} divided={cfg.parts.length === 0} />
-          {cfg.parts.length === 0 ? (
-            <EmptyState size="sm" title="Not set" />
-          ) : (
-            <Table minWidth={640}>
-              <colgroup>
-                <col />
-                <col style={{ width: 200 }} />
-                <col style={{ width: 130 }} />
-                <ActionsCol icons={2} labelled={1} />
-              </colgroup>
-              <THead>
-                <Th>Part</Th>
-                <Th>Basis</Th>
-                <Th>Source</Th>
-                <Th className="text-right">Actions</Th>
-              </THead>
-              <tbody>
-                {cfg.parts.map((x) => (
-                  <Tr key={x.id}>
-                    <Td label="Part"><CellStack title={[x.printedNumber, x.labelEn].filter(Boolean).join(". ")} sub={[x.labelMs, retiredWords(x)].filter(Boolean).join(" · ") || undefined} /></Td>
-                    <Td label="Basis" className="text-ink-2">{basisName(x.contractBasisCode)}</Td>
-                    <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
-                    <Td>
-                      <RowActions>
-                        <HistoryButton iconOnly entity="ContractDocumentPart" entityId={x.id} label={x.labelEn} />
-                        <EditDocumentPart id={x.id} name={x.labelEn} bases={bases} values={{ contractBasisCode: x.contractBasisCode, printedNumber: x.printedNumber, labelEn: x.labelEn, labelMs: x.labelMs, provenance: x.provenance, sortOrder: String(x.sortOrder), notes: x.notes }} />
-                        {x.retiredOn === null && <RetireContractRow entity="ContractDocumentPart" id={x.id} label={x.labelEn} today={org.today} />}
-                      </RowActions>
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          )}
-        </Card>
-
-        <Card className="overflow-hidden">
-          <CardHeader icon={<InboxIcon size={17} />} title="Who receives a controlled copy" subtitle="Frozen when preparation started" actions={<AddCopyRecipient />} divided={cfg.recipients.length === 0} />
-          {cfg.recipients.length === 0 ? (
-            <EmptyState size="sm" title="Not set" />
-          ) : (
-            <Table minWidth={640}>
-              <colgroup>
-                <col />
-                <col style={{ width: 130 }} />
-                <ActionsCol icons={2} labelled={1} />
-              </colgroup>
-              <THead>
-                <Th>Recipient</Th>
-                <Th>Source</Th>
-                <Th className="text-right">Actions</Th>
-              </THead>
-              <tbody>
-                {cfg.recipients.map((x) => (
-                  <Tr key={x.id}>
-                    <Td label="Recipient"><CellStack title={x.nameEn} sub={[x.copyForm || null, x.mandatory ? "Mandatory" : "Optional", x.onlyWithConsultingEngineer ? "only where a consulting engineer is engaged" : null, retiredWords(x)].filter(Boolean).join(" · ")} /></Td>
-                    <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
-                    <Td>
-                      <RowActions>
-                        <HistoryButton iconOnly entity="ControlledCopyRecipient" entityId={x.id} label={x.nameEn} />
-                        <EditCopyRecipient id={x.id} name={x.nameEn} values={{ nameEn: x.nameEn, nameMs: x.nameMs, copyForm: x.copyForm, mandatory: x.mandatory, onlyWithConsultingEngineer: x.onlyWithConsultingEngineer, provenance: x.provenance, sortOrder: String(x.sortOrder), notes: x.notes }} />
-                        {x.retiredOn === null && <RetireContractRow entity="ControlledCopyRecipient" id={x.id} label={x.nameEn} today={org.today} />}
-                      </RowActions>
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          )}
-        </Card>
+        <Disclosure id="advanced" title="Advanced" summary="Copy stamp, recipients, Contract Document parts">
+          <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader icon={<InboxIcon size={17} />} title="Controlled copy stamp" />
+            <CardBody>
+              <KeyValues columns={2} items={[settingLine("Words stamped", <SettingValue value={p?.controlledCopyStampEn ?? null} unset="Preparation does not start: no copy could be stamped." />, editPolicy)]} />
+            </CardBody>
+          </Card>
+          <Card className="overflow-hidden">
+            <CardHeader icon={<InboxIcon size={17} />} title="Who receives a controlled copy" actions={<AddCopyRecipient />} divided={cfg.recipients.length === 0} />
+            {cfg.recipients.length === 0 ? (
+              <EmptyState size="sm" title="Not set" />
+            ) : (
+              <Table minWidth={560}>
+                <colgroup>
+                  <col />
+                  <ActionsCol icons={2} labelled={1} />
+                </colgroup>
+                <THead>
+                  <Th>Recipient</Th>
+                  <Th className="text-right">Actions</Th>
+                </THead>
+                <tbody>
+                  {cfg.recipients.map((x) => (
+                    <Tr key={x.id}>
+                      <Td label="Recipient"><CellStack title={x.nameEn} sub={[x.copyForm || null, x.mandatory ? "Mandatory" : "Optional", x.onlyWithConsultingEngineer ? "only where a consulting engineer is engaged" : null, retiredWords(x)].filter(Boolean).join(" · ")} /></Td>
+                      <Td>
+                        <RowActions>
+                          <HistoryButton iconOnly entity="ControlledCopyRecipient" entityId={x.id} label={x.nameEn} />
+                          <EditCopyRecipient id={x.id} name={x.nameEn} values={{ nameEn: x.nameEn, copyForm: x.copyForm, mandatory: x.mandatory, onlyWithConsultingEngineer: x.onlyWithConsultingEngineer, provenance: x.provenance, sortOrder: String(x.sortOrder), notes: x.notes }} />
+                          {x.retiredOn === null && <RetireContractRow entity="ControlledCopyRecipient" id={x.id} label={x.nameEn} today={org.today} />}
+                        </RowActions>
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+          <Card className="overflow-hidden">
+            <CardHeader icon={<FileIcon size={17} />} title="Contract Document parts" actions={<AddDocumentPart bases={bases} />} divided={cfg.parts.length === 0} />
+            {cfg.parts.length === 0 ? (
+              <EmptyState size="sm" title="Not set" />
+            ) : (
+              <Table minWidth={560}>
+                <colgroup>
+                  <col />
+                  <col style={{ width: 200 }} />
+                  <ActionsCol icons={2} labelled={1} />
+                </colgroup>
+                <THead>
+                  <Th>Part</Th>
+                  <Th>Basis</Th>
+                  <Th className="text-right">Actions</Th>
+                </THead>
+                <tbody>
+                  {cfg.parts.map((x) => (
+                    <Tr key={x.id}>
+                      <Td label="Part"><CellStack title={[x.printedNumber, x.labelEn].filter(Boolean).join(". ")} sub={retiredWords(x) ?? undefined} /></Td>
+                      <Td label="Basis" className="text-ink-2">{basisName(x.contractBasisCode)}</Td>
+                      <Td>
+                        <RowActions>
+                          <HistoryButton iconOnly entity="ContractDocumentPart" entityId={x.id} label={x.labelEn} />
+                          <EditDocumentPart id={x.id} name={x.labelEn} bases={bases} values={{ contractBasisCode: x.contractBasisCode, printedNumber: x.printedNumber, labelEn: x.labelEn, provenance: x.provenance, sortOrder: String(x.sortOrder), notes: x.notes }} />
+                          {x.retiredOn === null && <RetireContractRow entity="ContractDocumentPart" id={x.id} label={x.labelEn} today={org.today} />}
+                        </RowActions>
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+          </div>
+        </Disclosure>
       </div>
     </>
   );

@@ -16,12 +16,12 @@ describe("the minimum's measure is said, and said to be assumed", () => {
     expect(minimumMeasureText(false, parseSen("1000.00"), fmt).en).toMatch(/a later interim certificate is judged on the amount it carries forward \(an assumed reading/);
     expect(minimumMeasureText(false, null, fmt).en).toMatch(/^Minimum not set:/);
   });
-  it("the certificate carries the line; Configuration › Post-award says it with the ASSUMED tag", () => {
+  it("the certificate carries the line; Configuration › Post-award says it, flagged ASSUMED, in a popover", () => {
     const ROOT = path.join(__dirname, "../../..");
     expect(readFileSync(path.join(ROOT, "src/lib/payment/assemble.ts"), "utf8")).toMatch(/key: "minimumMeasure"/);
     const cfg = readFileSync(path.join(ROOT, "src/app/configuration/post-award/page.tsx"), "utf8");
     expect(cfg).toMatch(/MINIMUM_MEASURE_WORDS\.first\.en/);
-    expect(cfg).toMatch(/label: "The certificate's minimum", value: <span[^]*?<ProvenanceBadge value="ASSUMED" \/>/);
+    expect(cfg).toMatch(/The certificate's minimum[^]*?source="ASSUMED"/);
   });
 });
 

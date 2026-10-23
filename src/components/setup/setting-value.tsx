@@ -15,3 +15,16 @@ export function SettingValue({ value, unset, action }: { value: ReactNode | null
     </span>
   );
 }
+
+/// One row of a setting list: the label, the value, and its Edit beside it.
+export function settingLine(label: ReactNode, value: ReactNode, edit?: ReactNode) {
+  return {
+    label,
+    value: (
+      <span className="flex items-start justify-between gap-3">
+        <span className="min-w-0">{value}</span>
+        {edit}
+      </span>
+    ),
+  };
+}
