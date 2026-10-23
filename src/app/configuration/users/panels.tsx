@@ -7,6 +7,12 @@ import { periodText } from "@/lib/effective-text";
 import { formatDate } from "@/lib/format";
 import { useState, useTransition } from "react";
 
+import { ProposeAccountCode, ProposeAdministrator } from "../changes/editors";
+import { CreateAccount, DisableAccount, EnableAccount, IssueCode, UnlockAccount } from "./account-editors";
+import type { AccountActs, Standing } from "@/lib/auth/account-acts";
+import { Disclosure } from "@/components/ui/disclosure";
+import { MoreText } from "@/components/ui/more-text";
+
 import {
   CalendarIcon,
   ClockIcon,
@@ -71,6 +77,13 @@ const STATUS_LABEL = {
   ENDED: "Ended",
 } as const;
 
+/// A person's sign-in account as the People list shows it, and the acts the server says are open on it.
+export interface SignInView {
+  creatable: { id: string; name: string; jobTitle: string | null }[];
+  warnings: string[];
+  accounts: Record<string, { id: string; loginName: string; standing: Standing; detail: string; isYou: boolean; isAdministrator: boolean; acts: AccountActs; exposure: string[]; blocked: boolean }>;
+}
+
 export interface UsersData {
   people: Person[];
   offices: Office[];
@@ -87,6 +100,8 @@ export interface UsersData {
   units: { code: string; nameEn: string }[];
   /// The product's own permissions and the organisation's decisions about them (Phase 2c).
   product: ProductPermissions;
+  /// Sign-in accounts, for whoever may manage them; null for everyone else.
+  signIn: SignInView | null;
   /// Reporting lines (FR-APR-010/011): empty as shipped, which the tab says in words.
   lines: ReportingLineRow[];
   /// Steps waiting on an office with nobody able to act because its holders are away, and why each stays (the sweep's reasons).
@@ -98,15 +113,29 @@ export interface UsersData {
 }
 
 export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }) {
+  // Permissions and reporting lines are folded under Advanced; their old addresses land there, open.
+  const advanced = initial === "permissions" || initial === "lines";
   return (
     <Tabs
-      initial={initial}
+      initial={advanced ? "advanced" : initial}
       tabs={[
         { id: "people", label: "People", panel: <PeoplePanel {...data} /> },
         { id: "roles", label: "Roles", panel: <RolesPanel {...data} /> },
-        { id: "permissions", label: "Permissions", panel: <PermissionsPanel {...data} /> },
         { id: "delegation", label: "Delegation", panel: <DelegationPanel {...data} /> },
-        { id: "lines", label: "Reporting lines", count: data.lines.length, panel: <ReportingLinesPanel {...data} /> },
+        {
+          id: "advanced",
+          label: "Advanced",
+          panel: (
+            <div className="flex flex-col gap-5">
+              <Disclosure id="permissions" title="Permissions" defaultOpen={initial === "permissions"}>
+                <PermissionsPanel {...data} />
+              </Disclosure>
+              <Disclosure id="reporting-lines" title="Reporting lines" summary={data.lines.length === 0 ? "Not set" : data.lines.length} defaultOpen={initial === "lines"}>
+                <ReportingLinesPanel {...data} />
+              </Disclosure>
+            </div>
+          ),
+        },
       ]}
     />
   );
@@ -114,7 +143,7 @@ export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }
 
 // ------------------------------------------------------------------------ People
 
-function PeoplePanel({ people, offices, holdings, capabilities, grants, delegations, units, mayMarkAway, leaverExposure }: UsersData) {
+function PeoplePanel({ people, offices, holdings, capabilities, grants, delegations, units, mayMarkAway, leaverExposure, signIn }: UsersData) {
   const officeName = (code: string | null) =>
     code ? (offices.find((o) => o.code === code)?.nameEn ?? code) : "";
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? "Not on record";
@@ -123,84 +152,110 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
   // roles. Never a list in code — a level nobody configured is not a level.
   const authorityLevels = [...new Set(offices.map((o) => o.authorityLevel).filter(Boolean))].sort();
 
-  const rows: Row[] = people.map((p) => ({
-    id: p.id,
-    views: [...(p.isAvailable ? [] : ["away"]), ...(p.isActive ? [] : ["left"])],
-    search: [p.name, p.email, p.jobTitle, p.department, officeName(p.portalRoleCode)]
-      .filter(Boolean)
-      .join(" "),
-    cells: {
-      name: { kind: "person", name: p.name, sub: p.email ?? undefined },
-      jobTitle: { kind: "text", text: p.jobTitle ?? "—", dim: !p.jobTitle },
-      department: { kind: "text", text: p.department ?? "—", dim: !p.department },
-      portalRole: p.portalRoleCode
-        ? { kind: "badge", text: officeName(p.portalRoleCode) }
-        : { kind: "text", text: "Not set", dim: true },
-      availability: p.isAvailable
-        ? { kind: "badge", text: "In", tone: "ok" }
-        : { kind: "badge", text: "Away", tone: "warn" },
-    },
-  }));
+  const rows: Row[] = people.map((p) => {
+    const account = signIn?.accounts[p.id];
+    return {
+      id: p.id,
+      views: [...(p.isAvailable ? [] : ["away"]), ...(p.isActive ? [] : ["left"]), ...(account?.standing.text === "Not activated" ? ["pending"] : account?.standing.text === "Locked" ? ["locked"] : [])],
+      search: [p.name, p.email, p.jobTitle, p.department, officeName(p.portalRoleCode), account?.loginName].filter(Boolean).join(" "),
+      cells: {
+        name: { kind: "person", name: p.name, sub: p.email ?? undefined },
+        job: { kind: "stack", title: p.jobTitle ?? "—", sub: p.department ?? undefined },
+        portalRole: p.portalRoleCode ? { kind: "badge", text: officeName(p.portalRoleCode) } : { kind: "text", text: "Not set", dim: true },
+        availability: p.isAvailable ? { kind: "badge", text: "In", tone: "ok" } : { kind: "badge", text: "Away", tone: "warn" },
+        ...(signIn
+          ? {
+              signIn: account ? { kind: "badge", text: account.standing.text, tone: account.standing.tone } : { kind: "text", text: "No sign-in", dim: true },
+              loginName: account ? { kind: "stack", title: account.loginName, sub: account.detail || undefined, monoSub: false } : { kind: "text", text: "—", dim: true },
+            }
+          : {}),
+      },
+    };
+  });
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader
-        icon={<UserIcon size={17} />}
-        title="User register"
-        subtitle="Everyone on record"
-        actions={<AddPerson offices={offices} authorityLevels={authorityLevels} units={units} />}
-        divided={false}
-      />
-      <DataList
-        flat
-        selectable={false}
-        exportName="people"
-        searchPlaceholder="Search people"
-        emptyTitle="Nobody on record"
-        views={[
-          { id: "away", label: "Away" },
-          { id: "left", label: "Left the organisation" },
-        ]}
-        filters={[
-          { key: "portalRole", label: "Portal role" },
-          { key: "department", label: "Department" },
-        ]}
-        columns={[
-          { key: "name", label: "Name", width: "26%", sortable: true, mobile: "primary" },
-          { key: "jobTitle", label: "Job title", width: "20%", sortable: true, mobile: "meta" },
-          { key: "department", label: "Department", width: "18%", sortable: true, mobile: "meta" },
-          { key: "portalRole", label: "Portal role", width: "16%", mobile: "meta" },
-          { key: "availability", label: "Availability", width: "12%", mobile: "meta" },
-        ]}
-        rows={rows}
-        rowOpens
-        actions={(id) => {
-          const person = people.find((p) => p.id === id);
-          if (!person) return null;
-          const roleCodes = [
-            ...holdings.filter((h) => h.personId === id).map((h) => h.roleCode),
-            ...(person.portalRoleCode ? [person.portalRoleCode] : []),
-          ];
-          return (
-            <>
-              <EditPerson
-                person={person}
-                offices={offices}
-                authorityLevels={authorityLevels}
-                capabilities={capabilitiesForRoles(capabilities, grants, roleCodes)}
-                delegations={delegations.filter(
-                  (d) => d.fromPersonId === id || d.toPersonId === id,
-                )}
-                nameOf={nameOf}
-                units={units}
-                mayMarkAway={mayMarkAway}
-              />
-              <LeaverToggle person={person} exposure={leaverExposure[person.id] ?? []} />
-            </>
-          );
-        }}
-      />
-    </Card>
+    <div className="flex flex-col gap-5">
+      {signIn?.warnings.map((w) => (
+        <Callout key={w} tone="warn">
+          {w}
+        </Callout>
+      ))}
+      <Card className="overflow-hidden">
+        <CardHeader icon={<UserIcon size={17} />} title="People" actions={<AddPerson offices={offices} authorityLevels={authorityLevels} units={units} />} divided={false} />
+        <DataList
+          flat
+          selectable={false}
+          exportName="people"
+          searchPlaceholder="Search people"
+          emptyTitle="Nobody on record"
+          views={[
+            { id: "away", label: "Away" },
+            { id: "left", label: "Left the organisation" },
+            ...(signIn ? [{ id: "pending", label: "Not activated" }, { id: "locked", label: "Locked" }] : []),
+          ]}
+          filters={[
+            { key: "portalRole", label: "Portal role" },
+            ...(signIn ? [{ key: "signIn", label: "Sign-in" }] : []),
+          ]}
+          columns={[
+            { key: "name", label: "Name", width: signIn ? "20%" : "26%", sortable: true, mobile: "primary" },
+            { key: "job", label: "Job title", width: signIn ? "15%" : "22%", sortable: true, mobile: "meta" },
+            { key: "portalRole", label: "Portal role", width: signIn ? "12%" : "18%", mobile: "meta" },
+            { key: "availability", label: "Availability", width: signIn ? "9%" : "12%", mobile: "meta" },
+            ...(signIn
+              ? [
+                  { key: "signIn", label: "Sign-in", width: "11%", sortable: true, mobile: "meta" as const },
+                  { key: "loginName", label: "Sign-in name", width: "20%", mobile: "meta" as const },
+                ]
+              : []),
+          ]}
+          actionsWidth={signIn ? 250 : 96}
+          rows={rows}
+          rowOpens
+          actions={(id) => {
+            const person = people.find((p) => p.id === id);
+            if (!person) return null;
+            const roleCodes = [
+              ...holdings.filter((h) => h.personId === id).map((h) => h.roleCode),
+              ...(person.portalRoleCode ? [person.portalRoleCode] : []),
+            ];
+            const account = signIn?.accounts[id];
+            const creatable = signIn?.creatable.find((c) => c.id === id);
+            return (
+              <div className="flex flex-wrap items-center justify-end gap-1">
+                <EditPerson
+                  person={person}
+                  offices={offices}
+                  authorityLevels={authorityLevels}
+                  capabilities={capabilitiesForRoles(capabilities, grants, roleCodes)}
+                  delegations={delegations.filter((d) => d.fromPersonId === id || d.toPersonId === id)}
+                  nameOf={nameOf}
+                  units={units}
+                  mayMarkAway={mayMarkAway}
+                />
+                <LeaverToggle person={person} exposure={leaverExposure[person.id] ?? []} />
+                {creatable && <CreateAccount people={[creatable]} personId={id} />}
+                {account && <SignInActs name={person.name} account={account} />}
+              </div>
+            );
+          }}
+        />
+      </Card>
+    </div>
+  );
+}
+
+/// The acts open on one account, as the server judged them (`accountActs`); a code for an office holder's or administrator's account is proposed to a second person, not issued.
+function SignInActs({ name, account }: { name: string; account: NonNullable<SignInView["accounts"][string]> }) {
+  const { acts, id } = account;
+  return (
+    <>
+      {acts.code && (acts.code.notice ? <ProposeAccountCode accountId={id} name={name} purpose={acts.code.purpose} notice={acts.code.notice} /> : <IssueCode accountId={id} name={name} purpose={acts.code.purpose} />)}
+      {acts.admin && <ProposeAdministrator accountId={id} name={name} direction={acts.admin} />}
+      {acts.unlock && <UnlockAccount accountId={id} name={name} />}
+      {acts.enable && <EnableAccount accountId={id} name={name} />}
+      {acts.disable && <DisableAccount accountId={id} name={name} loginName={account.loginName} exposure={account.exposure} blocked={account.blocked} />}
+    </>
   );
 }
 
@@ -278,7 +333,6 @@ function AssignmentsList({ assignments, people, offices }: UsersData) {
       <CardHeader
         icon={<CalendarIcon size={17} />}
         title="Assignments"
-        subtitle="Ending one keeps it on record"
         divided={false}
         actions={<AddAssignment people={people} offices={offices} />}
       />
@@ -346,7 +400,6 @@ function RolesList({ offices, people, holdings, grants }: UsersData) {
       <CardHeader
         icon={<ShieldIcon size={17} />}
         title="Roles"
-        subtitle="Role names and authority"
         actions={<AddOffice offices={offices} />}
         divided={false}
       />
@@ -446,7 +499,7 @@ function PermissionsPanel({ offices, capabilities, grants, product }: UsersData)
       <CardHeader
         icon={<GridIcon size={17} />}
         title="Permissions"
-        subtitle="Approval routing is separate"
+        subtitle={<MoreText text="Approval routing is separate from these permissions." label="About permissions" />}
         actions={
           <div className="w-60">
             <Input
@@ -609,7 +662,7 @@ function GroupRows({
 
 // -------------------------------------------------------------------- Delegation
 
-function DelegationPanel({ people, offices, delegations, capabilities, upload, lines }: UsersData) {
+function DelegationPanel({ people, offices, delegations, capabilities, upload, lines, stuck }: UsersData) {
   const on = new Date();
   // FR-APR-011: what the rule checks is said, and what it does not: with no line recorded the subordinate rule is not applied and the screen says so.
   const notes = delegationNotes({ reportingLines: lines.map((l) => ({ ...l, superiorPersonId: l.superiorPersonId })) });
@@ -668,11 +721,21 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload, l
           ))}
         </div>
       )}
+      {stuck.length > 0 && (
+        <Callout tone="warn" title={`${stuck.length} ${stuck.length === 1 ? "step is" : "steps are"} waiting on an office whose holders are away`}>
+          <ul className="mt-1 flex list-disc flex-col gap-1 pl-5">
+            {stuck.map((s) => (
+              <li key={s.stepId}>
+                {s.matter}, waiting on {s.office}. {s.why}
+              </li>
+            ))}
+          </ul>
+        </Callout>
+      )}
       <Card className="overflow-hidden">
         <CardHeader
           icon={<SwapIcon size={17} />}
           title="Delegation"
-          subtitle="One officer acting for another"
           actions={<AddDelegation people={people} offices={offices} capabilities={capabilities} upload={upload} />}
           divided={false}
         />
@@ -724,7 +787,6 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload, l
         <CardHeader
           icon={<ClockIcon size={17} />}
           title="Out of office"
-          subtitle="Work routes to the cover"
           divided={away.length > 0}
         />
         {away.length === 0 ? (
@@ -764,7 +826,7 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload, l
 
 // --------------------------------------------------------------- Reporting lines
 
-function ReportingLinesPanel({ people, lines, stuck }: UsersData) {
+function ReportingLinesPanel({ people, lines }: UsersData) {
   const on = new Date();
   const nameOf = (id: string | null) => (id ? (people.find((p) => p.id === id)?.name ?? "Not on record") : "Nobody (head of the line)");
   const state = (l: ReportingLineRow) => (l.effectiveFrom > on ? "scheduled" : l.effectiveTo && l.effectiveTo <= on ? "ended" : "inforce");
@@ -777,7 +839,6 @@ function ReportingLinesPanel({ people, lines, stuck }: UsersData) {
       person: { kind: "person", name: nameOf(l.personId) },
       superior: l.superiorPersonId ? { kind: "person", name: nameOf(l.superiorPersonId) } : { kind: "text", text: "Nobody: head of the line", dim: true },
       period: { kind: "text", text: periodText(l) },
-      source: { kind: "chip", text: l.provenance === "STATED" ? "Stated" : l.provenance === "OBSERVED" ? "Observed" : "Assumed", tone: l.provenance === "STATED" ? "ok" : l.provenance === "OBSERVED" ? "info" : "warn" },
       status: state(l) === "inforce" ? { kind: "chip", text: "In force", tone: "ok" } : state(l) === "scheduled" ? { kind: "chip", text: "Scheduled", tone: "info" } : { kind: "chip", text: "Ended" },
     },
   }));
@@ -790,22 +851,11 @@ function ReportingLinesPanel({ people, lines, stuck }: UsersData) {
           Delegations are not checked to a subordinate. Absent steps do not move.
         </Callout>
       )}
-      {stuck.length > 0 && (
-        <Callout tone="warn" title={`${stuck.length} ${stuck.length === 1 ? "step is" : "steps are"} waiting on an office whose holders are away`}>
-          <ul className="mt-1 flex list-disc flex-col gap-1 pl-5">
-            {stuck.map((s) => (
-              <li key={s.stepId}>
-                {s.matter}, waiting on {s.office}. {s.why}
-              </li>
-            ))}
-          </ul>
-        </Callout>
-      )}
       <Card className="overflow-hidden">
         <CardHeader
           icon={<UserIcon size={17} />}
           title="Reporting lines"
-          subtitle="Not derived from unit heads"
+          subtitle={<MoreText text="Not derived from unit heads." label="About reporting lines" />}
           actions={<AddReportingLine people={people} />}
           divided={false}
         />
@@ -825,7 +875,6 @@ function ReportingLinesPanel({ people, lines, stuck }: UsersData) {
             { key: "person", label: "Person", width: "180px", sortable: true, mobile: "primary" },
             { key: "superior", label: "Reports to", width: "180px", sortable: true, mobile: "meta" },
             { key: "period", label: "Period", mobile: "meta" },
-            { key: "source", label: "Source", width: "112px", mobile: "meta" },
             { key: "status", label: "Status", width: "112px", mobile: "meta" },
           ]}
           actionsWidth={64}

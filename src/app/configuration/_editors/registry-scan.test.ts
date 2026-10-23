@@ -30,7 +30,7 @@ const WRITE = /\.(?:create|createMany|createManyAndReturn|update|updateMany|upda
 /// Action files whose rule is their own, with the reason they are not proposals. Named by section, or by `section/file` for one file of a section.
 const OWN_RULE: Record<string, string> = {
   "approval-matrix": "The approval matrix is drafted and issued by a non-maker (ADR 0034 D15, Phase 2c): `configuration.draft` for each edit, `configuration.issue` and the password for the issue, held by trigger `AuthorityMatrix_issue_guard`.",
-  accounts: "Sign-in accounts are `accounts.manage`'s (Phase 1b), and an account's code is a two-person change of its own kind where it is an office holder's (Phase 2c).",
+  "users/account-actions.ts": "Sign-in accounts (on the People list) are `accounts.manage`'s (Phase 1b), and an account's code is a two-person change of its own kind where it is an office holder's (Phase 2c).",
   changes: "The queue of changes: proposing the sign-in kinds and deciding every kind.",
   audit: "Reads the audit trail and exports it: it writes no configuration.",
 };

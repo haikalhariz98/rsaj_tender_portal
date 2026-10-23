@@ -17,6 +17,9 @@ import { Badge, type Tone } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { SettingValue } from "@/components/setup/setting-value";
+import { Disclosure } from "@/components/ui/disclosure";
+import { OpenOnHash } from "@/components/ui/open-on-hash";
 import { KeyValues } from "@/components/ui/stat";
 import { formatDate } from "@/lib/format";
 import { activeOn } from "@/lib/effective";
@@ -40,6 +43,7 @@ import { SignInPageCards, type SignInDarkLogoInfo, type SignInImageInfo } from "
 import type { SignInPageSettings } from "@/lib/organisation/sign-in-page";
 import type { PortalPageSettings } from "@/lib/organisation/portal-page";
 import { PortalPageCard } from "./portal-card";
+import { PORTAL_CARD_ID } from "@/lib/organisation/portal-page";
 
 /**
  * Organisation: the structure, and the cost centres and sites hung off it.
@@ -112,17 +116,12 @@ export function OrganisationScreen(data: OrganisationPanelData) {
   return (
     <Tabs
       label="Organisation"
-      initial={data.view ?? undefined}
+      // Sites moved under Advanced on Details; an old address that asks for them lands there.
+      initial={data.view === "sites" ? "details" : (data.view ?? undefined)}
       tabs={[
-        { id: "details", label: "Details", panel: <DetailsView details={data.details} logo={data.logo} signInImage={data.signInImage} signInDarkLogo={data.signInDarkLogo} signInPage={data.signInPage} portalPage={data.portalPage} timeZone={data.timeZone} timeZoneOptions={data.timeZoneOptions} /> },
+        { id: "details", label: "Details", panel: <DetailsView {...data} /> },
         { id: "structure", label: "Structure", count: data.units.length, panel: <StructureView {...data} /> },
-        {
-          id: "cost-centres",
-          label: "Cost centres",
-          count: data.costCentres.length,
-          panel: <CostCentresView {...data} />,
-        },
-        { id: "sites", label: "Sites", count: data.sites.length, panel: <SitesView {...data} /> },
+        { id: "cost-centres", label: "Cost centres", count: data.costCentres.length, panel: <CostCentresView {...data} /> },
       ]}
     />
   );
@@ -130,17 +129,16 @@ export function OrganisationScreen(data: OrganisationPanelData) {
 
 // ----------------------------------------------------------------------- details
 
-const NOT_SET = <span className="text-ink-4">Not set</span>;
-
-/// The identity the portal, reports and letters carry. Unset reads "Not set", never blank.
-function DetailsView({ details, logo, signInImage, signInDarkLogo, signInPage, portalPage, timeZone, timeZoneOptions }: { details: Details; logo: LogoInfo | null; signInImage: SignInImageInfo | null; signInDarkLogo: SignInDarkLogoInfo | null; signInPage: SignInPageSettings; portalPage: PortalPageSettings; timeZone: OrganisationPanelData["timeZone"]; timeZoneOptions: OrganisationPanelData["timeZoneOptions"] }) {
-  const value = (v: string | null) => v ?? NOT_SET;
+/// The identity the portal, reports and letters carry, then the logo. The rest (sites, the sign-in and portal pages) is folded under Advanced.
+function DetailsView(data: OrganisationPanelData) {
+  const { details, logo, signInImage, signInDarkLogo, signInPage, portalPage, timeZone, timeZoneOptions, view } = data;
+  const value = (v: string | null) => <SettingValue value={v} unset="" />;
   const address = [details.addressLine1, details.addressLine2, [details.postcode, details.city].filter(Boolean).join(" "), details.state, details.country].filter(Boolean);
   return (
     <div className="flex flex-col gap-5">
       <Card>
         <CardHeader title="Organisation details" subtitle="On reports and letters" actions={<EditDetails details={details} />} />
-        <CardBody className="flex flex-col gap-5">
+        <CardBody>
           <KeyValues
             columns={2}
             items={[
@@ -149,36 +147,31 @@ function DetailsView({ details, logo, signInImage, signInDarkLogo, signInPage, p
               { label: DETAIL_LABEL.registrationNo, value: value(details.registrationNo) },
               { label: DETAIL_LABEL.taxIdentificationNo, value: value(details.taxIdentificationNo) },
               { label: DETAIL_LABEL.sstRegistrationNo, value: value(details.sstRegistrationNo) },
-              { label: "Registered address", value: address.length ? <span className="whitespace-pre-line">{address.join("\n")}</span> : NOT_SET },
+              { label: "Registered address", value: address.length ? <span className="whitespace-pre-line">{address.join("\n")}</span> : value(null) },
               { label: DETAIL_LABEL.phone, value: value(details.phone) },
               { label: DETAIL_LABEL.email, value: value(details.email) },
               { label: DETAIL_LABEL.website, value: value(details.website) },
             ]}
           />
-          
         </CardBody>
       </Card>
-      {/* Founder, 2026-10-08: the time zone is one of the organisation's settings, here with the others,
-          not a notice across the top of the Organisation screen. */}
+      {/* Founder, 2026-10-08: the time zone is one of the organisation's settings, here with the others. */}
       <Card>
-        <CardHeader
-          title="Time zone"
-          subtitle="Dates are judged in this zone"
-          actions={<EditTimeZone timeZone={timeZone?.value ?? null} options={timeZoneOptions} />}
-        />
+        <CardHeader title="Time zone" subtitle="Dates are judged in this zone" actions={<EditTimeZone timeZone={timeZone?.value ?? null} options={timeZoneOptions} />} />
         <CardBody>
-          {timeZone ? (
-            <KeyValues items={[{ label: "Dates are judged in", value: timeZone.label }]} />
-          ) : (
-            <Callout tone="warn" title="Time zone not set">
-              Sittings, tabling and votes are blocked.
-            </Callout>
-          )}
+          <SettingValue value={timeZone?.label ?? null} unset="Sittings, tabling and votes are blocked until it is set." />
         </CardBody>
       </Card>
       <LogoCard logo={logo} />
-      <SignInPageCards image={signInImage} darkLogo={signInDarkLogo} settings={signInPage} />
-      <PortalPageCard settings={portalPage} />
+      <Disclosure id="advanced" title="Advanced" summary="Sites, sign-in page, supplier portal" defaultOpen={view === "sites"}>
+        <div className="flex flex-col gap-5">
+          <SitesView {...data} />
+          <SignInPageCards image={signInImage} darkLogo={signInDarkLogo} settings={signInPage} />
+          {/* The officers' copy links to #supplier-portal; the link opens this fold first. */}
+          <OpenOnHash id={PORTAL_CARD_ID} />
+          <PortalPageCard settings={portalPage} />
+        </div>
+      </Disclosure>
     </div>
   );
 }
@@ -427,9 +420,7 @@ function UnitPanel({
               Name a new head with Edit.
             </Callout>
           ) : (
-            <Callout tone="warn" title="Nobody is named as head">
-              Approvals to the {headTitle.toLowerCase()} have nobody to go to.
-            </Callout>
+            <SettingValue value={null} unset={`Approvals to the ${headTitle.toLowerCase()} have nobody to go to.`} />
           )}
         </div>
 
@@ -461,7 +452,7 @@ function UnitPanel({
                           <span className="font-mono text-[12px] whitespace-nowrap text-ink-3">{centre.code}</span>
                         </span>
                       ) : (
-                        <span className="text-ink-3">No cost centre set</span>
+                        <SettingValue value={null} unset="" />
                       ),
                     },
                   ]
@@ -575,7 +566,7 @@ function Linked({
 }
 
 function companyFacts(unit: OrgUnit): { label: string; value: ReactNode }[] {
-  const notSet = <span className="text-ink-3">Not set</span>;
+  const notSet = <SettingValue value={null} unset="" />;
   return [
     { label: "Registration number", value: unit.registrationNumber || notSet },
     { label: "Tax reference", value: unit.taxReference || notSet },
@@ -728,7 +719,7 @@ function SitesView({ sites, costCentres, units, on }: OrganisationPanelData) {
         icon={<GlobeIcon size={17} />}
         title="Sites"
         subtitle="Where work happens"
-        actions={<AddSite units={units} variant="primary" />}
+        actions={<AddSite units={units} variant="ghost" />}
         divided={false}
       />
       <DataList

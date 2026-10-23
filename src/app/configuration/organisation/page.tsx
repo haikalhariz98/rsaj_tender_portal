@@ -19,6 +19,7 @@ import { OrganisationScreen } from "./panels";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Organisation" };
 
 /**
  * Organisation: companies down to sections, and the cost centres and sites hung off
@@ -93,7 +94,7 @@ export default async function OrganisationPage({
     <>
       <PageHeader
         title="Organisation"
-        info={{ title: "Organisation", text: "The structure requisitions are raised from, and approvals are routed through." }}
+        info={{ title: "Organisation", text: "Requisitions are raised from this structure, and approvals are routed through it." }}
         badge={
           headless > 0 ? (
             <Badge tone="warn" dot>

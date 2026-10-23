@@ -134,7 +134,7 @@ export function AddPerson({
   return (
     <RecordEditor
       title="Add a person"
-      description="Someone on record. Separate from sign-in, which does not exist yet."
+      description="Someone on record. Create their sign-in from the list."
       icon={<UserIcon size={18} />}
       fields={personFields(offices, authorityLevels, units)}
       columns={2}

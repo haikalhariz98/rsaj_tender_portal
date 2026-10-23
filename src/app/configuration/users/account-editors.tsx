@@ -10,18 +10,18 @@ import { Callout } from "@/components/ui/feedback";
 import { Field, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
 
-import { createAccountAction, disableAccountAction, enableAccountAction, issueCodeAction, unlockAccountAction, type IssueCodeState } from "./actions";
+import { createAccountAction, disableAccountAction, enableAccountAction, issueCodeAction, unlockAccountAction, type IssueCodeState } from "./account-actions";
 
 /**
- * The acts on the accounts screen. Each is a shared editor (a drawer that asks, a reason where the act needs one) except issuing a code, which has
+ * The acts on a person's sign-in account, from the People list. Each is a shared editor (a drawer that asks, a reason where the act needs one) except issuing a code, which has
  * something to show once afterwards and so keeps its own small dialog open to show it.
  */
 
-export function CreateAccount({ people }: { people: { id: string; name: string; jobTitle: string | null }[] }) {
+export function CreateAccount({ people, personId }: { people: { id: string; name: string; jobTitle: string | null }[]; personId?: string }) {
   return (
     <RecordEditor
       title="Create a sign-in account"
-      description="Waits for an activation code. Nobody can sign in until you issue one."
+      description="Nobody can sign in until you issue an activation code."
       fields={[
         {
           kind: "select",
@@ -32,18 +32,19 @@ export function CreateAccount({ people }: { people: { id: string; name: string; 
           options: people.map((p) => ({ value: p.id, label: p.jobTitle ? `${p.name} · ${p.jobTitle}` : p.name })),
         },
         { kind: "text", name: "loginName", label: "Sign-in name", required: true, mono: true, hint: "3 to 64: letters, digits, ._-@" },
-        { kind: "note", text: "An account made here is an ordinary one. Administrators are made on the server (npm run auth:bootstrap), never from a screen." },
+        { kind: "note", text: "Administrators are made on the server, not here." },
       ]}
+      values={personId ? { personId } : undefined}
       action={createAccountAction}
       submitLabel="Create account"
-      trigger={{ label: "Create account", icon: true }}
+      trigger={{ label: "Create sign-in", className: buttonClass("secondary", "sm"), ariaLabel: `Create a sign-in account for ${people.find((p) => p.id === personId)?.name ?? "a person"}` }}
     />
   );
 }
 
 export function DisableAccount({ accountId, name, loginName, exposure = [], blocked = false }: { accountId: string; name: string; loginName: string; exposure?: string[]; blocked?: boolean }) {
   // The server refuses this disable (one administrator cannot): send them to where it can be done rather than ask for a reason that will be refused.
-  if (blocked) return <ButtonLink href="/configuration/users" variant="secondary" size="sm" title={exposure.at(-1)}>Mark as left</ButtonLink>;
+  if (blocked) return <ButtonLink href="/configuration/users?tab=people" variant="secondary" size="sm" title={exposure.at(-1)}>Mark as left</ButtonLink>;
   return (
     <RecordEditor
       title={`Disable ${name}'s account`}
@@ -53,7 +54,7 @@ export function DisableAccount({ accountId, name, loginName, exposure = [], bloc
       action={disableAccountAction}
       submitLabel="Disable"
       destructive={{ reasonLabel: "Why is it being disabled?" }}
-      trigger={{ label: "Disable", className: buttonClass("destructive", "sm") }}
+      trigger={{ label: "Disable", className: buttonClass("destructive", "sm"), ariaLabel: `Disable ${name}'s account` }}
       size="sm"
     />
   );
@@ -69,7 +70,7 @@ export function EnableAccount({ accountId, name }: { accountId: string; name: st
       action={enableAccountAction}
       submitLabel="Put back"
       reason={{ label: "Why is it being put back?" }}
-      trigger={{ label: "Put back", className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Put back", className: buttonClass("secondary", "sm"), ariaLabel: `Put ${name}'s account back` }}
       size="sm"
     />
   );
@@ -119,8 +120,8 @@ export function IssueCode({
 
   return (
     <>
-      <button type="button" ref={opener} className={buttonClass("secondary", "sm")} onClick={() => setOpen(true)}>
-        {activation ? "Issue activation code" : "Issue reset code"}
+      <button type="button" ref={opener} className={buttonClass("secondary", "sm")} aria-label={`Issue ${activation ? "an activation" : "a reset"} code for ${name}`} onClick={() => setOpen(true)}>
+        {activation ? "Activation code" : "Reset code"}
       </button>
       {open && (
         <CodeDialog

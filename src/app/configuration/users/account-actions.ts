@@ -17,7 +17,7 @@ import { currentRequestFacts, refuseForeignPost } from "@/app/_auth/cookies";
  * fields refused), and hands it to `administration.ts`, which judges it, writes it, audits it and logs it in one transaction. Who acts is the session's, never a field.
  */
 
-const PATH = "/configuration/accounts";
+const PATH = "/configuration/users";
 
 /// What a refused act says to the form: the field-level faults where there are some, and the first in words otherwise.
 function stateOf(outcome: Exclude<AdminOutcome, { ok: true }>): FormState {

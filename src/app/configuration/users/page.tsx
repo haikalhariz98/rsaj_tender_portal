@@ -7,9 +7,16 @@ import { db } from "@/lib/db";
 import { PERMISSION_KEYS, PERMISSIONS, isGrantable } from "@/lib/auth/permissions";
 import { loadGrants as loadProductGrants } from "@/lib/auth/permission-store";
 
-import { UsersTabs } from "./panels";
+import { UsersTabs, type SignInView } from "./panels";
 import { PageHeader } from "@/components/ui/page-header";
-import { requireStaff } from "@/app/_auth/actor";
+import { permissionGate, requireStaff } from "@/app/_auth/actor";
+import { accountActs, signInStanding } from "@/lib/auth/account-acts";
+import { loadAccountsView } from "@/lib/auth/administration-view";
+import { RUNTIME_ROLE_WORDS, warnsOnly } from "@/lib/auth/db-role";
+import { runtimeRoleCheck } from "@/lib/auth/runtime-role-store";
+import { settingLabels } from "@/lib/auth/policy";
+import { formatOrgDateTime } from "@/lib/format";
+import { disableExposure } from "@/lib/sealing/deactivation";
 import { hiddenExercises } from "@/app/_auth/sulit";
 import { EXPOSURE_WORDS, HIDDEN_EXPOSURE_LINE } from "@/lib/sealing/deactivation";
 import { loadHolderExposures } from "@/lib/sealing/substitution-store";
@@ -21,14 +28,11 @@ import { dayToDate } from "@/lib/dates";
 const EMPTY_UPLOAD = { classes: [], people: [], allowedMediaTypes: [], maxBytes: null, ceiling: null, cap: null, refusals: [], timeZoneSet: false, statement: "" };
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Users & roles" };
 
 /**
- * Users & roles, in the prototype's shape: four tabs under a page head whose counts
- * sit in the meta line rather than in stat tiles.
- *
- * The three sections this replaced — Officers, Offices, Assignments — were a
- * different decomposition of the same data, and the fault callouts that sat above
- * them are gone with them.
+ * Users & roles: People (each with their sign-in), Roles and their assignments, Delegation, and Advanced (permissions, reporting lines).
+ * The sign-in accounts screen was folded into People (simplification 5.3): the account column and its acts show to whoever holds `accounts.manage`.
  */
 export default async function UsersPage({
   searchParams,
@@ -71,6 +75,8 @@ export default async function UsersPage({
   const assignments = roster.assignments.filter((a) => a.effectiveTo == null || a.effectiveTo > on);
   const faults = rosterFaults(roster, on, roster.routedToCodes);
 
+  const signIn = await loadSignIn(actor, on, hidden);
+
   const nameOf = new Map(roster.people.map((p) => [p.id, p.name]));
   const lineDay = worklist?.today ? dayToDate(worklist.today) : on;
   const stuck = (worklist?.groups.flatMap((g) => g.items) ?? [])
@@ -103,6 +109,7 @@ export default async function UsersPage({
         grants={grants.grants}
         delegations={delegations}
         lines={lines.map((l) => ({ id: l.id, personId: l.personId, superiorPersonId: l.superiorPersonId, effectiveFrom: l.effectiveFrom, effectiveTo: l.effectiveTo, provenance: l.provenance, note: l.note }))}
+        signIn={signIn}
         stuck={stuck}
         mayMarkAway={actor.permissions.has("configuration.draft")}
         leaverExposure={leaverExposure}
@@ -117,4 +124,46 @@ export default async function UsersPage({
       />
     </>
   );
+}
+
+/// The People list's sign-in column and acts, for whoever may manage accounts; null for everyone else, so the column is not drawn.
+async function loadSignIn(actor: Awaited<ReturnType<typeof requireStaff>>, now: Date, hidden: ReadonlySet<string>): Promise<SignInView | null> {
+  if (!(await permissionGate(actor, "accounts.manage")).ok) return null;
+  const zone = actor.organisationTimeZone;
+  const view = await loadAccountsView(actor, now);
+  // Database login too broad: a failed check says nothing rather than guessing.
+  const role = await runtimeRoleCheck().catch(() => null);
+  const exposed = await loadHolderExposures(db, actor.organisationId, now, view.rows.filter((r) => r.status !== "DISABLED").map((r) => r.personId));
+  return {
+    creatable: view.people,
+    warnings: [
+      ...(role && !role.safe ? [warnsOnly(role.reason) ? `Database login too broad. Operator reruns role setup. Runs as ${RUNTIME_ROLE_WORDS[role.reason]}.` : `${role.refuseSignIn ? "Sign-in refused: database login too broad. Contact the operator." : "Database login too broad. Production refuses sign-in. Contact the operator."} Runs as ${RUNTIME_ROLE_WORDS[role.reason]}.`] : []),
+      ...(view.codeSettingsUnset.length > 0 ? [`Codes cannot be issued. Not set: ${settingLabels(view.codeSettingsUnset).join("; ")}.`] : []),
+    ],
+    accounts: Object.fromEntries(
+      view.rows.map((r) => {
+        const exposure = disableExposure(exposed.get(r.personId) ?? [], hidden);
+        return [
+          r.personId,
+          {
+            id: r.id,
+            loginName: r.loginName,
+            standing: signInStanding(r, now),
+            detail: [
+              r.lockedUntil && r.lockedUntil > now ? `Locked until ${formatOrgDateTime(r.lockedUntil, zone)}` : null,
+              r.openCode ? `${r.openCode.purpose === "ACTIVATION" ? "Activation" : "Reset"} code valid until ${formatOrgDateTime(r.openCode.expiresAt, zone)}` : null,
+              r.status === "DISABLED" && r.disabledReason ? r.disabledReason : null,
+              !r.personActive && r.status !== "DISABLED" ? "The person is no longer active" : null,
+              r.lastSignInAt ? `Last signed in ${formatOrgDateTime(r.lastSignInAt, zone)}` : "Never signed in",
+            ].filter((x): x is string => x != null).join(" · "),
+            isYou: r.isYou,
+            isAdministrator: r.isAdministrator,
+            acts: accountActs(r, now),
+            exposure: exposure.lines,
+            blocked: exposure.blocked,
+          },
+        ];
+      }),
+    ),
+  };
 }

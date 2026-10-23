@@ -1,7 +1,6 @@
 {
  "src/app/approvals/editors.tsx|banned-word": 1,
  "src/app/approvals/page.tsx|banned-word": 2,
- "src/app/configuration/accounts/page.tsx|banned-word": 1,
  "src/app/configuration/approval-matrix/actions.ts|banned-word": 8,
  "src/app/configuration/approval-matrix/editors.tsx|banned-word": 12,
  "src/app/configuration/approval-matrix/page.tsx|banned-word": 9,

@@ -72,7 +72,7 @@ export function leaverFaults(i: {
   activeAdministrators: number;
 }): Fault[] {
   if (!i.account || i.account.status === "DISABLED") return [];
-  if (!i.isAdministrator) return [fault("NOT_ADMINISTRATOR_FOR_LEAVER", "This person has a sign-in account, and making them inactive disables it. Only an administrator does that: ask one, or have them disable the account under Sign-in accounts.")];
+  if (!i.isAdministrator) return [fault("NOT_ADMINISTRATOR_FOR_LEAVER", "This person has a sign-in account, and making them inactive disables it. Only an administrator does that: ask one, or have them disable the account from the People list.")];
   const out: Fault[] = [];
   if (i.account.id === i.actorAccountId) out.push(fault("OWN_ACCOUNT", "You cannot disable your own account. Ask another administrator."));
   else if (i.account.isAdministrator && i.account.status === "ACTIVE" && i.activeAdministrators <= 1) out.push(lastAdministrator());

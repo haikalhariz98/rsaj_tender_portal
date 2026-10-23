@@ -292,7 +292,7 @@ export function planChange(change: ParsedChange, live: LiveState): Plan {
         out.push(
           f(
             "NO_SECOND_PERSON_NEEDED",
-            "That account is not an administrator's, and that person has never held an office, seat or delegation, so a second person is not needed: an administrator issues the code directly under Sign-in accounts.",
+            "That account is not an administrator's, and that person has never held an office, seat or delegation, so a second person is not needed: an administrator issues the code directly from the People list.",
           ),
         );
       } else if (change.payload.purpose === "ACTIVATION" && l.account.status !== "PENDING_ACTIVATION") out.push(f("NOT_AWAITING_ACTIVATION", "An activation code is for an account that has not been activated."));

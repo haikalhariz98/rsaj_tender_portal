@@ -67,7 +67,7 @@ describe("the approval route is changed only by someone who holds the permission
   });
 
   it("accounts: every action asks staffForPermission(\"accounts.manage\"), first, and none is left out", () => {
-    const src = source("accounts");
+    const src = readFileSync(path.join(CONFIG, "users", "account-actions.ts"), "utf8");
     expect(exportsOf(src).sort()).toEqual(ACCOUNTS.map(([f]) => f).sort());
     const wrong = ACCOUNTS.filter(([fn, key]) => !new RegExp(String.raw`^await\s+staffForPermission\(\s*"${key}"\s*\)`).test(firstAwait(src, fn) ?? "")).map(([fn]) => fn);
     expect(wrong).toEqual([]);
@@ -107,7 +107,7 @@ describe("the approval route is changed only by someone who holds the permission
 
   it("every other configuration editor is named, so a new one is not silently ungated", () => {
     const dirs = readdirSync(CONFIG, { withFileTypes: true }).filter((d) => d.isDirectory() && readdirSync(path.join(CONFIG, d.name)).includes("actions.ts")).map((d) => d.name);
-    const known = new Set(["approval-matrix", "accounts", "changes", ...Object.keys(PROPOSES_AUTHORITY), ...OTHER_EDITORS]);
+    const known = new Set(["approval-matrix", "changes", ...Object.keys(PROPOSES_AUTHORITY), ...OTHER_EDITORS]);
     expect(dirs.filter((d) => !known.has(d))).toEqual([]);
     expect([...known].filter((d) => !dirs.includes(d))).toEqual([]);
   });
