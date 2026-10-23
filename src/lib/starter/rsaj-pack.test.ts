@@ -15,6 +15,7 @@ import { matchesFormat } from "@/lib/integration/award-commitment";
 import { ratioOfPercent } from "@/lib/percent-band";
 import { toPosix } from "@/lib/scan/files";
 import { documentTypeFaults } from "@/lib/suppliers/config";
+import { resolveSo } from "@/lib/supervision/so";
 
 import { columnsOf, planPacks } from "./plan";
 
@@ -159,8 +160,19 @@ describe("the DAL draft, put in force, routes a contract's matters whatever its 
     expect(route({ domain: "vo", method: "direct", pctRatio: pct("25"), contractValue: 2_000_000 })).toEqual({ rule: "T_VO_B_II", approver: "CEO", errors: [] });
   });
 
-  it("finds no rule for a waiver of LAD on a RM200,000 contract, and says so", () => {
-    expect(route({ domain: "lad_waiver", method: "open_selective", pctRatio: pct("10"), contractValue: 200_000 })).toEqual({ rule: null, approver: null, errors: ["NO_RULE"] });
+  // Part 2 loaded B.6 item 7, so a waiver of LAD on a RM200,000 contract now routes; termination there (B.6 item 8, slashed) is the gap.
+  it("routes a waiver of LAD on a RM200,000 contract to the CEO, and finds no rule for its termination, saying so", () => {
+    expect(route({ domain: "lad_waiver", method: "open_selective", pctRatio: pct("10"), contractValue: 200_000 })).toEqual({ rule: "LAD_WAIVER_QUOTATION", approver: "CEO", errors: [] });
+    expect(route({ domain: "termination", method: "open_selective", contractValue: 200_000 })).toEqual({ rule: null, approver: null, errors: ["NO_RULE"] });
+  });
+
+  it("resolves the Superintending Officer by the contract's value (B.6 item 6, B.7 item 5)", () => {
+    const so = (contractValue: number) => {
+      const r = resolveSo(matrix, { contractValue, method: "direct", contractTypeCode: null });
+      return r.state === "RESOLVED" ? r.roleCode : r.state;
+    };
+    expect([200_000, 300_000, 300_000.01, 1_000_000, 2_000_000, 3_000_000, 3_500_000].map(so)).toEqual(["HODIV", "HODIV", "HODIV", "HODIV", "FD", "FD", "CEO"]);
+    expect(resolveSo(matrix, { contractValue: 300_000, method: null, contractTypeCode: null })).toMatchObject({ ruleKey: "SO_QUOTATION" });
   });
 });
 

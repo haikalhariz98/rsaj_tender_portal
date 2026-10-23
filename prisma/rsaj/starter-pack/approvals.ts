@@ -13,6 +13,7 @@ import { SIGNATORY_DOMAIN } from "../../../src/lib/award/types";
 import { LAD_WAIVER_DOMAIN, TERMINATION_DOMAIN, EOT_DOMAIN } from "../../../src/lib/matter/matter";
 import { APPOINTMENT_DOMAIN } from "../../../src/lib/method/types";
 import { REQUISITION_DOMAIN } from "../../../src/lib/requisition/types";
+import { SO_DOMAIN } from "../../../src/lib/supervision/so";
 import type { CoreLevel, Recommender } from "../../../src/lib/authority/types";
 import type { PackMatrixDraft, PackRule } from "../../../src/lib/starter/types";
 
@@ -308,6 +309,18 @@ const RULES: PackRule[] = [
   rule({ ruleKey: "IPC_UP_TO_100K", domain: "payment", ...TENDER_CONTRACTS, labelEn: "Interim payment, up to RM100,000", maxValue: 100 * K, approverCode: "HODIV", clause: "§3.1.4.4 item 16c" }, "FR-PAY-016, FR-APR-002"),
   rule({ ruleKey: "IPC_100K_TO_500K", domain: "payment", ...TENDER_CONTRACTS, labelEn: "Interim payment, more than RM100,000 and up to RM500,000", minValue: 100 * K, maxValue: 500 * K, approverCode: "FD", clause: "§3.1.4.4 item 16b" }, "FR-PAY-016, FR-APR-002"),
   rule({ ruleKey: "IPC_ABOVE_500K", domain: "payment", ...TENDER_CONTRACTS, labelEn: "Interim payment, more than RM500,000", minValue: 500 * K, approverCode: "CEO", clause: "§3.1.4.4 item 16a" }, "FR-PAY-016, FR-APR-002"),
+
+  // Plan step 4.6: the B.6 and B.7 rows the DAL states plainly, deferred from part 1. Left out: every row whose office is slashed ("JR/R",
+  // "JR/P", "MR/P") or asterisked ("*by CP", "*by FIN"), which are questions for RSAJ (docs/notes/rsaj-questions.md 1 and 2); extension of time
+  // with no financial impact and extension of a term contract's period, open under decision D2; and the conditions of quotation (B.6 item 13),
+  // which no matter in the product asks.
+  // B.6 item 6 and B.7 item 5: the office that acts as Superintending Officer, by the contract's value.
+  rule({ ruleKey: "SO_QUOTATION", domain: SO_DOMAIN, ...QUOTATION_CONTRACTS, labelEn: "Superintending Officer, contract more than RM15,000 and up to RM300,000", approverCode: "HODIV", clause: "§3.1.4.3 item 6" }, "FR-SUP-001, FR-APR-002"),
+  rule({ ruleKey: "SO_300K_TO_1M", domain: SO_DOMAIN, contractValueMin: TENDER_FLOOR, contractValueMax: 1 * M, labelEn: "Superintending Officer, contract more than RM300,000 and up to RM1 million", approverCode: "HODIV", clause: "§3.1.4.4 item 5c" }, "FR-SUP-001, FR-APR-002"),
+  rule({ ruleKey: "SO_1M_TO_3M", domain: SO_DOMAIN, contractValueMin: 1 * M, contractValueMax: 3 * M, labelEn: "Superintending Officer, contract more than RM1 million and up to RM3 million", approverCode: "FD", clause: "§3.1.4.4 item 5b" }, "FR-SUP-001, FR-APR-002"),
+  rule({ ruleKey: "SO_ABOVE_3M", domain: SO_DOMAIN, contractValueMin: 3 * M, labelEn: "Superintending Officer, contract more than RM3 million", approverCode: "CEO", clause: "§3.1.4.4 item 5a" }, "FR-SUP-001, FR-APR-002"),
+  // B.6 item 7: one waiver row for quotation contracts, "flat — no percentage split at this band".
+  rule({ ruleKey: "LAD_WAIVER_QUOTATION", domain: LAD_WAIVER_DOMAIN, ...QUOTATION_CONTRACTS, labelEn: "Waiver of LAD, quotation contract", approverCode: "CEO", clause: "§3.1.4.3 item 7" }, "FR-LAD-009, FR-APR-002"),
 ].map((r, i) => ({ ...r, sortOrder: i + 1 }));
 
 export const DAL_DRAFT: PackMatrixDraft = {
