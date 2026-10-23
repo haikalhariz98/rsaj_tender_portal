@@ -99,14 +99,17 @@ export interface DemoDoc {
   classification: SecurityClass | null;
   createdAt: string;
   versions: DemoVersion[];
-  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string; tenderPackPartId?: string; addendumId?: string; bidWithdrawalId?: string; validityExtensionId?: string; openingId?: string; evaluationId?: string; evaluationMeetingId?: string; evaluationBidderId?: string; supplierDocumentId?: string; supplierApplicationId?: string; registrationDraftDocumentId?: string; creditorProfileId?: string; contractId?: string; variationInstructionId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
+  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string; tenderPackPartId?: string; addendumId?: string; bidWithdrawalId?: string; validityExtensionId?: string; openingId?: string; evaluationId?: string; evaluationMeetingId?: string; evaluationBidderId?: string; supplierDocumentId?: string; supplierApplicationId?: string; registrationDraftDocumentId?: string; creditorProfileId?: string; contractId?: string; variationInstructionId?: string; projectDocumentVersionId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
   hold?: { id: string; reason: string; at: string; personId: string; personName: string };
+  /// The staged-for mark the upload route gave it (a project file: STAGED_FOR_PROJECT_DOCUMENT).
+  stagedFor?: string;
 }
 
 export async function loadDocuments(db: Db, organisationId: string) {
   // Upload rules, only where the organisation has none of its own (OD-3: demo values ASSUMED).
   if (!(await db.documentStorePolicy.findUnique({ where: { organisationId } }))) {
-    await db.documentStorePolicy.create({ data: { id: DEMO_POLICY_ID, organisationId, ...DEMO_POLICY, provenance: "ASSUMED", notes: "Demo upload rules: PDF, PNG, JPEG and CSV up to 20 MB. Invented, not a recommendation." } });
+    // The Project workspace's files go to the Internal class (contractors download them, so never SULIT or unclassified).
+    await db.documentStorePolicy.create({ data: { id: DEMO_POLICY_ID, organisationId, ...DEMO_POLICY, projectDocumentClassId: `${P}dc1`, provenance: "ASSUMED", notes: "Demo upload rules: PDF, PNG, JPEG and CSV up to 20 MB. Invented, not a recommendation." } });
   }
 
   const recorder = { id: `${P}p3`, name: "Chen Wei Ling" };
@@ -218,7 +221,7 @@ export async function writeDemoDocs(db: Db, organisationId: string, docs: readon
       data: {
         id: d.id, organisationId, title: d.title, documentClassId: d.classId, classificationSnapshot: d.classification,
         retentionSnapshot: await retentionOfClass(db, d.classId),
-        status: filedAt ? "FILED" : "STAGED", createdAt: at(d.createdAt), filedAt,
+        status: filedAt ? "FILED" : "STAGED", createdAt: at(d.createdAt), filedAt, stagedFor: d.stagedFor ?? null,
       },
     });
     entry("Document", d.id, `Document · ${d.title}`, "CREATE", d.createdAt, documentCreated({ title: d.title, className: d.className, classification: d.classification, status: "STAGED" }));

@@ -28,6 +28,7 @@ import { loadCompanyDemo } from "./demo-company";
 import { loadMyBidsDemo } from "./demo-my-bids";
 import { linkDemoContractor } from "./demo-contractor";
 import { loadMyProjectsDemo } from "./demo-my-projects";
+import { loadProjectDocumentsDemo } from "./demo-project-documents";
 import { checkRegistrationDemo, configureRegistrationDemo, loadRegistrationDemo } from "./demo-registration";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { attributeSeededRows } from "./demo-attribution";
@@ -797,6 +798,8 @@ async function load() {
   await loadMyBidsDemo(db, organisationId);
   // Phase 4e: the contractor's My Projects workspace and the announcements board (prisma/demo-my-projects.ts).
   await loadMyProjectsDemo(db, organisationId);
+  // ADR 0042: the Project workspace on the same contract: documents in each state of the simple flow, and the kick-off meeting held (prisma/demo-project-documents.ts).
+  await loadProjectDocumentsDemo(db, organisationId);
   // Wave 3b step 18 (rulings 12c, 12d, 20z): the online sealed-bid demonstration, after every authored exercise is pinned on paper and before the Results fixture (which stays the last of the
   // demo's own data, and is written on paper whatever the channel). Only here, on a fresh database.
   await loadOnlineDemo(db, organisationId);
@@ -2182,6 +2185,20 @@ async function myProjects() {
 }
 
 /**
+ * ADR 0042: the Project workspace demonstration (prisma/demo-project-documents.ts), added to a database the demo is already loaded in. Nothing where it stands; it sets no policy.
+ */
+async function projectDocuments() {
+  const org = await organisation();
+  if (!(await demoIsLoaded(db))) {
+    console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
+    return;
+  }
+  const made = await loadProjectDocumentsDemo(db, org.id);
+  await attributeSeededRows(db, org.id);
+  console.log(made.notes.length ? `Added: ${made.notes.join("; ")}.` : "The Project workspace demonstration is already there: nothing was written.");
+}
+
+/**
  * Decisions log, 2026-10-09, ruling on 1897 R2: demo_con13's contractor on the register with checked bank details, linked to its award (prisma/demo-contractor.ts), for a database loaded before it existed.
  * Nothing where it stands; nothing is deleted.
  */
@@ -2207,12 +2224,12 @@ if (mode === "switches") {
   console.error(DEMO_SWITCHES_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "contractor") {
-  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|contractor>");
+if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "project-documents" && mode !== "contractor") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|project-documents|contractor>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "contractor" ? contractor() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "project-documents" ? projectDocuments() : mode === "contractor" ? contractor() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);

@@ -38,6 +38,7 @@
     "demo:company": "tsx prisma/demo.ts company",
     "demo:my-bids": "tsx prisma/demo.ts my-bids",
     "demo:my-projects": "tsx prisma/demo.ts my-projects",
+    "demo:project-documents": "tsx prisma/demo.ts project-documents",
     "demo:contractor": "tsx prisma/demo.ts contractor",
     "demo:switches": "tsx prisma/demo.ts switches",
     "compare": "node scripts/compare-screen.mjs",
