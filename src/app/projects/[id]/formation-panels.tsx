@@ -29,7 +29,7 @@ import { briefingOpen } from "@/lib/contract/sign";
 import { contractorSignBlock, stampBlock, submitLegalBlocker } from "./signing-acts";
 import { isExecuted } from "@/lib/contract/status";
 import { RECONCILIATION_COMPARISONS, type ContractStatus, type FormationCheckKind } from "@/lib/contract/types";
-import { storedDay } from "@/lib/dates";
+import { dayOrNull as day, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal } from "@/lib/money";
 import { formatPct } from "@/lib/tender-docs/percent";
@@ -71,7 +71,6 @@ export type FormationSection = (typeof FORMATION_SECTIONS)[number]["id"];
 
 type Option = { value: string; label: string };
 type Facts = Awaited<ReturnType<typeof signingFacts>>;
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const notSet = (what = "Not set") => <span className="text-ink-4">{what}</span>;
 const open = (s: string) => s === "IN_PREPARATION" || s === "RETURNED_FOR_AMENDMENT";
 const money = (v: { toString(): string }) => formatMoney(senFromDecimal(v));

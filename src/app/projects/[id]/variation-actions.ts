@@ -21,7 +21,7 @@ import { CertificateRefusal, openCertificate } from "@/lib/certificate/write";
 import { raiseFormFault } from "@/lib/certificate/form-needs";
 import { KIND_WORDS } from "@/lib/certificate/labels";
 import { contractLabel, withLockedContract } from "@/lib/contract/repo";
-import { dayOf, dayToDate, storedDay } from "@/lib/dates";
+import { dayOf, dayOrNull as day, dayToDate, storedDay } from "@/lib/dates";
 import { decimalText, formatDate } from "@/lib/format";
 import { formatMoney, parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
@@ -122,7 +122,6 @@ const fieldError = (field: string, message: string): never => {
   throw new Refusal({ ok: false, errors: { [field]: message } });
 };
 const idOf = (data: FormData) => String(data.get("id") ?? "");
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const money = (v: Sen) => senToDecimalString(v);
 const tri = (v: string | null) => (v === "yes" ? true : v === "no" ? false : null);
 const yesNo = (v: boolean | null) => (v == null ? "not answered" : v ? "yes" : "no");
@@ -143,10 +142,7 @@ function signedMoney(r: FormReader, name: string, label: string, required = fals
 }
 
 /// A day a field names, or null; refused where it is after today.
-const dayField = (r: FormReader, name: string, label: string, required = false) => {
-  const d = r.date(name, label, { required });
-  return d ? storedDay(d) : null;
-};
+const dayField = (r: FormReader, name: string, label: string, required = false) => day(r.date(name, label, { required }));
 
 /// The Person named, active and of the organisation.
 async function personNamed(c: Ctx, personId: string | null, field = "personId"): Promise<{ id: string; name: string }> {

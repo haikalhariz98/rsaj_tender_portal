@@ -6,7 +6,7 @@ import type { CertificateKind, CertificateStatus } from "@/lib/certificate/types
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import { baselineFor } from "@/lib/contract/baseline";
 import type { ContractStatus } from "@/lib/contract/types";
-import { storedDay } from "@/lib/dates";
+import { dayOrNull as day, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal, type Sen } from "@/lib/money";
 import { PAID_FIGURE } from "@/lib/payment/finance";
@@ -34,7 +34,6 @@ import { inOrder } from "@/lib/series";
  */
 
 type Who = Pick<SupplierActor, "supplierId" | "organisationId" | "contactId">;
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const dayText = (d: Date | null | undefined) => (d ? formatDate(storedDay(d)) : null);
 
 /// Whether an act of a family is open on the contract now, or the reason it is not, in words.

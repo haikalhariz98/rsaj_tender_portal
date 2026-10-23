@@ -32,7 +32,7 @@ import { briefingFaults, contractorSignFaults, stampFaults } from "@/lib/contrac
 import { contractTransition, isExecuted } from "@/lib/contract/status";
 import type { ContractStatus, Finding, FormationCheckKind, LadKind, Provenance } from "@/lib/contract/types";
 import { confirmFaults, correctionFaults, draftFaults } from "@/lib/contract/versions";
-import { dayOf, dayToDate, storedDay } from "@/lib/dates";
+import { dayOf, dayOrNull as day, dayToDate, storedDay } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
 import { maskIc } from "@/lib/award/mask";
 import { loadRoster } from "@/lib/people/load";
@@ -129,7 +129,6 @@ async function personOf(c: Ctx, id: string | null) {
   return c.tx.person.findFirst({ where: { id, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
 }
 
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const formationOpen = (s: string) => s === "IN_PREPARATION" || s === "RETURNED_FOR_AMENDMENT";
 const NOT_OPEN: FormState = { ok: false, message: "The Contract Document changes only while it is being prepared or has come back from the legal office." };
 const idOf = (data: FormData) => String(data.get("id") ?? "");

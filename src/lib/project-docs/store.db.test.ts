@@ -11,7 +11,7 @@ import { makePerson, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS
 import type { SupplierActor } from "@/lib/auth/types";
 import { inHeldContract } from "@/lib/portal/projects/submission-store";
 import { hiddenExerciseIds } from "@/lib/auth/sulit-store";
-import { loadInbox } from "@/lib/inbox/store";
+import { loadInboxPage } from "@/lib/inbox/store";
 import type { WrittenAttribution } from "@/lib/test-support/staff";
 
 /**
@@ -750,7 +750,7 @@ describe("the fix round (rulings PW-37, PW-43 T1, PW-45)", () => {
     const made = await asContractor(c, contractId, async (ctx) => createDocument(ctx, { kind: "SUPPLIER", actor: c.actor }, { title: "Delay at the culvert", note: "", first: { upload: { stagedVersionIds: [await stage({ account: c.accountId })], note: "" } }, approverPersonIds: [] }, null));
     const notices = await db.staffNotice.findMany({ where: { organisationId, subjectId: made.versionId! } });
     expect(notices.map((n) => [n.recipientPersonId, n.exerciseId])).toContainEqual([p.so, null]);
-    const inbox = await loadInbox(db, { organisationId, personId: p.so }, hidden);
+    const inbox = (await loadInboxPage(db, { organisationId, personId: p.so }, hidden)).notices;
     const mine = inbox.find((n) => n.kind === "PROJECT_DOCUMENT_FROM_CONTRACTOR" && n.href === `/projects/${contractId}/documents/${made.documentId}`);
     expect(mine, "the notice reaches the S.O. through the inbox").toBeTruthy();
     // Its link is the contract's document page, which reads for the S.O.

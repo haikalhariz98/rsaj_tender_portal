@@ -4,7 +4,7 @@ import type { StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
-import { loadInbox, unreadCount } from "@/lib/inbox/store";
+import { loadInboxPage, unreadCount } from "@/lib/inbox/store";
 
 import { hiddenDecisionIds } from "./hidden";
 import { NOT_CARRIED_EVENT_KEY } from "./labels";
@@ -131,8 +131,8 @@ describe("the memo of a matter that names its exercise only by another road (FR-
     expect(notice.exerciseId).toBe(exerciseId);
     // A recipient not named on the restricted exercise sees neither the notice nor a count for it; one named on it sees both.
     const viewer = { organisationId, personId: holder };
-    expect((await loadInbox(db, viewer, [exerciseId])).map((n) => n.id)).not.toContain(notice.id);
-    expect((await loadInbox(db, viewer, [])).map((n) => n.id)).toContain(notice.id);
+    expect((await loadInboxPage(db, viewer, [exerciseId])).notices.map((n) => n.id)).not.toContain(notice.id);
+    expect((await loadInboxPage(db, viewer, [])).notices.map((n) => n.id)).toContain(notice.id);
     expect((await unreadCount(db, viewer, [])) - (await unreadCount(db, viewer, [exerciseId]))).toBe(1);
   });
 

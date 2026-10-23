@@ -52,7 +52,7 @@ import { loadContract, type LoadedContract } from "@/lib/contract/repo";
 import { briefingMissing } from "@/lib/contract/sign";
 import { isExecuted } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
-import { storedDay } from "@/lib/dates";
+import { dayOrNull as day } from "@/lib/dates";
 import { raiseCaseClockNotices } from "@/lib/award/clock-notices";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
@@ -85,7 +85,6 @@ import { exerciseIsHidden } from "@/app/_auth/sulit";
 export const dynamic = "force-dynamic";
 
 type Option = { value: string; label: string };
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const notSet = (what = "Not set") => <span className="text-ink-4">{what}</span>;
 const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err", neutral: undefined } as const;
 

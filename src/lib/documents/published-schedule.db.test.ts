@@ -174,7 +174,8 @@ describe("publishing", () => {
     const found = await loadResultSchedule(exerciseId);
     expect(found?.schedule.version.id).toBe(d.versions[0]);
     // The public row names no award party and no figure.
-    expect(JSON.stringify(row)).not.toMatch(/Winner|awardee|1000/);
+    // The figure as a whole token (1000, 1,000.00, 100000 sen): never a run of digits inside a generated id.
+    expect(JSON.stringify(row)).not.toMatch(/Winner|awardee|\b1,?000(?:\.00|00)?\b/);
   });
 
   it("an exercise with no schedule reads as not published", async () => {

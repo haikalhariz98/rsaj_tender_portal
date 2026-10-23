@@ -18,7 +18,7 @@ import { STATUS_TONE as CERT_TONE, STATUS_WORDS as CERT_WORDS } from "@/lib/cert
 import { noFormFault } from "@/lib/certificate/form-needs";
 import type { CertificateStatus } from "@/lib/certificate/types";
 import type { LoadedContract } from "@/lib/contract/repo";
-import { storedDay, daysFrom } from "@/lib/dates";
+import { dayOrNull as day, storedDay, daysFrom } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal } from "@/lib/money";
 import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
@@ -43,7 +43,6 @@ import type { HiddenAct } from "@/lib/supervision/authority";
  */
 
 const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err", neutral: undefined } as const;
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const dim = (t: string) => <span className="text-ink-4">{t}</span>;
 export const VARIATION_PAGE = 50;
 

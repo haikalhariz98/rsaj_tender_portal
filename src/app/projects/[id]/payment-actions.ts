@@ -17,7 +17,7 @@ import { raiseFormFault } from "@/lib/certificate/form-needs";
 import { KIND_WORDS } from "@/lib/certificate/labels";
 import type { CertificateKind } from "@/lib/certificate/types";
 import { contractLabel, withLockedContract, type LoadedContract } from "@/lib/contract/repo";
-import { dayOf, dayToDate, storedDay } from "@/lib/dates";
+import { dayOf, dayOrNull as day, dayToDate, storedDay } from "@/lib/dates";
 import { decisionFaults, postFaults, warningFaults, type PackAnswer } from "@/lib/lad/non-completion";
 import { decisionBasisFaults, replacementFaultsOnScope, scopeKey } from "@/lib/lad/basis";
 import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
@@ -113,7 +113,6 @@ const refuse = (lead: string, fs: readonly Finding[]): never => {
   throw new Refusal({ ok: false, message: paymentRefusal(lead, fs) });
 };
 const idOf = (data: FormData) => String(data.get("id") ?? "");
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const linesOf = (raw: string) => raw.split("\n").map((x) => x.trim()).filter(Boolean);
 const money = (v: Sen) => senToDecimalString(v);
 const tri = (v: string | null) => (v === "yes" ? true : v === "no" ? false : null);

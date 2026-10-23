@@ -17,7 +17,7 @@ import { baselineRows, contractGate, frozenInputsOf, liveOf, rowOf, sectionRows,
 import { contractLabel, withLockedContract, type LoadedContract } from "@/lib/contract/repo";
 import { contractTransition, isExecuted } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
-import { dayOf, dayToDate, storedDay } from "@/lib/dates";
+import { dayOf, dayOrNull as day, dayToDate, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { amountOf, parseSen, senToDecimalString } from "@/lib/money";
 import { parsePercent } from "@/lib/securities/money";
@@ -109,7 +109,6 @@ const refuse = (lead: string, fs: readonly Finding[]): never => {
   throw new Refusal({ ok: false, message: supervisionRefusal(lead, fs) });
 };
 const idOf = (data: FormData) => String(data.get("id") ?? "");
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const linesOf = (raw: string) => raw.split("\n").map((x) => x.trim()).filter(Boolean);
 
 async function personOf(c: Ctx, id: string | null) {

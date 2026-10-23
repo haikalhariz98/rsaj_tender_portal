@@ -3,9 +3,9 @@
  *
  * - `writeNotices` runs inside the act's own transaction, so a notice exists if and only if the act did. It writes with "skip duplicates" on the notice's key,
  *   so an act retried, or a job re-run, tells no one twice. A recipient who is not a person of the organisation gets nothing.
- * - `loadInbox` and `unreadCount` give a person their own notices and nobody else's, leaving out the notices of an exercise restricted to people they are not
+ * - `loadInboxPage` and `unreadCount` give a person their own notices and nobody else's, leaving out the notices of an exercise restricted to people they are not
  *   (FR-MTD-007): the list of ids to leave out is the caller's `hiddenExercises`, the same one every other list uses.
- * - `loadInbox` reads a page at a time from a cursor (`paging.ts`), and `inboxTotals` counts them all, so what a screen says it holds is never what one page held.
+ * - `loadInboxPage` reads a page at a time from a cursor (`paging.ts`), and `inboxTotals` counts them all, so what a screen says it holds is never what one page held.
  * - `markRead` records the first reading, once. The database lets nothing else about a notice change. `markAllRead` does it for every notice of the person's own that is unread and
  *   not hidden, up to a moment, in one statement.
  */
@@ -41,15 +41,6 @@ export interface InboxNotice {
 const OWN = (organisationId: string, personId: string, hidden: readonly string[]) => ({ organisationId, recipientPersonId: personId, ...exerciseIdNotHidden(hidden) });
 
 /// One page of the person's notices, newest first: up to `take`, from just after `before` where given. `more` says whether any lie beyond the page.
-export async function loadInbox(
-  client: Tx,
-  viewer: { organisationId: string; personId: string },
-  hidden: readonly string[],
-  opts: { take?: number; before?: InboxCursor | null } = {},
-): Promise<InboxNotice[]> {
-  return (await loadInboxPage(client, viewer, hidden, opts)).notices;
-}
-
 export async function loadInboxPage(
   client: Tx,
   viewer: { organisationId: string; personId: string },

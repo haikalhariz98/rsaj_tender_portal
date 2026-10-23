@@ -13,7 +13,7 @@ import { sittingPermits } from "@/lib/committee/meeting";
 import { lockSittingIn } from "@/lib/committee/sittings";
 import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { db } from "@/lib/db";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayOrNull, dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { actCtx, type ActCtx, ActRefusal, afterAct, fieldError, lockMatter, NO_ZONE_STATE, tableRefusal, thrownState } from "@/lib/matter/act";
 import { openRouteOf, tablingFactsOf } from "@/lib/matter/load";
@@ -59,10 +59,7 @@ const idOf = (data: FormData) => String(data.get("id") ?? "");
 const refuse = (lead: string, fs: readonly Finding[]): never => {
   throw new ActRefusal({ ok: false, message: timeRefusal(lead, fs) });
 };
-const dayField = (r: FormReader, name: string, label: string, required = false) => {
-  const d = r.date(name, label, { required });
-  return d ? storedDay(d) : null;
-};
+const dayField = (r: FormReader, name: string, label: string, required = false) => dayOrNull(r.date(name, label, { required }));
 
 /// The matter's family, from its kind as read before the lock (read again under it by run).
 async function familyOf(scope: OrgScope, matterId: string) {

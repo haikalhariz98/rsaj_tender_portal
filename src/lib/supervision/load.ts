@@ -11,7 +11,7 @@ import type { CertificateKind } from "@/lib/certificate/types";
 import { baselineFor } from "@/lib/contract/baseline";
 import type { LoadedContract } from "@/lib/contract/repo";
 import type { BaselineReason } from "@/lib/contract/types";
-import { storedDay } from "@/lib/dates";
+import { dayOrNull as day, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 import { recorderFaultOver, type ActNeed, type AuthorityFault, type DelegationFacts, type RecorderDay, type SoOffice } from "./authority";
@@ -22,8 +22,6 @@ import { programmeInForce, type PointIn, type RevisionFacts } from "./programme"
 import { soOn } from "./so";
 import type { DelegateKind, Finding, ProgrammeDecision, SupervisionAct } from "./types";
 import { inOrder } from "@/lib/series";
-
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 export const supervisionInclude = {
   soAssignments: { orderBy: [{ effectiveOn: "asc" as const }, { recordedAt: "asc" as const }] as { effectiveOn?: "asc"; recordedAt?: "asc" }[] },

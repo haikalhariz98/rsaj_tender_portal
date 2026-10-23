@@ -10,12 +10,10 @@
  */
 
 import type { Tx } from "@/lib/audit/record";
-import { dayPlus, dayToDate, storedDay } from "@/lib/dates";
+import { dayOrNull as day, dayPlus, dayToDate, storedDay } from "@/lib/dates";
 
 import { inDelay, type DelayReading } from "./delay";
 import { inOrder } from "@/lib/series";
-
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 export async function delayReadingsOf(organisationId: string, rows: readonly { id: string; dateForCompletion: Date | null }[], today: string, client: Tx): Promise<Map<string, DelayReading>> {
   const out = new Map<string, DelayReading>();

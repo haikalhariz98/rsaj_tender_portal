@@ -8,7 +8,7 @@ import { toSecond } from "@/lib/bids/lateness";
 import { actStatusFault, type ContractAct } from "@/lib/contract/act-status";
 import { withLockedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayOrNull as day, dayToDate, storedDay } from "@/lib/dates";
 import { formatMoney, parseSen } from "@/lib/money";
 import { actCtx, type ActCtx, ActRefusal, afterAct, fieldError, lockMatter, NO_ZONE_STATE, recordedFor, tableRefusal, thrownState } from "@/lib/matter/act";
 import { matterFactsOf } from "@/lib/matter/load";
@@ -54,7 +54,6 @@ async function inContract(scope: OrgScope, actor: AuditActor, id: string, now: D
 }
 
 const idOf = (data: FormData) => String(data.get("id") ?? "");
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const tri = (v: string | null) => (v === "yes" ? true : v === "no" ? false : null);
 const refuse = (lead: string, fs: readonly Finding[]): never => {
   throw new ActRefusal({ ok: false, message: timeRefusal(lead, fs) });

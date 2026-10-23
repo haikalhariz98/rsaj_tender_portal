@@ -31,7 +31,7 @@ import type { CertificateStatus } from "@/lib/certificate/types";
 import { secretariatHoldersOn } from "@/lib/committee/tabling";
 import { historyFieldLabel, historyValue } from "@/lib/contract/history-words";
 import { contractLabel, loadContract, type LoadedContract } from "@/lib/contract/repo";
-import { dayOf, storedDay } from "@/lib/dates";
+import { dayOf, dayOrNull as day, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { decimalText, formatDate, formatOrgDateTime } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
@@ -79,7 +79,6 @@ import { stepActed } from "@/lib/auth/attribution-read";
 export const dynamic = "force-dynamic";
 
 const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err", neutral: undefined } as const;
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const dim = (t: string) => <span className="text-ink-4">{t}</span>;
 const say = (fs: readonly { code: string; level: string; data?: Record<string, string | number | null> }[]) => (fs.length ? fs.map((f) => variationFaultText(f as never)).join(" ") : null);
 const NOTE_ID = "variation-action-note";

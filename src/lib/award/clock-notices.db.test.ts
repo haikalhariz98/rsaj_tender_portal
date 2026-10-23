@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
-import { loadInbox } from "@/lib/inbox/store";
+import { loadInboxPage } from "@/lib/inbox/store";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
 import { CLOCK_EVENT_KEY } from "@/lib/inbox/clock-plan";
@@ -73,15 +73,15 @@ describe("the clock notices against a database", () => {
     expect(await raiseCaseClockNotices(input(awardId, "ex_open", [holder, requester]))).toBe(4);
     expect(await raiseCaseClockNotices(input(awardId, "ex_open", [holder, requester]))).toBe(0);
     expect(await db.staffNotice.count({ where: { subjectId: awardId } })).toBe(4);
-    expect((await loadInbox(db, { organisationId, personId: holder }, [])).filter((n) => n.href === `/projects/${awardId}`).map((n) => n.kind).sort()).toEqual(["COMMENCEMENT_LATE", "INDENT_EXPIRED"]);
-    expect(await loadInbox(db, { organisationId, personId: outsider }, [])).toEqual([]);
-    expect(await loadInbox(db, { organisationId, personId: unitHead }, [])).toEqual([]);
+    expect((await loadInboxPage(db, { organisationId, personId: holder }, [])).notices.filter((n) => n.href === `/projects/${awardId}`).map((n) => n.kind).sort()).toEqual(["COMMENCEMENT_LATE", "INDENT_EXPIRED"]);
+    expect((await loadInboxPage(db, { organisationId, personId: outsider }, [])).notices).toEqual([]);
+    expect((await loadInboxPage(db, { organisationId, personId: unitHead }, [])).notices).toEqual([]);
   });
 
   it("a restricted exercise's notice is left out for someone not named on it", async () => {
     const awardId = `award_${randomId()}`;
     await raiseCaseClockNotices(input(awardId, "ex_restricted", [requester]));
-    const seen = (hidden: string[]) => loadInbox(db, { organisationId, personId: requester }, hidden).then((r) => r.filter((n) => n.href === `/projects/${awardId}`).length);
+    const seen = (hidden: string[]) => loadInboxPage(db, { organisationId, personId: requester }, hidden).then((r) => r.notices.filter((n) => n.href === `/projects/${awardId}`).length);
     expect(await seen([])).toBe(2);
     expect(await seen(["ex_restricted"])).toBe(0);
   });

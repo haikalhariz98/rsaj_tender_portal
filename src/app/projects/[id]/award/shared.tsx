@@ -5,7 +5,6 @@ import { awardFindingTextFor, findingsForReader, FIX_AT, noReasonText, DIFFERS_T
 import { type BaselineField } from "@/lib/award/appendix-baseline";
 import { formatPct } from "@/lib/tender-docs/percent";
 import type { Finding } from "@/lib/award/types";
-import { storedDay } from "@/lib/dates";
 import { formatMoney, parseSen } from "@/lib/money";
 import { type Governing } from "@/lib/award/insurance-terms";
 
@@ -14,7 +13,7 @@ export const pct = (v: { toString(): string } | null | undefined) => (v == null 
 export const NOT_SET = "Not set";
 export const notSet = (what = NOT_SET) => <span className="text-ink-4">{what}</span>;
 export const yesNo = (v: boolean | null) => (v == null ? null : v ? "yes" : "no");
-export const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
+export { dayOrNull as day } from "@/lib/dates";
 
 /// `recommendation`: whether the evaluation's recommendation is open to the reader. Where it is not, the findings that compare the award with it become one sentence (FR-EVL-014).
 export function FaultList({ faults, figures = true, recommendation = true }: { faults: readonly Finding[]; figures?: boolean; recommendation?: boolean }) {

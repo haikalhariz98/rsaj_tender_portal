@@ -23,7 +23,7 @@ import { baselineRows, liveOf, valuesOf } from "@/lib/contract/load";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { isExecuted } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayOrNull as day, dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { amountOf, formatMoney, senFromDecimal, senToDecimalString } from "@/lib/money";
@@ -97,7 +97,6 @@ import { WithHiddenNote } from "./hidden-note";
  * site records). Every reading is the pure rule the act runs; every refusal is said beside its button.
  */
 
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const dim = (t: string) => <span className="text-ink-4">{t}</span>;
 const opts = <K extends string>(keys: readonly K[], words: Readonly<Record<K, { en: string }>>): Option[] => keys.map((k) => ({ value: k, label: words[k].en }));
 const say = (fs: readonly Finding[]) => (fs.length ? fs.map(supervisionFaultText).join(" ") : null);

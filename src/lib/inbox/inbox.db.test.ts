@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
 import { encodeCursor } from "./paging";
-import { inboxTotals, loadInbox, loadInboxPage, markAllRead, markBackdateNoticeRead, markRead, openNotice, unreadCount, writeNotices } from "./store";
+import { inboxTotals, loadInboxPage, markAllRead, markBackdateNoticeRead, markRead, openNotice, unreadCount, writeNotices } from "./store";
 import { matterNotCarriedMemo, stepEscalatedNotices, type NoticeDraft } from "./notices";
 
 /**
@@ -94,7 +94,7 @@ describe("a person reads their own notices and nobody else's", () => {
     const forBob = draft({ recipientPersonId: bob, title: "For Bob only" });
     const forAlice = draft({ recipientPersonId: alice, title: "For Alice only" });
     await db.$transaction((tx) => writeNotices(tx, organisationId, null, [forBob, forAlice]));
-    const bobs = await loadInbox(db, { organisationId, personId: bob }, []);
+    const bobs = (await loadInboxPage(db, { organisationId, personId: bob }, [])).notices;
     expect(bobs.some((n) => n.title === "For Bob only")).toBe(true);
     expect(bobs.some((n) => n.title === "For Alice only")).toBe(false);
     // Mallory forges Alice's notice ids into a "mark as read": nothing of Alice's is touched.
@@ -110,9 +110,9 @@ describe("a person reads their own notices and nobody else's", () => {
     const restricted = draft({ recipientPersonId: alice, title: "About a restricted exercise", exerciseId: "ex_restricted_for_test" });
     const plain = draft({ recipientPersonId: alice, title: "About nothing restricted" });
     await db.$transaction((tx) => writeNotices(tx, organisationId, null, [restricted, plain]));
-    const named = await loadInbox(db, { organisationId, personId: alice }, []);
+    const named = (await loadInboxPage(db, { organisationId, personId: alice }, [])).notices;
     expect(named.map((n) => n.title)).toEqual(expect.arrayContaining(["About a restricted exercise", "About nothing restricted"]));
-    const outsider = await loadInbox(db, { organisationId, personId: alice }, ["ex_restricted_for_test"]);
+    const outsider = (await loadInboxPage(db, { organisationId, personId: alice }, ["ex_restricted_for_test"])).notices;
     expect(outsider.map((n) => n.title)).not.toContain("About a restricted exercise");
     expect(outsider.map((n) => n.title)).toContain("About nothing restricted");
     const all = await unreadCount(db, { organisationId, personId: alice }, []);

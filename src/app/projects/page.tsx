@@ -18,7 +18,7 @@ import { loadAwardPolicy } from "@/lib/award/repo";
 import { returnReadsComplete } from "@/lib/award/stage-two";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { isLive } from "@/lib/documents/evidence";
-import { dayOf, daysFrom, storedDay } from "@/lib/dates";
+import { dayOf, dayOrNull as day, daysFrom, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal } from "@/lib/money";
 import { exerciseOrg } from "@/lib/method/repo";
@@ -49,7 +49,6 @@ const COMMENCED_PAGE = 50;
 const STAGE_VIEWS = ["awarding", "signing", "on_site", "completed", "closed", "ended"] as const;
 /// The old Awards list's organisation-wide work views, over the whole organisation (FR-AWD-006 for the indents).
 const WORK_VIEWS = CASE_WORK_VIEWS;
-const day = (d: Date | null) => (d ? storedDay(d) : null);
 
 /**
  * The case list (Award and Contract Requirements v2, C-1; design note 0004 C9; AC-17, AC-18): every award from the day it is started,

@@ -16,7 +16,7 @@ import { type Tx } from "@/lib/audit/record";
 import { issueDayFor, newerIssueNote, noIssueOnRaisedText } from "@/lib/authority/issue";
 import { loadIssue, loadMatrixVersion, loadOverrideMatrix } from "@/lib/authority/load";
 import { formatDate } from "@/lib/format";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayOrNull, dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { manualEntry, portalLedger, type BudgetCheckProvider } from "@/lib/integration/budget-check";
 import { parseSen, senToDecimalString } from "@/lib/money";
@@ -182,10 +182,7 @@ function readDraft(r: FormReader, data: FormData): RequisitionDraft {
     budgetCodeId: r.optionalText("budgetCodeId"),
     siteCode: r.optionalText("siteCode"),
     placeOfDelivery: r.text("placeOfDelivery", "Place of delivery", { max: 400 }),
-    dateRequired: (() => {
-      const d = r.date("dateRequired", "Date required", { required: true });
-      return d ? storedDay(d) : null;
-    })(),
+    dateRequired: dayOrNull(r.date("dateRequired", "Date required", { required: true })),
     estimatedValue: r.money("estimatedValue", "Estimated value", { required: true }),
     fundingRouteCode: r.optionalText("fundingRouteCode"),
     contractTypeCode: r.optionalText("contractTypeCode"),

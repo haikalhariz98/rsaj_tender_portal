@@ -20,7 +20,7 @@ import { noFormFault } from "@/lib/certificate/form-needs";
 import type { CertificateStatus } from "@/lib/certificate/types";
 import { SOURCE_WORDS } from "@/lib/contract/labels";
 import type { LoadedContract } from "@/lib/contract/repo";
-import { dayPlus, storedDay } from "@/lib/dates";
+import { dayOrNull as day, dayPlus, storedDay } from "@/lib/dates";
 import { decimalText, formatDate } from "@/lib/format";
 import { frozenRateWarnings, ladLine } from "@/lib/lad/charge";
 import { decisionFaults, replacementFaults, warningFaults } from "@/lib/lad/non-completion";
@@ -71,7 +71,6 @@ import {
  * contract figures are Internal, not SULIT (the item-10 ruling): no chip.
  */
 
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const dim = (t: string) => <span className="text-ink-4">{t}</span>;
 const say = (fs: readonly Finding[]) => (fs.length ? fs.map(paymentFaultText).join(" ") : null);
 const opts = <K extends string>(keys: readonly K[], words: Readonly<Record<K, { en: string }>>): Option[] => keys.map((k) => ({ value: k, label: words[k].en }));

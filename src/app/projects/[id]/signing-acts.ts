@@ -9,7 +9,7 @@ import { startFaults } from "@/lib/contract/preparation";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { contractorSignFaults, stampFaults } from "@/lib/contract/sign";
 import type { ContractStatus } from "@/lib/contract/types";
-import { storedDay } from "@/lib/dates";
+import { dayOrNull as day, storedDay } from "@/lib/dates";
 import { supervisionFaultText } from "@/lib/supervision/labels";
 import { possessionFaults, soFromOf } from "@/lib/supervision/possession";
 import type { Finding } from "@/lib/supervision/types";
@@ -24,7 +24,6 @@ import type { supervisionView } from "./supervision-panels";
 
 type Facts = NonNullable<Awaited<ReturnType<typeof signingFacts>>>;
 type Supervision = Awaited<ReturnType<typeof supervisionView>>;
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
 /// NUMBER_ALLOCATED: why the contract cannot be started yet, in words, and what starting freezes. Null in any other status.
 export async function startState(l: LoadedContract, today: string | null): Promise<{ blocker: string | null; frozen: string } | null> {

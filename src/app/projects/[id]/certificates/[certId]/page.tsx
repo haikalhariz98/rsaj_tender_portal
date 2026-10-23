@@ -39,7 +39,7 @@ import type { Block, CertificateStatus, DeliveryMethod } from "@/lib/certificate
 import { isPersonRule } from "@/lib/certificate/types";
 import { certifiesMoney, pinCheck, sheetOf } from "@/lib/certificate/write";
 import { historyFieldLabel, historyValue } from "@/lib/contract/history-words";
-import { dayOf, storedDay } from "@/lib/dates";
+import { dayOf, dayOrNull as day } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { formatSen as formatMoney, parseSen, senFromDecimal } from "@/lib/money";
@@ -81,7 +81,6 @@ export const dynamic = "force-dynamic";
 
 type Option = { value: string; label: string };
 const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err", neutral: undefined } as const;
-const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const dim = (t: string) => <span className="text-ink-4">{t}</span>;
 const HISTORY_PAGE = 200;
 const NOTE_ID = "certificate-action-note";
