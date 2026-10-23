@@ -37,7 +37,8 @@ import type { LoadedContract } from "@/lib/contract/repo";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
 import type { Finding } from "@/lib/method/types";
-import { compareAmounts, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
+import { compareAmounts, senToDecimalString, type Sen } from "@/lib/money";
+import { ceilingValue } from "@/lib/approvals/routed-value";
 import { issueReference, NumberingError } from "@/lib/numbering/issue";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
@@ -230,7 +231,8 @@ export async function decideMatterStep(c: MatterCtx, m: MatterRow, i: DecideInpu
     earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
     decidedOn: i.decidedOn,
     openedOn: storedDay(inst.openedAt),
-    value: inst.value == null ? 0n : senFromDecimal(inst.value),
+    // The same figure the worklist and the sweep judge a delegate's ceiling against: never a missing value read as 0.
+    value: ceilingValue(inst, false),
   });
   if (check.faults.length) {
     if (check.faults[0] === "COMMITTEE_STEP") throw new MatterRefusal("Not decided: a committee's step is discharged only by citing its decision on the matter tabled from this matter.");

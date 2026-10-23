@@ -601,6 +601,11 @@ const DECIDED_ABSENT = [
     match: /^(Documents|Library|Distribution|Routing sheets|Review queue|Search|Clear)$/,
     why: "MN-02 (AC-16): the Documents menu is removed and /documents redirects permanently. The organisation-wide Library search is dropped (AC-4, AC-16; FR-CRT-011 is an S, logged as partly met); copies not sent and routing sheets open are counted on each contract's Documents tab; the Review queue is each contract's Submissions tab and the Contracts list's Submissions waiting view",
   },
+  {
+    screen: /^[/]configuration[/]budget$/,
+    match: /^(Over-commitment tolerance|May override the check|Payment defaults|Advance recoupment rate|Minimum interim certificate|Payment target)$/,
+    why: "Founder (audit fix, approved 2026-10-23), batch A #2: five budget settings were saved and shown but read by no rule, so they and their columns are deleted rather than kept as settings that change nothing",
+  },
 ];
 
 /**

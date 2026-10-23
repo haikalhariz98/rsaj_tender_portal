@@ -30,7 +30,8 @@ import type { Matrix, Resolution, ResolutionWarning } from "@/lib/authority/type
 import { receivedOnFault } from "@/lib/award/routing";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
-import { senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
+import { senToDecimalString, type Sen } from "@/lib/money";
+import { ceilingValue } from "@/lib/approvals/routed-value";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -168,7 +169,8 @@ export async function decideCertificateStep(c: CertCtx, i: DecideInput) {
     earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
     decidedOn: i.decidedOn,
     openedOn: storedDay(inst.openedAt),
-    value: inst.value == null ? 0n : senFromDecimal(inst.value),
+    // The same figure the worklist and the sweep judge a delegate's ceiling against: never a missing value read as 0.
+    value: ceilingValue(inst, false),
   });
   if (check.faults.length) {
     if (check.faults[0] === "COMMITTEE_STEP") throw new CertificateRefusal("Not decided. Cite the committee's decision.");
