@@ -1,6 +1,5 @@
 import { ACTIVITY_ENTITIES, activityFeed, type ActivityEntry, type ActivityOwner } from "@/lib/dashboard/activity";
-import { openStepOf } from "@/lib/approvals/queue";
-import { todayIn } from "@/lib/dates";
+import { seatsInForce } from "@/lib/committee/seats";
 import { EXERCISE_STATUS_ORDER } from "@/lib/method/labels";
 import type { ExerciseStatus } from "@/lib/method/types";
 import type { RequisitionStatus } from "@/lib/requisition/types";
@@ -17,6 +16,19 @@ const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.t
 
 const DAY = 24 * 60 * 60 * 1000;
 
+/// The committees the person sits on today: a seat held by name, or ex officio by an office they hold. Alternates are listed too: they sit when called.
+export async function myCommitteeCodes(organisationId: string, personId: string, officeCodes: readonly string[], asOf: Date = new Date()): Promise<Set<string>> {
+  const committees = await db.committee.findMany({ where: { organisationId }, select: { code: true, members: true } });
+  return new Set(committees.filter((c) => seatsInForce(c.members, asOf).some((m) => m.personId === personId || (m.seatRoleCode != null && officeCodes.includes(m.seatRoleCode)))).map((c) => c.code));
+}
+
+/// The names of the roles the person holds, for the greeting: "Head of Department", never a code.
+export async function officeNames(organisationId: string, officeCodes: readonly string[]): Promise<string[]> {
+  if (officeCodes.length === 0) return [];
+  const roles = await db.authorityRole.findMany({ where: { organisationId, code: { in: [...officeCodes] } }, select: { nameEn: true }, orderBy: { nameEn: "asc" } });
+  return roles.map((r) => r.nameEn);
+}
+
 export interface QueueItem {
   decisionId: string;
   committeeCode: string;
@@ -28,28 +40,12 @@ export interface QueueItem {
   /// What kind of matter it is, which says whose figure its amount is (`matterAmountScope`).
   matterKind: MatterKind | null;
   act: string;
+  meetingId: string;
   meetingReference: string;
   meetingDate: Date;
   waitingDays: number;
   votesCast: number;
   entitled: number;
-}
-
-/// A requisition whose approval route is open, and the step it waits on.
-export interface RequisitionWaiting {
-  id: string;
-  reference: string;
-  title: string;
-  /// The department estimate: SULIT (6.2 OD-8), so the list that shows it flags the column.
-  estimatedValue: number | null;
-  /// The office acting for the first undecided step: the one it was escalated to, else its own.
-  waitingOn: string | null;
-  /// The office the step was written for, where it was escalated away from it.
-  escalatedFrom: string | null;
-  /// The organisation's day the step opened (`openStepOf`), and whole days since; null
-  /// while no time zone is set.
-  waitingSince: string | null;
-  waitingDays: number | null;
 }
 
 /// The three pipeline cards' figures (GN-03; AC-12), from database count and groupBy queries only. `hidden` is the restricted exercises the reader may not
@@ -79,7 +75,7 @@ export async function pipelineCounts(organisationId: string, hidden: readonly st
 /// The reads are independent and run together; the time zone is read once (AC-9b).
 export async function loadDashboard(organisationId: string, hidden: readonly string[], asOf: Date = new Date(), lang: Language = "en") {
   const timeZoneRead = organisationTimeZone(organisationId);
-  const [org, pendingDecisions, activity, meetings, upcoming, pendingRequisitions, committees, withoutQuorum, pipeline, timeZone] = await Promise.all([
+  const [org, pendingDecisions, activity, upcoming, pipeline] = await Promise.all([
     db.organisation.findUnique({ where: { id: organisationId }, select: { id: true } }),
     // Only the matters still waiting: no decided matter, and no vote, is read for a count the screen no longer shows.
     db.committeeDecision.findMany({
@@ -90,19 +86,8 @@ export async function loadDashboard(organisationId: string, hidden: readonly str
       },
     }),
     timeZoneRead.then((tz) => recentActivity(organisationId, tz, hidden, lang)),
-    db.meeting.count({ where: { committee: { organisationId } } }),
     db.meeting.findMany({ where: { committee: { organisationId }, meetingDate: { gte: asOf } }, include: { committee: true }, orderBy: { meetingDate: "asc" }, take: 5 }),
-    db.approvalInstance.findMany({
-      where: { organisationId, status: "PENDING", requisition: { status: "PENDING_APPROVAL" } },
-      include: {
-        requisition: { select: { id: true, reference: true, title: true, estimatedValue: true } },
-        steps: { orderBy: { sequence: "asc" } },
-      },
-    }),
-    db.committee.count({ where: { organisationId } }),
-    db.committee.count({ where: { organisationId, quorum: null } }),
     pipelineCounts(organisationId, hidden),
-    timeZoneRead,
   ]);
   if (!org) return null;
 
@@ -122,6 +107,7 @@ export async function loadDashboard(organisationId: string, hidden: readonly str
       amount: num(d.amount),
       matterKind: (d.matterKind as MatterKind | null) ?? null,
       act: d.act,
+      meetingId: d.meeting.id,
       meetingReference: d.meeting.reference,
       meetingDate: d.meeting.meetingDate,
       waitingDays: Math.max(0, Math.floor((asOf.getTime() - d.meeting.meetingDate.getTime()) / DAY)),
@@ -130,34 +116,10 @@ export async function loadDashboard(organisationId: string, hidden: readonly str
     }))
     .sort((a, b) => b.waitingDays - a.waitingDays);
 
-  const today = todayIn(asOf, timeZone);
-  // The step each route waits on, who acts for it and how long it has waited: one
-  // reading, shared with the worklist. Oldest first; a wait that is not counted last.
-  const requisitions: RequisitionWaiting[] = pendingRequisitions
-    .filter((i) => i.requisition)
-    .map((i) => {
-      const o = openStepOf(i, today);
-      return {
-        id: i.requisition!.id,
-        reference: i.requisition!.reference,
-        title: i.requisition!.title,
-        estimatedValue: num(i.requisition!.estimatedValue),
-        waitingOn: o?.officeLabel ?? null,
-        escalatedFrom: o?.escalatedFrom ?? null,
-        waitingSince: o?.waitingSince ?? null,
-        waitingDays: o?.waitingDays ?? null,
-      };
-    })
-    .sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1) || a.reference.localeCompare(b.reference));
-
   return {
     queue,
-    requisitions,
     pipeline,
     activity,
-    meetings,
-    committees,
-    withoutQuorum,
     upcoming: upcoming.map((m) => ({
       id: m.id,
       reference: m.reference,
@@ -243,5 +205,5 @@ async function recentActivity(organisationId: string, timeZone: string | null, h
   for (const d of decisions) owners[`CommitteeDecision:${d.id}`] = { kind: "sitting", id: d.meeting.id, reference: d.meeting.reference, committee: d.meeting.committee.nameEn };
   for (const m of meetings) owners[`Meeting:${m.id}`] = { kind: "sitting", id: m.id, reference: m.reference, committee: m.committee.nameEn };
 
-  return activityFeed(entries, owners, timeZone, 8, lang);
+  return activityFeed(entries, owners, timeZone, 5, lang);
 }
