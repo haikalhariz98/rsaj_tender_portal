@@ -57,7 +57,7 @@ export function AuthoritySimulator({
   /// select says so rather than offering a route the customer never agreed to.
   fundingRoutes: { code: string; label: string }[];
 }) {
-  // Opens on no case at all. Whatever matter it opened on, the default combination
+  // Opens on no case at all. Whatever item it opened on, the default combination
   // (a value, no method) often matches nothing, and a red "no rule matched" before the
   // user has asked anything reads as a fault.
   const [domain, setDomain] = useState("");
@@ -116,11 +116,11 @@ export function AuthoritySimulator({
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
       <Card tone="flat">
-        <CardHeader title="The matter" subtitle="What is being authorised." />
+        <CardHeader title="The item" />
         <CardBody className="flex flex-col gap-4">
-          <Field label="Matter" htmlFor={fid("domain")}>
+          <Field label="Item for approval" htmlFor={fid("domain")}>
             <Select id={fid("domain")} value={domain} onChange={(e) => setDomain(e.target.value)}>
-              <option value="">Choose a matter</option>
+              <option value="">Choose an item</option>
               {domains.map((d) => (
                 <option key={d.code} value={d.code}>
                   {d.label}
@@ -233,7 +233,7 @@ export function AuthoritySimulator({
 
         {!chosen && (
           <Card tone="flat">
-            <EmptyState size="sm" title="Pick a matter and a value" />
+            <EmptyState size="sm" title="Pick an item and a value" />
           </Card>
         )}
 

@@ -57,7 +57,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
     {
       kind: "select",
       name: "action",
-      label: "Acts by",
+      label: "Decision",
       required: true,
       placeholder: "Choose",
       options: [
@@ -113,11 +113,11 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
     {
       kind: "select",
       name: "alternateMayVoteForRecused",
-      label: "May an alternate vote for a recused member?",
+      label: "May an alternate vote for a member who stepped aside?",
       placeholder: "Not set",
-      hint: "Unset: recusal with an alternate cannot be decided.",
+      hint: "Unset: such an item cannot be decided.",
       options: [
-        { value: "no", label: "No — the recused member's seat does not vote on that matter" },
+        { value: "no", label: "No — the seat does not vote on that item" },
         { value: "yes", label: "Yes — not available yet" },
       ],
     },
@@ -141,7 +141,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       name: "secretariatRoleCode",
       label: "Secretariat office",
       placeholder: "Not set",
-      hint: "Tables matters before the body. Unset: nobody may.",
+      hint: "Tables items before the body. Unset: nobody may.",
       options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
       orphanLabel: "An office no longer configured",
     },
@@ -158,7 +158,7 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
     {
       kind: "date",
       name: "retiredOn",
-      label: "Retired on",
+      label: "No longer used from",
       hint: "Schedules nothing from this date; keeps history.",
     },
   ];
@@ -169,7 +169,7 @@ export function AddCommittee({ offices }: { offices: OfficeOption[] }) {
     <RecordEditor
       title="Add a committee"
       description="A body that must sit before a procurement decision can be made."
-      more="Quorum: leave empty where none is set. An unset quorum cannot certify a sitting, and is changed later on the committee's own page by a change a second person decides. Recusal: where unset, a matter where a member with an alternate recuses cannot be decided; Yes is not available yet."
+      more="Quorum: leave empty where none is set. An unset quorum cannot certify a sitting, and is changed later on the committee's own page, by a change another admin approves. Stepping aside: where unset, an item where a member with an alternate steps aside cannot be decided; Yes is not available yet."
       fields={committeeFields(false, offices)}
       action={saveCommittee}
       submitLabel="Add committee"
@@ -209,7 +209,7 @@ export function EditCommittee({ committee, offices }: { committee: CommitteeValu
   return (
     <RecordEditor
       title={`Edit ${committee.nameEn}`}
-      more="Quorum: leave empty where none is set. An unset quorum cannot certify a sitting, and is changed later on the committee's own page by a change a second person decides. Recusal: where unset, a matter where a member with an alternate recuses cannot be decided; Yes is not available yet."
+      more="Quorum: leave empty where none is set. An unset quorum cannot certify a sitting, and is changed later on the committee's own page, by a change another admin approves. Stepping aside: where unset, an item where a member with an alternate steps aside cannot be decided; Yes is not available yet."
       fields={[{ kind: "hidden", name: "id" }, ...committeeFields(true, offices)]}
       action={saveCommittee}
       trigger={{ label: `Edit ${committee.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
@@ -536,15 +536,15 @@ export function EditNotApprovedOutcome({
 export function RetireNotApprovedOutcome({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
-      title={`Retire ${label}`}
-      description="It is no longer offered from today. Decisions already recorded against it keep citing it."
+      title={`Stop using ${label}`}
+      description="Not offered from today. Recorded decisions keep citing it."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       action={retireNotApprovedOutcome}
-      submitLabel="Retire"
-      destructive={{ reasonLabel: "Why is it being retired?" }}
+      submitLabel="Stop using"
+      destructive={{ reasonLabel: "Why is it no longer used?" }}
       trigger={{
-        label: "Retire",
+        label: "Stop using",
         className: buttonClass("destructive", "sm"),
       }}
       size="sm"

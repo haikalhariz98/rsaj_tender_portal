@@ -196,8 +196,8 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
 
   // The boundary ruling (spec D3, 6.3 ruling R-8): where it comes from, and the
   // document, which a stated ruling must cite. Frozen with the issue like the rest.
-  const boundaryProvenance = r.choice("boundaryProvenance", "Where the boundary ruling comes from", ["STATED", "OBSERVED", "ASSUMED"] as const, { required: true });
-  const boundarySource = r.text("boundarySource", "Boundary ruling source", { max: 240 });
+  const boundaryProvenance = r.choice("boundaryProvenance", "Where the exact-amount rule comes from", ["STATED", "OBSERVED", "ASSUMED"] as const, { required: true });
+  const boundarySource = r.text("boundarySource", "Source of the exact-amount rule", { max: 240 });
 
   // The tender floor must be above the quotation floor and must be the boundary (a
   // hard reject, 6.3 ruling R-7); a stated ruling cites its source. Checked in lib.
@@ -459,7 +459,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
         const c = r.choice("generateCoreChain", "Chain beneath the approver", ["yes", "no"] as const);
         const generateCoreChain = c == null ? null : c === "yes";
         const why = r.text("coreChainReason", "Why the chain is as entered", { max: 1000 });
-        if (generateCoreChain === false && !why) r.reject("coreChainReason", "Say why this rule's chain is not taken from the core routing — the clause that states it, for example.");
+        if (generateCoreChain === false && !why) r.reject("coreChainReason", "Say why this rule's chain is not taken from the standard route — the clause that states it, for example.");
         return { generateCoreChain, coreChainReason: generateCoreChain === false ? why : null };
       })(),
     };
@@ -852,7 +852,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
       const core = issue.matrix.coreRouting ?? [];
       for (const level of core) {
         for (const f of coreLevelFaults(level, issue.matrix.roles)) {
-          refusals.push(`The core routing for ${officeIn(issue.matrix.roles, level.approverCode)}: ${coreLevelFaultText(f.fault, officeIn(issue.matrix.roles, f.roleCode))}`);
+          refusals.push(`The standard route for ${officeIn(issue.matrix.roles, level.approverCode)}: ${coreLevelFaultText(f.fault, officeIn(issue.matrix.roles, f.roleCode))}`);
         }
       }
       for (const f of coreChainFaultsAcross(issue.matrix.rules, core, issue.matrix.roles)) {
@@ -1140,11 +1140,11 @@ export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<F
       if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." };
       if (matrix.issuedAt) return FROZEN;
       const before = id ? await tx.coreRoutingLevel.findFirst({ where: { id, authorityMatrixId, organisationId: actor.organisationId }, include: { steps: { orderBy: { sequence: "asc" } } } }) : null;
-      if (id && !before) return { ok: false, message: "That core routing row no longer exists." };
+      if (id && !before) return { ok: false, message: "That standard route row no longer exists." };
       const roles = (await issueIn(actor, tx, authorityMatrixId))?.matrix.roles ?? {};
       if (!roles[write.approverCode]) return { ok: false, errors: { approverCode: coreLevelFaultText("UNKNOWN_OFFICE", "") } };
       const clash = await tx.coreRoutingLevel.findFirst({ where: { authorityMatrixId, approverCode: write.approverCode, ...(before ? { NOT: { id: before.id } } : {}) }, select: { id: true } });
-      if (clash) return { ok: false, errors: { approverCode: `${officeIn(roles, write.approverCode)} already has a row in this issue's core routing. Change that row instead.` } };
+      if (clash) return { ok: false, errors: { approverCode: `${officeIn(roles, write.approverCode)} already has a row in this version's standard route. Change that row instead.` } };
       // The row as it would stand, with its steps, through the same check issuing runs.
       const level: CoreLevel = { approverCode: write.approverCode, clause: write.clause, provenance: write.provenance, steps: (before?.steps ?? []).map((st) => ({ roleCode: st.roleCode, act: st.act as AuthorityAct, provenance: st.provenance })) };
       const fault = coreLevelFaults(level, roles)[0];
@@ -1182,7 +1182,7 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
   const result = await refusable(() => db.$transaction(async (tx): Promise<FormState> => {
-    const gone: FormState = { ok: false, message: "That core routing row no longer exists." };
+    const gone: FormState = { ok: false, message: "That standard route row no longer exists." };
     const authorityMatrixId = await lockIssueOfCoreLevel(tx, id, orgId);
     if (!authorityMatrixId) return gone;
     // The row and its steps as they stand under the lock: every step deleted is one read here.
@@ -1230,7 +1230,7 @@ export async function saveCoreStep(_prev: FormState, data: FormData): Promise<Fo
   if (r.failed || !act || !provenance) return { ok: false, errors: r.errors };
 
   const result = await db.$transaction(async (tx): Promise<FormState> => {
-    const gone: FormState = { ok: false, message: "That core routing row no longer exists." };
+    const gone: FormState = { ok: false, message: "That standard route row no longer exists." };
     const authorityMatrixId = await lockIssueOfCoreLevel(tx, levelId, orgId);
     if (!authorityMatrixId) return gone;
     // Its steps as they stand under the lock: the place and the chain are checked on these.

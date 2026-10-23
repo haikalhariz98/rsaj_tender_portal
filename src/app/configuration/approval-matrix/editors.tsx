@@ -49,16 +49,16 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
   {
     kind: "text",
     name: "label",
-    label: "Issue",
+    label: "Version",
     required: true,
-    hint: "An issue number or resolution date.",
+    hint: "A version number or resolution date.",
   },
   {
     kind: "date",
     name: "effectiveFrom",
     label: "Meant to start",
     required: true,
-    hint: "Confirmed when the draft is issued.",
+    hint: "Confirmed when the draft is put in force.",
   },
   {
     kind: "note",
@@ -81,7 +81,7 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
   {
     kind: "select",
     name: "boundaryProvenance",
-    label: "Where the boundary ruling comes from",
+    label: "Where the exact-amount rule comes from",
     required: true,
     placeholder: "Choose",
     options: [
@@ -94,7 +94,7 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
   {
     kind: "text",
     name: "boundarySource",
-    label: "Boundary ruling source",
+    label: "Source of the exact-amount rule",
     hint: "The document that states it.",
   },
   { kind: "money", name: "requisitionBoundary", label: "Requisition boundary", required: true },
@@ -106,11 +106,11 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
     placeholder: "None — the organisation's own limits",
     options: routes.map((r) => ({ value: r.code, label: r.nameEn })),
     orphanLabel: "A funding route no longer configured",
-    hint: "Routes matters on that funding route alone.",
+    hint: "Routes items on that funding route alone.",
   },
   {
     kind: "note",
-    text: "Where your manual states the portal's standing rules, cite the clause. Left empty, the warning on a matter says the source is not recorded.",
+    text: "Where your manual states the portal's standing rules, cite the clause. Left empty, the warning on an item says the source is not recorded.",
   },
   {
     kind: "text",
@@ -142,8 +142,8 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
 /// Draft an issue from blank: the organisation's first, or a funder's rule set.
 export function AddMatrix({
   routes = [],
-  label = "Draft the first issue",
-  title = "Draft the first issue of the limits",
+  label = "Draft the first version",
+  title = "Draft the first version of the limits",
   primary = true,
 }: {
   routes?: { code: string; nameEn: string }[];
@@ -154,8 +154,8 @@ export function AddMatrix({
   return (
     <RecordEditor
       title={title}
-      description="A draft is editable and routes nothing. Add its rules, then issue it."
-      more={`${BOUNDARY_HELP} A funder's issue routes matters on that funding route alone and never replaces the organisation's own issue.`}
+      description="A draft is editable and routes nothing. Add its routes, then put it in force."
+      more={`${BOUNDARY_HELP} A funder's rule set routes items on that funding route alone and never replaces the organisation's own.`}
       fields={matrixFields(routes)}
       action={saveMatrix}
       submitLabel="Create draft"
@@ -189,8 +189,8 @@ export function EditMatrix({ matrix, routes }: { matrix: MatrixValues; routes: {
   return (
     <RecordEditor
       title={`Edit ${matrix.label}`}
-      description="A draft. Nothing here is in force until it is issued."
-      more={`${BOUNDARY_HELP} A funder's issue routes matters on that funding route alone and never replaces the organisation's own issue.`}
+      description="A draft. Nothing routes until it is put in force."
+      more={`${BOUNDARY_HELP} A funder's rule set routes items on that funding route alone and never replaces the organisation's own.`}
       fields={[{ kind: "hidden", name: "id" }, ...matrixFields(routes)]}
       action={saveMatrix}
       trigger={{ label: "Edit thresholds", className: buttonClass("secondary", "sm") }}
@@ -233,7 +233,7 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
     {
       kind: "text",
       name: "domain",
-      label: "Matter",
+      label: "Item for approval",
       required: true,
       mono: true,
       hint: "What is being authorised — payment, variation, appointment.",
@@ -359,7 +359,7 @@ export function AddRule({
     <RecordEditor
       title="Add a rule"
       description="Who proposes, who recommends and who approves, at one band of value."
-      more={`Contract type: only for matters routed with one (${contractTypeDomainWords()}); on any other the save refuses it. A rule for one type is preferred to one for any type. Chain: Generated puts the core routing first and this rule may only strengthen it; As entered makes the chain below the whole chain; Not set warns the chain was not checked.`}
+      more={`Contract type: only for items routed with one (${contractTypeDomainWords()}); on any other the save refuses it. A rule for one type is preferred to one for any type. Chain: Generated puts the standard route first and this rule may only strengthen it; As entered makes the chain below the whole chain; Not set warns the chain was not checked.`}
       fields={ruleFields(offices, contractTypes)}
       values={{ authorityMatrixId: matrixId }}
       action={saveRule}
@@ -411,7 +411,7 @@ export function EditRule({
   return (
     <RecordEditor
       title={`Edit ${rule.labelEn}`}
-      more={`Contract type: only for matters routed with one (${contractTypeDomainWords()}); on any other the save refuses it. A rule for one type is preferred to one for any type. Chain: Generated puts the core routing first and this rule may only strengthen it; As entered makes the chain below the whole chain; Not set warns the chain was not checked.`}
+      more={`Contract type: only for items routed with one (${contractTypeDomainWords()}); on any other the save refuses it. A rule for one type is preferred to one for any type. Chain: Generated puts the standard route first and this rule may only strengthen it; As entered makes the chain below the whole chain; Not set warns the chain was not checked.`}
       fields={[{ kind: "hidden", name: "id" }, ...ruleFields(offices, contractTypes)]}
       action={saveRule}
       showWhen={RULE_SHOW_WHEN}
@@ -503,12 +503,12 @@ export function RemoveRecommender({ id, label }: { id: string; label: string }) 
   );
 }
 
-/// Copy an issued issue into a draft, to be changed and issued in its place.
+/// Copy an issued version into a draft, to be changed and issued in its place.
 export function StartRevision({ fromId, fromLabel }: { fromId: string; fromLabel: string }) {
   return (
     <RecordEditor
-      title="Start a new issue"
-      description={`A draft copy of ${fromLabel}. It stays in force until the draft is issued.`}
+      title="Start a new version"
+      description={`A draft copy of ${fromLabel}. The current version stays in force until then.`}
       fields={[
         { kind: "hidden", name: "fromId" },
         {
@@ -516,14 +516,14 @@ export function StartRevision({ fromId, fromLabel }: { fromId: string; fromLabel
           name: "label",
           label: "Label",
           required: true,
-          hint: "An issue number or resolution date.",
+          hint: "A version number or resolution date.",
         },
         { kind: "date", name: "effectiveFrom", label: "Meant to start", required: true },
       ]}
       values={{ fromId }}
       action={startRevision}
       submitLabel="Create draft"
-      trigger={{ label: "New issue", icon: true, className: buttonClass("primary", "sm") }}
+      trigger={{ label: "New version", icon: true, className: buttonClass("primary", "sm") }}
       size="md"
     />
   );
@@ -546,11 +546,11 @@ export function IssueDraft({
 }) {
   return (
     <RecordEditor
-      title={`Issue ${label}`}
+      title={`Put ${label} in force`}
       description={
         replaces
-          ? `Routes every matter from the date below. ${replaces} ends. Cannot be changed.`
-          : "Routes every matter from the date below. Cannot be changed."
+          ? `Routes every item from the date below. ${replaces} ends. Cannot be changed.`
+          : "Routes every item from the date below. Cannot be changed."
       }
       fields={[
         { kind: "hidden", name: "id" },
@@ -559,22 +559,22 @@ export function IssueDraft({
           name: "effectiveFrom",
           label: "In force from",
           required: true,
-          hint: "Today or later. An issue is never back-dated.",
+          hint: "Today or later. Never back-dated.",
         },
         {
           kind: "textarea",
           name: "reason",
-          label: "Why it is being issued",
-          hint: "The decision behind it. Kept with the issue.",
+          label: "Why it is being put in force",
+          hint: "The decision behind it. Kept with the version.",
         },
         // Issuing is signed: the password is asked again, every time. The issuer is never one of the people who made the draft.
         actorField("AuthorityMatrix.issuedByPerson", { name: "personId" }),
       ]}
       values={{ id, effectiveFrom: day(meantFrom) }}
       action={issueDraft}
-      submitLabel="Issue it"
+      submitLabel="Put in force"
       submitBlock={blocked}
-      trigger={{ label: "Issue", className: buttonClass("primary", "sm") }}
+      trigger={{ label: "Put in force", className: buttonClass("primary", "sm") }}
       size="md"
     />
   );
@@ -585,7 +585,7 @@ export function AdoptDraft({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
       title={`Adopt ${label}`}
-      description="Nobody made this draft. Adopting makes you its maker. You cannot then issue it."
+      description="Nobody made this draft. Adopting makes you its maker; you cannot put it in force."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       action={adoptDraft}
@@ -737,7 +737,7 @@ export function DiscardDraft({ id, label }: { id: string; label: string }) {
 const DESTINATION_OPTIONS = [
   { value: "RETURN_TO_ORIGINATOR", label: "Return to whoever raised it" },
   { value: "RETURN_TO_STEP", label: "Return to an earlier step" },
-  { value: "TERMINATE", label: "End the matter" },
+  { value: "TERMINATE", label: "End the item" },
 ];
 
 /// Where a rejected matter of one type goes (FR-APR-016). A new destination from a day;
@@ -746,7 +746,7 @@ export function SetRejectionDestination({ domain, label, offices, current }: { d
   return (
     <RecordEditor
       title={`When a ${label.toLowerCase()} is rejected`}
-      description="Where a rejected matter goes. Open routes keep theirs. Committees follow their own outcome."
+      description="Where a rejected item goes. Open routes keep theirs. Committees follow their own outcome."
       fields={[
         { kind: "hidden", name: "domain" },
         { kind: "select", name: "kind", label: "Where it goes", required: true, placeholder: "Choose", options: DESTINATION_OPTIONS },
@@ -837,13 +837,13 @@ function coreLevelFields(offices: { code: string; nameEn: string }[]): Field[] {
 export function AddCoreLevel({ matrixId, offices }: { matrixId: string; offices: { code: string; nameEn: string }[] }) {
   return (
     <RecordEditor
-      title="Add a core routing row"
+      title="Add a standard route row"
       description="The chain beneath every approval by one office. None: the office approves alone."
       fields={coreLevelFields(offices)}
       values={{ authorityMatrixId: matrixId }}
       action={saveCoreLevel}
       submitLabel="Add row"
-      trigger={{ label: "Add core routing", icon: true, className: buttonClass("secondary", "sm") }}
+      trigger={{ label: "Add standard route", icon: true, className: buttonClass("secondary", "sm") }}
       size="md"
     />
   );
@@ -862,11 +862,11 @@ export function EditCoreLevel({
 }) {
   return (
     <RecordEditor
-      title={`Edit the core routing for ${officeName}`}
+      title={`Edit the standard route for ${officeName}`}
       fields={[{ kind: "hidden", name: "id" }, ...coreLevelFields(offices)]}
       values={{ id: level.id, authorityMatrixId: matrixId, approverCode: level.approverCode, clause: level.clause, provenance: level.provenance, note: level.note }}
       action={saveCoreLevel}
-      trigger={{ label: `Edit the core routing for ${officeName}`, iconOnly: <PencilIcon size={14} />, className: iconButtonClass("sm") }}
+      trigger={{ label: `Edit the standard route for ${officeName}`, iconOnly: <PencilIcon size={14} />, className: iconButtonClass("sm") }}
       size="md"
     />
   );
@@ -875,14 +875,14 @@ export function EditCoreLevel({
 export function RemoveCoreLevel({ id, officeName }: { id: string; officeName: string }) {
   return (
     <RecordEditor
-      title={`Remove the core routing for ${officeName}`}
-      description="Removes this row and all beneath it. Core-chain rules will not issue."
+      title={`Remove the standard route for ${officeName}`}
+      description="Removes this row and all beneath it. Routes using it will not go in force."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       action={removeCoreLevel}
       submitLabel="Remove row"
       destructive={{ reasonLabel: "Why is it coming out?" }}
-      trigger={{ label: `Remove the core routing for ${officeName}`, iconOnly: <XIcon size={14} />, className: iconButtonClass("sm") }}
+      trigger={{ label: `Remove the standard route for ${officeName}`, iconOnly: <XIcon size={14} />, className: iconButtonClass("sm") }}
       size="sm"
     />
   );
@@ -896,7 +896,7 @@ export function AddCoreStep({ levelId, officeName, offices }: { levelId: string;
       fields={[
         { kind: "hidden", name: "coreRoutingLevelId" },
         { kind: "select", name: "roleCode", label: "Office", required: true, placeholder: "Choose", options: offices.map((o) => ({ value: o.code, label: o.nameEn })) },
-        { kind: "select", name: "act", label: "Acts as", required: true, placeholder: "Choose", options: CORE_ACT_OPTIONS, hint: "Proposing and recommending are in core routing." },
+        { kind: "select", name: "act", label: "Acts as", required: true, placeholder: "Choose", options: CORE_ACT_OPTIONS, hint: "Proposing and recommending are in the standard route." },
         { kind: "number", name: "sequence", label: "Place in the chain", min: 1, hint: "1 is first. Empty adds at the end." },
         { kind: "select", name: "provenance", label: "Where this comes from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "text", name: "note", label: "Note" },
@@ -914,7 +914,7 @@ export function RemoveCoreStep({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
       title={`Remove ${label}`}
-      description="Takes this office out of the core routing row on the draft."
+      description="Takes this office out of the standard route row on the draft."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       action={removeCoreStep}

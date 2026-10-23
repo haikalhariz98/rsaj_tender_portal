@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { ProvenanceBadge } from "@/components/ui/provenance";
+import { RuleInfo } from "@/components/ui/rule-info";
+import { SettingValue } from "@/components/setup/setting-value";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { CHECK_KIND_WORDS, KIND_WORDS, SUBJECT_WORDS } from "@/lib/certificate/labels";
@@ -22,6 +23,7 @@ import { AddCheck, AddTarget, EditCheck, EditRoutingType, EditTarget, RemoveChec
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Routing sheet" };
 
 /**
  * One routing sheet type (6.14 increment 1): its internal checks in order, with each stage's printed days, and
@@ -63,14 +65,13 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
       />
       <div className="flex flex-col gap-6">
         <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="How elapsed time is judged" subtitle="Calendar days, received to decided. Assumed." />
+          <CardHeader icon={<ClockIcon size={17} />} title="How elapsed time is judged" actions={<RuleInfo label="The rule for elapsed time" rule="Elapsed time is counted in calendar days, from received to decided." source="ASSUMED" />} divided={false} />
           <CardBody>
             <KeyValues
               columns={2}
               items={[
-                { label: "A percentage exactly on a band's edge", value: t.upperEdgeInclusive == null ? "Not decided: such a value has no target (every other value has one)" : t.upperEdgeInclusive ? "Falls in the band it closes (up to and including the edge)" : "Falls in the band it opens (from the edge up)" },
+                { label: "A percentage exactly on a band's edge", value: <SettingValue value={t.upperEdgeInclusive == null ? null : t.upperEdgeInclusive ? "Falls in the band it closes (up to and including the edge)" : "Falls in the band it opens (from the edge up)"} unset="Such a value has no target. Every other value has one." /> },
                 { label: "The stages' printed days", value: parts == null ? "Not printed for every stage" : unbanded && unbanded.targetDays !== parts ? `${parts} days, against a printed total of ${unbanded.targetDays}: both are shown on each sheet` : `${parts} days` },
-                { label: "Where it came from", value: <ProvenanceBadge value={t.provenance} /> },
                 { label: "Notes", value: t.notes || "None" },
               ]}
             />
@@ -78,7 +79,7 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader icon={<RouteIcon size={17} />} title="Checks" subtitle="Internal steps, before the matrix steps" actions={<AddCheck typeId={t.id} offices={offices} />} divided={t.checks.length === 0} />
+          <CardHeader icon={<RouteIcon size={17} />} title="Checks" subtitle="Steps before the approval steps" actions={<AddCheck typeId={t.id} offices={offices} />} divided={t.checks.length === 0} />
           {t.checks.length === 0 ? (
             <EmptyState size="sm" title="None" />
           ) : (
@@ -113,7 +114,7 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClockIcon size={17} />} title="Targets" subtitle="Calendar days, per band or flat" actions={<AddTarget typeId={t.id} />} divided={targets.length === 0} />
+          <CardHeader icon={<ClockIcon size={17} />} title="Targets" subtitle="Calendar days" actions={<AddTarget typeId={t.id} />} divided={targets.length === 0} />
           {targets.length === 0 ? (
             <EmptyState size="sm" title="Not set" />
           ) : (
@@ -121,21 +122,18 @@ export default async function RoutingTypePage(props: PageProps<"/configuration/r
               <colgroup>
                 <col />
                 <col style={{ width: 160 }} />
-                <col style={{ width: 130 }} />
                 <ActionsCol icons={2} labelled={1} />
               </colgroup>
               <THead>
                 <Th>Band</Th>
                 <Th>Target</Th>
-                <Th>Source</Th>
                 <Th className="text-right">Actions</Th>
               </THead>
               <tbody>
                 {targets.map((x) => (
                   <Tr key={x.id}>
-                    <Td label="Band"><CellStack title={bandWords(x.pctMin, x.pctMax, t.upperEdgeInclusive).en} sub={x.notes || undefined} /></Td>
+                    <Td label="Band"><CellStack title={<span className="inline-flex items-center gap-1">{bandWords(x.pctMin, x.pctMax, t.upperEdgeInclusive).en}<RuleInfo label="The rule behind this target" rule="The days a sheet in this band is judged against." source={x.provenance} /></span>} sub={x.notes || undefined} /></Td>
                     <Td label="Target" className="tabular-nums text-ink-2">{`${x.targetDays} days`}</Td>
-                    <Td label="Source"><ProvenanceBadge value={x.provenance} /></Td>
                     <Td>
                       <RowActions>
                         <HistoryButton iconOnly entity="RoutingTarget" entityId={x.id} label="Target" />

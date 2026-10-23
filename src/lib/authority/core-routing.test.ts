@@ -373,13 +373,13 @@ describe("(22) what a route stores, and how an earlier route reads", () => {
 
 describe("the words, in English and Malay (codes never on screen)", () => {
   it("names each origin", () => {
-    expect(originLabel("CORE")).toBe("From core routing");
+    expect(originLabel("CORE")).toBe("From standard route");
     expect(originLabel("CORE_STRENGTHENED")).toBe("Strengthened by this rule");
     expect(originLabel("CORE_ACT_SET")).toBe("Act set by this rule");
     expect(originLabel("RULE")).toBe("Added by this rule");
   });
   it("names the three-way choice, unset as 'Not set'", () => {
-    expect([null, true, false].map((f) => chainChoiceLabel(f))).toEqual(["Not set", "Generated from core routing", "As entered on this rule"]);
+    expect([null, true, false].map((f) => chainChoiceLabel(f))).toEqual(["Not set", "Generated from standard route", "As entered on this rule"]);
     expect(APPROVES_ALONE.en).toBe("Approves alone");
   });
   it("names offices and rules, never their codes", () => {

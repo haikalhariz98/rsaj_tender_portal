@@ -7,13 +7,14 @@ import { LOOP_KEY_LABEL, loopKeyState, type LoopStageKey } from "@/lib/evaluatio
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge, Chip, type Tone } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
-import { Card, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
+import { Disclosure } from "@/components/ui/disclosure";
 import { EmptyState } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
-import { ProvenanceBadge } from "@/components/ui/provenance";
+import { RuleInfo } from "@/components/ui/rule-info";
+import { SettingValue } from "@/components/setup/setting-value";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 
-import { Stat, Stats } from "../records-ui";
 import {
   AddCommittee,
   AddNotApprovedOutcome,
@@ -24,8 +25,7 @@ import {
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
-
-const ACTION_LABEL = COMMITTEE_ACTION_LABEL;
+export const metadata = { title: "Committees" };
 
 const ACTION_TONE: Record<string, Tone> = {
   APPROVES: "ok",
@@ -43,221 +43,155 @@ export default async function CommitteesPage() {
   ]);
   const offices = roster.offices.filter((o) => !o.isCommittee).map((o) => ({ code: o.code, nameEn: o.nameEn }));
   const now = new Date();
-  const liveOutcomes = outcomes.filter((o) => o.retiredOn == null || o.retiredOn > now);
-
-  const quorumStated = committees.filter((c) => c.quorum != null).length;
-  const compositionUnknown = committees.filter((c) => c.compositionProvenance == null).length;
+  const committeeOptions = committees.map((c) => ({ id: c.id, nameEn: c.nameEn }));
 
   return (
     <>
       <PageHeader
         title="Committees"
-        badge={<Badge outline>{committees.length}</Badge>}
-        info={{ title: "Committees", text: "Membership, quorum and the decisions each body may take." }}
+        info={{ title: "Committees", text: "Who sits, how many make a quorum, and the decisions each committee may take." }}
+        actions={<AddCommittee offices={offices} />}
       />
 
-      <Stats>
-        <Stat
-          label="Bodies configured"
-          value={committees.length}
-          hint={`${committees.filter((c) => c.isExternal).length} external`}
-        />
-        <Stat
-          label="Quorum set"
-          value={`${quorumStated} / ${committees.length}`}
-          warn={quorumStated < committees.length || committees.length === 0}
-          hint={
-            committees.length === 0
-              ? "No body is configured yet"
-              : quorumStated === committees.length
-                ? "Every body can be certified quorate"
-                : `${committees.length - quorumStated} cannot be certified quorate`
-          }
-        />
-        <Stat
-          label="Membership not set"
-          value={compositionUnknown}
-          warn={compositionUnknown > 0}
-          hint={
-            compositionUnknown === 0
-              ? "Every body's membership is traced to a source"
-              : "No members defined in policy or in practice"
-          }
-        />
-      </Stats>
-
       <Card className="mb-6 overflow-hidden">
-        <CardHeader
-          title={
-            <span className="inline-flex items-center gap-2">
-              Bodies
-              {committees.length > 0 && <Badge outline>{committees.length}</Badge>}
-            </span>
-          }
-          subtitle="Members, quorum, decisions"
-          actions={<AddCommittee offices={offices} />}
-          divided={committees.length === 0}
-        />
         {committees.length === 0 ? (
           <EmptyState title="No committee set" />
         ) : (
-          <>
-            <Table minWidth={860}>
-              <colgroup>
-                <col />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "17%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "14%" }} />
-                <ActionsCol icons={1} labelled={1} />
-              </colgroup>
-              <THead>
-                <Th>Committee</Th>
-                <Th>Acts by</Th>
-                <Th>Value scope</Th>
-                <Th>Quorum</Th>
-                <Th>Composition</Th>
-                <Th className="text-right">Actions</Th>
-              </THead>
-              <tbody>
-                {committees.map((c) => (
-                  <Tr key={c.code}>
-                    <Td label="Committee">
-                      <CellStack
-                        title={
-                          <span className="inline-flex max-w-full items-center gap-2" title={c.nameEn}>
-                            <span className="truncate">{c.nameEn}</span>
-                            {c.isExternal && <Badge outline>external</Badge>}
-                            {c.retiredOn && c.retiredOn <= now && <Badge>retired</Badge>}
-                          </span>
-                        }
-                      />
-                    </Td>
-                    <Td label="Acts by">
-                      <Chip tone={ACTION_TONE[c.action] ?? "neutral"}>
-                        {ACTION_LABEL[c.action] ?? c.action}
-                      </Chip>
-                    </Td>
-                    <Td label="Value scope" className="text-[13px] text-ink-3">
-                      {formatBand(c.valueScopeMin, c.valueScopeMax)}
-                    </Td>
-                    <Td label="Quorum">
-                      {c.quorum != null ? (
-                        <Badge tone="ok">{c.quorum} members</Badge>
-                      ) : (
-                        <Badge tone="warn">Not set</Badge>
-                      )}
-                    </Td>
-                    <Td label="Composition">
-                      <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                        <ProvenanceBadge value={c.compositionProvenance} />
-                        {c.compositionProvenance != null && (
-                          <span className="text-[12px] whitespace-nowrap text-ink-3">
-                            {c.seatCount} seats
-                          </span>
-                        )}
-                      </span>
-                    </Td>
-                    <Td>
-                      <RowActions>
-                        <EditCommittee committee={c} offices={offices} />
-                        <ButtonLink
-                          href={`/configuration/committees/${c.code}`}
-                          variant="ghost"
-                          size="sm"
-                        >
-                          Open
-                          <ChevronRight size={14} />
-                        </ButtonLink>
-                      </RowActions>
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-            <CardFooter className="text-[12.5px] text-ink-3">
-              <span>
-                {committees.length} bodies ·{" "}
-                {committees.reduce((n, c) => n + c.meetingCount, 0)} recorded sittings
-              </span>
-            </CardFooter>
-          </>
-        )}
-      </Card>
-
-      <Card id="not-approved-outcomes" className="mb-6 scroll-mt-6 overflow-hidden">
-        <CardHeader
-          title={
-            <span className="inline-flex items-center gap-2">
-              Not-approved outcomes
-              {liveOutcomes.length > 0 && <Badge outline>{liveOutcomes.length}</Badge>}
-            </span>
-          }
-          subtitle="Next step for a rejected matter"
-          actions={<AddNotApprovedOutcome committees={committees.map((c) => ({ id: c.id, nameEn: c.nameEn }))} />}
-          divided={outcomes.length === 0}
-        />
-        {outcomes.length === 0 ? (
-          <EmptyState title="No not-approved outcome set" />
-        ) : (
-          <Table minWidth={760}>
+          <Table minWidth={820}>
             <colgroup>
               <col />
-              <col style={{ width: "22%" }} />
-              <col style={{ width: "20%" }} />
-              <col style={{ width: "12%" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "17%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "14%" }} />
               <ActionsCol icons={1} labelled={1} />
             </colgroup>
             <THead>
-              <Th>Outcome</Th>
-              <Th>What it does</Th>
-              <Th>Offered to</Th>
-              <Th>Source</Th>
+              <Th>Committee</Th>
+              <Th>Decision</Th>
+              <Th>Value scope</Th>
+              <Th>Quorum</Th>
+              <Th>Members</Th>
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
-              {outcomes.map((o) => {
-                const retired = o.retiredOn != null && o.retiredOn <= now;
-                return (
-                  <Tr key={o.id}>
-                    <Td label="Outcome">
-                      <CellStack
-                        title={
-                          <span className="inline-flex max-w-full items-center gap-2">
-                            <span className="truncate">{o.nameEn}</span>
-                            {retired && <Badge>retired</Badge>}
+              {committees.map((c) => (
+                <Tr key={c.code}>
+                  <Td label="Committee">
+                    <CellStack
+                      title={c.nameEn}
+                      aside={
+                        <>
+                          {c.isExternal && <Badge outline>external</Badge>}
+                          {c.retiredOn && c.retiredOn <= now && <Badge>no longer used</Badge>}
+                        </>
+                      }
+                    />
+                  </Td>
+                  <Td label="Decision">
+                    <Chip tone={ACTION_TONE[c.action] ?? "neutral"}>{COMMITTEE_ACTION_LABEL[c.action] ?? c.action}</Chip>
+                  </Td>
+                  <Td label="Value scope" className="text-[13px] text-ink-3">
+                    {formatBand(c.valueScopeMin, c.valueScopeMax)}
+                  </Td>
+                  <Td label="Quorum">
+                    <SettingValue
+                      value={
+                        c.quorum != null ? (
+                          <span className="inline-flex items-center gap-1">
+                            {c.quorum} members
+                            <RuleInfo label={`The rule behind the quorum of ${c.nameEn}`} rule={`${c.quorum} members are needed for ${c.nameEn} to decide.`} source={c.quorumProvenance} />
                           </span>
-                        }
-                      />
-                    </Td>
-                    <Td label="What it does">
-                      <Chip tone={o.kind === "LOOP" ? "info" : "warn"}>{NOT_APPROVED_KIND_LABEL[o.kind]}</Chip>
-                      {o.kind === "LOOP" && <ReturnsTo kind={o.kind} stage={o.returnsToStage} />}
-                    </Td>
-                    <Td label="Offered to" className="text-[13px] text-ink-3">{o.committee?.nameEn ?? "Every committee"}</Td>
-                    <Td label="Source">
-                      <ProvenanceBadge value={o.provenance} />
-                    </Td>
-                    <Td>
-                      <RowActions>
-                        {o._count.decisions > 0 ? (
-                          <InfoChip outline detail="Cited by recorded decisions. Retire it and add a new one.">In use</InfoChip>
-                        ) : (
-                          <EditNotApprovedOutcome
-                            outcome={o}
-                            committees={committees.map((c) => ({ id: c.id, nameEn: c.nameEn }))}
-                          />
-                        )}
-                        {!retired && <RetireNotApprovedOutcome id={o.id} label={o.nameEn} />}
-                      </RowActions>
-                    </Td>
-                  </Tr>
-                );
-              })}
+                        ) : null
+                      }
+                      unset="Sittings cannot be certified quorate."
+                    />
+                  </Td>
+                  <Td label="Members">
+                    {c.compositionProvenance != null ? (
+                      <span className="inline-flex items-center gap-1 text-[13px]">
+                        {c.seatCount} seats
+                        <RuleInfo label={`The rule behind the members of ${c.nameEn}`} rule={`Who sits on ${c.nameEn}.`} source={c.compositionProvenance} />
+                      </span>
+                    ) : (
+                      <SettingValue value={null} unset="No members are defined yet." />
+                    )}
+                  </Td>
+                  <Td>
+                    <RowActions>
+                      <EditCommittee committee={c} offices={offices} />
+                      <ButtonLink href={`/configuration/committees/${c.code}`} variant="ghost" size="sm">
+                        Open
+                        <ChevronRight size={14} />
+                      </ButtonLink>
+                    </RowActions>
+                  </Td>
+                </Tr>
+              ))}
             </tbody>
           </Table>
         )}
       </Card>
+
+      <Disclosure id="not-approved-outcomes" title="Advanced" summary={`${outcomes.filter((o) => o.retiredOn == null || o.retiredOn > now).length} not-approved outcomes`}>
+        <Card className="overflow-hidden">
+          <CardHeader
+            title="Not-approved outcomes"
+            subtitle="Next step for a rejected matter"
+            actions={<AddNotApprovedOutcome committees={committeeOptions} />}
+            divided={outcomes.length === 0}
+          />
+          {outcomes.length === 0 ? (
+            <EmptyState title="No not-approved outcome set" />
+          ) : (
+            <Table minWidth={720}>
+              <colgroup>
+                <col />
+                <col style={{ width: "26%" }} />
+                <col style={{ width: "20%" }} />
+                <ActionsCol icons={0} labelled={2} />
+              </colgroup>
+              <THead>
+                <Th>Outcome</Th>
+                <Th>What it does</Th>
+                <Th>Offered to</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {outcomes.map((o) => {
+                  const retired = o.retiredOn != null && o.retiredOn <= now;
+                  return (
+                    <Tr key={o.id}>
+                      <Td label="Outcome">
+                        <CellStack
+                          title={o.nameEn}
+                          aside={
+                            <>
+                              {retired && <Badge>no longer used</Badge>}
+                              {o._count.decisions > 0 && <InfoChip outline detail="Cited by recorded decisions. Stop using it and add a new one.">In use</InfoChip>}
+                            </>
+                          }
+                        />
+                      </Td>
+                      <Td label="What it does">
+                        <Chip tone={o.kind === "LOOP" ? "info" : "warn"}>{NOT_APPROVED_KIND_LABEL[o.kind]}</Chip>
+                        {o.kind === "LOOP" && <ReturnsTo kind={o.kind} stage={o.returnsToStage} />}
+                      </Td>
+                      <Td label="Offered to" className="text-[13px] text-ink-3">{o.committee?.nameEn ?? "Every committee"}</Td>
+                      <Td>
+                        <RowActions>
+                          {o._count.decisions === 0 && <EditNotApprovedOutcome outcome={o} committees={committeeOptions} />}
+                          {!retired && <RetireNotApprovedOutcome id={o.id} label={o.nameEn} />}
+                        </RowActions>
+                      </Td>
+                    </Tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+      </Disclosure>
     </>
   );
 }

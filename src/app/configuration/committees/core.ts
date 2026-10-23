@@ -98,7 +98,7 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
   if (altRaw === "yes") {
     r.reject(
       "alternateMayVoteForRecused",
-      "Not available yet: an alternate voting for a recused member who is present needs a per-matter stand-in, which is not built.",
+      "Not available yet: an alternate voting for a member who stepped aside and is present is not available.",
     );
   } else if (altRaw && altRaw !== "no") {
     r.reject("alternateMayVoteForRecused", "Not one of the available options.");

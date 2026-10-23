@@ -27,15 +27,15 @@ describe("the boundary switch's words", () => {
     expect(e).not.toMatch(/nothing else/);
     expect(e).not.toMatch(/every amount and percentage band edge/);
   });
-  // Changed to match 0005 R14, 2026-10-20: the provenance badge shows once, on "Boundary ruling"; the percentage line says it takes the boundary's side.
-  it("the percentage-edge line follows the boundary ruling, whose provenance tag shows once", () => {
+  // Changed to match plan 5.4: one "Exact amount at a limit" line; the percentage-edge side and the source flag (RuleInfo) sit in its popover, once.
+  it("the exact-amount line says the percentage edge takes the same side, and flags the source once", () => {
     const p = read("src/app/configuration/approval-matrix/page.tsx");
-    const at = p.indexOf('label: "A percentage exactly on a band edge"');
+    const at = p.indexOf('label: "Exact amount at a limit"');
     expect(at).toBeGreaterThan(-1);
-    const item = p.slice(at, p.indexOf('label: "Boundary ruling"'));
-    expect(item).toMatch(/Same side as the boundary/);
-    expect(item).not.toMatch(/ProvenanceBadge/);
-    expect(p.match(/<ProvenanceBadge value=\{boundaryMeta\.boundaryProvenance\} \/>/g)).toHaveLength(1);
+    const item = p.slice(at, p.indexOf('label: "Requisition limit"'));
+    expect(item).toMatch(/a percentage exactly on a band edge falls on the same side, judged on the exact ratio/);
+    expect(p).not.toMatch(/ProvenanceBadge/);
+    expect(p.match(/source=\{boundaryMeta\.boundaryProvenance\}/g)).toHaveLength(1);
   });
 });
 

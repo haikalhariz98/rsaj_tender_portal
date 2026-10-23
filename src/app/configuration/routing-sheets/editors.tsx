@@ -74,16 +74,16 @@ export function EditRoutingType({ templates, row }: { templates: Option[]; row: 
 export function RetireRoutingType({ id, label, blocker }: { id: string; label: string; blocker: string | null }) {
   return (
     <RecordEditor
-      title={`Retire ${label}`}
+      title={`Stop using ${label}`}
       description="From today no new sheet starts on it. Sheets already started keep it as frozen."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
-      destructive={{ reasonLabel: "Why it is retired" }}
+      destructive={{ reasonLabel: "Why it is no longer used" }}
       action={retireRoutingType}
-      submitLabel="Retire"
+      submitLabel="Stop using"
       cancelLabel="Keep it"
       submitBlock={blocker}
-      trigger={{ label: "Retire", className: ghost, ariaLabel: `Retire ${label}` }}
+      trigger={{ label: "Stop using", className: ghost, ariaLabel: `Stop using ${label}` }}
     />
   );
 }

@@ -12,7 +12,7 @@ export type Lang = "en";
 
 /// A step's origin on a generated chain (ruling C1: "Strengthened" only above the core act).
 export const CHAIN_ORIGIN_LABEL: Record<ChainOrigin, Words> = {
-  CORE: { en: "From core routing" },
+  CORE: { en: "From standard route" },
   CORE_STRENGTHENED: { en: "Strengthened by this rule" },
   CORE_ACT_SET: { en: "Act set by this rule" },
   RULE: { en: "Added by this rule" },
@@ -29,7 +29,7 @@ export function originLabel(origin: string | null | undefined, lang: Lang = "en"
 
 export const CHAIN_CHOICE_LABEL: Record<"NOT_SET" | "GENERATED" | "AS_ENTERED", Words> = {
   NOT_SET: NOT_SET,
-  GENERATED: { en: "Generated from core routing" },
+  GENERATED: { en: "Generated from standard route" },
   AS_ENTERED: { en: "As entered on this rule" },
 };
 
@@ -84,13 +84,13 @@ export const AS_ENTERED_INFO: Words = {
   en: "Chain as entered on the rule: recorded as not taken from the core routing.",
 };
 
-/// Refused on saving a rule that takes its chain from the core routing (departure 1).
+/// Refused on saving a rule that takes its chain from the standard route (departure 1).
 export function ruleSaveRefusal(fault: Exclude<CoreChainFault, "CORE_ROW_MISSING">, office: string): string {
   switch (fault) {
     case "WEAKENS":
-      return `The core routing gives ${office} a stronger act than this rule does. A rule taking its chain from the core routing may strengthen a step, never weaken it: raise the act, or choose “As entered on this rule” with a reason.`;
+      return `The standard route gives ${office} a stronger act than this rule does. A rule taking its chain from the standard route may strengthen a step, never weaken it: raise the act, or choose “As entered on this rule” with a reason.`;
     case "ORDER_DIFFERS":
-      return `This rule names ${office} out of the order the core routing has it. Put the offices in the core routing's order, or choose “As entered on this rule” with a reason.`;
+      return `This rule names ${office} out of the order the standard route has it. Put the offices in the standard route's order, or choose “As entered on this rule” with a reason.`;
     case "APPROVER_BENEATH":
       return `${office} approves this rule, so it cannot also act beneath the approval. Take it out of the proposer or the recommenders.`;
     case "APPROVE_BENEATH":
@@ -103,8 +103,8 @@ export function ruleSaveRefusal(fault: Exclude<CoreChainFault, "CORE_ROW_MISSING
 /// Refused at issue, per rule (6.9 note §6, ruling C6).
 export function issueRefusal(fault: CoreChainFault, rule: string, office: string): string {
   if (fault === "CORE_ROW_MISSING")
-    return `“${rule}” cannot be issued: it takes its chain from the core routing, and this issue records none for ${office}. Record the core routing for ${office}, or decide the rule's chain otherwise.`;
-  return `“${rule}” cannot be issued: ${office} would be missing, act less than the core routing requires, or sit out of order. Correct the rule or the core routing.`;
+    return `“${rule}” cannot be put in force: it takes its chain from the standard route, and this version records none for ${office}. Record the standard route for ${office}, or decide the rule's chain otherwise.`;
+  return `“${rule}” cannot be put in force: ${office} would be missing, act less than the standard route requires, or sit out of order. Correct the rule or the standard route.`;
 }
 
 export function coreLevelFaultText(fault: CoreLevelFault, office: string): string {
@@ -116,7 +116,7 @@ export function coreLevelFaultText(fault: CoreLevelFault, office: string): strin
     case "APPROVE_BENEATH":
       return "An office beneath the approver proposes or recommends; only the approver approves.";
     case "MANDATORY_IN_CORE":
-      return "The core routing holds proposing and recommending only. A mandatory recommendation belongs on the rule that needs it.";
+      return "The standard route holds proposing and recommending only. A mandatory recommendation belongs on the rule that needs it.";
     case "DUPLICATE_OFFICE":
       return `${office} is already in this row. One office has one step in a chain.`;
   }
