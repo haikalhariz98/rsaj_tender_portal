@@ -61,7 +61,7 @@ export function VendorCodeDrawer({ supplierId, current, blocker }: { supplierId:
 
 // ------------------------------------------------------------------ documents
 
-export function LodgeDocumentDrawer({ supplierId, types, values, people, renews, blocker, trigger }: { supplierId: string; types: Option[]; values: Option[]; people: Option[]; renews?: { id: string; typeId: string; label: string }; blocker?: string | null; trigger?: string }) {
+export function LodgeDocumentDrawer({ supplierId, types, values, people, renews, blocker, trigger, authorityByType = {} }: { supplierId: string; types: Option[]; /** Per document type, the registration body that issues it: offered under "Issuing authority". */ authorityByType?: Record<string, string[]>; values: Option[]; people: Option[]; renews?: { id: string; typeId: string; label: string }; blocker?: string | null; trigger?: string }) {
   return (
     <RecordEditor
       title={renews ? `Renew ${renews.label}` : "Lodge a document"}
@@ -72,7 +72,7 @@ export function LodgeDocumentDrawer({ supplierId, types, values, people, renews,
         hidden("renewsId"),
         ...(renews ? [hidden("typeId")] : [{ kind: "select", name: "typeId", label: "Document type", required: true, placeholder: "Choose", options: types } as Field]),
         { kind: "text", name: "reference", label: "Reference", hint: "Number as printed. Not for not-applicable." },
-        { kind: "text", name: "issuingAuthority", label: "Issuing authority" },
+        { kind: "text", name: "issuingAuthority", label: "Issuing authority", suggestBy: { name: "typeId", options: authorityByType } },
         { kind: "date", name: "issuedOn", label: "Issued on" },
         { kind: "date", name: "validFrom", label: "Valid from" },
         { kind: "date", name: "expiresOn", label: "Expires on", hint: "Required where the type carries an expiry." },

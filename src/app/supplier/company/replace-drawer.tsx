@@ -42,7 +42,7 @@ export interface ReplaceDrawerProps {
   blockedReason: string | null;
   /// What the office wrote when it asked, verbatim.
   asked?: string | null;
-  type: { name: string; expires: boolean | null; recordsRate: boolean; repeatable: boolean; bodyId: string | null; kinds: CodeKind[] };
+  type: { name: string; expires: boolean | null; recordsRate: boolean; repeatable: boolean; bodyId: string | null; /** The body that issues this kind, offered under "Issued by". */ bodyName: string | null; kinds: CodeKind[] };
   /// What the document it replaces said, to start from.
   start: { reference: string; issuingAuthority: string; title: string; ratePercent: string; chosen: { value: string; label: string; kind: string }[] };
   /// "PDF, JPG; up to 10 MB each", from the office's settings; null while not set.
@@ -164,7 +164,12 @@ export function ReplaceDrawer(p: ReplaceDrawerProps) {
                       <Input id={id("reference")} value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} />
                     </Field>
                     <Field label="Issued by" htmlFor={id("authority")} required error={at(faults, "issuingAuthority")}>
-                      <Input id={id("authority")} value={authority} maxLength={160} onChange={(e) => setAuthority(e.target.value)} />
+                      <Input id={id("authority")} list={p.type.bodyName ? id("authority-list") : undefined} value={authority} maxLength={160} onChange={(e) => setAuthority(e.target.value)} />
+                      {p.type.bodyName && (
+                        <datalist id={id("authority-list")}>
+                          <option value={p.type.bodyName} />
+                        </datalist>
+                      )}
                     </Field>
                     {p.type.expires !== false && (
                       <Field label="Expiry date" htmlFor={id("expires")} required={p.type.expires === true} hint={p.type.expires === null ? "Give the date, if it has one" : undefined} error={at(faults, "expiresOn")}>

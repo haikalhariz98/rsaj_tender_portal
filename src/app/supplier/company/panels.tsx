@@ -186,7 +186,7 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
       buttonVariant: item ? "primary" : "secondary",
       blockedReason: row.replace.allowed ? null : row.replace.reason,
       asked: item ? `${item.label}: ${item.remarks}` : null,
-      type: { name: t.name, expires: t.expires, recordsRate: t.recordsRate, repeatable: t.repeatable, bodyId: t.bodyId, kinds: t.bodyId ? codeKinds(t.valueKinds as RegistrationValueKind[]) : [] },
+      type: { name: t.name, expires: t.expires, recordsRate: t.recordsRate, repeatable: t.repeatable, bodyId: t.bodyId, bodyName: tab.bodies.find((b) => b.id === t.bodyId)?.label ?? null, kinds: t.bodyId ? codeKinds(t.valueKinds as RegistrationValueKind[]) : [] },
       start: {
         reference: head?.reference ?? "",
         issuingAuthority: head?.issuingAuthority ?? "",

@@ -39,6 +39,9 @@ export type Field =
       hint?: string;
       placeholder?: string;
       mono?: boolean;
+      /// Typed, but with a list to pick from (a browser datalist): `suggestBy` follows another select of the form, `options[<its value>]` being what is offered. Nothing is pre-filled and anything may still be typed.
+      suggestBy?: { name: string; options: Record<string, string[]> };
+      suggestions?: string[];
       /// A secret typed here (an unseal passphrase): shown as dots, never filled in again by the browser or the form, and never echoed back.
       secret?: boolean;
     }
@@ -256,10 +259,13 @@ export function RecordEditor({
     ...Object.values(showWhen ?? {}).map((w) => w.name),
     ...fields.flatMap((f) => ((f.kind === "select" || f.kind === "checks") && f.optionsBy ? [f.optionsBy.name] : [])),
     ...fields.flatMap((f) => (f.kind === "select" && f.search?.by ? [f.search.by.name] : [])),
+    ...fields.flatMap((f) => (f.kind === "text" && f.suggestBy ? [f.suggestBy.name] : [])),
   ]);
   // A select (or a set of boxes) whose options follow another select: its options for that select's current value.
   const resolved = <F extends Field>(field: F): F =>
-    field.kind === "select" && field.search?.by
+    field.kind === "text" && field.suggestBy
+      ? { ...field, suggestions: field.suggestBy.options[current(field.suggestBy.name)] ?? [] }
+      : field.kind === "select" && field.search?.by
       ? (() => {
           const url = field.search.by.urls[current(field.search.by.name)];
           return { ...field, search: url ? { url } : undefined, placeholder: url ? field.placeholder : field.search.by.waiting };
@@ -701,10 +707,18 @@ function FieldInput({
           numeric={field.kind === "number"}
           inputMode={field.kind === "number" ? "numeric" : undefined}
           placeholder={"placeholder" in field ? field.placeholder : undefined}
+          list={field.kind === "text" && field.suggestions?.length ? `${id}-list` : undefined}
           defaultValue={field.kind === "text" && field.secret ? "" : ((value as string) ?? "")}
           aria-invalid={error ? true : undefined}
         />
       )}
+      {field.kind === "text" && field.suggestions?.length ? (
+        <datalist id={`${id}-list`}>
+          {field.suggestions.map((o) => (
+            <option key={o} value={o} />
+          ))}
+        </datalist>
+      ) : null}
     </Field>
   );
 }

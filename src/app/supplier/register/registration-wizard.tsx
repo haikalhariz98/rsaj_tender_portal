@@ -114,6 +114,7 @@ export function RegistrationWizard({
         recordsRate: t.recordsRate === true,
         repeatable: t.repeatable === true,
         notApplicableAllowed: t.notApplicableAllowed === true,
+        body: config.context.bodies.find((b) => b.id === t.bodyId)?.nameEn ?? null,
       })),
     [config.context],
   );

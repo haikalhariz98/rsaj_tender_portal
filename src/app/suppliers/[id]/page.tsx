@@ -324,6 +324,7 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
   const held = new Set(s.documents.map((d) => d.typeId));
   const lodgeable = liveTypes.filter((t) => !held.has(t.id)).map((t) => ({ value: t.id, label: t.nameEn }));
   const values = (bodyId: string | null) => cfg.bodies.filter((b) => !bodyId || b.id === bodyId).flatMap((b) => b.values.filter((v) => cfg.live(v, today)).map((v) => ({ value: v.id, label: `${asHeading(b.labelEn)}: ${v.nameEn}` })));
+  const authorityByType = Object.fromEntries(liveTypes.flatMap((t) => { const b = cfg.bodies.find((x) => x.id === t.bodyId); return b ? [[t.id, [b.labelEn]]] : []; }));
   const open = s.applications.some(isOpen);
   const closed = s.status === "REJECTED" && !open;
   const lodgeBlocker = !today ? supplierFaultText({ code: "TIME_ZONE_UNSET", level: "block" }) : closed ? supplierFaultText({ code: "SUPPLIER_CLOSED", level: "block" }) : lodgeable.length === 0 ? (liveTypes.length ? "Every configured type is on file: lodge a later one as a renewal." : supplierFaultText({ code: "TYPE_NOT_CONFIGURED", level: "block" })) : null;
@@ -339,7 +340,7 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
           icon={<FileIcon size={17} />}
           title="Statutory documents"
           subtitle="Mandatory first · scans SULIT"
-          actions={<span className="flex flex-wrap items-center gap-2"><SulitTag /><LodgeDocumentDrawer supplierId={s.id} types={lodgeable} values={values(null)} people={people} blocker={lodgeBlocker} /></span>}
+          actions={<span className="flex flex-wrap items-center gap-2"><SulitTag /><LodgeDocumentDrawer authorityByType={authorityByType} supplierId={s.id} types={lodgeable} values={values(null)} people={people} blocker={lodgeBlocker} /></span>}
           divided={states.length === 0}
         />
         {states.length === 0 ? (
@@ -363,7 +364,7 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
                     </div>
                     {typeRow.hintEn && <p className="text-[12.5px] text-ink-3">{typeRow.hintEn}</p>}
                     </div>
-                    {st.state === "MISSING" && <LodgeDocumentDrawer supplierId={s.id} types={[{ value: st.type.id, label: st.type.label }]} values={values(typeRow.bodyId)} people={people} blocker={lodgeBlocker === null || lodgeBlocker.startsWith("Every") ? null : lodgeBlocker} trigger="Lodge" />}
+                    {st.state === "MISSING" && <LodgeDocumentDrawer authorityByType={authorityByType} supplierId={s.id} types={[{ value: st.type.id, label: st.type.label }]} values={values(typeRow.bodyId)} people={people} blocker={lodgeBlocker === null || lodgeBlocker.startsWith("Every") ? null : lodgeBlocker} trigger="Lodge" />}
                   </div>
                   {chain.length === 0 ? (
                     <p className="text-[13px] text-ink-3">Not lodged.</p>
@@ -386,7 +387,7 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
                               </div>
                               <span className="flex flex-wrap items-center gap-2">
                                 {d.verification === "NOT_CHECKED" && <VerifyDocumentDrawer documentId={d.id} label={`${st.type.label}${row.reference ? ` ${row.reference}` : ""}`} people={people} today={today} blocker={verifyBlocker} expiresOn={d.expiresOn} asksExpiry={typeRow.expires !== false && !d.notApplicable} />}
-                                {head && !d.notApplicable && <LodgeDocumentDrawer supplierId={s.id} types={[]} values={values(typeRow.bodyId)} people={people} renews={{ id: d.id, typeId: d.typeId, label: `${st.type.label}${row.reference ? ` ${row.reference}` : ""}` }} blocker={renewBlocker} />}
+                                {head && !d.notApplicable && <LodgeDocumentDrawer authorityByType={authorityByType} supplierId={s.id} types={[]} values={values(typeRow.bodyId)} people={people} renews={{ id: d.id, typeId: d.typeId, label: `${st.type.label}${row.reference ? ` ${row.reference}` : ""}` }} blocker={renewBlocker} />}
                               </span>
                             </div>
                             <KeyValues

@@ -139,6 +139,7 @@ export default async function SupplierRegistrationPage({ searchParams }: { searc
                   recordsRate: t.recordsRate === true,
                   repeatable: t.repeatable === true,
                   notApplicableAllowed: t.notApplicableAllowed === true,
+                  body: ctx.bodies.find((b) => b.id === t.bodyId)?.nameEn ?? null,
                 }))}
                 rows={view.documents.map((d) => ({
                   id: d.id,

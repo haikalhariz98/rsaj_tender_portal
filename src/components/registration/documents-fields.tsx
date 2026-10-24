@@ -31,6 +31,8 @@ export interface DocTypeView {
   recordsRate: boolean;
   repeatable: boolean;
   notApplicableAllowed: boolean;
+  /// The registration body that issues this kind, offered under "Issued by" (nothing is filled in). Null: none configured.
+  body: string | null;
 }
 
 /// One certificate as typed. `id` is the saved row's, or the browser's own key ("new:…") for one not saved (and, on the public form, never saved).
@@ -152,7 +154,12 @@ export function DocumentsFields<R extends DocRowValue>({
                           <Input id={fid("reference")} value={r.reference} maxLength={120} disabled={r.notApplicable} onChange={(e) => patch(r.id, { reference: e.target.value })} />
                         </Field>
                         <Field label="Issued by" htmlFor={fid("authority")}>
-                          <Input id={fid("authority")} value={r.issuingAuthority} maxLength={160} disabled={r.notApplicable} onChange={(e) => patch(r.id, { issuingAuthority: e.target.value })} />
+                          <Input id={fid("authority")} list={t.body ? fid("authority-list") : undefined} value={r.issuingAuthority} maxLength={160} disabled={r.notApplicable} onChange={(e) => patch(r.id, { issuingAuthority: e.target.value })} />
+                          {t.body && (
+                            <datalist id={fid("authority-list")}>
+                              <option value={t.body} />
+                            </datalist>
+                          )}
                         </Field>
                         {t.expires !== false && (
                           <Field label="Expiry date" htmlFor={fid("expires")} required={t.expires === true} hint={t.expires === null ? REGISTRATION_HINT.expiryIfAny : undefined} error={errorText(f("expiresOn"))}>
