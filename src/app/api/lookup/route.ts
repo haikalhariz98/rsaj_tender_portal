@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 /**
  * Type-to-search for a form field that names a register record (the shared Select's server-searched mode).
  *
- * GET /api/lookup?kind=supplier|contract&q=
+ * GET /api/lookup?kind=supplier|contract|requisition|exercise&q=
  *   { options: [{ value, label }], hasMore }
  *
  * The organisation is the signed-in officer's. `supplier`: registered suppliers, value = the supplier's id. `contract`: value = the contract's number (what an
@@ -49,5 +49,27 @@ export async function GET(request: Request) {
     return Response.json({ options: rows.slice(0, LOOKUP_PAGE).map((c) => ({ value: c.number, label: `${c.number} — ${c.award.awardeeName}` })), hasMore: rows.length > LOOKUP_PAGE });
   }
 
-  return Response.json({ error: "Say what to look up: supplier or contract." }, { status: 400 });
+  // A reference a sitting tables a matter against (the committee's "Record reference"): a requisition not yet cancelled or closed, or an exercise not cancelled and not hidden from the officer.
+  if (kind === "requisition") {
+    const rows = await db.requisition.findMany({
+      where: { organisationId, status: { notIn: ["CANCELLED", "CLOSED"] }, ...(q ? { OR: [{ reference: { contains: q, mode: "insensitive" } }, { title: { contains: q, mode: "insensitive" } }] } : {}) },
+      orderBy: [{ reference: "asc" }, { id: "asc" }],
+      take: LOOKUP_PAGE + 1,
+      select: { reference: true, title: true },
+    });
+    return Response.json({ options: rows.slice(0, LOOKUP_PAGE).map((x) => ({ value: x.reference, label: `${x.reference} — ${x.title}` })), hasMore: rows.length > LOOKUP_PAGE });
+  }
+
+  if (kind === "exercise") {
+    const hidden = await hiddenExercises(actor);
+    const rows = await db.sourcingExercise.findMany({
+      where: { organisationId, status: { not: "CANCELLED" }, id: { notIn: hidden }, ...(q ? { OR: [{ reference: { contains: q, mode: "insensitive" } }, { title: { contains: q, mode: "insensitive" } }] } : {}) },
+      orderBy: [{ reference: "asc" }, { id: "asc" }],
+      take: LOOKUP_PAGE + 1,
+      select: { reference: true, title: true },
+    });
+    return Response.json({ options: rows.slice(0, LOOKUP_PAGE).map((x) => ({ value: x.reference, label: `${x.reference} — ${x.title}` })), hasMore: rows.length > LOOKUP_PAGE });
+  }
+
+  return Response.json({ error: "Say what to look up: supplier, contract, requisition or exercise." }, { status: 400 });
 }

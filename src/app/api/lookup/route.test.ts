@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { guard, supplierFind, contractFind, hidden } = vi.hoisted(() => ({
+const { guard, supplierFind, contractFind, hidden, requisitionFind, exerciseFind } = vi.hoisted(() => ({
   guard: { refuse: false },
   supplierFind: vi.fn(async (a: unknown) => (void a, [{ id: "s1", registeredName: "Acme Sdn Bhd", registrationNo: "123-A" }])),
   contractFind: vi.fn(async (a: unknown) => (void a, [{ number: "C/1", award: { awardeeName: "Acme Sdn Bhd" } }])),
+  requisitionFind: vi.fn(async (a: unknown) => (void a, [{ reference: "REQ/1", title: "Chairs" }])),
+  exerciseFind: vi.fn(async (a: unknown) => (void a, [{ reference: "EX/1", title: "Chairs tender" }])),
   hidden: vi.fn(async () => ["ex_secret"]),
 }));
 
@@ -12,7 +14,7 @@ vi.mock("@/app/_auth/route", async () => {
   return { staffRoute: async () => (guard.refuse ? { ok: false as const, response: Response.json({}, { status: 401 }) } : { ok: true as const, actor: STAFF_FIXTURE }) };
 });
 vi.mock("@/app/_auth/sulit", () => ({ hiddenExercises: hidden }));
-vi.mock("@/lib/db", () => ({ db: { supplier: { findMany: supplierFind }, contract: { findMany: contractFind } } }));
+vi.mock("@/lib/db", () => ({ db: { supplier: { findMany: supplierFind }, contract: { findMany: contractFind }, requisition: { findMany: requisitionFind }, sourcingExercise: { findMany: exerciseFind } } }));
 
 import { GET } from "./route";
 
@@ -51,6 +53,17 @@ describe("GET /api/lookup", () => {
     const body = await (await get("kind=supplier")).json();
     expect(body.options).toHaveLength(20);
     expect(body.hasMore).toBe(true);
+  });
+
+  it("lists the requisitions and exercises a sitting may table against, by reference, the exercise leaving out hidden ones", async () => {
+    const rq = await (await get("kind=requisition&q=ch")).json();
+    expect(rq.options).toEqual([{ value: "REQ/1", label: "REQ/1 — Chairs" }]);
+    expect((requisitionFind.mock.calls[0][0] as { where: { organisationId: string; status: { notIn: string[] } } }).where.status.notIn).toEqual(["CANCELLED", "CLOSED"]);
+    const ex = await (await get("kind=exercise")).json();
+    expect(ex.options).toEqual([{ value: "EX/1", label: "EX/1 — Chairs tender" }]);
+    const where = (exerciseFind.mock.calls[0][0] as { where: { organisationId: string; id: { notIn: string[] } } }).where;
+    expect(where.organisationId).toBe("org_test");
+    expect(where.id.notIn).toEqual(["ex_secret"]);
   });
 
   it("refuses an unknown kind", async () => {

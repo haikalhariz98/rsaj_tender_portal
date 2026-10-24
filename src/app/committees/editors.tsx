@@ -292,7 +292,7 @@ export function TableMatter({
           placeholder: "Not linked to a record",
           options: SITTING_TABLED_MATTER_KINDS.map((k) => ({ value: k, label: MATTER_KIND_LABEL[k] })),
         },
-        { kind: "text", name: "matterRef", label: "Record reference", mono: true },
+        { kind: "select", name: "matterRef", label: "Record", placeholder: "Search records", options: [], search: { url: "", by: { name: "matterKind", urls: { REQUISITION: "/api/lookup?kind=requisition", EXERCISE: "/api/lookup?kind=exercise" }, waiting: "Choose the kind of record first" } }, hint: "Needed when a kind of record is chosen." },
         { kind: "money", name: "amount", label: "Amount", hint: "SULIT. May be left blank." },
         {
           kind: "select",

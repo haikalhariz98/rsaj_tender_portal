@@ -79,7 +79,8 @@ export type Field =
       /// Force the search box on or off. Unset, the shared Select shows it above SEARCH_THRESHOLD options.
       searchable?: boolean;
       /// The choices are searched on the server as the officer types (a register of thousands): `options` stays empty, and a stored value reads as `orphanLabel`. The route answers `?q=` with `{ options, hasMore }`.
-      search?: { url: string };
+      /// `by`, as `optionsBy`: the route follows another select of the form (`urls[<its value>]`); while that is unchosen, or has no route, the placeholder says `waiting`.
+      search?: { url: string; by?: { name: string; urls: Record<string, string>; waiting: string } };
       /// Options that depend on another select of the same form: `options` is ignored and the
       /// list is `optionsBy.options[<that select's value>]`. While it is unchosen, the
       /// placeholder says `optionsBy.waiting` (founder, 2026-10-05: choosing a tier should
@@ -254,10 +255,16 @@ export function RecordEditor({
   const drivers = new Set([
     ...Object.values(showWhen ?? {}).map((w) => w.name),
     ...fields.flatMap((f) => ((f.kind === "select" || f.kind === "checks") && f.optionsBy ? [f.optionsBy.name] : [])),
+    ...fields.flatMap((f) => (f.kind === "select" && f.search?.by ? [f.search.by.name] : [])),
   ]);
   // A select (or a set of boxes) whose options follow another select: its options for that select's current value.
   const resolved = <F extends Field>(field: F): F =>
-    field.kind === "select" && field.optionsBy
+    field.kind === "select" && field.search?.by
+      ? (() => {
+          const url = field.search.by.urls[current(field.search.by.name)];
+          return { ...field, search: url ? { url } : undefined, placeholder: url ? field.placeholder : field.search.by.waiting };
+        })()
+      : field.kind === "select" && field.optionsBy
       ? {
           ...field,
           options: field.optionsBy.options[current(field.optionsBy.name)] ?? [],
@@ -270,7 +277,7 @@ export function RecordEditor({
             empty: current(field.optionsBy.name) ? field.optionsBy.none : field.optionsBy.waiting,
           }
         : field;
-  const follows = (field: Field) => ((field.kind === "select" || field.kind === "checks") && field.optionsBy ? field.optionsBy.name : null);
+  const follows = (field: Field) => (field.kind === "select" && field.search?.by ? field.search.by.name : (field.kind === "select" || field.kind === "checks") && field.optionsBy ? field.optionsBy.name : null);
 
   // A save that succeeded closes the form; one that failed stays open holding its
   // errors, because reopening a cleared form loses what the officer typed. Decided
@@ -459,7 +466,8 @@ export function RecordEditor({
                               // A select (or a set of boxes) whose options follow another starts afresh when that one changes.
                               key={follows(field) ? `${field.name}:${current(follows(field)!)}` : field.name}
                               field={resolved(field)}
-                              value={values?.[field.name] ?? null}
+                              // A stored choice from another record kind is not offered under the kind now chosen.
+                              value={field.kind === "select" && field.search?.by && current(field.search.by.name) !== String(values?.[field.search.by.name] ?? "") ? null : (values?.[field.name] ?? null)}
                               error={state.errors?.[field.name]}
                               errors={state.errors}
                             />
