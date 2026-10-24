@@ -438,11 +438,11 @@ describe("the loaders the pages read through return A's records to A and nothing
   });
 
   it("the sourcing list's columns, a tabling link's amount and the requisition list", async () => {
-    const [{ windowColumns }, { tablingAmount }, { listRequisitions }] = await Promise.all([import("@/lib/window/read"), import("@/lib/committee/repo"), import("@/lib/requisition/repo")]);
+    const [{ windowColumns }, { tablingAmount }, { listRequisitions, REQUISITION_VIEWS }, { parseListQuery, sortKeys }] = await Promise.all([import("@/lib/window/read"), import("@/lib/committee/repo"), import("@/lib/requisition/repo"), import("@/lib/list-query")]);
     expect([...(await windowColumns(fx.actorA.organisationId, [A.exercise])).keys()]).toEqual([A.exercise]);
     expect([...(await windowColumns(fx.actorB.organisationId, [A.exercise])).keys()]).toEqual([]);
     expect(await tablingAmount(fx.actorA.organisationId, { kind: "requisition", id: A.requisition }, [])).toBe("1000");
     expect(await tablingAmount(fx.actorB.organisationId, { kind: "requisition", id: A.requisition }, [])).toBeNull();
-    expect((await listRequisitions(fx.actorB.organisationId)).rows.map((r) => r.id)).not.toContain(A.requisition);
+    expect((await listRequisitions(fx.actorB.organisationId, parseListQuery({}, REQUISITION_VIEWS, sortKeys("requisition")))).rows.map((r) => r.id)).not.toContain(A.requisition);
   });
 });
