@@ -45,3 +45,6 @@ Open questions the product cannot answer from RSAJ's documents. Each one is load
 - **30. Variation Orders Committee.** Does SK006's VOC rule cover quotation contracts too?
 - **31. Schedule of Rates call-off.** How is a call-off approved?
 - **32. SK004.** Please supply SK004 (contract document parts, §7.3.1) to the developer.
+- **33. Online award return.** Which office receives a contractor's online award return and its questions?
+- **34. Supply contracts.** Does a supply contract ever take an interim payment certificate, or only the delivery order and invoice?
+- **35. Consultancy payment.** Is consultancy paid on certified claims?
