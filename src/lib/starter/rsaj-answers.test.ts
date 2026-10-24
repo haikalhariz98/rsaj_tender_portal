@@ -6,8 +6,9 @@ import { inBand, resolveApproval } from "@/lib/authority/resolve";
 import type { Matrix, Role } from "@/lib/authority/types";
 import { placeInBands } from "@/lib/evaluation/bands";
 import { parseFixed } from "@/lib/evaluation/fixed";
-import { bandsOf, modelFaults } from "@/lib/evaluation/model";
+import { bandsOf, modelFaults, type AspectConfig } from "@/lib/evaluation/model";
 import { exerciseRoutePreview, resolveNameApproval, type FunderContext } from "@/lib/method/approval";
+import { methodConfigFaults } from "@/lib/method/config";
 import { TENDERING_APPROVAL_DOMAIN, type Method } from "@/lib/method/types";
 import { NEGOTIATION_DOMAIN } from "@/lib/evaluation/types";
 import { parseSen } from "@/lib/money";
@@ -146,10 +147,15 @@ describe("A6: the quotation model (RSAJ answer 11)", () => {
     for (const s of q.stages) expect(s.passInclusive, s.code).toBeNull();
   });
 
-  it("is refused at issue only for the Phase 2 criterion marks", () => {
-    const blocks = modelFaults({ ...q, version: 1 }, []).filter((f) => f.level === "block");
-    expect(blocks.map((f) => f.code)).toEqual(["CRITERION_MAX_NOT_SET", "CRITERION_MAX_NOT_SET", "CRITERION_MAX_NOT_SET", "CRITERION_MAX_NOT_SET", "CRITERION_MAX_NOT_SET", "MARKS_NOT_TOTAL"]);
-    for (const f of blocks) expect(f.data?.stage).toBe("Phase 2: technical evaluation");
+  it("is refused at issue for the Phase 2 criterion marks and, with the pack's aspects in force, for where the four aspects are assessed: both left open", () => {
+    const marks = ["CRITERION_MAX_NOT_SET", "CRITERION_MAX_NOT_SET", "CRITERION_MAX_NOT_SET", "CRITERION_MAX_NOT_SET", "CRITERION_MAX_NOT_SET", "MARKS_NOT_TOTAL"];
+    const blocks = (aspects: AspectConfig[]) => modelFaults({ ...q, version: 1 }, aspects).filter((f) => f.level === "block");
+    expect(blocks([]).map((f) => f.code)).toEqual(marks);
+    for (const f of blocks([])) expect(f.data?.stage).toBe("Phase 2: technical evaluation");
+    const aspects = listOf("EvaluationAspect").map((r) => ({ code: r.code, kind: r.values.kind, labelEn: r.values.labelEn, labelMs: null, requiredOnRoute: r.values.requiredOnRoute, provenance: "STATED", retired: false }) as AspectConfig);
+    expect(blocks(aspects).map((f) => f.code)).toEqual([...marks, "ASPECTS_STAGE_MISSING"]);
+    // The bands are as the form writes them, gaps and all: warned, never refused.
+    expect(modelFaults({ ...q, version: 1 }, []).filter((f) => f.level === "warn").every((f) => f.code === "BANDS_GAP")).toBe(true);
   });
 
   it("reads band edges inclusively: a CPR of 80 is Best, a variance of exactly ±15% Competitive, and 79.5 falls in no band (not rounded)", () => {
@@ -246,6 +252,10 @@ describe("A11 and A12: methods, contract types and series", () => {
     expect(method("schedule_of_rates")).not.toHaveProperty("authorityMethodKey");
     for (const c of ["direct_appointment", "selective_direct_appointment"]) expect(method(c), c).toMatchObject({ documentPackKind: "NONE", documentPackKindProvenance: "ASSUMED" });
     expect(method("direct_appointment")).toMatchObject({ requiresDossier: true, dossierSeriesKey: "direct_appointment" });
+    // Each method would save as the configuration screen judges it, against the series both packs load.
+    const seriesKeys = [RSAJ_PACK, GENERIC_PACK].flatMap((p) => p.lists.filter((l) => l.model === "NumberingSeries").flatMap((l) => l.rows.map((r) => r.code)));
+    const all = listOf("SourcingMethod").map((r) => method(r.code));
+    for (const m of all) expect(methodConfigFaults(m, all.filter((o) => o !== m), seriesKeys), m.code).toEqual([]);
   });
 
   it("number work, service and supply contracts RSAJ/KP/T and consultancy services RSAJ/KP/P", () => {
