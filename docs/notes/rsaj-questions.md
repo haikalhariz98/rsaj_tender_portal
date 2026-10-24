@@ -28,3 +28,4 @@ Open questions the product cannot answer from RSAJ's documents. Each one is load
 24. **Mandatory documents.** Which supplier document types are mandatory at registration?
 25. **Contract number restart.** Numbers restart "in the year the contract starts"; the product restarts by the calendar year the number is allocated. Acceptable?
 26. **Requisition note number.** An example NM/YYYY/NNNNN number.
+27. **Committed budget and SULIT.** A budget code with a single commitment shows that requisition's estimate as its committed figure. Is a committed figure SULIT, and who may see it?
