@@ -76,6 +76,8 @@ export type Field =
       /// value itself is shown, which is right where the value is already a label and
       /// wrong where it is a code.
       orphanLabel?: string;
+      /// Force the search box on or off. Unset, the shared Select shows it above SEARCH_THRESHOLD options.
+      searchable?: boolean;
       /// Options that depend on another select of the same form: `options` is ignored and the
       /// list is `optionsBy.options[<that select's value>]`. While it is unchosen, the
       /// placeholder says `optionsBy.waiting` (founder, 2026-10-05: choosing a tier should
@@ -636,7 +638,7 @@ function FieldInput({
 
     return (
       <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error}>
-        <Select id={id} name={field.name} defaultValue={current} aria-invalid={error ? true : undefined}>
+        <Select id={id} name={field.name} defaultValue={current} searchable={field.searchable} aria-invalid={error ? true : undefined}>
           <option value="" disabled={field.placeholderDisabled && current !== ""}>{field.placeholder ?? say(WORDS.notSet)}</option>
           {orphaned && <option value={current}>{field.orphanLabel ?? current}</option>}
           {field.options.map((o) => (
