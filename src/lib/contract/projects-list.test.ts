@@ -14,7 +14,8 @@ import { describe, expect, it } from "vitest";
 const read = (p: string) => readFileSync(path.join(__dirname, "../../..", p), "utf8");
 
 describe("the contracts list", () => {
-  const page = read("src/app/projects/page.tsx");
+  // 7.6 moved the page's whole-list reads into context.ts, shared with the export route; the page and its context are read as one.
+  const page = read("src/app/projects/page.tsx") + read("src/app/projects/context.ts");
   const load = read("src/lib/contract/load.ts");
   const list = load.slice(load.indexOf("export async function listContracts("), load.indexOf("/// The day the contract's preparation started"));
   const phases = load.slice(load.indexOf("export async function endorsedPhases("), load.indexOf("/// Whether a live attachment"));

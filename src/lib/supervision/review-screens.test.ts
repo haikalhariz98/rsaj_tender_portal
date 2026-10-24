@@ -21,11 +21,13 @@ describe("review 14: the In Delay view is judged over the whole set, then paged"
   });
   it("the page reads every possessed contract, then lists within those ids (never filters one page)", () => {
     const p = read("src/app/projects/page.tsx");
-    expect(p).toMatch(/await inDelayContractIds\(org0\.id, today\)/);
+    // 7.6: the whole-organisation read sits in context.ts (shared with the export route), loaded once by the page.
+    expect(read("src/app/projects/context.ts")).toMatch(/\(await inDelayContractIds\(org\.id, today\)\)\.ids/);
+    expect(p).toMatch(/await loadCaseContext\(actor\.organisationId\)/);
     // Phase 1c (ADR 0034 D10): the list is the signed-in person's organisation's; paging and the view are as pinned.
     // AC-17 (C9): the list is the case list; its In Delay view is `listCases`' "delay" view, which takes the same contracts' ids from
     // inDelayContractIds over the whole organisation and keys them to awards, then pages (case-load.ts, tested in case-load.db.test.ts).
-    expect(p).toMatch(/listCases\(actor\.organisationId, hidden, \{ view: rowView, page, size: q\.size, words: q\.words, sort: q\.sort, dir: q\.dir, delayIds, commencedContractIds: /);
+    expect(p).toMatch(/listCases\(actor\.organisationId, hidden, \{ view: rowView, page, size: q\.size, words: q\.words, sort: q\.sort, dir: q\.dir, unit: q\.unit, delayIds, commencedContractIds: /);
     expect(read("src/lib/contract/case-load.ts")).toMatch(/inDelayContractIds\(org\.id, org\.today\)/);
     expect(p).not.toMatch(/\{ id: "delay", label: "In Delay" \}/);
     const l = read("src/lib/contract/load.ts");
