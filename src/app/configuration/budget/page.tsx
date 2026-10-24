@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { ToneNote } from "@/components/ui/feedback";
 import { db } from "@/lib/db";
 import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
@@ -11,6 +13,7 @@ import { activeOn } from "@/lib/effective";
 import { formatCompactRM } from "@/lib/format";
 import { loadOrganisationData } from "@/lib/organisation/load";
 import { organisationDay } from "@/lib/dates";
+import { mayReadBudget } from "@/lib/insights/query";
 import { organisationTimeZone } from "@/lib/org-time";
 
 import { BudgetTabs } from "./panels";
@@ -32,6 +35,8 @@ export default async function BudgetPage({
   searchParams: Promise<{ tab?: string; year?: string }>;
 }) {
   const actor = await requireStaff();
+  // DB-3: one predicate for every Budget surface. A code with one commitment shows that requisition's estimate, and the movements list names it.
+  if (!mayReadBudget(actor)) redirect("/configuration/no-access");
   // Balances and the year are as at the organisation's day, not the UTC one (6.10 §9.5
   // follow-up). With no zone set the UTC day is used, and the header says so.
   const zone = await organisationTimeZone(actor.organisationId);

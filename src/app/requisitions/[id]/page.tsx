@@ -138,6 +138,7 @@ import type { ExerciseStatus, Regime } from "@/lib/method/types";
 import { addSen, formatMoney } from "@/lib/money";
 import { historyMoneyText, linesSubtitle } from "@/lib/requisition/money-text";
 import { requireStaff } from "@/app/_auth/actor";
+import { mayReadBudget } from "@/lib/insights/query";
 
 export const metadata = { title: "Requisition" };
 export const dynamic = "force-dynamic";
@@ -672,6 +673,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
               <div className="flex flex-col gap-6">
                 <BudgetPanel
                 estimate={estimate}
+                  budgetReadable={mayReadBudget(actor)}
                   l={l}
                   unposted={
                     r.origin === "EXTERNAL" && !r.commitmentMovementId
@@ -1050,6 +1052,7 @@ async function Overview({
 
 function BudgetPanel({
   estimate,
+  budgetReadable,
   l,
   controls,
   recheckDays,
@@ -1057,6 +1060,8 @@ function BudgetPanel({
   unposted,
 }: {
   estimate: Sulit<true>;
+  /// `mayReadBudget(actor)` (DB-3): without it the Budget page refuses the reader, so no link leads there.
+  budgetReadable: boolean;
   l: LoadedRequisition;
   /// Why a received requisition has no ledger commitment, from the settings in force.
   unposted: UnpostedReason | null;
@@ -1168,9 +1173,11 @@ function BudgetPanel({
           title="Controls applied"
           subtitle="As configured today"
           actions={
-            <ButtonLink href={controls.budgetCheckSource ? BUDGET_HREF : CONTROLS_HREF} size="sm" variant="ghost">
-              Configure
-            </ButtonLink>
+            controls.budgetCheckSource && !budgetReadable ? undefined : (
+              <ButtonLink href={controls.budgetCheckSource ? BUDGET_HREF : CONTROLS_HREF} size="sm" variant="ghost">
+                Configure
+              </ButtonLink>
+            )
           }
         />
         <CardBody>
