@@ -1,7 +1,9 @@
-# 0007 — Insights: the organisation-wide dashboard
+# 0007 — Dashboard: the organisation-wide figures
 
-Status: proposal by the UX lead, 2026-10-24. Not yet ruled. Bound by note 0005 (minimal words), English only, desktop only
-(1280 to 1920 wide), light theme, the design system in `src/components/ui`.
+Status: proposal by the UX lead, 2026-10-24, ruled by the product owner the same day (DB-1..DB-10, decisions log). The rulings
+are carried into this note: v1 reads no SULIT field (DB-2), one predicate governs every Budget surface (DB-3), the screen is
+"Dashboard" at `/dashboard` (DB-8), and Home is unchanged (DB-9). Bound by note 0005 (minimal words), English only, desktop
+only (1280 to 1920 wide), light theme, the design system in `src/components/ui`.
 
 **The founder (2026-10-24):** "maybe we have a like a power bi dashboard (create our own dashboard instead of integration with
 power BI) for reporting to report on budget, pipeline, requsition and others", then "please build the dashboard with your own
@@ -22,33 +24,32 @@ and a click through to the list.
 - **What goes wrong today:** Home answers "what is waiting on me" and three pipeline counts, and nothing else. To get a
   department's figure, someone opens each list, counts by eye and builds a chart in Excel. Those numbers then disagree with the
   lists the next morning.
-- **What Insights is not:**
+- **What the Dashboard is not:**
   - **Not personal.** Home's "Needs you" stays the place for one's own work.
   - **Not a report pack.** It has no fixed layouts, no Board export and no compliance findings. Those are FR-RPT's, and RSAJ has
     not specified them.
 
 ## 2. Recommendation
 
-- **The product:** one new staff screen, **Insights**, at `/insights`. It is five tabs of read-only figures over the records the
-  reader can already open.
+- **The product:** one new staff screen, **Dashboard**, at `/dashboard` (DB-8). It is five tabs of read-only figures over the
+  records the reader can already open. Its code stays in `src/lib/insights/**` (the module's name, not a screen's word).
 - **Each tab** has one filter bar, a row of at most six figure tiles and two or three charts.
 - **Every tile and every bar is a way into a list.** It is a link to the list that holds those records, or to the tab that
   explains the figure. A figure you cannot open is a figure nobody trusts.
-- **Where it lives:** the sidebar's Work group, second item: Home · **Insights** · My approvals · Inbox. It uses the `chart`
+- **Where it lives:** the sidebar's Work group, second item: Home · **Dashboard** · My approvals · Inbox. It uses the `chart`
   icon already in `ICONS`.
   - It is not a new group. It is one destination, and it is not a process step (object-centric rule).
-  - The name is "Insights", not "Dashboard": Home is already the dashboard (`Dashboard()` in `src/app/page.tsx`,
-    `src/lib/dashboard.ts`). "Reports" stays free for FR-RPT.
+  - The name is "Dashboard", the founder's word (DB-8). Home no longer uses it on screen; `Dashboard()` in `src/app/page.tsx`
+    and `src/lib/dashboard.ts` are code names and stay. "Reports" stays free for FR-RPT.
 - **Who sees it:** every staff member, with no new permission (DB-1).
   - Every count is one the reader could reach by opening the lists, under the same visibility rules. Restricted exercises are
     left out (FR-MTD-007), and so are restricted cases before issue (AC-18).
-  - Money that is SULIT follows §6.
-  - The Budget tab follows Budget's present audience (§6.3, DB-3).
+  - **v1 reads no SULIT field** (DB-2, §6). There are no estimated-value tiles and no count/value switch.
+  - The Budget tab, the Overview's "Budget used" tile and the Budget page itself follow one predicate (§6.3, DB-3).
   - Suppliers never see it.
-- **Home is unchanged,** except that its three pipeline cards gain a link to Insights · Overview (DB-9). The two screens split
-  the work:
+- **Home is unchanged** (DB-9). It gains no link; step I-5 is dropped. The two screens split the work:
   - Home: "Needs you", what happened, sittings coming up;
-  - Insights: totals, trends and breakdowns.
+  - Dashboard: totals, trends and breakdowns.
 
 ## 3. What good products show first (benchmark, 2026-10-24)
 
@@ -63,7 +64,7 @@ What every one of them leads with is **money against budget, the stage funnel an
 ## 4. The screen
 
 ```
-PageHeader  "Insights"  (info popover: "Figures across the organisation. Open any figure to see its records.")
+PageHeader  "Dashboard"  (info popover: "Figures across the organisation. Open any figure to see its records.")
             meta: "FY 2026 · 1 Jan–31 Dec 2026" · "As at 24 Oct 2026"
 Tabs        Overview · Budget · Requisitions · Tenders & quotations · Projects & payments
 Filter bar  [Year ▾] [Department ▾] [+ one per tab: Funding route ▾ | Method ▾]   Reset
@@ -74,24 +75,37 @@ Charts      2-column grid of Cards; each chart: CardHeader title + "Table" toggl
 - **The tabs** are links to `?tab=<id>`, using `Tabs` (`src/components/tabs.tsx`) with a server-rendered panel. Only the selected
   tab's queries run.
 - **The filters** are a `next/form` GET, the pattern step 7 uses. They are kept in the address, so a view can be shared and
-  survives a refresh: `/insights?tab=requisitions&year=2026&unit=<code>&route=<code>`.
+  survives a refresh: `/dashboard?tab=requisitions&year=2026&unit=<code>&route=<code>`.
   - A pure `parseInsightsQuery` drops any value that is not a known year, unit, route or method. A bad address shows the
-    defaults and never an error.
+    defaults and never an error. A filter that does not apply to the tab is dropped too, so it can never narrow a figure
+    unseen.
   - Each control is a `Select` of labels, never codes.
   - Filters that do not apply to a tab are not drawn.
-  - Reset links to `/insights?tab=<tab>`.
-- **The financial year** is the `BudgetPeriod` rows of the chosen year: from the earliest `startsOn` to the latest `endsOn`.
+  - Reset links to `/dashboard?tab=<tab>`.
+- **The financial year** is the `BudgetPeriod` rows of the chosen year: from the earliest `startsOn` to the latest `endsOn`,
+  which is exclusive as every period's is (a record dated on it belongs to the next year). Month slots run from the range's
+  first month to its last, so a July-start year runs July to June.
   - The default is `defaultYear(periods)`, the open year, which is what Budget shows.
   - **No periods set:** the Year control reads "Financial year not set". Year-bound tiles show an empty state that links to
     Settings · Budget periods (§7).
   - The calendar year is never quietly assumed (the three-state rule). Snapshot tiles ("now") still show.
 - **Days and months** are the organisation's days (`organisationTimeZone`, `organisationDay`).
+  - A day column (`raisedOn`, `paidOn`) is read as stored (`storedDay`); an instant (`issuedAt`, `closedAt`) is read in the
+    organisation's zone (`dayIn`), so an award issued at 31 Dec 20:00 UTC is a 1 January award in Kuala Lumpur.
   - **Time zone unset:** UTC is used and the header meta says "(UTC: time zone not set)", as Budget does.
-- **Department** means the requisition's `requestingUnitCode`, followed down the case:
+- **Department** means the requesting unit, `requestingUnitCode`, flat, with no roll-up of sections (DB-10), followed down
+  the case:
   - an exercise's department is its requisition's;
   - an award's, contract's and payment's department is its exercise's requisition's;
   - a budget code's department is its `owningUnitCode`;
   - records with none are grouped as "No department", and that group is never dropped.
+  - **One unit list feeds the filter for every tab** (`departmentUnits`): the units of kind Department, as the requisition
+    form offers them for "Requesting department". A test holds the budget codes' filter and the requisitions' filter to the
+    same list.
+  - **Known gap:** the budget code editor lets a code be owned by any unit (a section or a division too). Such a code shows
+    under its own unit's name in the by-department chart but no Department filter reaches it, since there is no roll-up. If
+    RSAJ owns budgets at section level, that is the roll-up switch DB-10 already defers.
+  - Unit labels come from every unit, retired ones included, so an old record never shows a code.
 - **Tile labels say their time basis:** "Raised in FY 2026" or "Open now". A snapshot tile ignores the Year filter and says
   so by its label; there is no separate disclaimer.
 - **Money is compact** (`formatCompactRM`) on tiles and axes. It is exact in the chart's table and in the bar's `<title>`
@@ -109,7 +123,7 @@ Its job is the one-glance answer for a management meeting. It has a Year filter 
 
 | Tile | Definition | Opens |
 | --- | --- | --- |
-| Budget used now | The Budget screen's header figure: `totalsAcross(all codes, movements, organisation's today).utilisation`. The Year filter does not change it (§5.2). The hint is "RM x of RM y". "No allocation" where null, never 0 %. | Budget tab |
+| Budget used now | The Budget screen's header figure: `totalsAcross(all codes, movements, organisation's today).utilisation`. The Year filter does not change it (§5.2). The hint is "RM x of RM y". "No allocation" where null, never 0 %. Drawn only for a reader who passes the Budget predicate (§6.3); for anyone else the row closes up. | Budget tab |
 | Requisitions raised in FY | The count of `Requisition` with `raisedOn` in the FY and `status ≠ DRAFT`. | Requisitions tab |
 | Open tenders now | The count of `SourcingExercise` matching `SOURCING_PIPELINE_WHERE` and `exerciseNotHidden`: Home's Sourcing card. | Tenders tab |
 | Awarded in FY | The Σ of `Award.awardedValue` for awards with status `ISSUED` or `ACCEPTED` and `issuedAt` in the FY, under `caseVisibilityWhere`. The hint is the count. | Tenders tab |
@@ -129,7 +143,8 @@ Charts:
 
 ### 5.2 Budget
 
-Its job is "how much is gone, and where". It has a Year filter and a Department filter (`owningUnitCode`).
+Its job is "how much is gone, and where". It has a Year filter and a Department filter (`owningUnitCode`). It is drawn only for
+a reader who passes the Budget predicate (§6.3, DB-3).
 
 The Budget screen's Availability tab already draws these figures (`availability-panel.tsx`, `src/lib/budget/analysis.ts`), so
 this tab **reuses its functions, not its rule in words**: the tiles are `figuresFor` over **all** codes as at the organisation's
@@ -167,13 +182,13 @@ Its job is how many came in and how fast they were approved. It has Year, Depart
 | Waiting for approval now | `status = PENDING_APPROVAL` (snapshot). | `/requisitions?view=pending` |
 | Over budget now | `status = OVER_BUDGET` (snapshot). | `/requisitions?view=over` |
 | Median days to approval | For the approved instances with `closedAt` in the FY: the median of the organisation days between `raisedOn` and `closedAt`, in calendar days. The hint is "across N". No tone is applied, because no target is configured (ruling R5). | chart table |
-| Estimated value raised | The Σ of `estimatedValue` for the requisitions raised in the FY. **SULIT (§6).** | (I-6) |
+
+There is no estimated-value tile: the estimate is SULIT and v1 reads no SULIT field (DB-2, §6). Five tiles.
 
 Charts:
 
 1. **Raised and approved by month:** columns, two series. Raised is counted by `raisedOn`, approved by the instance's `closedAt`.
-2. **By department:** horizontal bars, with a **Count | Value** switch (`?measure=value`). Value is SULIT (§6), so a reader who
-   may not read it sees the switch disabled, with the reason in its tooltip.
+2. **By department:** horizontal bars of counts. There is no value measure (DB-2).
 3. **By funding route:** horizontal bars of counts. Labels come from `FundingRoute.nameEn`, and records with none are grouped
    as "No funding route".
 
@@ -188,7 +203,9 @@ Its job is what is out to market and what it produced. It has Year, Department a
 | In market | The same, for `IN_MARKET`. |
 | Evaluating | The same, for `EVALUATING`. |
 | Awarded in FY | As on Overview. The hint is the count. |
-| Estimated value open | The Σ of `SourcingExercise.estimatedValue` over Open now. **SULIT (§6).** |
+
+There is no estimated-value tile: an open exercise's estimate is SULIT and v1 reads no SULIT field (DB-2, §6). Five tiles.
+The awarded value is not SULIT (§6.1).
 
 Charts:
 
@@ -223,71 +240,59 @@ Charts:
 
 ### 6.1 Which figures are SULIT (checked against `SULIT_FIELDS`, `src/lib/sulit-fields.ts`)
 
-| Figure | Field | In the registry? | On Insights |
+**v1 reads no SULIT field** (DB-2). A source scan holds every file under `src/lib/insights/**` to naming no field of the
+registry at all (I-1), with a planted control so the scan cannot pass empty.
+
+| Figure | Field | In the registry? | On the Dashboard |
 | --- | --- | --- | --- |
-| Estimated value (requisition, exercise) | `estimatedValue` | **Yes** (scope requisition, also exercise) | Gated (§6.2). |
+| Estimated value (requisition, exercise) | `estimatedValue` | **Yes** (scope requisition, also exercise) | **Not read in v1.** No tile, no chart, no count/value switch. |
 | Awarded value | `Award.awardedValue` | No. The supplier portal's Results publishes it. | Shown. |
 | Contract sum | `Contract.contractSum` | No. | Shown. |
 | Paid | `FinancePayment.amount` | No. | Shown. |
 | Variation estimate | `Variation.estimate` | No. | Shown. |
 | Budget code totals | the movement ledger | No. A code's committed figure is made from requisition estimates (`committedEstimate` is SULIT in its audit row). | §6.3, DB-3. |
-| Savings, scores, performance %, company estimate, opening and corrected prices | `savingAmount`, `score*`, `cprPercent`, `companyEstimate`, `openingPrice*`, `correctedPrice*` | Yes | **Never read.** A source scan holds `src/lib/insights/**` to this (I-1). |
+| Savings, scores, performance %, company estimate, opening and corrected prices | the evaluation's and the opening's figures | Yes | **Never read.** Held by the same scan. |
 
-### 6.2 How a SULIT total behaves
-
-There are two different things here, and they are kept apart.
+### 6.2 Restricted records, and why no total is withheld
 
 - **Restricted exercises,** and restricted cases before issue, are **left out of every count and sum, silently.** This is what
   Home and every list do. A note saying "3 hidden" would tell the reader that restricted exercises exist, which FR-MTD-007
   forbids ("neither shown nor counted").
-- **Visible records whose value the reader may not read** are counted in the count tiles. In value tiles they are handled by
-  the reader's standing, which is read once with `organisationPermissionState`:
-  - **The reader holds `sulit.read.organisation` through a role, and is not an administrator.**
-    - Gate each record with `sulitGates(actor, subjects, ["estimatedValue"], { list: true })`. That is one read of who is named
-      on each, and one access event per record per person per day.
-    - Then sum in the database over the granted ids only (`id in granted`).
-    - If any record is withheld (the log could not be written, or a basis refuses), the tile reads "RM 4.2m" with the hint
-      "12 withheld", next to the SULIT mark (`sulit-marks.tsx`).
-    - A sum never includes a withheld value, and is never scaled up to make up for one. No filter combination can give a
-      withheld value away by subtraction, because no total ever contains it.
-  - **Anyone else** gets the whole tile as "Withheld", with the SULIT mark and the reason in words from the existing refusal
-    words. This covers administrators (D9: never), anyone the organisation has not decided about, and anyone without the
-    permission.
-    - **No value is read,** so no event is written.
-    - A requester will see their own requisition's value on the list but not on Insights. Insights is organisation-wide, and a
-      sum over the handful of records someone happens to be named on is honest but useless ("RM 40k, 197 withheld").
-  - **Value charts** (Requisitions by department, Value) follow the same rule. The withheld state is an `EmptyState` inside the
-    card that says "Values withheld" and gives the reason. A partial value chart carries a caption under its axis:
-    "Excludes 12 requisitions whose value you may not see."
-- **Why log per record:** a Department filter can narrow a total to a single requisition. At that point the total is that
-  requisition's value, so reading an aggregate is reading each value in it (NFR-AUD-004: no unlogged read). DB-2 records the
-  cheaper alternative.
+- **No figure on the Dashboard is SULIT,** so no tile is ever "Withheld" and no access event is written. Every figure is the
+  same for every reader who may open the same lists.
+- **Kept on file for v2 (DB-2):** if a SULIT total is ever wanted, the design is per-record gates in list mode
+  (`sulitGates(..., { list: true })`) for holders of `sulit.read.organisation`, a sum over the granted ids only with "n
+  withheld", and the whole tile withheld for everyone else, administrators included. Per record, because a Department filter
+  can narrow a total to one requisition, at which point reading the total is reading that value (NFR-AUD-004). It needs a
+  new ruling before it is built.
 
-### 6.3 Budget
+### 6.3 Budget: one predicate for every Budget surface (DB-3)
 
-- **Today:** `/configuration/budget` is behind Settings in the sidebar (`maySeeSettings`). The page itself only requires a
-  staff member.
+- **Today:** `/configuration/budget` is behind Settings in the sidebar (`maySeeSettings`), but the page itself only requires a
+  staff member, so anyone can open it by address.
 - **The leak:** a code with one commitment shows that requisition's estimate as its committed figure.
-- **The recommendation:** the **Budget tab, and the Overview's Budget used tile, are drawn only for readers for whom
-  `maySeeSettings` is true, or who hold `sulit.read.organisation`.** Others see neither the tab nor the tile; the tile row closes
-  up. That keeps Budget's present audience and does not widen it.
-- **For the security auditor:** administrators already see committed figures on the Budget screen, and that existing gap is
-  noted here (DB-3).
+- **The ruling:** one predicate, `mayReadBudget` (`src/lib/insights/query.ts`): the reader may see Settings
+  (`maySeeSettings`) **or** holds `sulit.read.organisation`. It governs, all three together:
+  1. the Dashboard's Budget tab (not drawn; a direct `?tab=budget` falls back to Overview);
+  2. the Overview's "Budget used" tile (not drawn; the tile row closes up);
+  3. the Budget page itself (`/configuration/budget`), which refuses a reader who fails it, as the other Settings pages do
+     (step I-3).
+- **For the security auditor:** administrators pass the predicate through Settings and so see committed figures, on the Budget
+  page as today and on the Dashboard. Whether a committed figure is SULIT has gone to RSAJ; if it is, all three surfaces
+  change together, because they share the predicate.
 
 ## 7. States
 
 | State | What shows |
 | --- | --- |
-| Loading | `src/app/insights/loading.tsx` is a skeleton: six tile blocks and two chart cards at their final sizes, so nothing jumps. A tab change navigates, so the skeleton shows again. |
+| Loading | `src/app/dashboard/loading.tsx` is a skeleton: six tile blocks and two chart cards at their final sizes, so nothing jumps. A tab change navigates, so the skeleton shows again. |
 | Organisation has no records | One `EmptyState` per tab, for example "No requisitions yet" with a link to the list. It is not a row of zeros. |
 | Filter matches nothing | The tiles show 0 (a real nought), and each chart says "Nothing for these filters", with a Reset link. |
 | Financial year not set | Year-bound tiles and charts show "Financial year not set", with a link to Settings · Budget periods. Snapshot tiles still show. |
 | Time zone not set | UTC, said once in the header meta (the Budget precedent). |
 | Threshold not set | The Used tile is neutral, and the tick on Most used codes is not drawn. |
 | No allocation | "No allocation", not 0 %. |
-| SULIT withheld, whole | The "Withheld" tile and the empty state in its value chart (§6.2). |
-| SULIT withheld, partial | The figure, plus "n withheld". |
-| No permission for Budget | The tab is not drawn. A direct `?tab=budget` falls back to Overview, and does not show a refusal page. |
+| No permission for Budget (fails `mayReadBudget`) | The tab and the Overview's Budget used tile are not drawn. A direct `?tab=budget` falls back to Overview, and does not show a refusal page. |
 | A query fails | That tab's `error.tsx`: "These figures could not be loaded. Try again." It has a Retry button and keeps the filters. Other tabs are unaffected. |
 | One series all zero | The chart is drawn with a flat line. It is not replaced by an empty state, because "nothing paid this year" is an answer. |
 
@@ -299,13 +304,12 @@ No chart library is installed (`package.json`: exceljs and pdf-lib only).
 
 | Primitive | For | Notes |
 | --- | --- | --- |
-| `BarList` | ranked categories (department, method, route, supplier), and the stage funnel (order kept, not sorted) | Horizontal. The label sits on the left, the value on the right, and long labels are truncated with the full text in `<title>`. Up to 3 stacked segments. Each row is an `<a>` when it has an `href`. An optional threshold tick. |
+| `BarList` | ranked categories (department, method, route, supplier), and the stage funnel (order kept, not sorted) | Horizontal, drawn as HTML rows rather than SVG, so a row that is a link is a real link a screen reader reaches (a link inside `<svg role="img">` is hidden from it). The label sits on the left, the value on the right, the bar between is `aria-hidden`, and long labels are truncated with the full text in `title`. Up to 3 stacked segments. Each row is an `<a>` when it has an `href`. An optional threshold tick. |
 | `MonthColumns` | anything by month of the FY | 1 or 2 series side by side. Every month of the year has a slot, including empty ones, so a gap reads as a gap. |
 | `TrendLine` | Used through the year | One line plus an optional reference line. Periods that have not come yet are not drawn. |
 
 - **Why hand-rolled:**
-  - The charts are server components. Only finished numbers ever reach the browser, and no row does: this is the SULIT
-    guarantee by construction.
+  - The charts are server components. Only finished numbers ever reach the browser, and no row does.
   - It needs no client JavaScript, and the colours come straight from the `@theme` tokens (brand indigo, slate, `warn`,
     `err`).
   - About 300 lines replace a dependency of more than 100 kB that would have needed client components and theming.
@@ -313,7 +317,7 @@ No chart library is installed (`package.json`: exceljs and pdf-lib only).
 - **What it gives up:** animation and brushing. Neither answers a question here.
 - **Accessibility and exact numbers:**
   - Each chart card has a **Table** toggle (`Disclosure`) showing the same series as a `table.tsx` table, with exact figures.
-  - The `<svg>` has `role="img"` and an `aria-label` that summarises it ("Paid by month, highest October, RM 2.1m").
+  - `MonthColumns` and `TrendLine` draw an `<svg>` with `role="img"` and an `aria-label` that summarises it ("Paid by month, highest October, RM 2.1m").
 - **No donut or pie charts:** a horizontal bar compares the same parts more accurately. There are no 3D charts, no dual axes
   and no legend beyond two series.
 
@@ -322,9 +326,9 @@ No chart library is installed (`package.json`: exceljs and pdf-lib only).
 - **Layout:**
   - `src/lib/insights/` holds the pure functions and their tests;
   - `src/lib/insights/store.ts` (server only) holds the queries;
-  - the page calls the store and renders. Nothing in `src/app/insights` restates a rule.
+  - the page calls the store and renders. Nothing in `src/app/dashboard` restates a rule.
 - **The where-builders are shared, not copied:**
-  - Insights' `insightsWhere.requisition(filters)`, and its equivalents for the other records, compose with the existing
+  - The Dashboard's `insightsWhere.requisitionsRaised(organisationId, filters, range)`, and its equivalents for the other records, compose with the existing
     `SOURCING_PIPELINE_WHERE`, `casePipelineWhere`, `exerciseNotHidden` and `caseVisibilityWhere`.
   - The lists' filters (I-6) call the same builders, so the count on a tile and the count on its list come from one where.
   - `organisationId` comes from the actor and is on every query. Budget movements carry none, so they are scoped through
@@ -332,12 +336,12 @@ No chart library is installed (`package.json`: exceljs and pdf-lib only).
 - **Queries:**
   - Counts and sums use Prisma `count`, `groupBy` and `aggregate`.
   - Month buckets read narrow columns (`{ raisedOn }`, `{ paidOn, amount }`, `{ issuedAt, awardedValue }`) for the FY's
-    records, and bucket them in a pure `byMonth(rows, range, timeZone)`. At RSAJ's scale that is a few thousand small rows,
+    records, and bucket them in a pure `byMonth(rows, months)`, each row carrying its organisation day (`storedDay` for a day column, `dayIn` for an instant). At RSAJ's scale that is a few thousand small rows,
     held server-side only.
   - Prisma cannot group by month, and raw SQL would bypass the generated types.
   - Each tab runs 5 to 9 queries in one `Promise.all`.
 - **Money** is `Decimal` to sen at the boundary (`senFromDecimal`), summed as `Sen`, and formatted last.
-- **No cache across readers:** the figures depend on the reader (hidden exercises, SULIT). The pages are `force-dynamic`, as
+- **No cache across readers:** the figures depend on the reader (hidden exercises, the Budget predicate). The pages are `force-dynamic`, as
   Home is.
 - **Indexes:** none up front.
   - `Requisition (organisationId, raisedOn)` and `(organisationId, status)` already exist, as do `Award (organisationId, status)`
@@ -358,8 +362,8 @@ No chart library is installed (`package.json`: exceljs and pdf-lib only).
   certificate's snapshot. Paid (`FinancePayment`) and Waiting for payment (a count) answer the question that is actually asked.
   Add it once FR-RPT-004's contract financials exist.
 - **LAD, delay and the revised contract sum.** These are per-contract computations owned by FR-RPT-004 and -006.
-- **Export from Insights.** Every figure opens its list, and the list exports (step 7). A second export path would be a second
-  SULIT surface.
+- **Export from the Dashboard.** Every figure opens its list, and the list exports (step 7). A second export path would be a
+  second surface to review.
 - **A customisable widget builder** (§11).
 - **Overlap with FR-RPT:** the Pipeline (FR-RPT-002) and Spend (FR-RPT-012) charts are the same questions in rough form. When
   RSAJ specifies those reports, they reuse `src/lib/insights/**` rather than restating it.
@@ -381,60 +385,46 @@ Ownership:
 - **Step 7 owns:** `src/lib/list-query.ts`, `src/lib/search/**`, `src/lib/ui/list-cells.ts`, `src/components/data-list.tsx`,
   `src/components/shell/topbar.tsx`, and every list `page.tsx` and `rows.ts` (Requisitions, Tenders & quotations, Projects,
   Suppliers, Committees), plus the export routes.
-- **Insights owns:** `src/lib/insights/**`, `src/components/ui/chart.tsx` and `src/app/insights/**`, and one line in
-  `src/lib/nav.ts`.
+- **The Dashboard owns:** `src/lib/insights/**`, `src/components/ui/chart.tsx` and `src/app/dashboard/**`, one line in
+  `src/lib/nav.ts`, and, for the DB-3 gate only, `src/app/configuration/budget/page.tsx`.
 - **Running in parallel:** at most two builders run at once (laptop memory), and step 7 uses both in 7-b, 7-c and 7-d. So
-  Insights fills the free slot in **7-a** (I-1, I-2) and **7-e** (I-3). Its other steps queue behind step 7.
+  the Dashboard fills the free slot in **7-a** (I-1, I-2) and **7-e** (I-3). Its other steps queue behind step 7.
 
 | Step | Files | Work | Tests | Done when |
 | --- | --- | --- | --- | --- |
-| **I-1** Pure core (domain-engineer) | new: `src/lib/insights/{query,year,months,where,tiles,sulit-scan.test}.ts` | `parseInsightsQuery`. `financialYear(periods, year)` returns a range or `NOT_SET`. `byMonth`, `median`. `insightsWhere.*` composing the existing pipeline and visibility filters. Tile folds over groupBy rows. | Unknown year, unit or route is dropped. A year with no periods gives `NOT_SET`. Months are built on the organisation's day, so 31 Dec 23:30 UTC in Asia/Kuala_Lumpur falls in January. Median of an even count. A department total and "No department" add up to the total. **Source scan:** no file under `src/lib/insights` names a registry field other than `estimatedValue`, and that one only in `sulit-values.ts`. | `npm test` and `npm run typecheck` pass. |
-| **I-2** Charts (frontend-engineer) | new: `src/components/ui/chart.tsx`, `chart.test.tsx` | `BarList`, `MonthColumns`, `TrendLine`, and the Table toggle. Token colours only, no `dark:`. | Twelve slots for a twelve-month FY. A negative value draws from the axis. `href` renders an `<a>`. The `aria-label` summary. The table equals the series. | Rendered on a scratch page beside `Stat` and `Card` and checked against siblings. `npm run lint` passes. |
-| **I-3** Store and SULIT (domain-engineer, security review) | new: `src/lib/insights/store.ts`, `sulit-values.ts`, `store.db.test.ts` | The queries per tab (§5). The value gate (§6.2), using `sulitGates` and then `aggregate` over the granted ids. The budget audience rule (§6.3). | `test:db`: Overview pipeline totals equal `pipelineCounts` (Home). A restricted exercise moves no count. An administrator gets Withheld and writes no event. A holder's sum excludes a forced-withheld record and reports 1 withheld. Another organisation's rows never count. Projects-by-stage counts equal the `/projects` view counts. The Budget tab's tiles and charts equal `availability-panel.tsx`'s inputs for the same data and year. | `npm run test:db` passes. The security-auditor signs off §6. |
-| **I-4** Screen (frontend-engineer) | new: `src/app/insights/{page,loading,error}.tsx` and `tabs/*.tsx`. `src/lib/nav.ts`: one item. `sidebar.test.ts`: one case. | PageHeader, filter bar (`next/form`), tabs, tiles (`Stat` with `href`), chart cards, the §7 states. | A snapshot of each tab's visible text. Nav order is Home, Insights, My approvals, Inbox. `?tab=budget` without the audience falls back to Overview. | Text snapshot, sibling-screen check against Home and Projects, typecheck, lint and test all pass. |
-| **I-5** Home link (frontend-engineer) | `src/app/page.tsx` | The three pipeline cards link to `/insights` (DB-9). | Existing Home tests pass. | Text snapshot diff shows only the link. |
+| **I-1** Pure core (domain-engineer) | new: `src/lib/insights/{query,year,months,where,tiles}.ts`, their tests, and `sulit-scan.test.ts` | `parseInsightsQuery`, `departmentUnits` and `mayReadBudget` (the DB-3 predicate). `financialYear(periods, year)` returns a range or `NOT_SET`. `monthSlots`, `byMonth`, `median`, `daysToApproval`. `insightsWhere.*` composing the existing pipeline and visibility filters, the organisation on every one. Tile folds over groupBy rows (the pipeline bars, groups with "No department"). | Unknown year, unit, route or method is dropped, and so is a filter the tab does not take. A year with no periods gives `NOT_SET`. A record dated on the last `endsOn` is outside the year. A July-start year has its twelve slots July to June. An award issued 31 Dec 20:00 UTC falls in January in Asia/Kuala_Lumpur. Median of an even count. A department total and "No department" add up to the total. Budget codes and requisitions draw their Department filter from the same unit list. The unfiltered pipeline wheres equal Home's, and the same groupBy rows fold to Home's three totals. **Source scan:** no file under `src/lib/insights` names any field of `SULIT_FIELDS`, with a planted control. | `npm test` passes on the insights tests; the type check as the tree allows. |
+| **I-2** Charts (frontend-engineer) | new: `src/components/ui/chart.tsx`, `chart.test.ts` (the suite runs `*.test.ts` only) | `BarList` (HTML rows), `MonthColumns`, `TrendLine` (SVG), and the Table toggle (`Disclosure`, no client script). Token colours only, no `dark:`. | Twelve slots for a twelve-month FY. A negative value draws from the axis. `href` renders an `<a>`. The `aria-label` summary. The table equals the series. | Rendered on a scratch page beside `Stat` and `Card` and checked against siblings. `npm run lint` passes. |
+| **I-3** Store and Budget gate (domain-engineer, security review) | new: `src/lib/insights/store.ts`, `store.db.test.ts`; `src/app/configuration/budget/page.tsx` (the gate) | The queries per tab (§5), none reading a SULIT field. The Budget predicate (§6.3) on the Budget page, the Budget tab and the Budget used tile. | `test:db`: Overview pipeline totals equal `pipelineCounts` (Home). A restricted exercise moves no count. Another organisation's rows never count. Projects-by-stage counts equal the `/projects` view counts. The Budget tab's tiles and charts equal `availability-panel.tsx`'s inputs for the same data and year. A reader who fails `mayReadBudget` is refused the Budget page. | `npm run test:db` passes. The security-auditor signs off §6. |
+| **I-4** Screen (frontend-engineer) | new: `src/app/dashboard/{page,loading,error}.tsx` and `tabs/*.tsx`. `src/lib/nav.ts`: one item. `sidebar.test.ts`: one case. | PageHeader, filter bar (`next/form`), tabs, tiles (`Stat` with `href`), chart cards, the §7 states. | A snapshot of each tab's visible text. Nav order is Home, Dashboard, My approvals, Inbox. `?tab=budget` without the predicate falls back to Overview. | Text snapshot, sibling-screen check against Home and Projects, typecheck, lint and test all pass. |
+| ~~I-5~~ | — | **Dropped** (DB-9): Home is unchanged. | — | — |
 | **I-6** Drill-down filters (after step 7-e) | `src/lib/list-query.ts` (adds `unit`, `from`, `to`, `method`, `route` and `stage` facets), each list's `rows.ts` (calls `insightsWhere`), and each list page (removable filter chips) | Unlinked tiles and bars become links. The list shows the filter as chips ("Department: Water Supply ×"). Exports honour the facets. | For every linked tile, its count equals the list's total under the same address, as a `test:db` table over all tiles. | Every tile and bar in §5 links. |
 | **I-7** Close-out (devops, ux-reviewer) | `scripts/` volume run, screenshots | Time each tab at 10× demo data, and add the §9 index only on a failure. Review at 1280 and 1920 widths. | n/a | Every tab is under 1 s, and the ux-reviewer passes it. |
 
-## 13. Open decisions
+## 13. Decisions (ruled by the product owner, 2026-10-24)
 
-- **DB-1, who sees Insights.**
-  - **Recommend:** every staff member, with no new permission. Every count is already reachable on the lists. Values are SULIT
-    or not on their own terms. Budget is handled by DB-3.
-  - **The alternative:** an `insights.view` grant, as Procurify does. That would add a setting the customer must decide before
-    anyone sees the screen, against the simple direction.
-- **DB-2, how a SULIT total is read and logged.**
-  - **Recommend:** per-record gates in list mode for holders of `sulit.read.organisation`, and the whole tile withheld for
-    everyone else (§6.2). It needs no schema change.
-  - **The alternative:** one aggregate access event per tile. It is cheaper (one row, not thousands), but it needs a new event
-    kind and a migration, and it records what was summed less precisely.
-  - Measure the first-visit cost in I-7. Revisit only if it fails.
-- **DB-3, Budget's audience.**
-  - **Recommend:** the Budget tab and tile only for readers who may see Settings, or who hold `sulit.read.organisation`. That
-    keeps today's audience.
-  - **Ask RSAJ** whether a code's committed figure is SULIT. If it is, Budget and Insights change together.
-  - **Under this recommendation administrators see Committed on Insights,** as they already do on Budget. That is consistent
-    with the registry (Committed is not a SULIT field) and inconsistent with the brief's "administrators never read SULIT",
-    if RSAJ rules Committed SULIT. The product owner rules on it knowingly; the security auditor reviews both screens.
-- **DB-4, drill-down filters on the lists.**
-  - **Recommend:** I-6 after step 7, adding facets to `list-query.ts`. Until then, link only where a view matches exactly. A
-    tile that opens a list showing a different number is worse than no link.
-- **DB-5, the financial year's source.**
-  - **Recommend:** `BudgetPeriod`. When it is unset, say "Financial year not set" and never assume the calendar year.
-- **DB-6, charts.**
-  - **Recommend:** hand-rolled server SVG (§8), not a library.
-- **DB-7, no Suppliers tab and no certified-amount tile in v1** (§10).
-  - **Recommend:** agree. Revisit with FR-RPT-004 and -008.
-- **DB-8, name and place.**
-  - **Recommend:** "Insights", second in Work. "Dashboard" is taken by Home in the code and in people's heads, and "Reports" is
-    kept for FR-RPT.
-- **DB-9, Home's pipeline cards.**
-  - **Recommend:** keep them, and make each one a link to Insights · Overview. Home stays the glance; Insights is the
-    breakdown.
-- **DB-10, the Department filter.**
-  - **Recommend:** the requesting department only (`requestingUnitCode`), with no roll-up of sections into departments. Org
-    units carry `parentCode`, but whether a section's work counts under its department is RSAJ's policy. Ship it flat, and add
-    the roll-up as a switch if they ask.
+- **DB-1, who sees the Dashboard. Accepted.** Every staff member, with no new permission, under the lists' own visibility
+  rules. Every count is already reachable on the lists.
+- **DB-2, SULIT totals. Changed: v1 reads no SULIT field.** The estimated-value tiles (Requisitions, Tenders) and the
+  count/value switch are dropped; the I-1 scan holds `src/lib/insights/**` to naming no field of `SULIT_FIELDS`. The
+  per-record design (§6.2) stays on file for v2 and needs a new ruling before it is built.
+- **DB-3, Budget's audience. Changed: one predicate for all three surfaces.** `mayReadBudget` (Settings reader, or holder of
+  `sulit.read.organisation`) governs the Dashboard's Budget tab, its Budget used tile and the Budget page itself, which today
+  any staff member can open by address while a code with one commitment discloses that requisition's estimate. "Is a
+  committed figure SULIT?" has gone to RSAJ; if it is, the three change together. Administrators pass through Settings and see
+  Committed, as they do on Budget today; the security auditor reviews both screens.
+- **DB-4, drill-down filters on the lists. Accepted.** I-6 after step 7. Until then a tile links only where a list view holds
+  exactly the same records.
+- **DB-5, the financial year's source. Accepted.** `BudgetPeriod`, with an honest "Financial year not set"; the calendar year
+  is never assumed.
+- **DB-6, charts. Accepted.** Hand-rolled server SVG (§8), not a library.
+- **DB-7, no Suppliers tab and no certified-amount tile in v1. Accepted** (§10). Revisit with FR-RPT-004 and -008.
+- **DB-8, name and place. Changed:** "Dashboard" at `/dashboard`, second in Work (the founder's word; Home no longer uses it).
+  The code stays in `src/lib/insights/**`.
+- **DB-9, Home's pipeline cards. Changed:** Home is unchanged; step I-5 is dropped.
+- **DB-10, the Department filter. Accepted.** The requesting unit (`requestingUnitCode`), flat, with no roll-up of sections
+  into departments; whether a section's work counts under its department is RSAJ's policy, added as a switch if they ask.
+  The filter's one unit list is the Department units, as the requisition form offers them; a budget code owned by a section
+  or division is not reached by it (§4, the known gap).
 
 ## 14. Test with real users before committing
 
@@ -442,7 +432,7 @@ Ownership:
    Excel, a tile is missing.
 2. **With a department head:** ask them to filter to their department and check the numbers against what they believe. A
    mismatch means the department mapping (DB-10) is wrong for RSAJ.
-3. **With a requester who holds no SULIT permission:** check that "Withheld" reads as a rule and not as a fault. If it reads
-   as broken, the words change; the rule does not.
+3. **With a requester who may not read Budget:** check that the Overview without its Budget used tile, and without the Budget
+   tab, reads as complete rather than broken.
 4. **The click-through:** click any linked tile and ask whether the list matches. Any doubt is a defect.
 5. **The six-tile row at 1280 px:** if it feels crowded, drop to five tiles per tab, not to smaller type.
