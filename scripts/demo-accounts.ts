@@ -39,6 +39,7 @@ import { missingDemoConfigWords } from "../prisma/demo-fresh-config";
 import { COMPANY_DEMO_ACCOUNTS } from "../prisma/demo-company";
 import { MY_BIDS_DEMO_ACCOUNTS } from "../prisma/demo-my-bids";
 import { REGISTRATION_DEMO_ACCOUNTS } from "../prisma/demo-registration";
+import { WAVE_V_DEMO_ACCOUNTS } from "../prisma/demo-wave-v";
 
 const ADMINISTRATORS = [
   { loginName: "demo.admin1", name: "Demo Administrator One" },
@@ -158,7 +159,7 @@ async function main() {
   // Phase 4b: the two suppliers the demonstration holds part-way through their own registration (one with a draft, one that has sent it). Their accounts were made waiting for activation, holding the hash of a secret nobody
   // knows; this gives them the demonstration password, and nothing else of theirs is touched.
   // Phase 4c: the applicant asked to resubmit (and the contractor of demo_con13, whose account the contractor demonstration made waiting for activation), given the same.
-  for (const sp of [...REGISTRATION_DEMO_ACCOUNTS, ...COMPANY_DEMO_ACCOUNTS, ...MY_BIDS_DEMO_ACCOUNTS, { loginName: "demo.ctr13", supplierId: `${DEMO_PREFIX}ctr13` }]) {
+  for (const sp of [...REGISTRATION_DEMO_ACCOUNTS, ...COMPANY_DEMO_ACCOUNTS, ...MY_BIDS_DEMO_ACCOUNTS, ...WAVE_V_DEMO_ACCOUNTS, { loginName: "demo.ctr13", supplierId: `${DEMO_PREFIX}ctr13` }]) {
     const waiting = await db.supplierAccount.findFirst({ where: { organisationId: org.id, loginKey: loginKeyOf(sp.loginName), status: AccountStatus.PENDING_ACTIVATION }, select: { id: true, supplier: { select: { reference: true } } } });
     if (!waiting) continue;
     const passwordHash = await hashPassword(password);

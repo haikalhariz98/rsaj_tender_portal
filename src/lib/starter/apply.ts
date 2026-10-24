@@ -89,7 +89,7 @@ async function runWrites(tx: Tx, organisationId: string, writes: readonly PackWr
             ? await tx.organisation.update({ where: { id: organisationId }, data: data as Prisma.OrganisationUncheckedUpdateInput, select: { id: true } })
             : w.create
               ? await delegateOf<Writer>(tx, w.model).create({ data: { organisationId, ...data }, select: { id: true } })
-              : await delegateOf<Writer>(tx, w.model).update({ where: { organisationId }, data, select: { id: true } });
+              : await delegateOf<Writer>(tx, w.model).update({ where: w.rowId ? { id: w.rowId, organisationId } : { organisationId }, data, select: { id: true } });
       const hide = [w.provenanceColumn, w.sourceColumn].filter((c): c is string => !!c);
       const after = { ...shown(w.values, hide), ...origin };
       await writeAudit(tx, { organisationId, entity: w.model, entityId: row.id, entityLabel: w.label, reason, actor }, w.create ? "CREATE" : "UPDATE", diffFields(w.before && shown(w.before, hide), after));

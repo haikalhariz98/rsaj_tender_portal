@@ -17,6 +17,9 @@ export interface PackGroup {
   sourceColumn?: string; // e.g. "dateRuleSource"
   source: string; // the clause, or "generic starting value"
   requirement?: string; // RSAJ requirement ID(s), e.g. "FR-ADV-004, FR-ADV-006"; RSAJ pack only
+  /// One existing row of a list table, by its literal id, instead of the organisation's one row: the development fill only (its demo rows). The row must be this
+  /// organisation's; it is filled only where every column is unset, and never created.
+  rowId?: string;
 }
 
 /// One list: loaded only into an empty list (ADR 0043 D1).

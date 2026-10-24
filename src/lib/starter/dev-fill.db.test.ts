@@ -11,7 +11,8 @@ import { loadPacks } from "./apply";
 /**
  * The development fill (plan step 4.6, SP-23), with the CLI's own marker of a demonstration database: it refuses where the demonstration is not
  * loaded, with approval by another admin on or off, writing nothing; where it is, it turns the switch off with one audit row as its own SYSTEM
- * actor, fills the project document class, the register's classes and the three demo declarations, and a second run writes nothing.
+ * actor, fills the project document class, the register's classes and the three demo declarations, and Wave V's four (contractor portal signing, the
+ * returned award class, the supply type's route and one demo contact allowed to sign, the last two on demo rows named by id), and a second run writes nothing.
  */
 const plain = db as unknown as PrismaClient;
 const opts = (apply: boolean) => ({ apply, demoIsLoaded: (tx: unknown, organisationId: string) => demoIsLoaded(tx as PrismaClient, organisationId) });
@@ -53,6 +54,10 @@ describe("the development fill on a demonstration database", () => {
       { id: "demo_dc2", organisationId: orgId, code: "certificates", nameEn: "Certificates", classification: "SULIT" },
     ] });
     await db.documentStorePolicy.create({ data: { organisationId: orgId, allowedMediaTypes: ["application/pdf"], maxBytes: 1_048_576n } });
+    // The demonstration's supply type and the contact of demo_law1's awardee, which Wave V's groups name by id.
+    await db.contractType.create({ data: { id: "demo_ct3", organisationId: orgId, code: "supply", nameEn: "Supply", provenance: "ASSUMED" } });
+    await db.supplier.create({ data: { id: "demo_vnd2", organisationId: orgId, reference: "DEMO/SUP/2", registeredName: "Demo Paip Services", registrationNo: "D2", registrationNoKey: "D2", entityTypeCode: "x", countryCode: "x", registeredAddress: "1 Demo Street", companyEmail: "d2@demo.invalid" } });
+    await db.supplierContact.create({ data: { id: "demo_vct2", organisationId: orgId, supplierId: "demo_vnd2", name: "Lim Kok Wai", isPrimary: true } });
 
     const dry = await loadPacks(db, orgId, [DEV_FILL_PACK], opts(false));
     expect(dry.faults).toEqual([]);
@@ -81,6 +86,14 @@ describe("the development fill on a demonstration database", () => {
     const texts = await db.declarationText.findMany({ where: { organisationId: orgId }, select: { kind: true, version: true, provenance: true, bodyEn: true } });
     expect(texts.map((t) => t.kind).sort()).toEqual(["FALSE_DECLARATION", "GIRO_AUTHORISATION", "TERMS_AND_CONDITIONS"]);
     for (const t of texts) expect(t).toMatchObject({ version: 1, provenance: "ASSUMED", bodyEn: expect.stringContaining("demo text, replace before go-live") });
+
+    // Wave V (plan step V9): the switch "yes" (ASSUMED), the SULIT class, the supply route (the type's own provenance untouched), and the one contact allowed to sign.
+    expect(await db.postAwardPolicy.findUniqueOrThrow({ where: { organisationId: orgId } })).toMatchObject({ contractorPortalSigning: true, contractorPortalSigningProvenance: "ASSUMED" });
+    expect((await db.documentStorePolicy.findUniqueOrThrow({ where: { organisationId: orgId } })).awardReturnClassId).toBe("demo_dc2");
+    expect(await db.contractType.findUniqueOrThrow({ where: { id: "demo_ct3" } })).toMatchObject({ paymentRoute: "DELIVERY_ORDER_INVOICE", provenance: "ASSUMED", governingSource: "" });
+    expect((await db.supplierContact.findUniqueOrThrow({ where: { id: "demo_vct2" } })).authorisedToSignForContractor).toBe(true);
+    const contactAudit = await db.auditEntry.findFirstOrThrow({ where: { organisationId: orgId, entity: "SupplierContact", entityId: "demo_vct2" }, select: { action: true, changes: true, actorSystemLabel: true } });
+    expect(contactAudit).toMatchObject({ action: "UPDATE", actorSystemLabel: ACTOR, changes: expect.arrayContaining([{ field: "authorisedToSignForContractor", before: null, after: "yes" }, { field: "whereItComesFrom", before: null, after: "Assumed" }]) });
   });
 
   it("refuses another organisation on the same database, which holds no demonstration of its own (step 4.8 M4)", async () => {

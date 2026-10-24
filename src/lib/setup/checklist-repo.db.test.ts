@@ -27,6 +27,13 @@ describe("the checklist, from the database", () => {
     expect(await state("two-person")).toMatchObject({ state: "todo", also: { href: "/configuration/audit?filter=one-person" } });
   });
 
+  it("reads how each contract type is paid from the types not retired (Wave V V9)", async () => {
+    await db.contractType.createMany({ data: [{ organisationId: orgId, code: "w", nameEn: "Work", paymentRoute: "CERTIFIED_CLAIM" }, { organisationId: orgId, code: "c", nameEn: "Consultancy" }] });
+    expect((await state("payment-route")).state).toBe("todo");
+    await db.contractType.updateMany({ where: { organisationId: orgId, code: "c" }, data: { retiredOn: new Date("2026-01-01") } });
+    expect((await state("payment-route")).state).toBe("done");
+  });
+
   it("asks to confirm a draft matrix, and once it is issued names the issuer", async () => {
     const m = await db.authorityMatrix.create({ data: { organisationId: orgId, ...matrix } });
     expect((await state("limits")).state).toBe("confirm");

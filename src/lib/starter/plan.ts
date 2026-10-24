@@ -26,6 +26,7 @@
 
 import { Prisma } from "@/generated/prisma/browser";
 import { policyFault } from "@/lib/auth/policy";
+import { awardReturnClassFault } from "@/lib/documents/award-return-class";
 import { coreChainFaultsAcross, coreLevelFaults } from "@/lib/authority/core-routing";
 import { choiceFaults, choiceFaultText } from "@/lib/authority/choice";
 import { destinationRowFaults, type RejectionKind } from "@/lib/authority/rejection";
@@ -44,7 +45,7 @@ import { PART_CONFIG_FAULT_TEXT, partConfigFaults } from "@/lib/tender-docs/conf
 import type { ConfiguredPart } from "@/lib/tender-docs/types";
 import { configFaultText, policyFaults as windowPolicyFaults } from "@/lib/window/config";
 
-import type { PackMatrixDraft, PackModelDraft, PackName, PackPlan, PackProvenance, PackSkip, StarterPack } from "./types";
+import type { PackGroup, PackMatrixDraft, PackModelDraft, PackName, PackPlan, PackProvenance, PackSkip, StarterPack } from "./types";
 
 /// A value standing for the organisation's day when the pack loads (a dated row's `effectiveFrom`). Needs the organisation's time zone.
 export const LOAD_DAY = { loadDay: true } as const;
@@ -53,7 +54,7 @@ export const LOAD_DAY = { loadDay: true } as const;
 export interface PackSnapshot {
   now: Date;
   /// The organisation's own row ("Organisation"), its security settings ("SecurityPolicy"), and the one row of each other table a group
-  /// writes, by model. Null: no row yet.
+  /// writes, by model; a group naming a row by id, by `groupKey` ("ContractType#demo_ct3"). Null: no row yet.
   rows: Record<string, Record<string, unknown> | null>;
   /// How many rows each list holds, by `listKey`.
   listSizes: Record<string, number>;
@@ -76,7 +77,7 @@ interface WriteBase {
 }
 export type PackWrite =
   | (WriteBase & { kind: "SWITCH_OFF"; create: boolean; reason: string })
-  | (WriteBase & { kind: "GROUP"; label: string; create: boolean; values: Record<string, unknown>; before: Record<string, unknown> | null; provenanceColumn?: string; sourceColumn?: string })
+  | (WriteBase & { kind: "GROUP"; label: string; create: boolean; rowId?: string; values: Record<string, unknown>; before: Record<string, unknown> | null; provenanceColumn?: string; sourceColumn?: string })
   | (WriteBase & { kind: "ROW"; listLabel: string; code: string; label: string; values: Record<string, unknown> })
   | (WriteBase & { kind: "DRAFT_MATRIX"; label: string; draft: PackMatrixDraft; values: { effectiveFrom: unknown } })
   | (WriteBase & { kind: "DRAFT_MODEL"; label: string; draft: PackModelDraft; values: Record<string, never> });
@@ -121,6 +122,7 @@ export const ALLOWED_MODELS: readonly string[] = [
   "SourcingMethod",
   "StandingReason",
   "SupplierDocumentType",
+  "SupplierContact",
   "SupplierListValue",
   "SupplierPolicy",
   "TenderDocumentPart",
@@ -128,7 +130,7 @@ export const ALLOWED_MODELS: readonly string[] = [
 ];
 /// The columns that name a document class. A pack names one by reference to a row it writes, or by the literal id of an existing row (the development fill): the latter is
 /// judged to be a class of this organisation, and a bank statement's to be SULIT (step 4.8 M4).
-export const LITERAL_CLASS_COLUMNS = ["projectDocumentClassId", "supplierUploadClassId", "supplierBankStatementClassId"] as const;
+export const LITERAL_CLASS_COLUMNS = ["projectDocumentClassId", "supplierUploadClassId", "supplierBankStatementClassId", "awardReturnClassId"] as const;
 /// Columns no pack value names: the keys the loader writes itself, and the switch, which moves only by `setsTwoPersonOff`.
 const FORBIDDEN_COLUMNS = ["id", "organisationId", "twoPersonChanges"];
 
@@ -144,6 +146,8 @@ export const SWITCH_OFF_REASON: Record<"WHEN_CREATING_ROW" | "DEMO_DATABASE_ONLY
 
 /// Which list a pack list fills: its model and the scope that narrows it.
 export const listKey = (l: { model: string; scope?: Record<string, unknown> }) => `${l.model}${l.scope ? JSON.stringify(l.scope) : ""}`;
+/// Where a group's row sits in the snapshot: by model, or by model and id for a group naming a row (`PackGroup.rowId`).
+export const groupKey = (g: { model: string; rowId?: string }) => (g.rowId ? `${g.model}#${g.rowId}` : g.model);
 export const isSet = (v: unknown) => v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0);
 const refOf = (v: unknown): string | null => (v && typeof v === "object" && !Array.isArray(v) && typeof (v as { ref?: unknown }).ref === "string" ? (v as { ref: string }).ref : null);
 const isLoadDay = (v: unknown) => !!v && typeof v === "object" && (v as { loadDay?: unknown }).loadDay === true;
@@ -168,6 +172,7 @@ function shapeFaults(pack: StarterPack): string[] {
   for (const g of pack.groups) {
     check(g.model, [...Object.keys(g.values), ...(g.provenanceColumn ? [g.provenanceColumn] : []), ...(g.sourceColumn ? [g.sourceColumn] : [])], `${pack.name} · ${g.label}`);
     if (Object.keys(g.values).length === 0) out.push(`${pack.name} · ${g.label}: the group sets nothing.`);
+    if (g.rowId && pack.setsTwoPersonOff !== "DEMO_DATABASE_ONLY") out.push(`${pack.name} · ${g.label}: only the development fill names a row by its id.`);
   }
   for (const l of pack.lists) {
     check(l.model, Object.keys(l.scope ?? {}), `${pack.name} · ${l.label}`);
@@ -304,6 +309,12 @@ function valueFaults(writes: PackWrite[], rows: PackSnapshot["rows"], before: Pa
       const id = w.values[c];
       if (typeof id === "string" && literal[id]?.organisationId !== rows.Organisation?.id) out.push(`${w.label}: ${c} names a document class that is not this organisation's.`);
     }
+    // As the setting's own save (WV-5): the class for returned award documents is SULIT.
+    const ret = w.values.awardReturnClassId;
+    if (typeof ret === "string" && literal[ret]?.organisationId === rows.Organisation?.id) {
+      const f = awardReturnClassFault({ classification: literal[ret].classification as "SULIT" | null });
+      if (f) out.push(`${w.label}: ${f}`);
+    }
   }
   out.push(...fresh((row) => supplierFaults(row, classes), "SupplierPolicy"));
   const parts = writes.filter((w): w is Extract<PackWrite, { kind: "ROW" }> => w.kind === "ROW" && w.model === "TenderDocumentPart");
@@ -326,6 +337,12 @@ function valueFaults(writes: PackWrite[], rows: PackSnapshot["rows"], before: Pa
     for (const f of patternFaults({ pattern: String(w.values.pattern ?? ""), resetOn: (w.values.resetOn as NumberingReset | undefined) ?? "CALENDAR_YEAR" })) out.push(`${w.listLabel} · ${w.code}: ${f.kind}`);
   }
   return out;
+}
+
+/// A row a group names by id (the development fill's demo rows) must be there and this organisation's: never created, never another's.
+function namedRowFaults(packs: readonly StarterPack[], rows: PackSnapshot["rows"]): string[] {
+  const ours = (g: PackGroup) => rows[groupKey(g)] != null && rows[groupKey(g)]!.organisationId === rows.Organisation?.id;
+  return packs.flatMap((p) => p.groups.filter((g) => g.rowId && !ours(g)).map((g) => `${p.name} · ${g.label}: there is no such ${g.model} row of this organisation.`));
 }
 
 export function planPacks(packs: readonly StarterPack[], snap: PackSnapshot): PlannedPacks {
@@ -391,7 +408,10 @@ export function planPacks(packs: readonly StarterPack[], snap: PackSnapshot): Pl
       sizes[key] = list.rows.length;
     }
     for (const g of pack.groups) {
-      const row = rows[g.model] ?? null;
+      const key = groupKey(g);
+      const row = rows[key] ?? null;
+      // A row named by id that is missing or another organisation's gets no write; `namedRowFaults` refuses the run.
+      if (g.rowId && (!row || row.organisationId !== rows.Organisation?.id)) continue;
       const cols = Object.keys(g.values);
       const set = cols.filter((c) => row != null && isSet(row[c]));
       if (set.length === cols.length) {
@@ -411,8 +431,8 @@ export function planPacks(packs: readonly StarterPack[], snap: PackSnapshot): Pl
       if (g.provenanceColumn) values[g.provenanceColumn] = pack.provenance;
       if (g.sourceColumn) values[g.sourceColumn] = g.source;
       const before = row ? Object.fromEntries(Object.keys(values).map((c) => [c, row[c] ?? null])) : null;
-      writes.push({ kind: "GROUP", pack: pack.name, actor, model: g.model, label: g.label, create: !row, values, before, provenanceColumn: g.provenanceColumn, sourceColumn: g.sourceColumn, source: g.source, requirement: g.requirement, provenance: pack.provenance });
-      rows[g.model] = { ...(row ?? {}), ...values };
+      writes.push({ kind: "GROUP", pack: pack.name, actor, model: g.model, label: g.label, create: !row, ...(g.rowId ? { rowId: g.rowId } : {}), values, before, provenanceColumn: g.provenanceColumn, sourceColumn: g.sourceColumn, source: g.source, requirement: g.requirement, provenance: pack.provenance });
+      rows[key] = { ...(row ?? {}), ...values };
     }
     planDrafts(pack, actor, skip);
   }
@@ -477,6 +497,6 @@ export function planPacks(packs: readonly StarterPack[], snap: PackSnapshot): Pl
       else (w.values as Record<string, unknown>)[c] = dayToDate(today);
     }
   }
-  if (faults.length === 0) faults.push(...valueFaults(writes, rows, snap.rows, snap.classes ?? {}));
+  if (faults.length === 0) faults.push(...namedRowFaults(packs, snap.rows), ...valueFaults(writes, rows, snap.rows, snap.classes ?? {}));
   return faults.length > 0 ? { writes: [], skips, faults } : { writes, skips, faults };
 }

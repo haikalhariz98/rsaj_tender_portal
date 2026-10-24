@@ -56,3 +56,50 @@ describe("a document class named by literal id", () => {
     expect(planPacks([fill("dc1", "dc2")], snap({ classes: classes("INTERNAL") })).faults.join(" ")).toMatch(/SULIT/);
   });
 });
+
+describe("the class for returned award documents, named by literal id (Wave V V9)", () => {
+  const fill = pack({ groups: [{ model: "DocumentStorePolicy", label: "Returned award documents", values: { awardReturnClassId: "dc2" }, source: "s" }] });
+  const classes = (classification: string | null, org = "o1") => ({ dc2: { organisationId: org, classification } });
+
+  it("is accepted when it is the organisation's and SULIT", () => {
+    expect(planPacks([fill], snap({ classes: classes("SULIT") })).faults).toEqual([]);
+  });
+
+  it("faults when it is not SULIT, in the setting's own words", () => {
+    expect(planPacks([fill], snap({ classes: classes("INTERNAL") })).faults).toEqual(["Returned award documents: A returned award holds the signatory's identity card number, so its class must be SULIT. Choose a SULIT class."]);
+  });
+
+  it("faults when it is another organisation's", () => {
+    expect(planPacks([fill], snap({ classes: classes("SULIT", "o2") })).faults).toEqual(["Returned award documents: awardReturnClassId names a document class that is not this organisation's."]);
+  });
+});
+
+describe("a group naming one demo row by its id (Wave V V9)", () => {
+  const route = { model: "ContractType", label: "Supply · how it is paid", values: { paymentRoute: "DELIVERY_ORDER_INVOICE" }, source: "s", rowId: "ct3" };
+  const devFill = (g = route) => pack({ setsTwoPersonOff: "DEMO_DATABASE_ONLY", groups: [g] });
+  const withRow = (row: Record<string, unknown> | null) => snap({ rows: { ...snap().rows, "ContractType#ct3": row } });
+
+  it("fills the row where the column is unset, updating it, never creating it", () => {
+    const p = planPacks([devFill()], withRow({ id: "ct3", organisationId: "o1", paymentRoute: null }));
+    expect(p.faults).toEqual([]);
+    expect(p.writes.filter((w) => w.kind === "GROUP")).toEqual([expect.objectContaining({ model: "ContractType", rowId: "ct3", create: false, values: { paymentRoute: "DELIVERY_ORDER_INVOICE" }, before: { paymentRoute: null } })]);
+  });
+
+  it("skips the row where the column is set, so a second run writes nothing", () => {
+    const p = planPacks([devFill()], withRow({ id: "ct3", organisationId: "o1", paymentRoute: "CERTIFIED_CLAIM" }));
+    expect(p.writes.filter((w) => w.kind === "GROUP")).toEqual([]);
+    expect(p.skips).toEqual([expect.objectContaining({ target: "Supply · how it is paid", reason: "GROUP_SET" })]);
+  });
+
+  it("faults where the row is missing or another organisation's, writing nothing", () => {
+    for (const row of [null, { id: "ct3", organisationId: "o2", paymentRoute: null }]) {
+      const p = planPacks([devFill()], withRow(row));
+      expect(p.faults).toEqual(["dev-fill · Supply · how it is paid: there is no such ContractType row of this organisation."]);
+      expect(p.writes).toEqual([]);
+    }
+  });
+
+  it("is refused in any pack but the development fill", () => {
+    expect(planPacks([pack({ name: "generic", groups: [route] })], withRow({ id: "ct3", organisationId: "o1", paymentRoute: null })).faults).toEqual(["generic · Supply · how it is paid: only the development fill names a row by its id."]);
+  });
+});

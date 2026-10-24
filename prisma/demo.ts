@@ -29,6 +29,7 @@ import { loadMyBidsDemo } from "./demo-my-bids";
 import { linkDemoContractor } from "./demo-contractor";
 import { loadMyProjectsDemo } from "./demo-my-projects";
 import { loadProjectDocumentsDemo } from "./demo-project-documents";
+import { loadWaveVDemo } from "./demo-wave-v";
 import { checkRegistrationDemo, configureRegistrationDemo, loadRegistrationDemo } from "./demo-registration";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { attributeSeededRows } from "./demo-attribution";
@@ -58,6 +59,7 @@ import { demoOrgId, demoScope } from "./demo-org";
  *   npm run demo:load      populate, once: a database that holds any of it gets nothing more
  *   npm run demo:results   add the Results fixture to a database loaded before it existed
  *   npm run demo:inbox     add the reporting lines and the not-approved memo rule (Phase 3c) to a database loaded before they existed
+ *   npm run demo:wave-v    add Wave V's data (prisma/demo-wave-v.ts) to a database loaded before it existed
  *   npm run demo:wipe      retired (Phase 1d): refuses and explains, removes nothing
  *   npm run demo:switches  retired (ruling 12c): refuses and explains, writes nothing. Configuration rows are written only by demo:load on a fresh database.
  *
@@ -813,6 +815,8 @@ async function load() {
   // list read back from the same filters the list uses.
   await finishCaseStages(db);
   await checkCaseStages(db, organisationId, new Date().toISOString().slice(0, 10));
+  // Wave V (plan step V9): persons in charge, the Results fixture's indent ready for an online return, and the supply claims (prisma/demo-wave-v.ts). After the Results fixture, whose award it links.
+  await loadWaveVDemo(db, organisationId);
   // Phase 2b: the rows the loaders wrote straight into the tables are attributed to the demo loader, as the acts it ran already are.
   await attributeSeededRows(db, organisationId);
 
@@ -1338,6 +1342,8 @@ async function loadMethodSelection(organisationId: string, from: Date) {
     data: {
       deliverableKind: "GOODS_DELIVERED", pricingBasis: "Specification and schedule of prices", administratorRoleCodes: ["SEC_PRE"], startRequiresSecurities: false,
       completionInstrument: "Delivery certificate", defectsLiabilityApplies: false, makingGoodCertificate: false, nominationAllowed: false, interimPaymentRule: "Local order, invoice and delivery order",
+      // Wave V (ADR 0045 D5): its typed twin, so the supply contract takes delivery orders and invoices. A loaded database gets it from the development fill.
+      paymentRoute: "DELIVERY_ORDER_INVOICE",
     },
   });
   await db.contractBasis.createMany({
@@ -2212,6 +2218,20 @@ async function contractor() {
   console.log(made.notes.length ? `Added: ${made.notes.join("; ")}.` : "The contractor is already linked: nothing was written.");
 }
 
+/**
+ * Wave V (plan step V9): its demonstration (prisma/demo-wave-v.ts), added to a database the demo is already loaded in. Nothing where it stands; it sets no policy.
+ */
+async function waveV() {
+  const org = await organisation();
+  if (!(await demoIsLoaded(db))) {
+    console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
+    return;
+  }
+  const made = await loadWaveVDemo(db, org.id);
+  await attributeSeededRows(db, org.id);
+  console.log(made.notes.length ? `Added or noted: ${made.notes.join("; ")}.` : "The Wave V demonstration is already there: nothing was written.");
+}
+
 const mode = process.argv[2];
 
 if (mode === "wipe") {
@@ -2223,12 +2243,12 @@ if (mode === "switches") {
   console.error(DEMO_SWITCHES_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "project-documents" && mode !== "contractor") {
-  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|project-documents|contractor>");
+if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "project-documents" && mode !== "contractor" && mode !== "wave-v") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|project-documents|contractor|wave-v>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "project-documents" ? projectDocuments() : mode === "contractor" ? contractor() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "project-documents" ? projectDocuments() : mode === "contractor" ? contractor() : mode === "wave-v" ? waveV() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);

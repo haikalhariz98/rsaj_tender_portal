@@ -7,10 +7,14 @@
  * - the class every Project workspace file takes, so staff can create project documents and the contractor can answer a request;
  * - the supplier register's classes, which the generic pack cannot set on a database whose class list is not empty;
  * - the personal data notice, the three declarations and the help contact: invented demo wording, ASSUMED, so the Getting-started checklist still
- *   reads "todo" for them.
+ *   reads "todo" for them;
+ * - Wave V (plan step V9): a contractor's portal account may sign for it ("yes", ASSUMED, a demo value), the SULIT class returned award documents take, the supply
+ *   type's payment route (delivery order and invoice), and one contact allowed to sign: demo_vct2 of Demo Paip Services, the awardee of demo_law1, which the
+ *   demonstration leaves ready for an online return (prisma/demo-wave-v.ts, whose supply claims wait for this route on a database loaded before it existed).
  * The rest the register needs (banks, account types, quotas, address limit, online declaration) is the generic pack's, loaded after this one.
  *
- * Demo ids are literal: a pack reference names only a row the same run creates. Data only: the loader is `src/lib/starter`.
+ * Demo ids are literal: a pack reference names only a row the same run creates, and the last two name a demo row by its id (`rowId`), filled only where unset and never
+ * created. Data only: the loader is `src/lib/starter`.
  */
 
 import { LOAD_DAY } from "../src/lib/starter/plan";
@@ -23,7 +27,11 @@ const MARK = "(demo text, replace before go-live)";
 const INTERNAL = "demo_dc1";
 const SULIT = "demo_dc2";
 
-const group = (model: PackGroup["model"], label: string, values: PackGroup["values"], provenanceColumn?: string): PackGroup => ({ model, label, values, provenanceColumn, source: SOURCE });
+/// The demonstration's supply contract type (prisma/demo.ts), and the contact of demo_law1's awardee (prisma/demo-suppliers.ts).
+const SUPPLY_TYPE = "demo_ct3";
+const SIGNING_CONTACT = "demo_vct2";
+
+const group = (model: PackGroup["model"], label: string, values: PackGroup["values"], provenanceColumn?: string, rowId?: string): PackGroup => ({ model, label, values, provenanceColumn, source: SOURCE, ...(rowId ? { rowId } : {}) });
 const text = (kind: string, label: string, bodyEn: string): PackList => ({
   model: "DeclarationText",
   label,
@@ -52,6 +60,13 @@ export const DEV_FILL_PACK = {
       "personalDataProvenance",
     ),
     group("SupplierPolicy", "Supplier register · help contact", { helpEmail: "procurement@demo.invalid", helpPhone: "+999 7 000 0000" }, "helpProvenance"),
+    // Wave V (plan step V9): what an online award return and a supply claim stand on.
+    group("PostAwardPolicy", "Post-award · contractor signs from its portal account", { contractorPortalSigning: true }, "contractorPortalSigningProvenance"),
+    // Its own group: the project class beside it is set already on a demonstration database, and a half-set group is skipped whole.
+    group("DocumentStorePolicy", "Upload rules · returned award documents", { awardReturnClassId: SULIT }),
+    // No provenance column: the route has no tag of its own (WV-14).
+    group("ContractType", "Contract type · Supply · how it is paid", { paymentRoute: "DELIVERY_ORDER_INVOICE" }, undefined, SUPPLY_TYPE),
+    group("SupplierContact", "Demo Paip Services · Lim Kok Wai · may sign for the contractor", { authorisedToSignForContractor: true }, undefined, SIGNING_CONTACT),
   ],
 } satisfies StarterPack;
 

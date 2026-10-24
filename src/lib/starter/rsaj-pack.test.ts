@@ -393,6 +393,36 @@ describe("part 2: contracts, suppliers and system (plan step 4.6)", () => {
   });
 });
 
+describe("how each RSAJ contract type is paid (WV-14)", () => {
+  // Citations (here and in purchasing.ts only; the route has no provenance tag of its own):
+  // work: §6.13.2 + SK011; service: KP003 via spec §4.5 ("monthly; value of work executed") + the founder's brief of 2026-10-24;
+  // supply: KP004 via spec §4.5 ("Local Order plus bills/invoices plus Delivery Order") + scope register row 26; consultancy: unset.
+  const types = RSAJ_PACK.lists.find((l) => l.model === "ContractType")!.rows;
+
+  it("work and service by certified claim, supply by delivery order and invoice, consultancy unset", () => {
+    expect(Object.fromEntries(types.map((r) => [r.code, r.values.paymentRoute]))).toEqual({ work: "CERTIFIED_CLAIM", service: "CERTIFIED_CLAIM", supply: "DELIVERY_ORDER_INVOICE", consultancy: undefined });
+  });
+
+  it("leaves each type's own source and provenance as they were: the route is not cited on the row", () => {
+    const TYPE_SOURCE = "KP002/003/004 5.1.2, 5.5, 5.9, 5.10; SK004 §7.2.1";
+    for (const code of ["work", "service", "supply"]) expect(types.find((r) => r.code === code)!.source, code).toBe(TYPE_SOURCE);
+    for (const r of types) expect(r.values.provenance, r.code).toBeUndefined();
+    const w = planPacks([RSAJ_PACK, GENERIC_PACK], fresh).writes.filter((x) => x.kind === "ROW" && x.model === "ContractType");
+    expect(w.map((x) => (x.kind === "ROW" ? [x.code, x.values.paymentRoute ?? null, x.values.provenance, x.values.governingSource] : null))).toEqual([
+      ["work", "CERTIFIED_CLAIM", "STATED", TYPE_SOURCE],
+      ["service", "CERTIFIED_CLAIM", "STATED", TYPE_SOURCE],
+      ["supply", "DELIVERY_ORDER_INVOICE", "STATED", TYPE_SOURCE],
+      ["consultancy", null, "STATED", expect.stringMatching(/^SK004 §7\.2\.1/)],
+    ]);
+  });
+
+  it("never overwrites: a contract type list that already has a row is skipped whole", () => {
+    const p = planPacks([RSAJ_PACK, GENERIC_PACK], { ...fresh, listSizes: { ContractType: 1 } });
+    expect(p.writes.some((x) => x.model === "ContractType")).toBe(false);
+    expect(p.skips).toContainEqual(expect.objectContaining({ pack: "rsaj", target: "Contract type", reason: "LIST_NOT_EMPTY" }));
+  });
+});
+
 describe("no product file uses the RSAJ pack", () => {
   it("is imported by no file outside prisma/rsaj/ but the pack index and the tests", () => {
     const root = process.cwd();

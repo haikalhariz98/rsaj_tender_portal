@@ -39,6 +39,8 @@ export interface ChecklistFacts {
   /// WV-5: the item exists only where a contractor's portal account signs for it (`PostAwardPolicy.contractorPortalSigning` is "yes"); `awardReturnClassSet` is a SULIT class chosen for returned award documents.
   contractorPortalSigning: boolean;
   awardReturnClassSet: boolean;
+  /// Wave V V9: the contract types not retired, and how many of them have a payment route (`ContractType.paymentRoute`).
+  contractTypes: { active: number; withRoute: number };
 }
 
 const filled = (s: string | null) => !!s && s.trim() !== "";
@@ -79,6 +81,8 @@ export function buildChecklist(f: ChecklistFacts): ChecklistItem[] {
     { key: "registration", section: "suppliers-portal", kind: "set", label: f.registration.open ? "Online registration: open" : "Online registration: closed", href: "/configuration/suppliers", state: stateOf(f.registration.open), detail: f.registration.open ? "Suppliers can apply online." : `Suppliers see "Registration opens soon". Still to set: ${f.registration.missing.slice(0, 3).join(", ") || "the organisation"}${f.registration.missing.length > 3 ? ` and ${f.registration.missing.length - 3} more` : ""}.` },
     { key: "letters", section: "system", kind: "set", label: "Letter templates", href: "/configuration/templates", state: stateOf(f.letterSlots > 0 && f.letterSlotsSet === f.letterSlots), detail: "Every template that notices, invitations and award letters use." },
     { key: "budget", section: "contracts-payments", kind: "set", label: "Budget check source", href: "/configuration/budget?tab=controls", state: stateOf(f.budgetCheckSet), detail: "Where a requisition's budget is checked (FR-REQ-007)." },
+    // No active type is not done: there is nothing yet to say how a contract is paid.
+    { key: "payment-route", section: "contracts-payments", kind: "set", label: "How each contract type is paid", href: "/configuration/reference-data", state: stateOf(f.contractTypes.active > 0 && f.contractTypes.withRoute === f.contractTypes.active), detail: "Certified claim, or delivery order and invoice. Invoices are sent online only on a type paid by delivery order and invoice." },
     ...(f.contractorPortalSigning ? [{ key: "award-return-class", section: "contracts-payments" as const, kind: "set" as const, label: "Class for returned award documents", href: "/configuration/documents", state: stateOf(f.awardReturnClassSet), detail: "A SULIT class. Until it is set, a contractor cannot send its signed award return online." }] : []),
     {
       key: "two-person",

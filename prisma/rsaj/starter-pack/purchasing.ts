@@ -36,10 +36,16 @@ export const FUNDING_ROUTES = list("FundingRoute", "Funding route", [
 
 /// SK004 §7.2.1 (RSAJ answer 21): a tender contract is numbered RSAJ/KP/T, a consultancy services contract RSAJ/KP/P (system.ts).
 const TYPE = { requirement: "FR-MTD-011, FR-CON-002", source: "KP002/003/004 5.1.2, 5.5, 5.9, 5.10; SK004 §7.2.1" };
+/// How each type is paid (`paymentRoute`, WV-14, ADR 0045 D5). The route has no provenance tag of its own and leaves the type's source above as it is; its citations are
+/// here and in rsaj-pack.test.ts only:
+/// - Work, certified claim: §6.13.2 (works paid on certified valuations); SK011.
+/// - Service, certified claim: KP003, through the spec §4.5 interim-payment row ("monthly; value of work executed"); the founder's brief of 2026-10-24.
+/// - Supply, delivery order and invoice: KP004, through the spec §4.5 interim-payment row ("Local Order plus bills/invoices plus Delivery Order"); scope register row 26.
+/// - Consultancy: unset. No RSAJ document says how a consultancy contract is paid.
 export const CONTRACT_TYPES = list("ContractType", "Contract type", [
-  { code: "work", values: { nameEn: "Work", contractSeriesKey: "contract_tender" }, ...TYPE },
-  { code: "service", values: { nameEn: "Service", contractSeriesKey: "contract_tender" }, ...TYPE },
-  { code: "supply", values: { nameEn: "Supply", contractSeriesKey: "contract_tender" }, ...TYPE },
+  { code: "work", values: { nameEn: "Work", contractSeriesKey: "contract_tender", paymentRoute: "CERTIFIED_CLAIM" }, ...TYPE },
+  { code: "service", values: { nameEn: "Service", contractSeriesKey: "contract_tender", paymentRoute: "CERTIFIED_CLAIM" }, ...TYPE },
+  { code: "supply", values: { nameEn: "Supply", contractSeriesKey: "contract_tender", paymentRoute: "DELIVERY_ORDER_INVOICE" }, ...TYPE },
   { code: "consultancy", values: { nameEn: "Consultancy services", contractSeriesKey: "contract_consultancy" }, requirement: "FR-MTD-011, FR-CON-002", source: "SK004 §7.2.1; DAL §3.1.4.2 (\"consultancy and advisory\"); RSAJ answer 21 (2026-10-24)" },
 ]);
 

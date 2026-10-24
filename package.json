@@ -41,6 +41,7 @@
     "demo:my-projects": "tsx prisma/demo.ts my-projects",
     "demo:project-documents": "tsx prisma/demo.ts project-documents",
     "demo:contractor": "tsx prisma/demo.ts contractor",
+    "demo:wave-v": "tsx prisma/demo.ts wave-v",
     "demo:switches": "tsx prisma/demo.ts switches",
     "compare": "node scripts/compare-screen.mjs",
     "compare:drawer": "node scripts/compare-drawer.mjs"

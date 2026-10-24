@@ -6,7 +6,7 @@
 
 import type { Tx } from "@/lib/audit/record";
 
-import { columnsOf, listKey, LITERAL_CLASS_COLUMNS, type PackSnapshot } from "./plan";
+import { columnsOf, groupKey, listKey, LITERAL_CLASS_COLUMNS, type PackSnapshot } from "./plan";
 import type { StarterPack } from "./types";
 
 type Reader = { findUnique(a: unknown): Promise<Record<string, unknown> | null>; count(a: unknown): Promise<number> };
@@ -21,8 +21,9 @@ export async function readSnapshot(tx: Tx, organisationId: string, packs: readon
   const listSizes: PackSnapshot["listSizes"] = {};
   for (const p of packs) {
     for (const g of p.groups) {
-      // A group's table holds one row per organisation (`organisationId` is unique on it); the planner refuses a table the schema lacks.
-      if (!(g.model in rows)) rows[g.model] = delegateOf(tx, g.model) ? await delegateOf(tx, g.model).findUnique({ where: { organisationId } }) : null;
+      // A group's table holds one row per organisation (`organisationId` is unique on it), or the group names one row by id; the planner refuses a table the schema lacks.
+      const key = groupKey(g);
+      if (!(key in rows)) rows[key] = delegateOf(tx, g.model) ? await delegateOf(tx, g.model).findUnique({ where: g.rowId ? { id: g.rowId } : { organisationId } }) : null;
     }
     for (const l of p.lists) {
       const key = listKey(l);
