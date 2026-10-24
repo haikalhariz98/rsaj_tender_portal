@@ -4021,14 +4021,15 @@ model AwardOnlineReturn {
   /// When the password was asked again.
   stepUpAt                     DateTime
 
-  // A work indent's acceptance page: every field set together, or none (a Letter of Acceptance) (CHECK).
-  signatoryName    String   @default("")
+  // A work indent's acceptance page: every field set together, or none (a Letter of Acceptance) (CHECK). The five personal fields are null once an
+  // indent's return is decided: withheld at the decision (PDPA, ruling of 2026-10-24). Null is the withheld marker, never a value typed.
+  signatoryName    String?  @default("")
   /// SULIT, as AwardReturn.icNumber.
-  icNumber         String   @default("")
-  occupation       String   @default("")
-  address          String   @default("")
+  icNumber         String?  @default("")
+  occupation       String?  @default("")
+  address          String?  @default("")
   capacity         String   @default("")
-  witnessName      String   @default("")
+  witnessName      String?  @default("")
   /// True when lodged, or null (CHECK).
   contractorSigned Boolean?
   stampAffixed     Boolean?
@@ -4069,6 +4070,10 @@ model AwardQuery {
   answeredBy         Person?   @relation("AwardQueryAnsweredBy", fields: [answeredByPersonId], references: [id], onDelete: Restrict)
   answeredAt         DateTime?
 
+  /// The asking browser's one-time key (security review L2): a question sent twice with the same key is one question. Null on questions asked before it.
+  requestKey String?
+
+  @@unique([awardId, requestKey])
   @@index([awardId, askedAt])
 }
 
