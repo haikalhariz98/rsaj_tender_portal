@@ -55,7 +55,7 @@ and a click through to the list.
 | Product | What leads | What we borrow |
 | --- | --- | --- |
 | Procurify Spend Insights | Budget against actual, with committed spend beside the allocation, by department and account code, year to date. Every figure drills to the orders behind it. It has a separate permission ("View budget insights"). | Budget tab: allocated, committed and spent side by side, by department, with drill-down. |
-| Coupa | Spend under management, and cycle time from requisition to order. Visuals are a stage funnel and a cycle-time trend. | The pipeline funnel and median days to approval. We do not borrow spend under management: there are no off-system purchases in our data to measure against. |
+| Generic procurement KPI guides (Coupa's own tile set was **not** confirmed: its documentation was not found) | Spend under management, and cycle time from requisition to order. Visuals are a stage funnel and a cycle-time trend. | The pipeline funnel and median days to approval. We do not borrow spend under management: there are no off-system purchases in our data to measure against. |
 | Power BI procurement templates (ZoomCharts samples) | An executive overview page, then a supplier and spend page and an operations page. KPI cards across the top, slicers for year and department, ranked bars for top suppliers. | The page shape: tiles, then charts, under one filter bar, with tabs per subject. We do not borrow savings or maverick spend (§10). |
 
 What every one of them leads with is **money against budget, the stage funnel and time to approve.** Those lead here too.
@@ -109,7 +109,7 @@ Its job is the one-glance answer for a management meeting. It has a Year filter 
 
 | Tile | Definition | Opens |
 | --- | --- | --- |
-| Budget used | `totalsAcross(codes in force in the FY, movements, asAt).utilisation`, where `asAt` is the FY's last day or today, whichever is earlier. The hint is "RM x of RM y". "No allocation" where null, never 0 %. | Budget tab |
+| Budget used now | The Budget screen's header figure: `totalsAcross(all codes, movements, organisation's today).utilisation`. The Year filter does not change it (§5.2). The hint is "RM x of RM y". "No allocation" where null, never 0 %. | Budget tab |
 | Requisitions raised in FY | The count of `Requisition` with `raisedOn` in the FY and `status ≠ DRAFT`. | Requisitions tab |
 | Open tenders now | The count of `SourcingExercise` matching `SOURCING_PIPELINE_WHERE` and `exerciseNotHidden`: Home's Sourcing card. | Tenders tab |
 | Awarded in FY | The Σ of `Award.awardedValue` for awards with status `ISSUED` or `ACCEPTED` and `issuedAt` in the FY, under `caseVisibilityWhere`. The hint is the count. | Tenders tab |
@@ -122,8 +122,8 @@ Charts:
    - The stages are: With C&P (`REQUISITION_PIPELINE`), Preparing, In market, Evaluating (`EXERCISE_PHASE`), Awarding,
      Signing and On site (`casePipelineWhere`).
    - The bars are counts. **Their totals equal Home's three cards, by test.**
-   - Links: Awarding, Signing and On site go to the `/projects` stage views. Approved-waiting goes to the requisitions list. The
-     other bars link once I-6 lands.
+   - Links: Awarding, Signing and On site go to the `/projects` stage views now. The other bars, With C&P included (it spans
+     eight statuses and no requisitions view matches it), link once I-6 lands.
 2. **Money through the year:** monthly columns, two series: awarded (by `issuedAt`) and paid (by `paidOn`). It is not
    cumulative. The table gives month, awarded and paid.
 
@@ -131,27 +131,28 @@ Charts:
 
 Its job is "how much is gone, and where". It has a Year filter and a Department filter (`owningUnitCode`).
 
+The Budget screen's Availability tab already draws these figures (`availability-panel.tsx`, `src/lib/budget/analysis.ts`), so
+this tab **reuses its functions, not its rule in words**: the tiles are `figuresFor` over **all** codes as at the organisation's
+today (the screen's rule, checked in the code on 2026-10-24); the **Year filter drives only the through-the-year chart**, as the
+screen's `?year=` does. A test holds the two screens' figures equal (I-3).
+
 | Tile | Definition |
 | --- | --- |
 | Allocated | `totalsAcross(...).allocated`: original, plus revisions, plus transfers in, less transfers out. |
-| Committed | `.committed`: commitments not released by `asAt`. |
+| Committed | `.committed`: commitments not released by today. |
 | Spent | `.actualSpend`. |
 | Available | `.available`. A negative figure is shown in the `err` tone and never clamped. |
 | Used | `.utilisation` against `BudgetSettings`' warning threshold, through `thresholdState`. At or over is shown in `warn`. Not set is neutral, with "Threshold not set" in the info popover. |
 | Codes at or over warning | The count of codes whose `thresholdState` is `AT_OR_OVER`. "Threshold not set" where `NOT_SET`, never 0. |
 
-- **Codes in the year:** a code counts when its `effectiveFrom` is on or before the FY's end, and its `effectiveTo` is null or
-  after the FY's start.
-- **The figures** are `figuresFor` as of `asAt`, which is what the Budget screen computes. One reading of the ledger, so the
-  two screens cannot disagree.
-- **Every tile** opens `/configuration/budget?year=<FY>`.
+- **Every tile** opens `/configuration/budget?tab=availability&year=<FY>`.
 
 Charts:
 
 1. **By department:** stacked horizontal bars of spent, committed and available, one bar per department, largest allocation
-   first.
-2. **Used through the year:** a line of cumulative committed plus spent at each month's end (`totalsAcross` at each month-end
-   date), against a flat reference line at the allocation. It shows the burn rate without a forecast.
+   first. The data is `utilisationByUnit(codes, movements, today)`, the screen's own.
+2. **Used through the year:** `spendByPeriod(the FY's periods, codes, movements)`, the screen's own: a line of cumulative
+   spent plus committed at each period's end, against the cumulative allocation. It shows the burn rate without a forecast.
 3. **Most used codes:** the top 10 codes by `utilisation`, as bars with the warning threshold drawn as a tick where it is set.
    Each label reads "code · description".
 
@@ -300,7 +301,7 @@ No chart library is installed (`package.json`: exceljs and pdf-lib only).
 | --- | --- | --- |
 | `BarList` | ranked categories (department, method, route, supplier), and the stage funnel (order kept, not sorted) | Horizontal. The label sits on the left, the value on the right, and long labels are truncated with the full text in `<title>`. Up to 3 stacked segments. Each row is an `<a>` when it has an `href`. An optional threshold tick. |
 | `MonthColumns` | anything by month of the FY | 1 or 2 series side by side. Every month of the year has a slot, including empty ones, so a gap reads as a gap. |
-| `TrendLine` | Used through the year | One line plus an optional flat reference line. Months that have not come yet are not drawn. |
+| `TrendLine` | Used through the year | One line plus an optional reference line. Periods that have not come yet are not drawn. |
 
 - **Why hand-rolled:**
   - The charts are server components. Only finished numbers ever reach the browser, and no row does: this is the SULIT
@@ -389,7 +390,7 @@ Ownership:
 | --- | --- | --- | --- | --- |
 | **I-1** Pure core (domain-engineer) | new: `src/lib/insights/{query,year,months,where,tiles,sulit-scan.test}.ts` | `parseInsightsQuery`. `financialYear(periods, year)` returns a range or `NOT_SET`. `byMonth`, `median`. `insightsWhere.*` composing the existing pipeline and visibility filters. Tile folds over groupBy rows. | Unknown year, unit or route is dropped. A year with no periods gives `NOT_SET`. Months are built on the organisation's day, so 31 Dec 23:30 UTC in Asia/Kuala_Lumpur falls in January. Median of an even count. A department total and "No department" add up to the total. **Source scan:** no file under `src/lib/insights` names a registry field other than `estimatedValue`, and that one only in `sulit-values.ts`. | `npm test` and `npm run typecheck` pass. |
 | **I-2** Charts (frontend-engineer) | new: `src/components/ui/chart.tsx`, `chart.test.tsx` | `BarList`, `MonthColumns`, `TrendLine`, and the Table toggle. Token colours only, no `dark:`. | Twelve slots for a twelve-month FY. A negative value draws from the axis. `href` renders an `<a>`. The `aria-label` summary. The table equals the series. | Rendered on a scratch page beside `Stat` and `Card` and checked against siblings. `npm run lint` passes. |
-| **I-3** Store and SULIT (domain-engineer, security review) | new: `src/lib/insights/store.ts`, `sulit-values.ts`, `store.db.test.ts` | The queries per tab (§5). The value gate (§6.2), using `sulitGates` and then `aggregate` over the granted ids. The budget audience rule (§6.3). | `test:db`: Overview pipeline totals equal `pipelineCounts` (Home). A restricted exercise moves no count. An administrator gets Withheld and writes no event. A holder's sum excludes a forced-withheld record and reports 1 withheld. Another organisation's rows never count. Projects-by-stage counts equal the `/projects` view counts. | `npm run test:db` passes. The security-auditor signs off §6. |
+| **I-3** Store and SULIT (domain-engineer, security review) | new: `src/lib/insights/store.ts`, `sulit-values.ts`, `store.db.test.ts` | The queries per tab (§5). The value gate (§6.2), using `sulitGates` and then `aggregate` over the granted ids. The budget audience rule (§6.3). | `test:db`: Overview pipeline totals equal `pipelineCounts` (Home). A restricted exercise moves no count. An administrator gets Withheld and writes no event. A holder's sum excludes a forced-withheld record and reports 1 withheld. Another organisation's rows never count. Projects-by-stage counts equal the `/projects` view counts. The Budget tab's tiles and charts equal `availability-panel.tsx`'s inputs for the same data and year. | `npm run test:db` passes. The security-auditor signs off §6. |
 | **I-4** Screen (frontend-engineer) | new: `src/app/insights/{page,loading,error}.tsx` and `tabs/*.tsx`. `src/lib/nav.ts`: one item. `sidebar.test.ts`: one case. | PageHeader, filter bar (`next/form`), tabs, tiles (`Stat` with `href`), chart cards, the §7 states. | A snapshot of each tab's visible text. Nav order is Home, Insights, My approvals, Inbox. `?tab=budget` without the audience falls back to Overview. | Text snapshot, sibling-screen check against Home and Projects, typecheck, lint and test all pass. |
 | **I-5** Home link (frontend-engineer) | `src/app/page.tsx` | The three pipeline cards link to `/insights` (DB-9). | Existing Home tests pass. | Text snapshot diff shows only the link. |
 | **I-6** Drill-down filters (after step 7-e) | `src/lib/list-query.ts` (adds `unit`, `from`, `to`, `method`, `route` and `stage` facets), each list's `rows.ts` (calls `insightsWhere`), and each list page (removable filter chips) | Unlinked tiles and bars become links. The list shows the filter as chips ("Department: Water Supply ×"). Exports honour the facets. | For every linked tile, its count equals the list's total under the same address, as a `test:db` table over all tiles. | Every tile and bar in §5 links. |
@@ -412,7 +413,9 @@ Ownership:
   - **Recommend:** the Budget tab and tile only for readers who may see Settings, or who hold `sulit.read.organisation`. That
     keeps today's audience.
   - **Ask RSAJ** whether a code's committed figure is SULIT. If it is, Budget and Insights change together.
-  - **Raise with the security auditor:** administrators already see it on Budget.
+  - **Under this recommendation administrators see Committed on Insights,** as they already do on Budget. That is consistent
+    with the registry (Committed is not a SULIT field) and inconsistent with the brief's "administrators never read SULIT",
+    if RSAJ rules Committed SULIT. The product owner rules on it knowingly; the security auditor reviews both screens.
 - **DB-4, drill-down filters on the lists.**
   - **Recommend:** I-6 after step 7, adding facets to `list-query.ts`. Until then, link only where a view matches exactly. A
     tile that opens a list showing a different number is worse than no link.
