@@ -47,4 +47,5 @@ Open questions the product cannot answer from RSAJ's documents. Each one is load
 - **32. SK004.** Please supply SK004 (contract document parts, §7.3.1) to the developer.
 - **33. Online award return.** Which office receives a contractor's online award return and its questions?
 - **34. Supply contracts.** Does a supply contract ever take an interim payment certificate, or only the delivery order and invoice?
-- **35. Consultancy payment.** Is consultancy paid on certified claims?
+- **35. Consultancy and service payment.** Is consultancy paid on certified claims, and which certificate does a service contract's monthly payment use (KP003 names none)?
+- **36. Award originals.** After an online award return is verified, must the wet-signed originals still be posted?
