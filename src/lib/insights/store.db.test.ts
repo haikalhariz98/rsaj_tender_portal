@@ -4,6 +4,7 @@ import { spendByPeriod, utilisationByUnit } from "@/lib/budget/analysis";
 import { totalsAcross } from "@/lib/budget/codes";
 import { loadBudgetCodes, loadBudgetPeriods } from "@/lib/budget/load";
 import { listCases } from "@/lib/contract/case-load";
+import { loadWorklist } from "@/lib/approvals/load";
 import { pipelineCounts } from "@/lib/dashboard";
 import { db } from "@/lib/db";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
@@ -80,6 +81,8 @@ beforeAll(async () => {
       data: { organisationId, matterKind: link.exerciseId ? "EXERCISE" : "REQUISITION", domain: "requisition", value: "5000.00", openedAt: day("2026-10-14"), ...link, steps: { create: [{ sequence: 1, roleLabel: "Head of Department", act: "A" as never }] } },
     });
   await route(org.a, { requisitionId: pending.id });
+  // A route on no matter the worklist can name: not on /approvals, so not counted.
+  await route(org.a, {});
   await route(org.b, { requisitionId: reqB.id });
 
   const exercise = (organisationId: string, requisitionId: string, reference: string, restricted: boolean) =>
@@ -166,6 +169,14 @@ describe("Overview", () => {
     const t = await tenderFigures(db, outsider.ctx, { ...outsider.q, tab: "tenders" });
     expect(t.open.total).toBe(1);
     expect(t.awardedByMethod?.reduce((s, g) => s + g.count, 0)).toBe(1);
+  });
+
+  it("Approvals waiting now is the /approvals worklist's count", async () => {
+    for (const r of [asOutsider(), asNamed()]) {
+      const { ctx, q } = await figures(r);
+      const w = await loadWorklist(r, ctx.hidden);
+      expect((await overviewFigures(db, ctx, q)).approvals.count).toBe(w!.groups.flatMap((g) => g.items).length);
+    }
   });
 
   it("another organisation's reader sees only its own", async () => {

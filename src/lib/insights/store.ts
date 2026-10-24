@@ -10,6 +10,8 @@
  * - Time is a parameter (`asOf`): no clock is read here.
  */
 
+import type { Prisma } from "@/generated/prisma/client";
+
 import { oldestWaitingDays, openStepOf } from "@/lib/approvals/queue";
 import { approvalRouteNotHidden, hiddenExerciseIds, type Viewer } from "@/lib/auth/sulit-store";
 import { spendByPeriod, utilisationByUnit, type PeriodSpend, type UnitUtilisation } from "@/lib/budget/analysis";
@@ -121,6 +123,19 @@ async function paymentsInYear(client: Tx, ctx: InsightsContext, f: Filters, fy: 
   return rows.map((r) => ({ day: storedDay(r.paidOn), amount: senFromDecimal(r.amount) }));
 }
 
+/// The matters the worklist (`loadWorklist`) can name a route by; a route on anything else (a contract matter, today) is not on /approvals,
+/// so it is not counted here either. Keep in step with `loadWorklist`'s matter labels.
+const WORKLIST_MATTERS: Prisma.ApprovalInstanceWhereInput[] = [
+  { variationId: { not: null } },
+  { certificateId: { not: null } },
+  { exerciseId: { not: null } },
+  { requisitionId: { not: null } },
+  { supplierApplicationId: { not: null } },
+  { portalApplicationId: { not: null } },
+  { standingRequestId: { not: null } },
+  { specialPermissionId: { not: null } },
+];
+
 const caseCount = (client: Tx, ctx: InsightsContext, stage: CaseStage, f: Filters) => client.award.count({ where: insightsWhere.cases(ctx.organisationId, stage, f, ctx.hidden) });
 
 /// The budget ledger under the Department filter (the owning unit). Read only behind `mayReadBudget`.
@@ -168,11 +183,10 @@ export async function overviewFigures(client: Tx, ctx: InsightsContext, q: Insig
     set ? paymentsInYear(client, ctx, f, set) : null,
     // The open routes as /approvals reads them; only the step fields its waiting rule reads, never the routed value.
     client.approvalInstance.findMany({
-      where: { organisationId: org, status: "PENDING", ...approvalRouteNotHidden(ctx.hidden) },
+      where: { organisationId: org, status: "PENDING", ...approvalRouteNotHidden(ctx.hidden), OR: WORKLIST_MATTERS },
       select: { openedAt: true, steps: { select: { id: true, sequence: true, roleCode: true, roleLabel: true, actingRoleCode: true, actingRoleLabel: true, act: true, committeeCode: true, decision: true, decidedOn: true, escalation: true, escalationReason: true } } },
     }),
   ]);
-  // shortcut: a pending route with no matter linked is skipped by the worklist but counted here; no such route is written today. Upgrade if one ever is.
   const waiting = routes.flatMap((r) => openStepOf(r, ctx.today) ?? []);
   const totals = budget && totalsAcross(budget.codes, budget.movements, ctx.on);
   const pipeline = pipelineBars({
