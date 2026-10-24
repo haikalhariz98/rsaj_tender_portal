@@ -295,15 +295,16 @@ const stageWhere = (stage: string | null): Prisma.SourcingExerciseWhereInput => 
 
 /// What the header reads, over the whole set and never the page (`hidden`: the restricted exercises the reader may not see, left out so neither the list nor its count gives away that one exists):
 /// the count by status, the name approvals waiting, the not-cancelled exercises on the boundary (few, so all of them; the caller judges them for the reader), and the ids of the published ones, for the open and closing-soon counts.
-export async function exerciseListFacts(organisationId: string, hidden: readonly string[]) {
+export async function exerciseListFacts(organisationId: string, hidden: readonly string[], q: Pick<ListQuery<ExerciseView>, "unit" | "method" | "stage"> = { unit: null, method: null, stage: null }) {
   const org = await exerciseOrg(organisationId);
   if (!org) return { org: null, byStatus: new Map<string, number>(), awaitingName: 0, onBoundary: [] as { id: string; reference: string; estimatedValue: { toString(): string } }[], publishedIds: [] as string[] };
-  const where = { organisationId: org.id, ...exerciseNotHidden(hidden) };
+  // Under the list's own facets (I-6), never its search or view, so a chip's number is its view's total.
+  const where: Prisma.SourcingExerciseWhereInput = { AND: [{ organisationId: org.id }, exerciseNotHidden(hidden), facetWhere.exercise(q), stageWhere(q.stage)] };
   const [statuses, awaitingName, onBoundary, published] = await Promise.all([
     db.sourcingExercise.groupBy({ by: ["status"], where, _count: { _all: true } }),
-    db.sourcingExercise.count({ where: { ...where, ...AWAITING_NAME } }),
-    db.sourcingExercise.findMany({ where: { ...where, onBoundary: true, status: { not: "CANCELLED" } }, select: { id: true, reference: true, estimatedValue: true } }),
-    db.sourcingExercise.findMany({ where: { ...where, status: { in: PUBLISHED_STATUSES } }, select: { id: true } }),
+    db.sourcingExercise.count({ where: { AND: [where, AWAITING_NAME] } }),
+    db.sourcingExercise.findMany({ where: { AND: [where, { onBoundary: true, status: { not: "CANCELLED" } }] }, select: { id: true, reference: true, estimatedValue: true } }),
+    db.sourcingExercise.findMany({ where: { AND: [where, { status: { in: PUBLISHED_STATUSES } }] }, select: { id: true } }),
   ]);
   return { org, byStatus: new Map(statuses.map((s) => [s.status as string, s._count._all])), awaitingName, onBoundary, publishedIds: published.map((p) => p.id) };
 }

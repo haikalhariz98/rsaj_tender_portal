@@ -129,4 +129,13 @@ describe("listExercises { all: true }", () => {
     const few = await listExercises(organisationId, [], query({ view: "preparing" }), { all: true });
     expect(few.rows).toHaveLength(1);
   }, 60_000);
+
+  it("the chips count under the facets: with a method filter each chip equals its view's total (I-6)", async () => {
+    await db.sourcingExercise.create({ data: exerciseRow(organisationId, requisitions.b.id, { title: "Other method draft", sourcingMethodCode: "M2", status: "DRAFT" }) });
+    const facts = await exerciseListFacts(organisationId, [], query({ method: "M2" }));
+    expect(facts.byStatus.get("DRAFT")).toBe((await listExercises(organisationId, [], query({ method: "M2", view: "drafts" }))).total);
+    expect(facts.byStatus.get("DRAFT")).toBe(1);
+    expect(facts.publishedIds).toEqual([]);
+    expect((await exerciseListFacts(organisationId, [], query({}))).byStatus.get("DRAFT")).toBe(32);
+  });
 });

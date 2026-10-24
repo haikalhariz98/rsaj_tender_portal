@@ -244,6 +244,8 @@ export async function listRequisitions(organisationId: string, q: ListQuery<Requ
   const total = await db.requisition.count({ where });
   const page = opts.all ? 0 : Math.min(q.page, Math.max(0, Math.ceil(total / q.size) - 1));
   const orgWhere = { organisationId: org.id };
+  // The chips count under the list's own facets (I-6), never its search or view, so a chip's number is its view's total.
+  const chip = (w: Prisma.RequisitionWhereInput): Prisma.RequisitionWhereInput => ({ AND: [orgWhere, facetsWhere(org.id, q), w] });
   const [rows, routes, units] = await Promise.all([
     db.requisition.findMany({
       where,
@@ -261,20 +263,20 @@ export async function listRequisitions(organisationId: string, q: ListQuery<Requ
     db.orgUnit.findMany({ where: orgWhere, select: { code: true, nameEn: true, effectiveFrom: true }, orderBy: { effectiveFrom: "desc" } }),
   ]);
   const [open, pending, overBudget, flagged, drafts] = await Promise.all([
-    db.requisition.count({ where: { ...orgWhere, status: { notIn: ["CANCELLED", "CLOSED", "APPROVED", "SOURCING", "PARTIALLY_FULFILLED", "FULFILLED"] } } }),
-    db.requisition.count({ where: { ...orgWhere, status: "PENDING_APPROVAL" } }),
+    db.requisition.count({ where: chip({ status: { notIn: ["CANCELLED", "CLOSED", "APPROVED", "SOURCING", "PARTIALLY_FULFILLED", "FULFILLED"] } }) }),
+    db.requisition.count({ where: chip({ status: "PENDING_APPROVAL" }) }),
     // Open, and over budget on its latest check — whether or not it has gone on to the
     // over-budget approvers.
     db.requisition
       .findMany({
-        where: { ...orgWhere, status: { in: ["REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET", "PENDING_APPROVAL"] } },
+        where: chip({ status: { in: ["REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET", "PENDING_APPROVAL"] } }),
         select: { budgetChecks: { orderBy: { checkedAt: "desc" }, take: 1, select: { verdict: true } } },
       })
       .then((xs) => xs.filter((x) => x.budgetChecks[0]?.verdict === "EXCEEDS").length),
     db.requisition.count({
-      where: { ...orgWhere, status: { notIn: ["CANCELLED", "CLOSED"] }, splitChecks: { some: { state: "FLAGGED", overrideJustification: null } } },
+      where: chip({ status: { notIn: ["CANCELLED", "CLOSED"] }, splitChecks: { some: { state: "FLAGGED", overrideJustification: null } } }),
     }),
-    db.requisition.count({ where: { ...orgWhere, status: { in: [...VIEW_STATUSES.drafts] } } }),
+    db.requisition.count({ where: chip({ status: { in: [...VIEW_STATUSES.drafts] } }) }),
   ]);
   const unitName = new Map<string, string>();
   for (const u of units) if (!unitName.has(u.code)) unitName.set(u.code, u.nameEn);

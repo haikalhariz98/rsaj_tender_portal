@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   });
   const fileName = `requisitions-${dayIn(new Date(), actor.organisationTimeZone)}.xlsx`;
   const file = await listToXlsx("Requisitions", COLUMNS, data);
-  await recordListExport(actor, { list: "Requisitions", view: q.view ? VIEW_LABEL[q.view] : "Open", search: q.q, rowCount: data.length, fileName });
+  await recordListExport(actor, { list: "Requisitions", view: q.view ? VIEW_LABEL[q.view] : "Open", search: q.q, rowCount: data.length, fileName, facets: q });
   return xlsxResponse(file, fileName);
 }
 

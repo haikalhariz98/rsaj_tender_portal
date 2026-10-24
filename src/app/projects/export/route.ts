@@ -73,7 +73,7 @@ export async function GET(req: Request) {
     };
   }
   const file = await listToXlsx(sheet.list, sheet.columns, sheet.data);
-  await recordListExport(actor, { list: sheet.list, view: sheet.view, search: q.q, rowCount: sheet.data.length, fileName: sheet.fileName });
+  await recordListExport(actor, { list: sheet.list, view: sheet.view, facets: q, search: q.q, rowCount: sheet.data.length, fileName: sheet.fileName });
   return xlsxResponse(file, sheet.fileName);
 }
 

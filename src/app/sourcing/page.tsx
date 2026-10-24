@@ -3,7 +3,7 @@ import { GlobeIcon, PlusIcon } from "@/components/icons";
 import { serverMode } from "@/components/server-list";
 import { ListFacets } from "@/components/list-facets";
 import { db } from "@/lib/db";
-import { codeFacet, facetChoices, stageFacet } from "@/lib/list-facets";
+import { codeFacet, facetChoices, SOURCING_STAGES, stageFacet } from "@/lib/list-facets";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -49,7 +49,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
   const q = parseListQuery(await searchParams, EXERCISE_VIEWS, sortKeys("exercise"));
   // FR-MTD-007: a restricted exercise the reader is not named on is not in the list, the counts or the search.
   const hidden = await hiddenExercises(actor);
-  const facts = await exerciseListFacts(actor.organisationId, hidden);
+  const facts = await exerciseListFacts(actor.organisationId, hidden, q);
   const { org, byStatus, awaitingName } = facts;
   const today = org?.today ?? null;
   // "On the boundary" states the estimate (ruling of 2026-10-08 on log line 1716), so it counts, lists and shows only the rows whose estimate this reader may read: the whole boundary set is judged here, for the chip and for the view.
@@ -73,12 +73,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
   const facets = [
     codeFacet("/sourcing", q, "unit", "Department", "Any department", choices.units, "A unit no longer configured"),
     codeFacet("/sourcing", q, "method", "Method", "Any method", choices.methods, "A method no longer configured"),
-    stageFacet("/sourcing", q, "Stage", "Any stage", [
-      { value: "open", label: "Open (any stage)" },
-      { value: "preparing", label: "Preparing" },
-      { value: "in_market", label: "In market" },
-      { value: "evaluating", label: "Evaluating" },
-    ]),
+    stageFacet("/sourcing", q, "Stage", "Any stage", SOURCING_STAGES),
   ];
   const chosen = VIEWS.find((v) => v.id === q.view) ?? null;
   // ST-8: the boundary view's rows state the estimate, so exporting them would disclose it: no export there; nor over the cap.

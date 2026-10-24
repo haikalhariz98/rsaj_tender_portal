@@ -55,7 +55,7 @@ export async function GET(req: Request) {
   });
   const fileName = `tenders-and-quotations-${dayIn(new Date(), actor.organisationTimeZone)}.xlsx`;
   const file = await listToXlsx("Tenders and quotations", COLUMNS, data);
-  await recordListExport(actor, { list: "Tenders & quotations", view: q.view ? VIEW_LABEL[q.view] : "All", search: q.q, rowCount: data.length, fileName });
+  await recordListExport(actor, { list: "Tenders & quotations", view: q.view ? VIEW_LABEL[q.view] : "All", search: q.q, rowCount: data.length, fileName, facets: q });
   return xlsxResponse(file, fileName);
 }
 

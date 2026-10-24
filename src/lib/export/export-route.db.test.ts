@@ -95,6 +95,18 @@ describe("the requisitions export", () => {
     expect(JSON.stringify(entries)).not.toContain(VALUE_DIGITS);
   });
 
+  it("names the active facets in the audit entry as labels, never codes", async () => {
+    await db.orgUnit.create({ data: { organisationId: orgA, code: "XP_UNIT", nameEn: `Roads Department ${run}`, kind: "DEPARTMENT", effectiveFrom: new Date("2020-01-01T00:00:00Z") } });
+    who.actor = actorOf(orgA, person.named);
+    const res = await get(exportRequisitions, "/requisitions/export", "?unit=XP_UNIT&stage=approved&from=2026-01-01&to=2027-01-01");
+    expect(res.status).toBe(200);
+    const entry = (await exports(orgA)).at(-1)!;
+    const changes = Object.fromEntries((entry.changes as { field: string; after: unknown }[]).map((c) => [c.field, c.after]));
+    expect(changes).toMatchObject({ department: `Roads Department ${run}`, stage: "Approved", dateRange: "01 Jan 2026 to 31 Dec 2026" });
+    expect(JSON.stringify(entry.changes)).not.toContain("XP_UNIT");
+    expect(changes).not.toHaveProperty("fundingRoute");
+  });
+
   it("gives another organisation's actor none of this organisation's rows", async () => {
     who.actor = actorOf(orgB, person.b);
     const file = await sheetOf(await get(exportRequisitions, "/requisitions/export", `?q=zebra`));

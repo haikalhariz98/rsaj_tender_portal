@@ -98,3 +98,20 @@ describe("listRequisitions, server mode", () => {
     expect(all.total).toBe(6);
   });
 });
+
+describe("the view chips under the list's facets (I-6)", () => {
+  it("with a department filter, each chip counts the rows its view lists, never the organisation's", async () => {
+    const org = (await db.organisation.create({ data: { code: `LST_${randomId()}`, name: "Chip test organisation", timeZone: "Asia/Kuala_Lumpur" } })).id;
+    const person = (await makePerson(org)).id;
+    const mk = (unit: string, status: "PENDING_APPROVAL" | "DRAFT" | "APPROVED") => ({ ...requisition({ status, requestingUnitCode: unit }), organisationId: org, requestingPersonId: person });
+    await db.requisition.createMany({ data: [mk("D1", "PENDING_APPROVAL"), mk("D1", "DRAFT"), mk("D1", "DRAFT"), mk("D2", "PENDING_APPROVAL"), mk("D2", "PENDING_APPROVAL"), mk("D2", "APPROVED")] });
+    const unfiltered = (await listRequisitions(org, query({}))).counts;
+    expect(unfiltered.pending).toBe(3);
+    const inD1 = await listRequisitions(org, query({ unit: "D1" }));
+    expect(inD1.counts.pending).toBe((await listRequisitions(org, query({ unit: "D1", view: "pending" }))).total);
+    expect(inD1.counts.drafts).toBe((await listRequisitions(org, query({ unit: "D1", view: "drafts" }))).total);
+    expect([inD1.counts.pending, inD1.counts.drafts, inD1.counts.open]).toEqual([1, 2, 3]);
+    // The search narrows the list but not the chips.
+    expect((await listRequisitions(org, query({ unit: "D1", q: "nothing matches this" }))).counts.pending).toBe(1);
+  });
+});
