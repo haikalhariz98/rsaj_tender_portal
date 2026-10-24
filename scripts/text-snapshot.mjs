@@ -93,13 +93,14 @@ function lines(html) {
   return outLines.join("\n") + "\n";
 }
 
-// One record from each list (and its edit screen), found by following the first link.
+// One record from each list (and its edit screen), found by following the first link that is not the list's export (step 7: the
+// export link comes first on every server list, and was snapshotted as if it were a record).
 for (const [list, re] of [
-  ["/requisitions", /href="(\/requisitions\/(?!new|receive)[0-9A-Za-z_-]{4,})"/],
-  ["/sourcing", /href="(\/sourcing\/[0-9A-Za-z_-]{4,})"/],
+  ["/requisitions", /href="(\/requisitions\/(?!new|receive|export)[0-9A-Za-z_-]{4,})"/],
+  ["/sourcing", /href="(\/sourcing\/(?!export)[0-9A-Za-z_-]{4,})"/],
   // AC-17, AC-19 (C9): a case from the Contracts list (an award-only case has the award id).
-  ["/projects", /href="(\/projects\/(?!new)[0-9A-Za-z_-]{4,})"/],
-  ["/committees", /href="(\/committees\/[0-9A-Za-z_-]{4,})"/],
+  ["/projects", /href="(\/projects\/(?!new|export)[0-9A-Za-z_-]{4,})"/],
+  ["/committees", /href="(\/committees\/(?!export)[0-9A-Za-z_-]{4,})"/],
 ]) {
   const hit = re.exec(await (await signedInFetch(base + list)).text());
   if (hit) ROUTES.push(hit[1], ...(list === "/projects" || list === "/committees" ? [] : [`${hit[1]}/edit`]));
