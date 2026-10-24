@@ -82,7 +82,11 @@ owner rules WV-1 to WV-16 in `docs/notes/plans/wave-v-plan.md` §6. The build pl
       witness's name, and the three attestations "signed", "stamped" and "witnessed", each true;
     - one decision: verified (by whom, when) or refused (by whom, when, with a reason).
   - **Write rules, held by triggers:** insert-only, apart from the decision, which is set once. At most one undecided row per
-    award (a partial unique index).
+    award (a partial unique index). The decision also withholds the five personal fields of a typed page (PDPA, ruling of
+    2026-10-24): signatory name, IC number, occupation, address and the witness's name become null in the deciding update itself,
+    verified or refused, while the capacity and the three attestations are kept. A Letter of Acceptance's empty fields stay as they
+    are. Nothing else may null them, and a withheld value is never given back (trigger PA048, the page CHECK's third arm,
+    `20261202000100_online_return_personal_withheld`).
 - **Its files are attachments of the row.** Each scan is a `DocumentAttachment` with the new owner `awardOnlineReturnId` and the
   scan's existing return purpose. The submit act pins it, as ADR 0042 D8 pins a version's files.
   - **Why an owner, and not a JSON list of staged versions:** a SULIT document with no owner has no subject that grants a read.

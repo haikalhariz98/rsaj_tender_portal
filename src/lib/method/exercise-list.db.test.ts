@@ -88,6 +88,13 @@ describe("listExercises, server mode", () => {
     const candidates = await exerciseCandidates(organisationId, [ex.hidden], query({ view: "boundary" }));
     // Not cancelled, on the boundary, the organisation's own (the other organisation's same-titled one is not here).
     expect(candidates.map((c) => c.id).sort()).toEqual([ex.boundaryA, ex.boundaryB].sort());
+    // Security review L6: the SULIT estimate is selected for the boundary view alone.
+    expect(candidates.every((c) => "estimatedValue" in c)).toBe(true);
+    for (const view of ["open", "soon"] as const) {
+      const judged = await exerciseCandidates(organisationId, [ex.hidden], query({ view }));
+      expect(judged.length, view).toBeGreaterThan(0);
+      expect(judged.some((c) => "estimatedValue" in c), view).toBe(false);
+    }
     const ids = judgedViewIds("boundary", candidates, { windows: new Map(), today: null, granted: new Set([ex.boundaryB]) });
     const got = await listExercises(organisationId, [ex.hidden], query({ view: "boundary" }), { ids });
     expect(got.rows.map((r) => r.id)).toEqual([ex.boundaryB]);

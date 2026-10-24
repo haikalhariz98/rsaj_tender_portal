@@ -35,6 +35,7 @@ import { isLive } from "@/lib/documents/evidence";
 import { PURPOSE_LABEL } from "@/lib/documents/labels";
 import { lockDocument } from "@/lib/documents/lock";
 import { awardLockedOwner } from "@/lib/documents/owners";
+import { STAGED_FOR_AWARD_RETURN } from "@/lib/documents/staged-for";
 import { loadStorePolicy } from "@/lib/documents/service";
 import type { AttachmentPurpose } from "@/lib/documents/types";
 import { awardReturnNotices } from "@/lib/inbox/notices";
@@ -45,9 +46,10 @@ import { inHeldContract, supplierAuditActor } from "@/lib/portal/projects/submis
 import { awardAuditCreate } from "./audit-view";
 import { loadEventPlan } from "./clock-notices";
 import { RETURN_SLOT_LABEL } from "./labels";
-import { answerFaults, askFaults, lodgeFaults, onlineReturnState, paperStarted, refuseFaults, returnRecordFromOnline, stagedReturnFileFaults, verifyFaults, type OnlineReturnPage, type StagedReturnFile } from "./online-return";
+import { answerFaults, askFaults, lodgeFaults, onlineReturnState, paperStarted, refuseFaults, returnRecordFromOnline, stagedReturnFileFaults, verifyFaults, type OnlineReturnPage, type OnlineReturnPageInput, type StagedReturnFile } from "./online-return";
 import { AwardReturnRefused, awardReturnFaultsText, type AwardReturnFault } from "./online-return-words";
 import { withLockedAwardFor, type LoadedAward } from "./repo";
+import { onlineReturnWithheld, WITHHELD_WORDS, withheldForTrail } from "./return-withheld";
 import { acceptOnCompleteReturn, returnRecordOf } from "./return-acceptance";
 import { saveReturn } from "./return-store";
 import { audit, labelOf, Refusal } from "./route-write";
@@ -57,11 +59,12 @@ import type { Finding, InstrumentKind } from "./types";
 /// The configuration keys of the two events (`NOTIFICATION_EVENTS`).
 export const AWARD_RETURN_EVENT_KEY = { AWARD_RETURN_LODGED: "award.return.lodged", AWARD_QUERY_RAISED: "award.query.raised" } as const;
 
-const GONE: FormState = { ok: false, message: "That award no longer exists." };
+// One answer for a row that is not there and for an award gone or closed to the officer (security review L5): neither tells the other apart.
 const RETURN_GONE: FormState = { ok: false, message: "That return is not on record." };
 const QUERY_GONE: FormState = { ok: false, message: "That question is not on record." };
 
-const statusOf = (fs: readonly Finding<AwardReturnFault>[]): 403 | 409 | 422 => (fs.some((f) => f.code === "NOT_SIGNING_AUTHORITY") ? 403 : fs.some((f) => f.code === "ALREADY_WAITING") ? 409 : 422);
+const statusOf = (fs: readonly Finding<AwardReturnFault>[]): 403 | 409 | 422 | 429 =>
+  fs.some((f) => f.code === "NOT_SIGNING_AUTHORITY") ? 403 : fs.some((f) => f.code === "ALREADY_WAITING") ? 409 : fs.some((f) => f.code === "TOO_MANY_OPEN") ? 429 : 422;
 const refuseContractor = (fs: readonly Finding<AwardReturnFault>[]): never => {
   throw new AwardReturnRefused(fs, statusOf(fs));
 };
@@ -83,8 +86,8 @@ export interface LodgeInput {
   contractId: string;
   /// Each scan the instrument takes, with the store version staged for it (`storeReturnFile`).
   files: Readonly<Record<string, string>>;
-  /// A work indent's acceptance page; null for a Letter of Acceptance.
-  page: OnlineReturnPage | null;
+  /// A work indent's acceptance page, its signatory named by contact id (M1); null for a Letter of Acceptance.
+  page: OnlineReturnPageInput | null;
   /// The moment the password was asked again (`confirmSupplierPassword`). The lodge is a signed act.
   stepUpAt: Date | null;
 }
@@ -96,6 +99,14 @@ export async function lodgeOnlineReturn(actor: SupplierActor, i: LodgeInput, now
     const policy = await loadStorePolicy(l.org.id, tx);
     const cls = policy.awardReturnClassId ? await tx.documentClass.findFirst({ where: { id: policy.awardReturnClassId, organisationId: l.org.id }, select: { classification: true } }) : null;
     const scans = Object.keys(i.files);
+    // Security review M1: the signatory is a current contact of this supplier who signs for it, read here under the lock. Its name is written, never one the browser sent.
+    let typed: OnlineReturnPage | null = null;
+    if (i.page) {
+      const { signatoryContactId, ...rest } = i.page;
+      const signer = await tx.supplierContact.findFirst({ where: { id: signatoryContactId, supplierId: actor.supplierId, organisationId: l.org.id, retiredOn: null, authorisedToSignForContractor: true }, select: { name: true } });
+      if (!signer) return refuseContractor([{ code: "SIGNATORY_UNKNOWN", level: "block" }]);
+      typed = { ...rest, signatoryName: signer.name };
+    }
     const faults = lodgeFaults(
       {
         awardStatus: a.status,
@@ -106,12 +117,14 @@ export async function lodgeOnlineReturn(actor: SupplierActor, i: LodgeInput, now
         classSet: !!policy.awardReturnClassId && awardReturnClassFault(cls) === null,
         signingFault: await contractorSigningFaultOf(tx, actor),
       },
-      { scans, page: i.page },
+      { scans, page: typed },
     );
     if (faults.length) refuseContractor(faults);
 
-    // Each staged scan: its store document locked first (in id order, as every attach takes them), then read and judged (ADR 0045 D1).
-    const read = async (versionId: string) => tx.documentVersion.findFirst({ where: { id: versionId, organisationId: l.org.id }, select: { id: true, documentId: true, versionNo: true, sha256: true, withdrawnAt: true, recordedByPersonId: true, recordedBySupplierAccountId: true, _count: { select: { attachments: true } }, document: { select: { id: true, title: true, status: true, stagedFor: true, documentClassId: true } } } });
+    // Each staged scan: its store document locked first (in id order, as every attach takes them), then read and judged (ADR 0045 D1). Only a version this account staged for
+    // a return is read or locked at all (security review L3): any other id, of whatever owner, reads as not there.
+    const own = { organisationId: l.org.id, recordedBySupplierAccountId: actor.accountId, recordedByPersonId: null, document: { stagedFor: STAGED_FOR_AWARD_RETURN } };
+    const read = async (versionId: string) => tx.documentVersion.findFirst({ where: { id: versionId, ...own }, select: { id: true, documentId: true, versionNo: true, sha256: true, withdrawnAt: true, recordedByPersonId: true, recordedBySupplierAccountId: true, _count: { select: { attachments: true } }, document: { select: { id: true, title: true, status: true, stagedFor: true, documentClassId: true } } } });
     const docIds = new Set<string>();
     for (const versionId of Object.values(i.files)) {
       const v = await read(versionId);
@@ -134,7 +147,7 @@ export async function lodgeOnlineReturn(actor: SupplierActor, i: LodgeInput, now
     const fileFaults = stagedReturnFileFaults(staged, actor.accountId, policy.awardReturnClassId!);
     if (fileFaults.length) refuseContractor(fileFaults);
 
-    const page = kind === "WORK_INDENT" && i.page ? { ...i.page, signatoryName: i.page.signatoryName.trim(), icNumber: i.page.icNumber.trim(), occupation: i.page.occupation.trim(), address: i.page.address.trim(), capacity: i.page.capacity.trim(), witnessName: i.page.witnessName.trim() } : {};
+    const page = kind === "WORK_INDENT" && typed ? { ...typed, signatoryName: typed.signatoryName.trim(), icNumber: typed.icNumber.trim(), occupation: typed.occupation.trim(), address: typed.address.trim(), capacity: typed.capacity.trim(), witnessName: typed.witnessName.trim() } : {};
     const submittedOn = dayToDate(today);
     const row = await tx.awardOnlineReturn.create({ data: { organisationId: l.org.id, awardId: a.id, submittedBySupplierAccountId: actor.accountId, submittedAt: now, submittedOn, stepUpAt: i.stepUpAt ?? now, ...page } });
     const who = supplierAuditActor(actor);
@@ -158,8 +171,8 @@ export async function lodgeOnlineReturn(actor: SupplierActor, i: LodgeInput, now
       document: { entity: "AwardOnlineReturn", id: row.id },
       reason: `Signed with the password entered when the award return was sent online, by ${actor.displayName}`,
     });
-    // The identity card number enters the trail masked (`awardAuditCreate`).
-    await writeAudit(tx, { actor: who, organisationId: l.org.id, entity: "AwardOnlineReturn", entityId: row.id, entityLabel: label }, "CREATE", awardAuditCreate({ submittedOn, ...page }, { scans: scans.map((s) => RETURN_SLOT_LABEL[s as keyof typeof RETURN_SLOT_LABEL]).join(", ") }));
+    // The five personal values never enter the trail (PDPA, ruling of 2026-10-24): they are said as withheld. The rest of the page is recorded as typed.
+    await writeAudit(tx, { actor: who, organisationId: l.org.id, entity: "AwardOnlineReturn", entityId: row.id, entityLabel: label }, "CREATE", awardAuditCreate({ submittedOn }, { ...withheldForTrail(page), scans: scans.map((s) => RETURN_SLOT_LABEL[s as keyof typeof RETURN_SLOT_LABEL]).join(", ") }));
     await tellOffices(tx, l, today, "AWARD_RETURN_LODGED", row.id);
     return { onlineReturnId: row.id };
   }, now);
@@ -167,13 +180,18 @@ export async function lodgeOnlineReturn(actor: SupplierActor, i: LodgeInput, now
 
 // ------------------------------------------------------------------ the contractor asks
 
-export async function askAwardQuery(actor: SupplierActor, i: { contractId: string; body: string }, now: Date = new Date()): Promise<{ queryId: string }> {
+/// `requestKey` is the browser's one-time key (security review L2): a question sent again with it is the one already asked, answered with its id and nothing written or told.
+export async function askAwardQuery(actor: SupplierActor, i: { contractId: string; body: string; requestKey: string }, now: Date = new Date()): Promise<{ queryId: string }> {
   return inHeldContract(actor, i.contractId, async (tx, l, today) => {
-    const faults = askFaults({ awardStatus: l.award.status, body: i.body });
+    // Under the award's lock, so a second press waits for the first and finds it.
+    const again = await tx.awardQuery.findFirst({ where: { awardId: l.award.id, organisationId: l.org.id, requestKey: i.requestKey }, select: { id: true } });
+    if (again) return { queryId: again.id };
+    const unanswered = await tx.awardQuery.count({ where: { awardId: l.award.id, organisationId: l.org.id, answeredAt: null } });
+    const faults = askFaults({ awardStatus: l.award.status, body: i.body, unanswered });
     if (faults.length) refuseContractor(faults);
     const body = i.body.trim();
     // A question writes no clock field and pauses nothing (AC-31): the indent's validity, the return days and commencement stand.
-    const q = await tx.awardQuery.create({ data: { organisationId: l.org.id, awardId: l.award.id, body, askedBySupplierAccountId: actor.accountId, askedAt: now } });
+    const q = await tx.awardQuery.create({ data: { organisationId: l.org.id, awardId: l.award.id, body, askedBySupplierAccountId: actor.accountId, askedAt: now, requestKey: i.requestKey } });
     await writeAudit(tx, { actor: supplierAuditActor(actor), organisationId: l.org.id, entity: "AwardQuery", entityId: q.id, entityLabel: `${l.award.reference} · question` }, "CREATE", diffFields(null, { question: body }));
     await tellOffices(tx, l, today, "AWARD_QUERY_RAISED", q.id);
     return { queryId: q.id };
@@ -182,9 +200,10 @@ export async function askAwardQuery(actor: SupplierActor, i: { contractId: strin
 
 // ------------------------------------------------------------------ the officer decides
 
-async function inLockedAward(actor: StaffActor, awardId: string, fn: (tx: Tx, l: LoadedAward) => Promise<FormState>): Promise<FormState> {
+/// `gone` is what a row not there says: the same words when the award itself is gone or closed to the officer (L5).
+async function inLockedAward(actor: StaffActor, awardId: string, gone: FormState, fn: (tx: Tx, l: LoadedAward) => Promise<FormState>): Promise<FormState> {
   try {
-    return (await withLockedAwardFor(actor, awardId, fn)) ?? GONE;
+    return (await withLockedAwardFor(actor, awardId, fn)) ?? gone;
   } catch (e) {
     if (e instanceof Refusal) return e.state;
     throw e;
@@ -195,6 +214,9 @@ const formOf = (fs: readonly Finding<AwardReturnFault>[], field: string, codes: 
   const onField = fs.filter((f) => codes.includes(f.code));
   return onField.length === fs.length ? { ok: false, errors: { [field]: awardReturnFaultsText(fs) } } : { ok: false, message: awardReturnFaultsText(fs) };
 };
+
+/// The trail's line for the five personal values withheld at the decision, said and never shown (as go-live N7's).
+const withheldLine = (withheld: boolean) => (withheld ? [{ field: WITHHELD_WORDS.field, before: WITHHELD_WORDS.held, after: WITHHELD_WORDS.en }] : []);
 
 const ROW_SELECT = {
   id: true,
@@ -222,7 +244,7 @@ const ROW_SELECT = {
 export async function verifyOnlineReturn(actor: StaffActor, onlineReturnId: string, act: PreparedAct): Promise<FormState> {
   const found = await db.awardOnlineReturn.findFirst({ where: { id: onlineReturnId, organisationId: actor.organisationId }, select: { awardId: true } });
   if (!found) return RETURN_GONE;
-  return inLockedAward(actor, found.awardId, async (tx, l) => {
+  return inLockedAward(actor, found.awardId, RETURN_GONE, async (tx, l) => {
     const a = l.award;
     const row = await tx.awardOnlineReturn.findFirst({ where: { id: onlineReturnId, awardId: a.id, organisationId: l.org.id }, select: ROW_SELECT });
     if (!row) return RETURN_GONE;
@@ -238,11 +260,18 @@ export async function verifyOnlineReturn(actor: StaffActor, onlineReturnId: stri
     const fail = (message: string): never => {
       throw new Refusal({ ok: false, message });
     };
-    const now = new Date();
-    const marked = await tx.awardOnlineReturn.updateMany({ where: { id: row.id, verifiedAt: null, refusedAt: null }, data: { verifiedByPersonId: act.subjectPersonId, verifiedAt: now } });
-    if (marked.count !== 1) fail(awardReturnFaultsText([{ code: "NOT_WAITING", level: "block" }]));
+    // A waiting row holds its values (CHECK): a withheld one here is a broken row, and nothing empty is ever written into the award's return.
+    const held = (v: string | null): string => {
+      if (v === null) throw new Error("A waiting online return holds a withheld value");
+      return v;
+    };
     const kind = a.instrumentKind as InstrumentKind;
-    const values = returnRecordFromOnline(kind, { ...row, submittedOn: storedDay(row.submittedOn) });
+    const values = returnRecordFromOnline(kind, { ...row, submittedOn: storedDay(row.submittedOn), signatoryName: held(row.signatoryName), icNumber: held(row.icNumber), occupation: held(row.occupation), address: held(row.address), witnessName: held(row.witnessName) });
+    const now = new Date();
+    // PDPA (ruling of 2026-10-24): a typed page's five personal values are withheld in the deciding update itself, so a rollback keeps them as they were.
+    const withheld = row.capacity !== "";
+    const marked = await tx.awardOnlineReturn.updateMany({ where: { id: row.id, verifiedAt: null, refusedAt: null }, data: { verifiedByPersonId: act.subjectPersonId, verifiedAt: now, ...(withheld ? onlineReturnWithheld() : {}) } });
+    if (marked.count !== 1) fail(awardReturnFaultsText([{ code: "NOT_WAITING", level: "block" }]));
     const saved = await saveReturn(tx, actor, l, { values, receivedByPersonId: act.subjectPersonId, correction: "" });
     if (!saved.ok) throw new Refusal(saved.state);
     await act.write(tx, row.id);
@@ -256,25 +285,27 @@ export async function verifyOnlineReturn(actor: StaffActor, onlineReturnId: stri
     await acceptOnCompleteReturn(tx, auditActorOfStaff(actor), l, saved.rec);
     const after = await tx.award.findUniqueOrThrow({ where: { id: a.id }, select: { status: true } });
     if (after.status !== "ACCEPTED") fail("Not verified: these scans do not complete the return. Refuse it, with the reason, so the contractor can send it again.");
-    await audit(tx, auditActorOfStaff(actor), l.org.id, "AwardOnlineReturn", row.id, `${a.reference} · return sent online`, "UPDATE", diffFields({ state: "Being checked" }, { state: "Verified" }));
+    await audit(tx, auditActorOfStaff(actor), l.org.id, "AwardOnlineReturn", row.id, `${a.reference} · return sent online`, "UPDATE", [...diffFields({ state: "Being checked" }, { state: "Verified" }), ...withheldLine(withheld)]);
     return { ok: true, message: "Verified. The award is accepted." };
   });
 }
 
 /// Refuse a waiting online return, with the reason the contractor reads (ADR 0045 D1). Nothing is attached to the award; the row keeps its files as the record of what was sent.
+/// A typed page's five personal values are withheld in the same update (PDPA, ruling of 2026-10-24): the contractor lodges again.
 export async function refuseOnlineReturn(actor: StaffActor, onlineReturnId: string, reason: string, act: PreparedAct): Promise<FormState> {
   const found = await db.awardOnlineReturn.findFirst({ where: { id: onlineReturnId, organisationId: actor.organisationId }, select: { awardId: true } });
   if (!found) return RETURN_GONE;
-  return inLockedAward(actor, found.awardId, async (tx, l) => {
-    const row = await tx.awardOnlineReturn.findFirst({ where: { id: onlineReturnId, awardId: l.award.id, organisationId: l.org.id }, select: { id: true, submittedAt: true, verifiedAt: true, refusedAt: true } });
+  return inLockedAward(actor, found.awardId, RETURN_GONE, async (tx, l) => {
+    const row = await tx.awardOnlineReturn.findFirst({ where: { id: onlineReturnId, awardId: l.award.id, organisationId: l.org.id }, select: { id: true, submittedAt: true, verifiedAt: true, refusedAt: true, capacity: true } });
     if (!row) return RETURN_GONE;
     const faults = refuseFaults({ state: onlineReturnState([row]), reason });
     if (faults.length) return formOf(faults, "reason", ["REASON_REQUIRED", "REASON_TOO_LONG"]);
     const why = reason.trim();
-    const marked = await tx.awardOnlineReturn.updateMany({ where: { id: row.id, verifiedAt: null, refusedAt: null }, data: { refusedByPersonId: act.subjectPersonId, refusedAt: new Date(), refusedReason: why } });
+    const withheld = row.capacity !== "";
+    const marked = await tx.awardOnlineReturn.updateMany({ where: { id: row.id, verifiedAt: null, refusedAt: null }, data: { refusedByPersonId: act.subjectPersonId, refusedAt: new Date(), refusedReason: why, ...(withheld ? onlineReturnWithheld() : {}) } });
     if (marked.count !== 1) return { ok: false, message: awardReturnFaultsText([{ code: "NOT_WAITING", level: "block" }]) };
     await act.write(tx, row.id);
-    await audit(tx, auditActorOfStaff(actor), l.org.id, "AwardOnlineReturn", row.id, `${l.award.reference} · return sent online`, "UPDATE", diffFields({ state: "Being checked" }, { state: "Refused" }), why);
+    await audit(tx, auditActorOfStaff(actor), l.org.id, "AwardOnlineReturn", row.id, `${l.award.reference} · return sent online`, "UPDATE", [...diffFields({ state: "Being checked" }, { state: "Refused" }), ...withheldLine(withheld)], why);
     return { ok: true };
   });
 }
@@ -283,7 +314,7 @@ export async function refuseOnlineReturn(actor: StaffActor, onlineReturnId: stri
 export async function answerAwardQuery(actor: StaffActor, queryId: string, answer: string, act: PreparedAct): Promise<FormState> {
   const found = await db.awardQuery.findFirst({ where: { id: queryId, organisationId: actor.organisationId }, select: { awardId: true } });
   if (!found) return QUERY_GONE;
-  return inLockedAward(actor, found.awardId, async (tx, l) => {
+  return inLockedAward(actor, found.awardId, QUERY_GONE, async (tx, l) => {
     const q = await tx.awardQuery.findFirst({ where: { id: queryId, awardId: l.award.id, organisationId: l.org.id }, select: { id: true, answeredAt: true } });
     if (!q) return QUERY_GONE;
     const faults = answerFaults({ answeredAt: q.answeredAt, answer });

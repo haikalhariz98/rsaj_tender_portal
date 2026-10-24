@@ -6,7 +6,7 @@
 
 import type { PortalParsed } from "@/lib/project-docs/portal-api";
 
-import { PAGE_FIELD_MAX, QUERY_MAX, type OnlineReturnPage } from "./online-return";
+import { PAGE_FIELD_MAX, QUERY_MAX, type OnlineReturnPageInput } from "./online-return";
 import { RETURN_SCANS } from "./stage-two";
 
 const invalid = (errors: Record<string, string>): PortalParsed<never> => ({ ok: false, status: 400, code: "VALIDATION", message: "Check the fields marked below.", errors });
@@ -14,7 +14,8 @@ const ID = /^[A-Za-z0-9_-]{8,40}$/;
 const isId = (v: unknown): v is string => typeof v === "string" && ID.test(v);
 const PASSWORD_MAX = 512;
 const ALL_SCANS: readonly string[] = [...new Set(Object.values(RETURN_SCANS).flat())];
-const TEXT_FIELDS = Object.keys(PAGE_FIELD_MAX) as (keyof typeof PAGE_FIELD_MAX)[];
+/// The typed fields. The signatory is not one: it is chosen, by contact id (security review M1), and its name is the contact's, read by the lodge.
+const TEXT_FIELDS = (Object.keys(PAGE_FIELD_MAX) as (keyof typeof PAGE_FIELD_MAX)[]).filter((k) => k !== "signatoryName") as Exclude<keyof typeof PAGE_FIELD_MAX, "signatoryName">[];
 const FLAGS = ["contractorSigned", "stampAffixed", "witnessSigned"] as const;
 
 const unknownFields = (fields: Readonly<Record<string, unknown>>, allowed: readonly string[]) =>
@@ -51,7 +52,7 @@ export function parseReturnUploadForm(entries: Iterable<[string, unknown]>, quer
 export interface SubmitBody {
   contractId: string;
   files: Record<string, string>;
-  page: OnlineReturnPage | null;
+  page: OnlineReturnPageInput | null;
 }
 
 /// `POST /supplier/projects/award-return/submit`. The password is returned beside the body, for `confirmSupplierPassword` alone.
@@ -66,13 +67,15 @@ export function parseSubmitBody(b: Readonly<Record<string, unknown>>): PortalPar
       else if (!isId(id)) errors.files = "A file is not one that was uploaded.";
       else files[scan] = id;
     }
-  let page: OnlineReturnPage | null = null;
+  let page: OnlineReturnPageInput | null = null;
   if (b.page != null) {
     if (!plain(b.page)) errors.page = "The acceptance page is not readable.";
     else {
       const p = b.page;
-      for (const k of Object.keys(unknownFields(p, [...TEXT_FIELDS, ...FLAGS]))) errors[`page.${k}`] = "Not a field of this request.";
+      for (const k of Object.keys(unknownFields(p, ["signatoryContactId", ...TEXT_FIELDS, ...FLAGS]))) errors[`page.${k}`] = "Not a field of this request.";
       const out: Record<string, string | boolean> = {};
+      if (!isId(p.signatoryContactId)) errors["page.signatoryContactId"] = "Choose the signatory.";
+      else out.signatoryContactId = p.signatoryContactId;
       for (const k of TEXT_FIELDS) {
         // Far past the bound is refused here; a value between the bound and that is the rule's to word.
         if (typeof p[k] !== "string" || (p[k] as string).length > PAGE_FIELD_MAX[k] * 4) errors[`page.${k}`] = "Give this as text.";
@@ -82,7 +85,7 @@ export function parseSubmitBody(b: Readonly<Record<string, unknown>>): PortalPar
         if (typeof p[k] !== "boolean") errors[`page.${k}`] = "Tick or leave this blank.";
         else out[k] = p[k] as boolean;
       }
-      if (!Object.keys(errors).some((k) => k.startsWith("page."))) page = out as unknown as OnlineReturnPage;
+      if (!Object.keys(errors).some((k) => k.startsWith("page."))) page = out as unknown as OnlineReturnPageInput;
     }
   }
   if (typeof b.password !== "string" || b.password === "" || b.password.length > PASSWORD_MAX) errors.password = "Enter your password to send the return.";
@@ -90,12 +93,13 @@ export function parseSubmitBody(b: Readonly<Record<string, unknown>>): PortalPar
   return { ok: true, value: { body: { contractId: b.contractId as string, files, page }, password: b.password as string } };
 }
 
-/// `POST /supplier/projects/award-query`.
-export function parseQueryBody(b: Readonly<Record<string, unknown>>): PortalParsed<{ contractId: string; body: string }> {
-  const errors = unknownFields(b, ["contractId", "body"]);
+/// `POST /supplier/projects/award-query`. `requestKey` is the browser's one-time key for this question (security review L2): sent again, it is the same question.
+export function parseQueryBody(b: Readonly<Record<string, unknown>>): PortalParsed<{ contractId: string; body: string; requestKey: string }> {
+  const errors = unknownFields(b, ["contractId", "body", "requestKey"]);
   if (!isId(b.contractId)) errors.contractId = "Say which contract this is for.";
+  if (!isId(b.requestKey)) errors.requestKey = "Open the question again and send it.";
   if (typeof b.body !== "string") errors.body = "Write your question.";
   else if (b.body.length > QUERY_MAX) errors.body = `The question is longer than ${QUERY_MAX} characters.`;
   if (Object.keys(errors).length > 0) return invalid(errors);
-  return { ok: true, value: { contractId: b.contractId as string, body: b.body as string } };
+  return { ok: true, value: { contractId: b.contractId as string, body: b.body as string, requestKey: b.requestKey as string } };
 }

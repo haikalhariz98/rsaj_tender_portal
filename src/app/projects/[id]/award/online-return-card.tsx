@@ -9,6 +9,7 @@ import { through, type Sulit } from "@/lib/auth/sulit-access";
 import { RETURN_SLOT_LABEL } from "@/lib/award/labels";
 import { ONLINE_STATE_LABEL, type OnlineReturnCardFacts } from "@/lib/award/online-return-view";
 import type { LoadedAward } from "@/lib/award/repo";
+import { WITHHELD_WORDS } from "@/lib/award/return-withheld";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { day, notSet } from "./shared";
@@ -18,12 +19,15 @@ const tri = (v: boolean | null) => (v == null ? notSet("Not recorded") : v ? "Ye
 /**
  * "Sent online": the contractor's latest return (ADR 0045 D1): who sent it, the day, the typed acceptance page of an indent, the scans to open, and where the officer's decision
  * stands. The identity card number is SULIT: read only for a reader the award's gate grants, as on the paper return, and masked otherwise. Verify and Refuse are the header's.
+ * Once a typed page is decided its five personal values are withheld (PDPA, ruling of 2026-10-24: null, all five together) and each reads "Withheld"; nothing is read for them.
  */
 export async function OnlineReturnCard({ sulit, l, facts, nobodyTold }: { sulit: Sulit<true>; l: LoadedAward; facts: OnlineReturnCardFacts; nobodyTold: string | null }) {
   const { award } = l;
   const row = award.onlineReturns.find((r) => r.id === facts.latest)!;
   const indent = award.instrumentKind !== "LETTER_OF_ACCEPTANCE";
-  const ic = indent && sulit.state === "GRANTED" ? ((await db.awardOnlineReturn.findFirst({ where: { id: row.id, organisationId: l.org.id }, select: { icNumber: true } }))?.icNumber ?? "") : "";
+  // The five are withheld together (CHECK), so one null says it of all of them.
+  const withheld = row.signatoryName === null;
+  const ic = indent && !withheld && sulit.state === "GRANTED" ? ((await db.awardOnlineReturn.findFirst({ where: { id: row.id, organisationId: l.org.id }, select: { icNumber: true } }))?.icNumber ?? "") : "";
   const state = ONLINE_STATE_LABEL[facts.state];
   const files = row.files.filter((f) => !f.detachedAt && !f.version.withdrawnAt);
   const tz = l.org.timeZone;
@@ -42,14 +46,14 @@ export async function OnlineReturnCard({ sulit, l, facts, nobodyTold }: { sulit:
           <KeyValues
             columns={2}
             items={[
-              { label: "Contractor's signatory", value: row.signatoryName || notSet("Not recorded") },
-              { label: "Identity card number", value: ic ? <span className="font-mono text-[13px]"><SulitValue of={through(sulit, ic)} /></span> : sulit.state === "WITHHELD" ? <SulitValue of={through(sulit, "")} /> : notSet("Not recorded") },
-              { label: "Occupation", value: row.occupation || notSet("Not recorded") },
-              { label: "Address", value: row.address || notSet("Not recorded") },
+              { label: "Contractor's signatory", value: withheld ? WITHHELD_WORDS.en : row.signatoryName || notSet("Not recorded") },
+              { label: "Identity card number", value: withheld ? WITHHELD_WORDS.en : ic ? <span className="font-mono text-[13px]"><SulitValue of={through(sulit, ic)} /></span> : sulit.state === "WITHHELD" ? <SulitValue of={through(sulit, "")} /> : notSet("Not recorded") },
+              { label: "Occupation", value: withheld ? WITHHELD_WORDS.en : row.occupation || notSet("Not recorded") },
+              { label: "Address", value: withheld ? WITHHELD_WORDS.en : row.address || notSet("Not recorded") },
               { label: "Signed in the capacity of", value: row.capacity || notSet("Not recorded") },
               { label: "Contractor signed", value: tri(row.contractorSigned) },
               { label: "Company stamp affixed", value: tri(row.stampAffixed) },
-              { label: "Witness", value: row.witnessName || notSet("Not recorded") },
+              { label: "Witness", value: withheld ? WITHHELD_WORDS.en : row.witnessName || notSet("Not recorded") },
               { label: "Witness signed", value: tri(row.witnessSigned) },
             ]}
           />

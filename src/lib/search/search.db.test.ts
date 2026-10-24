@@ -18,6 +18,7 @@ const ref = (kind: string) => `SRCH/${kind}/${run}`;
 const ERP = `ERP${run}`;
 const VALUE_DIGITS = "7654321";
 const SECRET = `zebra${run}`;
+const CONTRACTOR = `Kontraktor${run}`;
 
 let orgA = "";
 let orgB = "";
@@ -29,9 +30,9 @@ const asOutsider = () => viewer(orgA, person.outsider);
 const asB = () => viewer(orgB, person.b);
 const find = (v: Viewer, q: string) => search(db, v, q);
 
-async function award(organisationId: string, exerciseId: string, reference: string, contract: string | null, erpCommitmentNo: string | null = null) {
+async function award(organisationId: string, exerciseId: string, reference: string, contract: string | null, erpCommitmentNo: string | null = null, awardeeName = "Search Contractor") {
   const a = await db.award.create({
-    data: { organisationId, reference, exerciseId, instrumentKind: "WORK_INDENT", awardeeName: "Search Contractor", awardedValue: "1000.00", completionPeriod: 30, completionUnit: "DAYS", erpCommitmentNo },
+    data: { organisationId, reference, exerciseId, instrumentKind: "WORK_INDENT", awardeeName, awardedValue: "1000.00", completionPeriod: 30, completionUnit: "DAYS", erpCommitmentNo },
   });
   if (contract) await db.contract.create({ data: { organisationId, number: contract, numberSource: "SERIES", numberedOn: day("2026-10-02"), awardId: a.id, contractSum: "1000.00" } });
   return a.id;
@@ -61,7 +62,7 @@ beforeAll(async () => {
   id.restricted = (await exercise(ref("RX"), `Secret ${SECRET} tender ${run}`, true)).id;
   await db.exerciseParticipant.create({ data: { exerciseId: id.restricted, personId: person.named } });
 
-  await award(orgA, id.open, ref("AW1"), ref("CON1"), `COMMIT${run}`);
+  await award(orgA, id.open, ref("AW1"), ref("CON1"), `COMMIT${run}`, `${CONTRACTOR} Sdn Bhd`);
   await award(orgA, id.open, ref("AW2"), null);
   await award(orgA, id.restricted, ref("AW3"), ref("CON3"));
   await award(orgA, id.restricted, ref("AW4"), null);
@@ -143,6 +144,10 @@ describe("what a search reads", () => {
     const r = await find(asNamed(), VALUE_DIGITS);
     expect(r.groups).toEqual([]);
     expect(JSON.stringify(await find(asNamed(), run))).not.toContain(VALUE_DIGITS);
+  });
+  it("finds a project by its contractor's name", async () => {
+    const g = group(await find(asNamed(), CONTRACTOR), "project");
+    expect([g?.total, titles(g)]).toEqual([1, [ref("CON1")]]);
   });
   it("finds a supplier by a registration number with leading zeros", async () => {
     expect(titles(group(await find(asNamed(), `00${run}`), "supplier"))).toEqual([`Search Supplier ${run} Sdn Bhd`]);

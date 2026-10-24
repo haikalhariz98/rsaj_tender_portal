@@ -34,6 +34,9 @@ describe("what a search may match (ADR 0044 D1)", () => {
   it.each(entities.flatMap((e) => SEARCH_FIELDS[e].map((p) => [e, p] as const)))("%s.%s is an identifier or a title", (e, path) => {
     expect(searchPathFaults(models, SEARCH_MODEL[e], path)).toEqual([]);
   });
+  it("finds a project by its contractor's name (restored 2026-10-24)", () => {
+    expect(SEARCH_FIELDS.project).toContain("awardeeName");
+  });
   it("every case key is also a search field", () => {
     for (const e of entities) for (const k of CASE_KEYS[e] ?? []) expect(SEARCH_FIELDS[e], `${e}.${k}`).toContain(k);
   });

@@ -4,7 +4,7 @@ import { indentState } from "@/lib/award/indent";
 import { onlineReturnState, paperStarted } from "@/lib/award/online-return";
 import { loadAwardPolicy } from "@/lib/award/repo";
 import { returnRecordOf } from "@/lib/award/return-acceptance";
-import { RETURN_SCANS } from "@/lib/award/stage-two";
+import { RETURN_RECORD_SELECT, RETURN_SCANS } from "@/lib/award/stage-two";
 import type { InstrumentKind } from "@/lib/award/types";
 import { dayOf, dayOrNull, storedDay } from "@/lib/dates";
 import { awardReturnClassFault } from "@/lib/documents/award-return-class";
@@ -19,7 +19,8 @@ import { STANDING_AWARD } from "./visibility";
 
 /**
  * What the contractor's Accept card and Questions card read (Wave V, V4): one contract's award as its own supplier holds it, in the caller's client. The supplier and organisation are the
- * session's. The identity card number of a lodged page is never selected: it is SULIT, and nothing here shows it. Days are the organisation's.
+ * session's. The identity card number of a lodged page is never selected. The paper return is read only for what `paperStarted` judges (security review L4): its
+ * identity card number among them, only to tell whether paper has started, and it never leaves this function. Nothing here shows either. Days are the organisation's.
  */
 
 const ALL_SCANS: readonly string[] = [...new Set(Object.values(RETURN_SCANS).flat())];
@@ -37,7 +38,7 @@ export async function loadAwardCard(client: Tx, actor: Pick<SupplierActor, "supp
           erpCommitmentNo: true,
           erpCommitmentKind: true,
           indentReceivedOn: true,
-          awardReturn: { include: { receivedBy: { select: { id: true, name: true } } } },
+          awardReturn: { select: RETURN_RECORD_SELECT },
           attachments: { select: { purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
           onlineReturns: { select: { submittedAt: true, submittedOn: true, verifiedAt: true, refusedAt: true, refusedReason: true } },
           queries: { orderBy: { askedAt: "asc" }, select: { id: true, body: true, askedAt: true, answer: true, answeredAt: true } },

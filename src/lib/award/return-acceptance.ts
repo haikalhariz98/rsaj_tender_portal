@@ -15,12 +15,12 @@ import { attachmentFacts } from "@/lib/documents/repo";
 import type { AttachmentFact } from "@/lib/documents/types";
 
 import type { LoadedAward } from "./repo";
-import { countedReturnComplete, RETURN_SCANS, scansMissing, type ReturnRecord, type ReturnScan } from "./stage-two";
+import { countedReturnComplete, RETURN_RECORD_SELECT, RETURN_SCANS, scansMissing, type ReturnRecord, type ReturnScan } from "./stage-two";
 import { awardTransition } from "./status";
 import type { InstrumentKind } from "./types";
 import type { AuditActor } from "@/lib/auth/types";
 
-export function returnRecordOf(r: NonNullable<LoadedAward["award"]["awardReturn"]>): ReturnRecord {
+export function returnRecordOf(r: Pick<NonNullable<LoadedAward["award"]["awardReturn"]>, keyof typeof RETURN_RECORD_SELECT>): ReturnRecord {
   return {
     signedLetterReceivedOn: day(r.signedLetterReceivedOn),
     declarationReceivedOn: day(r.declarationReceivedOn),

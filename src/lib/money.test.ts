@@ -152,6 +152,7 @@ describe("run 3 residual C3: a list sorts money in sen exactly", () => {
     // AC-17 (C9): one money cell for a case, the contract's sum once there is a contract and the awarded value before it, in sen.
     expect(src).toContain('sum: { kind: "money", sen: money.toString() }');
     expect(src).toContain("const money = c ? senFromDecimal(c.contractSum) : a ? senFromDecimal(a.awardedValue) : 0n;");
-    expect(page).toContain('estimate: { kind: "money", sen: senFromDecimal(v.estimate).toString() }');
+    // The commenced-variations report's rows moved into rows.ts (L8, 2026-10-24).
+    expect(src).toContain('estimate: { kind: "money", sen: senFromDecimal(v.estimate).toString() }');
   });
 });

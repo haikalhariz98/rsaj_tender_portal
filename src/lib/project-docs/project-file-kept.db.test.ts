@@ -155,11 +155,11 @@ describe("PW-33: a project file is kept from the generic document store", () => 
     for (const who of [p.stranger, p.so]) {
       const r = await as(who, () => withdrawVersion({ ok: false }, form({ versionId: n.file, reason: "Uploaded to the wrong record" })));
       expect(r.ok, who).toBe(false);
-      expect(r.message, who).toMatch(/A project file is kept\. Send a new version instead\./);
+      expect(r.message, who).toMatch(/This file is kept: a project document or an award return sent online holds it\./);
     }
     // A blank reason is refused the same way: the file is kept, whatever is said.
     const blank = await as(p.stranger, () => withdrawVersion({ ok: false }, form({ versionId: n.file, reason: " " })));
-    expect(blank.message).toMatch(/A project file is kept/);
+    expect(blank.message).toMatch(/This file is kept/);
     expect((await db.documentVersion.findUniqueOrThrow({ where: { id: n.file } })).withdrawnAt).toBeNull();
     expect(await db.auditEntry.count({ where: { organisationId, entity: "DocumentVersion", entityId: n.file, action: "UPDATE" } })).toBe(0);
     expect(await portalServes(n)).toEqual({ files: [n.pin.id], served: true });

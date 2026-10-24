@@ -12,7 +12,8 @@ export const SEARCH_FIELDS: Readonly<Record<SearchEntity, readonly string[]>> = 
   requisition: ["reference", "title", "erpRequisitionNo", "erpNoteNo"],
   exercise: ["reference", "title", "requisition.reference", "requisition.erpRequisitionNo"],
   // A project is an award. Its `exercise.*` paths are AND-ed with the exercise's own guard by the caller (plan 7.2).
-  project: ["reference", "erpCommitmentNo", "contract.number", "exercise.reference", "exercise.title", "exercise.requisition.erpRequisitionNo"],
+  // `awardeeName` is the contractor, not SULIT, and on every Projects row and export already (security review, 2026-10-24: restored).
+  project: ["reference", "erpCommitmentNo", "contract.number", "awardeeName", "exercise.reference", "exercise.title", "exercise.requisition.erpRequisitionNo"],
   supplier: ["reference", "registeredName", "registrationNo", "erpVendorCode"],
   // A committee sitting (the Meeting model), on the sittings list's own fields (ST-3).
   sitting: ["reference", "committee.nameEn"],

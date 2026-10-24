@@ -27,6 +27,12 @@ export interface ReturnRecord {
   witnessSigned: boolean | null;
 }
 
+/// The fields of a stored return that make its record (`returnRecordOf`). A caller may select exactly these (`RETURN_RECORD_SELECT`).
+export const RETURN_RECORD_SELECT = {
+  signedLetterReceivedOn: true, declarationReceivedOn: true, authorisationReceivedOn: true, signatoryName: true, icNumber: true, occupation: true, address: true, capacity: true,
+  contractorSigned: true, stampAffixed: true, witnessName: true, witnessSigned: true,
+} as const;
+
 export const EMPTY_RETURN: ReturnRecord = {
   signedLetterReceivedOn: null,
   declarationReceivedOn: null,

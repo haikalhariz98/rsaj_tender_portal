@@ -302,7 +302,8 @@ export const DERIVE_CAP = 200;
 /// The columns the contracts list shows, one select for `listContracts` and for the case list's contract side (AC-18).
 export const CONTRACT_LIST_SELECT = {
   id: true, number: true, status: true, contractSum: true, contractDate: true,
-  award: { select: { id: true, reference: true, awardeeName: true, exercise: { select: { title: true } } } },
+  // No exercise title: this is all a reader who sees only the contract stages of a restricted case reads (AC-18, L8).
+  award: { select: { id: true, reference: true, awardeeName: true } },
   // Every version's day, so the version in force is read through baselineFor (ADR 0021), never the highest number.
   baselines: { where: { version: { not: null } }, select: { version: true, reason: true, recordedOn: true, dateForCompletion: true } },
 } satisfies Prisma.ContractSelect;

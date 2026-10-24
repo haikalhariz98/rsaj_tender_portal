@@ -90,6 +90,8 @@ export const CASE_HEADER_WORDS = {
   stagesLabel: w("Stages of this case"),
   whatsNextOn: w("Next:"),
   awardRestricted: w("restricted to the people named on the exercise"),
+  // L8 (product owner, 2026-10-24): a reader who sees only the contract stages never sees a restricted exercise's title.
+  titleRestricted: w("Title restricted"),
   instrument: w("Instrument"),
   caseTabs: w("Case"),
 } as const;
@@ -264,6 +266,7 @@ export const CASES_LIST_WORDS = {
   colDates: w("Dates"),
   inDelay: w("In Delay"),
   contractNumber: w("Contract {number}"),
+  titleRestricted: w("Title restricted"),
   noContractYet: w("{reference} · no contract number yet"),
   contractDate: w("Contract Date {date}"),
   notSigned: w("Not signed"),

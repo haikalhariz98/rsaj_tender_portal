@@ -49,7 +49,7 @@ export type VariationView = Awaited<ReturnType<typeof variationView>>;
 export async function commencedPendingAll(organisationId: string) {
   const rows = await db.variation.findMany({
     where: { organisationId, commencedOn: { not: null }, status: "SUPPORTED", exemption: null },
-    select: { id: true, reference: true, description: true, estimate: true, commencedOn: true, contract: { select: { id: true, number: true, award: { select: { awardeeName: true, exercise: { select: { title: true } } } } } }, approvals: { select: { event: true, approvalInstance: { select: { status: true } } } } },
+    select: { id: true, reference: true, description: true, estimate: true, commencedOn: true, contract: { select: { id: true, number: true, award: { select: { awardeeName: true, exerciseId: true, exercise: { select: { title: true } } } } } }, approvals: { select: { event: true, approvalInstance: { select: { status: true } } } } },
     orderBy: [{ commencedOn: "asc" }, { id: "asc" }],
   });
   return rows.filter((v) => !v.approvals.some((a) => a.event === "PRIOR" && a.approvalInstance.status === "APPROVED"));

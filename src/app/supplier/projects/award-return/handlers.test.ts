@@ -66,7 +66,7 @@ function post(url: string, fields: Record<string, unknown> = {}, o: { headers?: 
 
 const CON = "contract_0001";
 const V1 = "version_00001";
-const PAGE = { signatoryName: "Aini", icNumber: "900101-14-5678", occupation: "Director", address: "1 Jalan Satu", capacity: "Director", witnessName: "Bakar", contractorSigned: true, stampAffixed: true, witnessSigned: true };
+const PAGE = { signatoryContactId: "contact_0001", icNumber: "900101-14-5678", occupation: "Director", address: "1 Jalan Satu", capacity: "Director", witnessName: "Bakar", contractorSigned: true, stampAffixed: true, witnessSigned: true };
 const SUBMIT = { contractId: CON, files: { ACCEPTANCE_PAGE: V1 }, page: PAGE, password: "pw" };
 const SUBMIT_URL = "/supplier/projects/award-return/submit";
 const QUERY_URL = "/supplier/projects/award-query";
@@ -74,7 +74,7 @@ const UPLOAD_URL = `/supplier/projects/award-return/upload?contractId=${CON}&sca
 
 const DOORS: [string, (r: Request) => Promise<Response>, string, Record<string, unknown>][] = [
   ["submit", submit, SUBMIT_URL, SUBMIT],
-  ["query", query, QUERY_URL, { contractId: CON, body: "When is the indent valid until?" }],
+  ["query", query, QUERY_URL, { contractId: CON, body: "When is the indent valid until?", requestKey: "key_00000001" }],
 ];
 
 beforeEach(() => {
@@ -186,6 +186,10 @@ describe("submit: the lodge", () => {
       { ...SUBMIT, page: { ...PAGE, extra: 1 } },
       { ...SUBMIT, page: { ...PAGE, stampAffixed: "yes" } },
       { ...SUBMIT, page: { ...PAGE, address: undefined } },
+      // Security review M1: the signatory is a contact id, never a typed name.
+      { ...SUBMIT, page: { ...PAGE, signatoryName: "Somebody Else" } },
+      { ...SUBMIT, page: { ...PAGE, signatoryContactId: undefined } },
+      { ...SUBMIT, page: { ...PAGE, signatoryContactId: "x" } },
       { ...SUBMIT, password: "" },
       { ...SUBMIT, password: undefined },
     ];
@@ -199,6 +203,7 @@ describe("submit: the lodge", () => {
       [new AwardReturnRefused([{ code: "NOT_SIGNING_AUTHORITY", level: "block", data: { fault: "SIGNER_NOT_AUTHORISED" } }], 403), 403, "NOT_SIGNING_AUTHORITY"],
       [new AwardReturnRefused([{ code: "ALREADY_WAITING", level: "block" }], 409), 409, "CHANGED"],
       [new AwardReturnRefused([{ code: "SCAN_MISSING", level: "block", data: { scan: "ACCEPTANCE_PAGE" } }], 422), 422, "VALIDATION"],
+      [new AwardReturnRefused([{ code: "SIGNATORY_UNKNOWN", level: "block" }], 422), 422, "VALIDATION"],
       [new ProjectRefused([{ code: "NOT_FOUND", level: "block" }], 404), 404, "NOT_FOUND"],
       [new ProjectRefused([{ code: "DAY_NOT_KNOWN", level: "block" }], 422), 422, "VALIDATION"],
     ];
@@ -221,9 +226,9 @@ describe("submit: the lodge", () => {
 });
 
 describe("query: the question", () => {
-  const GOOD = { contractId: CON, body: "When is the indent valid until?" };
+  const GOOD = { contractId: CON, body: "When is the indent valid until?", requestKey: "6f1c2b9e-0d4a-4c1e-9b7a-2f3e4d5c6b7a" };
 
-  it("is handed the session's actor and the two fields, and answers 201 with the id", async () => {
+  it("is handed the session's actor and the three fields, and answers 201 with the id", async () => {
     const res = await query(post(QUERY_URL, GOOD));
     expect([res.status, await res.json()]).toEqual([201, { ok: true, queryId: "qry_1" }]);
     expect(h.ask).toHaveBeenCalledWith(ACTOR, GOOD);
@@ -236,8 +241,20 @@ describe("query: the question", () => {
   });
 
   it("a missing question is 400", async () => {
-    expect((await query(post(QUERY_URL, { contractId: CON }))).status).toBe(400);
+    expect((await query(post(QUERY_URL, { contractId: CON, requestKey: GOOD.requestKey }))).status).toBe(400);
     expect(h.ask).not.toHaveBeenCalled();
+  });
+
+  it("a question without its one-time key, or with a malformed one, is 400 (security review L2)", async () => {
+    expect((await query(post(QUERY_URL, { contractId: CON, body: GOOD.body }))).status).toBe(400);
+    expect((await query(post(QUERY_URL, { ...GOOD, requestKey: "short" }))).status).toBe(400);
+    expect(h.ask).not.toHaveBeenCalled();
+  });
+
+  it("too many questions waiting is 429, in its words", async () => {
+    h.ask.mockRejectedValueOnce(new AwardReturnRefused([{ code: "TOO_MANY_OPEN", level: "block", data: { max: 5 } }], 429));
+    const res = await query(post(QUERY_URL, GOOD));
+    expect([res.status, (await res.json()).code]).toEqual([429, "THROTTLED"]);
   });
 
   it("answers not found alike, an award not issued 422, and a barred standing in its words", async () => {

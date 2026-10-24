@@ -330,7 +330,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       <PageHeader
         title={c ? sayWith(H.contractNumber, lang, { number: c.number }) : award.awardeeName}
         badge={c && phase ? <Badge tone={TONE[PHASE_TONE[phase as keyof typeof PHASE_TONE]]} dot>{t(PHASE_WORDS[phase as keyof typeof PHASE_WORDS])}</Badge> : <Badge tone={AWARD_STATUS_TONE[awardStatus]} dot>{t(AWARD_STATUS_WORDS[awardStatus])}</Badge>}
-        subtitle={ex.title}
+        subtitle={visibility === "WHOLE" ? ex.title : t(H.titleRestricted)}
         meta={[
           c ? award.awardeeName : <span key="ref" className="font-mono text-[12.5px]">{award.reference}</span>,
           formatMoney(senFromDecimal(c ? c.contractSum : award.awardedValue)),

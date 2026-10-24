@@ -9,12 +9,14 @@ import { sulitFieldOf } from "@/lib/sulit-trail";
 
 import {
   blankWithheld,
+  onlineReturnWithheld,
   RETURN_CORRECTION_KIND,
   RETURN_CORRECTION_OPERATION,
   RETURN_KEPT_FIELDS,
   RETURN_WITHHELD_FIELDS,
   WITHHELD_WORDS,
   withheldFieldsOf,
+  withheldForTrail,
   withholdRehearsal,
 } from "./return-withheld";
 
@@ -189,5 +191,25 @@ describe("withholdRehearsal (the proposal's own audit row, N7 review)", () => {
 
   it("has the words the decision's audit line uses", () => {
     expect(WITHHELD_WORDS).toEqual({ en: "Withheld", held: "Held", field: "Personal details" });
+  });
+});
+
+describe("the online return's personal values (PDPA, product owner ruling of 2026-10-24)", () => {
+  const page = { signatoryName: "Aminah binti Yusof", icNumber: "900101-14-5678", occupation: "Engineer", address: "12 Jalan Mawar", capacity: "Director", witnessName: "Lim Wei Ming", contractorSigned: true, stampAffixed: true, witnessSigned: true };
+
+  it("withholds exactly the five, as null", () => {
+    expect(onlineReturnWithheld()).toEqual(Object.fromEntries(RETURN_WITHHELD_FIELDS.map((f) => [f, null])));
+  });
+
+  it("says each of the five as withheld for the trail, keeps everything else, and leaves the input as it was", () => {
+    const before = JSON.stringify(page);
+    const trail = withheldForTrail(page);
+    expect(trail).toEqual({ ...page, signatoryName: "Withheld", icNumber: "Withheld", occupation: "Withheld", address: "Withheld", witnessName: "Withheld" });
+    for (const raw of [page.signatoryName, page.icNumber, page.occupation, page.address, page.witnessName]) expect(JSON.stringify(trail)).not.toContain(raw);
+    expect(JSON.stringify(page)).toBe(before);
+  });
+
+  it("leaves a Letter of Acceptance's page (no fields) as it is", () => {
+    expect(withheldForTrail({})).toEqual({});
   });
 });

@@ -12,13 +12,14 @@ import type { loadAwardPolicy } from "@/lib/award/repo";
 import { returnReadsComplete } from "@/lib/award/stage-two";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { isLive } from "@/lib/documents/evidence";
-import { dayOrNull as day, storedDay } from "@/lib/dates";
+import { dayOrNull as day, daysFrom, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { senFromDecimal } from "@/lib/money";
 import { CASES_LIST_WORDS as L, AWARD_STATUS_WORDS, INSTRUMENT_SHORT_WORDS } from "@/lib/contract/case-page-words";
 import type { Words } from "@/lib/contract/labels";
 import type { Language } from "@/lib/i18n/language";
 import { say, sayWith } from "@/lib/i18n/say";
+import type { commencedPendingAll } from "@/lib/variation/view";
 
 /**
  * The Projects list's rows, built once for the page and for the export route (7.6). No column of a project is SULIT (the contract sum is not), so `forExport`
@@ -48,7 +49,8 @@ function caseRow(r: CaseRow, cx: RowContext): Row {
   const t = (words: Words) => say(words, lang);
   const c = r.contract;
   const a = r.award;
-  const title = a ? a.exercise.title : c!.award.exercise.title;
+  // L8: a row held back to its contract stages carries no exercise title anywhere (not shown, searched or sorted). It is named by its contract number.
+  const title = a ? a.exercise.title : null;
   const awardee = a ? a.awardeeName : c!.award.awardeeName;
   const reference = a ? a.reference : c!.award.reference;
   const status = c ? (c.status as ContractStatus) : null;
@@ -80,10 +82,13 @@ function caseRow(r: CaseRow, cx: RowContext): Row {
   const completion = c?.dateForCompletion ?? null;
   return {
     id: r.contractId ?? r.awardId,
-    search: [title, c?.number ?? "", awardee, reference, stageWords, ...chips.map((x) => x.text)].join(" "),
-    sortKeys: { contract: title },
+    search: [title ?? "", c?.number ?? "", awardee, reference, stageWords, ...chips.map((x) => x.text)].join(" "),
+    sortKeys: { contract: title ?? sayWith(L.contractNumber, lang, { number: c!.number }) },
     cells: {
-      contract: { kind: "link", text: title, href: caseHref({ awardId: r.awardId, contractId: r.contractId }), sub: c ? sayWith(L.contractNumber, lang, { number: c.number }) : sayWith(L.noContractYet, lang, { reference }) },
+      contract:
+        title === null
+          ? { kind: "link", text: sayWith(L.contractNumber, lang, { number: c!.number }), href: caseHref({ awardId: r.awardId, contractId: r.contractId }), sub: t(L.titleRestricted) }
+          : { kind: "link", text: title, href: caseHref({ awardId: r.awardId, contractId: r.contractId }), sub: c ? sayWith(L.contractNumber, lang, { number: c.number }) : sayWith(L.noContractYet, lang, { reference }) },
       contractor: { kind: "text", text: awardee },
       // Money in sen, shown and sorted exactly by the list (never a float).
       sum: { kind: "money", sen: money.toString() },
@@ -93,4 +98,30 @@ function caseRow(r: CaseRow, cx: RowContext): Row {
         : { kind: "stack", title: kind ? t(INSTRUMENT_SHORT_WORDS[kind]) : t(L.instrument), sub: t(L.contractNotNumbered) },
     },
   };
+}
+
+export type CommencedVariation = Awaited<ReturnType<typeof commencedPendingAll>>[number];
+
+/**
+ * FR-VAR-014: the rows of the exposure report. Each variation's age is counted in the organisation's days from its commencement to today (time zone not set: no age is
+ * shown rather than one read in UTC). A variation whose contract's exercise is `hidden` from this reader stays listed, named by its contract number and "Title restricted",
+ * with the title neither shown nor searched (L8).
+ */
+export function buildCommencedRows(rows: readonly CommencedVariation[], hidden: ReadonlySet<string>, today: string | null, lang: Language): Row[] {
+  const t = (words: Words) => say(words, lang);
+  return rows.map((v) => {
+    const age = today ? daysFrom(storedDay(v.commencedOn!), today) : null;
+    const title = hidden.has(v.contract.award.exerciseId) ? null : v.contract.award.exercise.title;
+    return {
+      id: v.id,
+      search: [v.reference ?? "", v.description, v.contract.number, title ?? "", v.contract.award.awardeeName].join(" "),
+      sortKeys: { age: age ?? 0 },
+      cells: {
+        variation: { kind: "link", text: v.reference ? sayWith(L.variationRef, lang, { reference: v.reference }) : t(L.variationUnnumbered), href: `/projects/${v.contract.id}/variations/${v.id}`, sub: v.description },
+        contract: { kind: "stack", title: title ?? t(L.titleRestricted), sub: sayWith(L.contractAndContractor, lang, { number: v.contract.number, contractor: v.contract.award.awardeeName }) },
+        estimate: { kind: "money", sen: senFromDecimal(v.estimate).toString() },
+        age: { kind: "stack", title: age == null ? t(L.timeZoneNotSet) : sayWith(age === 1 ? L.oneDay : L.nDays, lang, { count: String(age) }), sub: sayWith(L.commencedOn, lang, { date: formatDate(storedDay(v.commencedOn!), lang) }) },
+      },
+    };
+  });
 }

@@ -10,6 +10,7 @@ import {
   onlineReturnState,
   paperStarted,
   QUERY_MAX,
+  QUERY_OPEN_MAX,
   refuseFaults,
   returnRecordFromOnline,
   scanTaken,
@@ -154,11 +155,18 @@ describe("the staged scans a lodge pins", () => {
 
 describe("questions on an issued award (WV-7)", () => {
   it("are asked only while issued, 1 to 2,000 characters", () => {
-    expect(askFaults({ awardStatus: "ISSUED", body: "When is the site handed over?" })).toEqual([]);
-    expect(codes(askFaults({ awardStatus: "ACCEPTED", body: "Too late?" }))).toEqual(["NOT_ISSUED"]);
-    expect(codes(askFaults({ awardStatus: "ISSUED", body: " " }))).toEqual(["BODY_REQUIRED"]);
-    expect(codes(askFaults({ awardStatus: "ISSUED", body: "x".repeat(QUERY_MAX) }))).toEqual([]);
-    expect(codes(askFaults({ awardStatus: "ISSUED", body: "x".repeat(QUERY_MAX + 1) }))).toEqual(["BODY_TOO_LONG"]);
+    expect(askFaults({ awardStatus: "ISSUED", body: "When is the site handed over?", unanswered: 0 })).toEqual([]);
+    expect(codes(askFaults({ awardStatus: "ACCEPTED", body: "Too late?", unanswered: 0 }))).toEqual(["NOT_ISSUED"]);
+    expect(codes(askFaults({ awardStatus: "ISSUED", body: " ", unanswered: 0 }))).toEqual(["BODY_REQUIRED"]);
+    expect(codes(askFaults({ awardStatus: "ISSUED", body: "x".repeat(QUERY_MAX), unanswered: 0 }))).toEqual([]);
+    expect(codes(askFaults({ awardStatus: "ISSUED", body: "x".repeat(QUERY_MAX + 1), unanswered: 0 }))).toEqual(["BODY_TOO_LONG"]);
+  });
+
+  it("are refused while QUERY_OPEN_MAX of the award's questions wait for an answer (security review L2)", () => {
+    expect(askFaults({ awardStatus: "ISSUED", body: "One more?", unanswered: QUERY_OPEN_MAX - 1 })).toEqual([]);
+    const over = askFaults({ awardStatus: "ISSUED", body: "One more?", unanswered: QUERY_OPEN_MAX });
+    expect(codes(over)).toEqual(["TOO_MANY_OPEN"]);
+    expect(awardReturnFaultText(over[0]!)).toBe(`${QUERY_OPEN_MAX} questions are already waiting for an answer. Ask again once the office has answered.`);
   });
 
   it("are answered once, in any status: answering asks nothing of the award", () => {

@@ -31,6 +31,10 @@ export interface OnlineReturnPage {
   witnessSigned: boolean;
 }
 
+/// The page as the contractor's browser sends it (security review M1): the signatory is one of the supplier's own contacts who signs for it, named by id. The lodge reads the
+/// contact under the lock and writes its name; a name is never taken from the browser.
+export type OnlineReturnPageInput = Omit<OnlineReturnPage, "signatoryName"> & { signatoryContactId: string };
+
 /// The longest each typed field may be: the paper form's own bounds (`recordReturn`).
 export const PAGE_FIELD_MAX: Readonly<Record<"signatoryName" | "icNumber" | "occupation" | "address" | "capacity" | "witnessName", number>> = {
   signatoryName: 240,
@@ -69,6 +73,8 @@ export type OnlineReturnFault =
   | "SCAN_NOT_TAKEN"
   /// Page fields sent with a Letter of Acceptance, which has no acceptance page.
   | "PAGE_NOT_TAKEN"
+  /// The signatory named is not a current contact of this supplier who signs for it (M1).
+  | "SIGNATORY_UNKNOWN"
   | "IC_FORMAT"
   /// `data.field`, `data.max`.
   | "PAGE_FIELD_TOO_LONG"
@@ -226,12 +232,17 @@ export function stagedReturnFileFaults(files: readonly StagedReturnFile[], accou
 
 export const QUERY_MAX = 2000;
 
-export type QueryFault = "NOT_ISSUED" | "BODY_REQUIRED" | "BODY_TOO_LONG" | "ALREADY_ANSWERED" | "ANSWER_REQUIRED" | "ANSWER_TOO_LONG";
+/// The most questions an award may have waiting for an answer at once (security review L2): each is kept for ever and tells the office, so a flood is refused.
+/// shortcut: a fixed bound, not a column; make it the organisation's setting if a customer ever asks for another.
+export const QUERY_OPEN_MAX = 5;
 
-/// A question is asked only while the award is issued (WV-7). It pauses no clock.
-export function askFaults(i: { awardStatus: string; body: string }): Finding<QueryFault>[] {
+export type QueryFault = "NOT_ISSUED" | "BODY_REQUIRED" | "BODY_TOO_LONG" | "TOO_MANY_OPEN" | "ALREADY_ANSWERED" | "ANSWER_REQUIRED" | "ANSWER_TOO_LONG";
+
+/// A question is asked only while the award is issued (WV-7), and while fewer than `QUERY_OPEN_MAX` of the award's questions wait for an answer. It pauses no clock.
+export function askFaults(i: { awardStatus: string; body: string; unanswered: number }): Finding<QueryFault>[] {
   const out: Finding<QueryFault>[] = [];
   if (i.awardStatus !== "ISSUED") out.push(block("NOT_ISSUED"));
+  if (i.unanswered >= QUERY_OPEN_MAX) out.push(block("TOO_MANY_OPEN", { max: QUERY_OPEN_MAX }));
   if (!i.body.trim()) out.push(block("BODY_REQUIRED"));
   else if (i.body.trim().length > QUERY_MAX) out.push(block("BODY_TOO_LONG", { max: QUERY_MAX }));
   return out;

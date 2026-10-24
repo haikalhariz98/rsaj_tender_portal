@@ -146,6 +146,8 @@ export function AskQuestionDrawer({ contractId, token }: Common) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState("");
+  // One key per question (security review L2): a retry of the same question sends the same key, so the office gets it once. A new one after each question sent.
+  const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const heading = useId();
@@ -156,11 +158,12 @@ export function AskQuestionDrawer({ contractId, token }: Common) {
   async function send() {
     setBusy(true);
     setError(null);
-    const res = await postJson(SUPPLIER_AWARD_RETURN_POSTS.query, token, { contractId, body });
+    const res = await postJson(SUPPLIER_AWARD_RETURN_POSTS.query, token, { contractId, body, requestKey });
     setBusy(false);
     if (res.status === 201 && res.body?.ok) {
       setOpen(false);
       setBody("");
+      setRequestKey(crypto.randomUUID());
       router.refresh();
       return;
     }

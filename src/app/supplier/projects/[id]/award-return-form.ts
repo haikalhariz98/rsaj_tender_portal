@@ -43,7 +43,8 @@ export function canSend(form: AcceptForm, staged: StagedScans, v: AcceptValues, 
   return v.signatoryId !== "" && [v.icNumber, v.occupation, v.address, v.capacity, v.witnessName].every((t) => t.trim() !== "") && v.signed && v.witnessed && v.stamped;
 }
 
-/// The submit route's body. A Letter of Acceptance has no `page`; an indent sends all six typed fields and the three ticks. The signatory's name is the chosen contact's.
+/// The submit route's body. A Letter of Acceptance has no `page`; an indent sends the chosen contact's id, the five typed fields and the three ticks. The server writes that
+/// contact's name (security review M1).
 export function submitBody(contractId: string, form: AcceptForm, staged: StagedScans, v: AcceptValues, password: string): Record<string, unknown> {
   const files = Object.fromEntries(form.scans.map((s) => [s.key, staged[s.key]]));
   if (!form.isIndent) return { contractId, files, password };
@@ -51,7 +52,7 @@ export function submitBody(contractId: string, form: AcceptForm, staged: StagedS
     contractId,
     files,
     page: {
-      signatoryName: form.signatories.find((s) => s.id === v.signatoryId)?.name ?? "",
+      signatoryContactId: v.signatoryId,
       icNumber: v.icNumber.trim(),
       occupation: v.occupation.trim(),
       address: v.address.trim(),

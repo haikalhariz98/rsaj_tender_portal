@@ -10,8 +10,6 @@ import { StatusCounts } from "@/components/ui/status-counts";
 import { CASE_LIST_VIEWS, listCases, type CaseListView, type CaseRowView } from "@/lib/contract/case-load";
 import { CASE_WORK_VIEWS } from "@/lib/contract/case-work-views";
 import { CASE_VIEW_WORDS } from "@/lib/contract/case-list-words";
-import { daysFrom, storedDay } from "@/lib/dates";
-import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal } from "@/lib/money";
 import { commencedPendingAll } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
@@ -31,7 +29,7 @@ import { documentsWaitingCount } from "@/lib/project-docs/waiting-read";
 
 import { DocumentsWaitingView } from "./documents-waiting-view";
 import { loadCaseContext } from "./context";
-import { buildCaseRows } from "./rows";
+import { buildCaseRows, buildCommencedRows, type CommencedVariation } from "./rows";
 
 export const metadata = { title: "Projects" };
 
@@ -151,7 +149,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
         ]}
       />
       {commencedView ? (
-        <CommencedCard rows={commenced} exposure={exposure} page={page} today={today} lang={lang} />
+        <CommencedCard rows={commenced} hidden={new Set(hidden)} exposure={exposure} page={page} today={today} lang={lang} />
       ) : (
       <Card className="overflow-hidden">
         <CardHeader icon={<FileIcon size={17} />} title={chosenTitle} divided={false} />
@@ -186,30 +184,13 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   );
 }
 
-type Commenced = Awaited<ReturnType<typeof commencedPendingAll>>[number];
-
-/// FR-VAR-014: the exposure report. Each variation's age is counted in the organisation's days from its commencement
-/// to today (time zone not set: no age is shown rather than one read in UTC).
-function CommencedCard({ rows, exposure, page, today, lang }: { rows: Commenced[]; exposure: bigint; page: number; today: string | null; lang: Language }) {
+/// FR-VAR-014: the exposure report (`buildCommencedRows`). `hidden`: the restricted exercises this reader is not named on, whose titles are not shown (L8).
+function CommencedCard({ rows, hidden, exposure, page, today, lang }: { rows: CommencedVariation[]; hidden: ReadonlySet<string>; exposure: bigint; page: number; today: string | null; lang: Language }) {
   const t = (words: Words) => say(words, lang);
   const pages = Math.ceil(rows.length / COMMENCED_PAGE);
   const at = Math.min(page, Math.max(0, pages - 1));
   const shown = rows.slice(at * COMMENCED_PAGE, (at + 1) * COMMENCED_PAGE);
-  const ageOf = (on: Date) => (today ? daysFrom(storedDay(on), today) : null);
-  const list: Row[] = shown.map((v) => {
-    const age = ageOf(v.commencedOn!);
-    return {
-      id: v.id,
-      search: [v.reference ?? "", v.description, v.contract.number, v.contract.award.exercise.title, v.contract.award.awardeeName].join(" "),
-      sortKeys: { age: age ?? 0 },
-      cells: {
-        variation: { kind: "link", text: v.reference ? sayWith(L.variationRef, lang, { reference: v.reference }) : t(L.variationUnnumbered), href: `/projects/${v.contract.id}/variations/${v.id}`, sub: v.description },
-        contract: { kind: "stack", title: v.contract.award.exercise.title, sub: sayWith(L.contractAndContractor, lang, { number: v.contract.number, contractor: v.contract.award.awardeeName }) },
-        estimate: { kind: "money", sen: senFromDecimal(v.estimate).toString() },
-        age: { kind: "stack", title: age == null ? t(L.timeZoneNotSet) : sayWith(age === 1 ? L.oneDay : L.nDays, lang, { count: String(age) }), sub: sayWith(L.commencedOn, lang, { date: formatDate(storedDay(v.commencedOn!), lang) }) },
-      },
-    };
-  });
+  const list: Row[] = buildCommencedRows(shown, hidden, today, lang);
   return (
     <Card className="overflow-hidden">
       <CardHeader

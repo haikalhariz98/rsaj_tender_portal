@@ -394,7 +394,7 @@ export function documentFaultText(f: Finding): string {
     case "ALREADY_WITHDRAWN":
       return "This version is already withdrawn.";
     case "PROJECT_FILE_KEPT":
-      return "A project file is kept. Send a new version instead.";
+      return "This file is kept: a project document or an award return sent online holds it.";
     // received.ts
     case "RECEIVED_ON_INVALID":
       return "The received day is not a date.";

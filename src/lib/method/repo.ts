@@ -309,12 +309,13 @@ export async function exerciseListFacts(organisationId: string, hidden: readonly
   return { org, byStatus: new Map(statuses.map((s) => [s.status as string, s._count._all])), awaitingName, onBoundary, publishedIds: published.map((p) => p.id) };
 }
 
-/// The candidates of a judged view under the search, in the list's order (ST-7), ids and what judging needs only. The judgement is not here.
+/// The candidates of a judged view under the search, in the list's order (ST-7), ids and what judging needs only. The judgement is not here. The SULIT estimate is
+/// selected for the boundary view alone (security review L6): open and closing soon are judged from the window, never the estimate.
 export async function exerciseCandidates(organisationId: string, hidden: readonly string[], q: ListQuery<ExerciseView>) {
   return db.sourcingExercise.findMany({
     where: exerciseListWhere(organisationId, hidden, q),
     orderBy: listOrderBy("exercise", q),
-    select: { id: true, reference: true, estimatedValue: true },
+    select: { id: true, reference: true, ...(q.view === "boundary" ? { estimatedValue: true } : {}) },
   });
 }
 

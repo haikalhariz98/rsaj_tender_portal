@@ -29,6 +29,7 @@ const TEXT: Readonly<Record<AwardReturnFault, (d: Data) => string>> = {
   SCAN_MISSING: (d) => `${slot(d)}: attach its signed scan.`,
   SCAN_NOT_TAKEN: () => "A file was sent that this award does not take.",
   PAGE_NOT_TAKEN: () => "A Letter of Acceptance has no acceptance page to type.",
+  SIGNATORY_UNKNOWN: () => "Choose the signatory from your company's contacts who sign for it.",
   IC_FORMAT: () => "An identity card number is twelve digits, with or without the hyphens: 900101-14-5678.",
   PAGE_FIELD_TOO_LONG: (d) => `${FIELD[s(d, "field")] ?? "A field"} is longer than ${s(d, "max")} characters.`,
   SIGNATORY_NAME: () => "Give the signatory's name.",
@@ -48,6 +49,7 @@ const TEXT: Readonly<Record<AwardReturnFault, (d: Data) => string>> = {
   REASON_TOO_LONG: (d) => `The reason is longer than ${s(d, "max")} characters.`,
   BODY_REQUIRED: () => "Write your question.",
   BODY_TOO_LONG: (d) => `The question is longer than ${s(d, "max")} characters.`,
+  TOO_MANY_OPEN: (d) => `${s(d, "max")} questions are already waiting for an answer. Ask again once the office has answered.`,
   ALREADY_ANSWERED: () => "This question has already been answered.",
   ANSWER_REQUIRED: () => "Write the answer.",
   ANSWER_TOO_LONG: (d) => `The answer is longer than ${s(d, "max")} characters.`,
@@ -64,11 +66,11 @@ export const awardReturnFaultText = (f: Pick<Finding<AwardReturnFault>, "code" |
 export const awardReturnFaultsText = (fs: readonly Finding<AwardReturnFault>[]): string => [...new Set(fs.map(awardReturnFaultText))].join(" ");
 
 /// Raised inside a contractor's act (lodge, ask) so that nothing is written. `status` is what a route answers: 404 for an award that is not the supplier's, 403 for an account that
-/// may not sign for the company, 409 for a return already waiting, 422 otherwise.
+/// may not sign for the company, 409 for a return already waiting, 429 for too many questions waiting, 422 otherwise.
 export class AwardReturnRefused extends Error {
   constructor(
     readonly faults: readonly Finding<AwardReturnFault>[],
-    readonly status: 403 | 404 | 409 | 422 = 422,
+    readonly status: 403 | 404 | 409 | 422 | 429 = 422,
   ) {
     super(faults.map((f) => f.code).join(", "));
     this.name = "AwardReturnRefused";

@@ -25,13 +25,14 @@ describe("the Accept drawer's form", () => {
     expect(canSend(letter, { SIGNED_LETTER: "a", DECLARATION: "b", AUTHORISATION: "c" }, startValues(letter), "pw")).toBe(true);
   });
 
-  it("sends an indent's page with the chosen contact's name, and a Letter of Acceptance with none", () => {
+  it("sends an indent's page with the chosen contact's id, never a name (security review M1), and a Letter of Acceptance with none", () => {
     expect(submitBody("c1", indent, { ACCEPTANCE_PAGE: "ver12345" }, filled, "pw")).toEqual({
       contractId: "c1",
       files: { ACCEPTANCE_PAGE: "ver12345" },
-      page: { signatoryName: "Hassan", icNumber: "900101-14-5678", occupation: "Director", address: "1 Jalan Satu", capacity: "Manager", witnessName: "Lee", contractorSigned: true, stampAffixed: true, witnessSigned: true },
+      page: { signatoryContactId: "k2", icNumber: "900101-14-5678", occupation: "Director", address: "1 Jalan Satu", capacity: "Manager", witnessName: "Lee", contractorSigned: true, stampAffixed: true, witnessSigned: true },
       password: "pw",
     });
+    expect(JSON.stringify(submitBody("c1", indent, { ACCEPTANCE_PAGE: "ver12345" }, filled, "pw"))).not.toContain("Hassan");
     const body = submitBody("c1", letter, { SIGNED_LETTER: "a", DECLARATION: "b", AUTHORISATION: "c" }, startValues(letter), "pw");
     expect(body).not.toHaveProperty("page");
     expect(body.files).toEqual({ SIGNED_LETTER: "a", DECLARATION: "b", AUTHORISATION: "c" });

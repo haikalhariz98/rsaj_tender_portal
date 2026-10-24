@@ -46,7 +46,7 @@ vi.mock("@/app/_auth/supplier", async () => {
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
 import { answerAwardQuery, cancelAward, recordReturn, refuseOnlineReturn, verifyOnlineReturn } from "@/app/awards/actions";
-import { attachDocument } from "@/app/documents/actions";
+import { attachDocument, withdrawVersion } from "@/app/documents/actions";
 import { POST as queryRoute } from "@/app/supplier/projects/award-query/route";
 import { POST as submitRoute } from "@/app/supplier/projects/award-return/submit/route";
 import { POST as uploadRoute } from "@/app/supplier/projects/award-return/upload/route";
@@ -55,6 +55,8 @@ import { askAwardQuery, AWARD_RETURN_EVENT_KEY, lodgeOnlineReturn } from "./onli
 import { AwardReturnRefused } from "./online-return-words";
 import { preflightReturnUpload, storeReturnFile } from "./return-upload";
 import { indentExpiryRaised, indentState } from "./indent";
+import { QUERY_OPEN_MAX } from "./online-return";
+import { WITHHELD_WORDS } from "./return-withheld";
 import { instrumentReturned } from "./stage-two";
 
 const run = randomId();
@@ -138,12 +140,17 @@ async function stage(c: Holder): Promise<string> {
   const out = await storeReturnFile(c.actor, { org: (await documentOrg(organisationId))!, store: s.store, classId: returnClassId, bytes, sha256: sha256Hex(bytes), mediaType: "application/pdf", originalFilename: `scan-${counter}.pdf` });
   return out.versionId;
 }
-const PAGE = { signatoryName: "Ahmad bin Ali", icNumber: "800101-01-1234", occupation: "Director", address: "1 Jalan Satu", capacity: "Director", witnessName: "Siti binti Omar", contractorSigned: true, stampAffixed: true, witnessSigned: true };
+/// The typed page. The signatory is the contractor's own contact, chosen by id (security review M1): `pageOf`.
+const PAGE = { icNumber: "800101-01-1234", occupation: "Director", address: "1 Jalan Satu", capacity: "Director", witnessName: "Siti binti Omar", contractorSigned: true, stampAffixed: true, witnessSigned: true };
+const pageOf = (c: Holder, signatoryContactId = c.actor.contactId) => ({ ...PAGE, signatoryContactId });
+const nameOf = async (contactId: string) => (await db.supplierContact.findUniqueOrThrow({ where: { id: contactId } })).name;
+/// A question's one-time key (security review L2).
+const key = () => `key_${randomId()}`;
 
 /// The contractor lodges the instrument's scans (and an indent's page), with the password asked again.
-async function lodge(c: Holder, k: Case, o: { kind?: "LETTER_OF_ACCEPTANCE" | "WORK_INDENT"; now?: Date; files?: Record<string, string> } = {}) {
+async function lodge(c: Holder, k: Case, o: { kind?: "LETTER_OF_ACCEPTANCE" | "WORK_INDENT"; now?: Date; files?: Record<string, string>; signatoryContactId?: string } = {}) {
   const files = o.files ?? (o.kind === "WORK_INDENT" ? { ACCEPTANCE_PAGE: await stage(c) } : { SIGNED_LETTER: await stage(c), DECLARATION: await stage(c), AUTHORISATION: await stage(c) });
-  return lodgeOnlineReturn(c.actor, { contractId: k.contractId, files, page: o.kind === "WORK_INDENT" ? PAGE : null, stepUpAt: await stepUp(c) }, o.now);
+  return lodgeOnlineReturn(c.actor, { contractId: k.contractId, files, page: o.kind === "WORK_INDENT" ? pageOf(c, o.signatoryContactId) : null, stepUpAt: await stepUp(c) }, o.now);
 }
 
 /// The SQLSTATE a write is refused with, or null where it goes through (as `online-return-schema.db.test.ts` reads it): PA048 to PA051 are the wave's own triggers.
@@ -219,13 +226,34 @@ describe("lodging a return online (ADR 0045 D1)", () => {
     );
   });
 
-  it("enters an indent's identity card number in the trail masked", async () => {
+  it("keeps an indent's personal values out of the trail: the five are said as withheld, the capacity is recorded (PDPA, ruling of 2026-10-24)", async () => {
     const c = await contractor();
     const k = await issued(c.supplierId, { kind: "WORK_INDENT" });
     const { onlineReturnId } = await lodge(c, k, { kind: "WORK_INDENT" });
     const audit = await db.auditEntry.findFirstOrThrow({ where: { organisationId, entity: "AwardOnlineReturn", entityId: onlineReturnId, action: "CREATE" } });
-    expect(JSON.stringify(audit)).not.toContain("800101-01-1234");
-    expect(JSON.stringify(audit)).toContain("1234");
+    const text = JSON.stringify(audit);
+    for (const raw of [await nameOf(c.actor.contactId), "800101-01-1234", "1234", PAGE.address, PAGE.witnessName]) expect(text, raw).not.toContain(raw);
+    const changes = audit.changes as { field: string; after: string | null }[];
+    for (const f of ["signatoryName", "icNumber", "occupation", "address", "witnessName"]) expect(changes.find((x) => x.field === f)?.after, f).toBe(WITHHELD_WORDS.en);
+    expect(changes.find((x) => x.field === "capacity")?.after).toBe(PAGE.capacity);
+  });
+
+  it("writes the chosen contact's name, and refuses a signatory who is not a current signing contact of this contractor (security review M1)", async () => {
+    const c = await contractor();
+    const k = await issued(c.supplierId, { kind: "WORK_INDENT" });
+    const stranger = await contractor();
+    const retired = await contractor({ supplierId: c.supplierId });
+    await db.supplierContact.update({ where: { id: retired.actor.contactId }, data: { retiredOn: D("2026-01-01") } });
+    const unsigned = await contractor({ supplierId: c.supplierId, signs: false });
+    for (const [who, id] of [["another contractor's contact", stranger.actor.contactId], ["a retired contact", retired.actor.contactId], ["a contact who does not sign", unsigned.actor.contactId], ["no contact", "contact_unknown_1"]] as const) {
+      const e = await lodge(c, k, { kind: "WORK_INDENT", signatoryContactId: id }).then(() => null, (x) => x);
+      expect(e, who).toBeInstanceOf(AwardReturnRefused);
+      expect([(e as AwardReturnRefused).status, (e as AwardReturnRefused).faults.map((f) => f.code)], who).toEqual([422, ["SIGNATORY_UNKNOWN"]]);
+    }
+    expect(await db.awardOnlineReturn.count({ where: { awardId: k.awardId } })).toBe(0);
+    const colleague = await contractor({ supplierId: c.supplierId });
+    const { onlineReturnId } = await lodge(c, k, { kind: "WORK_INDENT", signatoryContactId: colleague.actor.contactId });
+    expect((await db.awardOnlineReturn.findUniqueOrThrow({ where: { id: onlineReturnId } })).signatoryName).toBe(await nameOf(colleague.actor.contactId));
   });
 
   it("refuses a second lodge while one waits (409), and a lodge once paper has started", async () => {
@@ -251,15 +279,21 @@ describe("lodging a return online (ADR 0045 D1)", () => {
     expect(await db.awardOnlineReturn.count({ where: { awardId: k.awardId } })).toBe(0);
   });
 
-  it("refuses a file staged by another account, staged for something else, or of another class, naming the scan", async () => {
+  it("refuses a file staged by another account or for something else as not there (security review L3), and one of another class, naming the scan", async () => {
     const c = await contractor();
     const k = await issued(c.supplierId);
     const colleague = await contractor({ supplierId: c.supplierId });
     const theirs = await stage(colleague);
-    await refusedWith(lodge(c, k, { files: { SIGNED_LETTER: theirs, DECLARATION: await stage(c), AUTHORISATION: await stage(c) } }), "NOT_YOURS");
+    // L3: the lodge reads only this account's versions staged for a return, so any other id is unknown (it was NOT_YOURS, read first; now it is never read).
+    await refusedWith(lodge(c, k, { files: { SIGNED_LETTER: theirs, DECLARATION: await stage(c), AUTHORISATION: await stage(c) } }), "FILE_UNKNOWN");
     const mine = await stage(c);
     await db.document.update({ where: { id: (await db.documentVersion.findUniqueOrThrow({ where: { id: mine } })).documentId }, data: { stagedFor: "project-document" } });
-    await refusedWith(lodge(c, k, { files: { SIGNED_LETTER: mine, DECLARATION: await stage(c), AUTHORISATION: await stage(c) } }), "NOT_STAGED_FOR_RETURN");
+    await refusedWith(lodge(c, k, { files: { SIGNED_LETTER: mine, DECLARATION: await stage(c), AUTHORISATION: await stage(c) } }), "FILE_UNKNOWN");
+    const staffDoc = await db.document.create({ data: { organisationId, title: "Officer's file", documentClassId: returnClassId, classificationSnapshot: "SULIT", retentionSnapshot: {}, status: "STAGED" } });
+    const staffBytes = new TextEncoder().encode(`%PDF-1.4 officer ${run} ${++counter}`);
+    await db.blobContent.createMany({ data: [{ organisationId, sha256: sha256Hex(staffBytes), byteSize: BigInt(staffBytes.length), bytes: staffBytes, storedAt: new Date() }], skipDuplicates: true });
+    const staffVersion = await db.documentVersion.create({ data: { organisationId, documentId: staffDoc.id, versionNo: 1, sha256: sha256Hex(staffBytes), byteSize: BigInt(staffBytes.length), mediaType: "application/pdf", originalFilename: "officer.pdf", recordedByPersonId: p.officer, storedAt: new Date() } });
+    await refusedWith(lodge(c, k, { files: { SIGNED_LETTER: staffVersion.id, DECLARATION: await stage(c), AUTHORISATION: await stage(c) } }), "FILE_UNKNOWN");
     const inner = await stage(c);
     await db.document.update({ where: { id: (await db.documentVersion.findUniqueOrThrow({ where: { id: inner } })).documentId }, data: { documentClassId: internalClassId } });
     await refusedWith(lodge(c, k, { files: { SIGNED_LETTER: inner, DECLARATION: await stage(c), AUTHORISATION: await stage(c) } }), "WRONG_CLASS");
@@ -322,16 +356,52 @@ describe("verifying a lodged return (ADR 0045 D1)", () => {
     expect(await as(p.officer, () => verifyOnlineReturn({ ok: false }, form({ id: onlineReturnId })))).toMatchObject({ ok: true });
     const award = await db.award.findUniqueOrThrow({ where: { id: k.awardId }, include: { awardReturn: true } });
     expect(award.status).toBe("ACCEPTED");
-    expect(award.awardReturn).toMatchObject({ signatoryName: PAGE.signatoryName, icNumber: PAGE.icNumber, capacity: PAGE.capacity, contractorSigned: true, stampAffixed: true, witnessSigned: true });
+    expect(award.awardReturn).toMatchObject({ signatoryName: await nameOf(c.actor.contactId), icNumber: PAGE.icNumber, occupation: PAGE.occupation, address: PAGE.address, witnessName: PAGE.witnessName, capacity: PAGE.capacity, contractorSigned: true, stampAffixed: true, witnessSigned: true });
     expect(storedDay(award.awardReturn!.signedLetterReceivedOn!)).toBe(today);
+    // PDPA (ruling of 2026-10-24): the online row's five personal values are withheld in the deciding update; the capacity and the attestations are kept.
+    expect(await db.awardOnlineReturn.findUniqueOrThrow({ where: { id: onlineReturnId } })).toMatchObject({ signatoryName: null, icNumber: null, occupation: null, address: null, witnessName: null, capacity: PAGE.capacity, contractorSigned: true, stampAffixed: true, witnessSigned: true });
+    const decided = await db.auditEntry.findFirstOrThrow({ where: { organisationId, entity: "AwardOnlineReturn", entityId: onlineReturnId, action: "UPDATE" } });
+    expect(decided.changes).toContainEqual({ field: WITHHELD_WORDS.field, before: WITHHELD_WORDS.held, after: WITHHELD_WORDS.en });
   });
 
-  it("rolls everything back where a pinned scan was withdrawn meanwhile: the return still waits, nothing is on the award", async () => {
+  it("a refused indent is withheld too, with the trail's line; a Letter of Acceptance has nothing to withhold (PDPA, ruling of 2026-10-24)", async () => {
+    const c = await contractor();
+    const k = await issued(c.supplierId, { kind: "WORK_INDENT" });
+    const { onlineReturnId } = await lodge(c, k, { kind: "WORK_INDENT" });
+    expect(await as(p.officer, () => refuseOnlineReturn({ ok: false }, form({ id: onlineReturnId, reason: "The page is not witnessed." })))).toEqual({ ok: true });
+    expect(await db.awardOnlineReturn.findUniqueOrThrow({ where: { id: onlineReturnId } })).toMatchObject({ signatoryName: null, icNumber: null, occupation: null, address: null, witnessName: null, capacity: PAGE.capacity, contractorSigned: true });
+    const refused = await db.auditEntry.findFirstOrThrow({ where: { organisationId, entity: "AwardOnlineReturn", entityId: onlineReturnId, action: "UPDATE" } });
+    expect(refused.changes).toContainEqual({ field: WITHHELD_WORDS.field, before: WITHHELD_WORDS.held, after: WITHHELD_WORDS.en });
+    const letter = await issued(c.supplierId);
+    const lodged = await lodge(c, letter);
+    expect(await as(p.officer, () => refuseOnlineReturn({ ok: false }, form({ id: lodged.onlineReturnId, reason: "Unreadable." })))).toEqual({ ok: true });
+    expect(await db.awardOnlineReturn.findUniqueOrThrow({ where: { id: lodged.onlineReturnId } })).toMatchObject({ signatoryName: "", icNumber: "", capacity: "" });
+    const plain = await db.auditEntry.findFirstOrThrow({ where: { organisationId, entity: "AwardOnlineReturn", entityId: lodged.onlineReturnId, action: "UPDATE" } });
+    expect(JSON.stringify(plain.changes)).not.toContain(WITHHELD_WORDS.field);
+  });
+
+  it("keeps the scans of a return waiting, verified or refused: withdrawing one is refused by the act and by the database (security review L1)", async () => {
+    const c = await contractor();
+    const waiting = await lodge(c, await issued(c.supplierId));
+    const verified = await lodge(c, await issued(c.supplierId));
+    expect(await verify(verified.onlineReturnId)).toMatchObject({ ok: true });
+    const refused = await lodge(c, await issued(c.supplierId));
+    expect(await as(p.officer, () => refuseOnlineReturn({ ok: false }, form({ id: refused.onlineReturnId, reason: "Unreadable." })))).toEqual({ ok: true });
+    for (const [state, id] of [["waiting", waiting.onlineReturnId], ["verified", verified.onlineReturnId], ["refused", refused.onlineReturnId]] as const) {
+      const pin = await db.documentAttachment.findFirstOrThrow({ where: { awardOnlineReturnId: id, purpose: "DECLARATION" } });
+      const r = await as(p.officer, () => withdrawVersion({ ok: false }, form({ versionId: pin.versionId, reason: "Uploaded to the wrong record" })));
+      expect([r.ok, r.message], state).toEqual([false, "This file is kept: a project document or an award return sent online holds it."]);
+      expect(await sqlState(db.documentVersion.update({ where: { id: pin.versionId }, data: { withdrawnAt: new Date(), withdrawnReason: "Uploaded to the wrong record" } })), state).toBe("PA047");
+      expect((await db.documentVersion.findUniqueOrThrow({ where: { id: pin.versionId } })).withdrawnAt, state).toBeNull();
+    }
+  });
+
+  it("rolls everything back where the scans no longer complete the return: the return still waits, nothing is on the award", async () => {
     const c = await contractor();
     const k = await issued(c.supplierId);
     const { onlineReturnId } = await lodge(c, k);
-    const pin = await db.documentAttachment.findFirstOrThrow({ where: { awardOnlineReturnId: onlineReturnId, purpose: "DECLARATION" } });
-    await db.documentVersion.update({ where: { id: pin.versionId }, data: { withdrawnAt: new Date(), withdrawnReason: "Uploaded to the wrong record" } });
+    // A waiting return's scan can no longer be withdrawn (L1), so the shortfall is made directly: one pin detached under the test's own hand.
+    await db.documentAttachment.updateMany({ where: { awardOnlineReturnId: onlineReturnId, purpose: "DECLARATION" }, data: { detachedAt: new Date(), detachReason: "Test: a scan short" } });
     const r = await as(p.officer, () => verifyOnlineReturn({ ok: false }, form({ id: onlineReturnId })));
     expect(r.ok).toBe(false);
     expect(r.message).toMatch(/Not verified/);
@@ -347,9 +417,14 @@ describe("verifying a lodged return (ADR 0045 D1)", () => {
     const c = await contractor();
     const k = await issued(c.supplierId, { restricted: true });
     const { onlineReturnId } = await lodge(c, k);
-    // Not named on a restricted exercise: the award reads as gone, and the attempt is logged.
+    // Not named on a restricted exercise: the award reads as gone, in the same words as a return not on record (security review L5), and the attempt is logged.
     const r = await as(p.outsider, () => verifyOnlineReturn({ ok: false }, form({ id: onlineReturnId })));
-    expect(r.ok).toBe(false);
+    expect(r).toEqual({ ok: false, message: "That return is not on record." });
+    expect(await as(p.outsider, () => refuseOnlineReturn({ ok: false }, form({ id: onlineReturnId, reason: "No" })))).toEqual({ ok: false, message: "That return is not on record." });
+    expect(await as(p.outsider, () => verifyOnlineReturn({ ok: false }, form({ id: "online_return_unknown" })))).toEqual(r);
+    const { queryId: hiddenQuery } = await askAwardQuery(c.actor, { contractId: k.contractId, body: "Restricted?", requestKey: key() });
+    expect(await as(p.outsider, () => answerAwardQuery({ ok: false }, form({ id: hiddenQuery, answer: "No." })))).toEqual({ ok: false, message: "That question is not on record." });
+    expect(await as(p.outsider, () => answerAwardQuery({ ok: false }, form({ id: "query_unknown_1", answer: "No." })))).toEqual({ ok: false, message: "That question is not on record." });
     expect(await db.sulitAccessEvent.count({ where: { organisationId, actorPersonId: p.outsider, entityId: k.exerciseId } })).toBeGreaterThan(0);
     const open = await issued(c.supplierId);
     const lodged = await lodge(c, open);
@@ -370,7 +445,7 @@ describe("verifying a lodged return (ADR 0045 D1)", () => {
     h.who = { ...staff(foreign), organisationId: elsewhere } as StaffActor;
     expect(await verifyOnlineReturn({ ok: false }, form({ id: onlineReturnId }))).toEqual({ ok: false, message: "That return is not on record." });
     expect(await refuseOnlineReturn({ ok: false }, form({ id: onlineReturnId, reason: "No" }))).toEqual({ ok: false, message: "That return is not on record." });
-    const { queryId } = await askAwardQuery(c.actor, { contractId: k.contractId, body: "Is the bond due on signing?" });
+    const { queryId } = await askAwardQuery(c.actor, { contractId: k.contractId, body: "Is the bond due on signing?", requestKey: key() });
     expect(await answerAwardQuery({ ok: false }, form({ id: queryId, answer: "Yes." }))).toEqual({ ok: false, message: "That question is not on record." });
     expect(await db.awardOnlineReturn.findUniqueOrThrow({ where: { id: onlineReturnId } })).toMatchObject({ verifiedAt: null, refusedAt: null });
     expect((await db.awardQuery.findUniqueOrThrow({ where: { id: queryId } })).answeredAt).toBeNull();
@@ -427,22 +502,52 @@ describe("questions on an award (ADR 0045 D3, WV-7)", () => {
     const c = await contractor();
     const k = await issued(c.supplierId, { kind: "WORK_INDENT" });
     const beforeAsk = await db.award.findUniqueOrThrow({ where: { id: k.awardId }, include: { awardReturn: true } });
-    const { queryId } = await askAwardQuery(c.actor, { contractId: k.contractId, body: "  When is the site handed over?  " });
+    const { queryId } = await askAwardQuery(c.actor, { contractId: k.contractId, body: "  When is the site handed over?  ", requestKey: key() });
     const afterAsk = await db.award.findUniqueOrThrow({ where: { id: k.awardId }, include: { awardReturn: true } });
     expect(afterAsk).toEqual(beforeAsk);
     expect((await db.awardQuery.findUniqueOrThrow({ where: { id: queryId } })).body).toBe("When is the site handed over?");
     expect((await told(queryId)).map((n) => [n.recipientPersonId, n.kind])).toEqual([p.holder, p.pic].sort().map((r) => [r, "AWARD_QUERY_RAISED"]));
-    await refusedWith(askAwardQuery(c.actor, { contractId: k.contractId, body: "x".repeat(2001) }), "BODY_TOO_LONG");
-    await expect(askAwardQuery((await contractor()).actor, { contractId: k.contractId, body: "Mine?" })).rejects.toBeInstanceOf(ProjectRefused);
+    await refusedWith(askAwardQuery(c.actor, { contractId: k.contractId, body: "x".repeat(2001), requestKey: key() }), "BODY_TOO_LONG");
+    await expect(askAwardQuery((await contractor()).actor, { contractId: k.contractId, body: "Mine?", requestKey: key() })).rejects.toBeInstanceOf(ProjectRefused);
     // Accepted meanwhile: no more questions, but the one asked is still answered.
     await db.award.update({ where: { id: k.awardId }, data: { status: "ACCEPTED" } });
-    await refusedWith(askAwardQuery(c.actor, { contractId: k.contractId, body: "One more?" }), "NOT_ISSUED");
+    await refusedWith(askAwardQuery(c.actor, { contractId: k.contractId, body: "One more?", requestKey: key() }), "NOT_ISSUED");
     expect(await as(p.officer, () => answerAwardQuery({ ok: false }, form({ id: queryId, answer: "" })))).toMatchObject({ ok: false, errors: { answer: expect.any(String) } });
     expect(await as(p.officer, () => answerAwardQuery({ ok: false }, form({ id: queryId, answer: "On 1 November." })))).toEqual({ ok: true });
     expect(await db.awardQuery.findUniqueOrThrow({ where: { id: queryId } })).toMatchObject({ answer: "On 1 November.", answeredByPersonId: p.officer });
     expect(await as(p.officer, () => answerAwardQuery({ ok: false }, form({ id: queryId, answer: "Again." })))).toMatchObject({ ok: false, message: expect.stringMatching(/already been answered/) });
     // The answer is set once by the database too (PA049).
     expect(await sqlState(db.awardQuery.update({ where: { id: queryId }, data: { answer: "Changed" } }))).toBe("PA049");
+  });
+});
+
+describe("a question sent twice, and a flood of them (security review L2)", () => {
+  it("the same key is the same question: one row, one trail entry, one notice set", async () => {
+    await rule(AWARD_RETURN_EVENT_KEY.AWARD_QUERY_RAISED);
+    const c = await contractor();
+    const k = await issued(c.supplierId);
+    const same = key();
+    const first = await askAwardQuery(c.actor, { contractId: k.contractId, body: "Is the bond due on signing?", requestKey: same });
+    const again = await askAwardQuery(c.actor, { contractId: k.contractId, body: "Is the bond due on signing?", requestKey: same });
+    expect(again.queryId).toBe(first.queryId);
+    expect(await db.awardQuery.count({ where: { awardId: k.awardId } })).toBe(1);
+    expect(await db.auditEntry.count({ where: { organisationId, entity: "AwardQuery", entityId: first.queryId } })).toBe(1);
+    expect(await told(first.queryId)).toHaveLength(2);
+    // Through the route too.
+    const viaRoute = await viaQuery(c, k, "Is the bond due on signing?", same);
+    expect([viaRoute.status, viaRoute.body.queryId]).toEqual([201, first.queryId]);
+  });
+
+  it(`refuses a question while ${QUERY_OPEN_MAX} wait for an answer (429), and takes one again once one is answered`, async () => {
+    const c = await contractor();
+    const k = await issued(c.supplierId);
+    const ids: string[] = [];
+    for (let n = 0; n < QUERY_OPEN_MAX; n++) ids.push((await askAwardQuery(c.actor, { contractId: k.contractId, body: `Question ${n}?`, requestKey: key() })).queryId);
+    await refusedWith(askAwardQuery(c.actor, { contractId: k.contractId, body: "One too many?", requestKey: key() }), "TOO_MANY_OPEN", 429);
+    expect((await viaQuery(c, k, "One too many?")).status).toBe(429);
+    expect(await db.awardQuery.count({ where: { awardId: k.awardId } })).toBe(QUERY_OPEN_MAX);
+    expect(await as(p.officer, () => answerAwardQuery({ ok: false }, form({ id: ids[0]!, answer: "Yes." })))).toEqual({ ok: true });
+    expect((await viaQuery(c, k, "Now one more?")).status).toBe(201);
   });
 });
 
@@ -559,14 +664,14 @@ async function stageViaRoute(c: Holder, k: Case, scans = LETTER_SCANS) {
   }
   return files;
 }
-async function viaSubmit(c: Holder, k: Case, files: Record<string, string>, o: { page?: typeof PAGE | null; password?: string } = {}) {
+async function viaSubmit(c: Holder, k: Case, files: Record<string, string>, o: { page?: Record<string, unknown> | null; password?: string } = {}) {
   h.supplier = c.actor;
   const res = await submitRoute(jsonPost("/supplier/projects/award-return/submit", { contractId: k.contractId, files, ...(o.page ? { page: o.page } : {}), password: o.password ?? c.password }));
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
-async function viaQuery(c: Holder, k: Case, text: string) {
+async function viaQuery(c: Holder, k: Case, text: string, requestKey = key()) {
   h.supplier = c.actor;
-  const res = await queryRoute(jsonPost("/supplier/projects/award-query", { contractId: k.contractId, body: text }));
+  const res = await queryRoute(jsonPost("/supplier/projects/award-query", { contractId: k.contractId, body: text, requestKey }));
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 const verify = (id: string) => as(p.officer, () => verifyOnlineReturn({ ok: false }, form({ id })));
@@ -650,7 +755,7 @@ describe("the online return through the portal routes (wave V, V10)", () => {
       await db.award.update({ where: { id: k.awardId }, data: { indentReceivedOn: D(dayPlus(today, -40)), erpCommitmentKind: "INDENT", erpCommitmentNo: "IN/EXPIRED/1" } });
       // The product's own reading calls it expired before the contractor starts.
       expect(indentState(dayPlus(today, -40), 14, today)).toMatchObject({ state: "EXPIRED" });
-      const lodged = await viaSubmit(c, k, await stageViaRoute(c, k, ["ACCEPTANCE_PAGE"]), { page: PAGE });
+      const lodged = await viaSubmit(c, k, await stageViaRoute(c, k, ["ACCEPTANCE_PAGE"]), { page: pageOf(c) });
       expect(lodged.status, JSON.stringify(lodged.body)).toBe(201);
       expect(await verify(lodged.body.onlineReturnId as string)).toMatchObject({ ok: true });
       const award = await db.award.findUniqueOrThrow({ where: { id: k.awardId } });

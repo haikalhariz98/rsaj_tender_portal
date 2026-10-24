@@ -105,6 +105,9 @@ const lodge = (tx: Tx | typeof db, awardId: string, extra: Record<string, unknow
   tx.awardOnlineReturn.create({ data: { organisationId, awardId, submittedBySupplierAccountId: awardeeAccount, submittedAt: now(), submittedOn: DAY, stepUpAt: now(), ...extra } });
 const verify = (tx: Tx | typeof db, id: string) => tx.awardOnlineReturn.update({ where: { id }, data: { verifiedByPersonId: officer, verifiedAt: now() } });
 const refuse = (tx: Tx | typeof db, id: string, refusedReason = "The declaration is not signed.") => tx.awardOnlineReturn.update({ where: { id }, data: { refusedByPersonId: officer, refusedAt: now(), refusedReason } });
+/// PDPA (ruling of 2026-10-24): a typed page is decided with its five personal fields withheld, in the same update.
+const FIVE_NULL = { signatoryName: null, icNumber: null, occupation: null, address: null, witnessName: null };
+const verifyWithheld = (tx: Tx | typeof db, id: string, extra: Record<string, unknown> = {}) => tx.awardOnlineReturn.update({ where: { id }, data: { verifiedByPersonId: officer, verifiedAt: now(), ...FIVE_NULL, ...extra } });
 
 describe("an online award return is lodged by the awardee, kept as sent, and decided once (PA048)", () => {
   it("is lodged undecided by an account of the awardee, as the app role, with or without the acceptance page", async () => {
@@ -146,11 +149,11 @@ describe("an online award return is lodged by the awardee, kept as sent, and dec
     const r = await lodge(db, a, PAGE);
     expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { icNumber: "900101-01-0000" } }))).toBe("PA048");
     expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { verifiedByPersonId: officer, verifiedAt: now(), icNumber: "900101-01-0000" } }))).toBe("PA048");
-    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { verifiedAt: now() } }))).toBe("23514");
-    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { refusedByPersonId: officer, refusedAt: now(), refusedReason: "  " } }))).toBe("23514");
-    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { verifiedByPersonId: officer, verifiedAt: now(), refusedReason: "Why" } }))).toBe("23514");
-    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { verifiedByPersonId: officer, verifiedAt: now(), refusedByPersonId: officer, refusedAt: now(), refusedReason: "Both" } }))).toBe("23514");
-    expect(await asApp((tx) => verify(tx, r.id))).toBeNull();
+    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { verifiedAt: now(), ...FIVE_NULL } }))).toBe("23514");
+    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { refusedByPersonId: officer, refusedAt: now(), refusedReason: "  ", ...FIVE_NULL } }))).toBe("23514");
+    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { verifiedByPersonId: officer, verifiedAt: now(), refusedReason: "Why", ...FIVE_NULL } }))).toBe("23514");
+    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { verifiedByPersonId: officer, verifiedAt: now(), refusedByPersonId: officer, refusedAt: now(), refusedReason: "Both", ...FIVE_NULL } }))).toBe("23514");
+    expect(await asApp((tx) => verifyWithheld(tx, r.id))).toBeNull();
     expect(await refusal(refuse(db, r.id))).toBe("PA048");
     expect(await refusal(verify(db, r.id))).toBe("PA048");
     expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { capacity: "Partner" } }))).toBe("PA048");
@@ -164,9 +167,54 @@ describe("an online award return is lodged by the awardee, kept as sent, and dec
   });
 });
 
+describe("a typed page's personal fields are withheld at the decision, and only then (PDPA, ruling of 2026-10-24; PA048 and the page CHECK)", () => {
+  it("decides a typed page only with all five withheld, keeping the capacity and the attestations", async () => {
+    const r = await lodge(db, await award(), PAGE);
+    // Deciding without withholding, or withholding some, is refused.
+    expect(await refusal(verify(db, r.id))).toBe("PA048");
+    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { verifiedByPersonId: officer, verifiedAt: now(), icNumber: null } }))).toBe("PA048");
+    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { refusedByPersonId: officer, refusedAt: now(), refusedReason: "No.", ...FIVE_NULL, signatoryName: "" } }))).toBe("PA048");
+    // Withholding with any other change in the same update is refused.
+    expect(await refusal(verifyWithheld(db, r.id, { capacity: "Partner" }))).toBe("PA048");
+    expect(await refusal(verifyWithheld(db, r.id, { stampAffixed: false }))).toBe("PA048");
+    // Withholding an undecided row is refused.
+    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: FIVE_NULL }))).toBe("PA048");
+    expect(await asApp((tx) => verifyWithheld(tx, r.id))).toBeNull();
+    expect(await db.awardOnlineReturn.findUniqueOrThrow({ where: { id: r.id } })).toMatchObject({ ...FIVE_NULL, capacity: PAGE.capacity, contractorSigned: true, stampAffixed: true, witnessSigned: true });
+    // A withheld value is never given back.
+    expect(await refusal(db.awardOnlineReturn.update({ where: { id: r.id }, data: { signatoryName: PAGE.signatoryName } }))).toBe("PA048");
+  });
+
+  it("refused the same way, and a Letter of Acceptance is decided with its empty fields as they are, never nulled", async () => {
+    const typed = await lodge(db, await award(), PAGE);
+    expect(await refusal(refuse(db, typed.id))).toBe("PA048");
+    expect(await asApp((tx) => tx.awardOnlineReturn.update({ where: { id: typed.id }, data: { refusedByPersonId: officer, refusedAt: now(), refusedReason: "No.", ...FIVE_NULL } }))).toBeNull();
+    const letter = await lodge(db, await award());
+    expect(await refusal(verifyWithheld(db, letter.id))).toBe("PA048");
+    expect(await refusal(db.awardOnlineReturn.update({ where: { id: letter.id }, data: { verifiedByPersonId: officer, verifiedAt: now(), witnessName: null } }))).toBe("PA048");
+    expect(await asApp((tx) => verify(tx, letter.id))).toBeNull();
+  });
+
+  it("the page CHECK's third arm: the five null only on a decided row, with the capacity and the three attestations", async () => {
+    // Lodged (undecided) with the five null: not whole, not empty, not decided.
+    expect(await refusal(lodge(db, await award(), { ...PAGE, ...FIVE_NULL }))).toBe("23514");
+    expect(await refusal(lodge(db, await award(), FIVE_NULL))).toBe("23514");
+  });
+});
+
 describe("a question on an award is asked by the awardee and answered once (PA049)", () => {
   const ask = (tx: Tx | typeof db, awardId: string, extra: Record<string, unknown> = {}) =>
     tx.awardQuery.create({ data: { organisationId, awardId, body: "Which site office do we report to?", askedBySupplierAccountId: awardeeAccount, askedAt: now(), ...extra } });
+
+  it("takes one question per award and one-time key, and any number without a key (security review L2)", async () => {
+    const a = await award();
+    const k = `key_${randomId()}`;
+    expect(await refusal(ask(db, a, { requestKey: k }))).toBeNull();
+    expect(await refusal(ask(db, a, { requestKey: k }))).toBe("23505");
+    expect(await refusal(ask(db, await award(), { requestKey: k }))).toBeNull();
+    expect(await refusal(ask(db, a))).toBeNull();
+    expect(await refusal(ask(db, a))).toBeNull();
+  });
 
   it("is asked by an account of the awardee as the app role, within 1 to 2000 characters, unanswered", async () => {
     const a = await award();

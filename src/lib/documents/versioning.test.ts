@@ -41,7 +41,7 @@ describe("versions are immutable: a correction is a new version", () => {
     expect(withdrawFault({ withdrawnAt: null }, "Personal data uploaded by mistake", kept)?.code).toBe("PROJECT_FILE_KEPT");
     expect(withdrawFault({ withdrawnAt: null }, "  ", kept)?.code).toBe("PROJECT_FILE_KEPT");
     expect(withdrawFault({ withdrawnAt: when }, "Wrong scan", kept)?.code).toBe("ALREADY_WITHDRAWN");
-    expect(documentFaultText(withdrawFault({ withdrawnAt: null }, "x", kept)!)).toBe("A project file is kept. Send a new version instead.");
+    expect(documentFaultText(withdrawFault({ withdrawnAt: null }, "x", kept)!)).toBe("This file is kept: a project document or an award return sent online holds it.");
   });
   it("only a live project pin holds a version: a detached one, or another purpose, holds nothing", () => {
     expect(heldByProjectFile([{ purpose: "PROJECT_DOCUMENT_FILE", detachedAt: null }])).toBe(true);

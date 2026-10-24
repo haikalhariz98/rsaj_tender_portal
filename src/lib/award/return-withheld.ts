@@ -68,3 +68,19 @@ export function withholdRehearsal<R extends { rows: { changes: { field: string; 
   const word = (v: string | null) => (v === null ? null : WITHHELD_WORDS.en);
   return { ...rehearsal, rows: rehearsal.rows.map((row) => ({ ...row, changes: row.changes.map((c) => (listed.includes(c.field) ? { ...c, before: word(c.before), after: word(c.after) } : c)) })) };
 }
+
+// ------------------------------------------------------------------ the online return (PDPA, product owner ruling of 2026-10-24)
+
+type WithheldField = (typeof RETURN_WITHHELD_FIELDS)[number];
+
+/// The five personal fields as the withheld marker, null: what the decision of a work indent's online return writes in its deciding update. The capacity and the three
+/// attestations are kept. Trigger PA048 lets exactly this through, and only in the update that decides the row.
+export const onlineReturnWithheld = (): Record<WithheldField, null> => ({ signatoryName: null, icNumber: null, occupation: null, address: null, witnessName: null });
+
+/// The page as the trail records it: each of the five personal fields it holds replaced by the withheld word, every other field as it is. The trail is append-only, so the
+/// personal values never enter it. A Letter of Acceptance's page (no fields) is returned as it is. The input is not changed.
+export function withheldForTrail<T extends Readonly<Record<string, unknown>>>(page: T): T {
+  const out: Record<string, unknown> = { ...page };
+  for (const f of RETURN_WITHHELD_FIELDS) if (f in out) out[f] = WITHHELD_WORDS.en;
+  return out as T;
+}
