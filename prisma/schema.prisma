@@ -379,6 +379,10 @@ model Organisation {
   projectDocumentRequests  ProjectDocumentRequest[]
   projectDocumentApprovers ProjectDocumentApprover[]
   projectDocumentDecisions ProjectDocumentDecision[]
+  /// ADR 0045: the online award return, the contractor's questions, and the payments of supply claims.
+  awardOnlineReturns       AwardOnlineReturn[]
+  awardQueries             AwardQuery[]
+  supplyInvoicePayments    SupplyInvoicePayment[]
   /// ADR 0042 D10: the kick-off meetings and who attended them.
   kickOffMeetings          KickOffMeeting[]
   kickOffAttendance        KickOffAttendance[]
@@ -598,6 +602,11 @@ model Person {
   projectApproverOf        ProjectDocumentApprover[] @relation("ProjectDocumentApprover")
   projectApproversAdded    ProjectDocumentApprover[] @relation("ProjectDocumentApproverAddedBy")
   projectApproversRemoved  ProjectDocumentApprover[] @relation("ProjectDocumentApproverRemovedBy")
+  /// ADR 0045: an online award return verified or refused, a contractor's question answered, a supply claim's payment recorded.
+  onlineReturnsVerified    AwardOnlineReturn[]       @relation("AwardOnlineReturnVerifiedBy")
+  onlineReturnsRefused     AwardOnlineReturn[]       @relation("AwardOnlineReturnRefusedBy")
+  awardQueriesAnswered     AwardQuery[]              @relation("AwardQueryAnsweredBy")
+  supplyPaymentsRecorded   SupplyInvoicePayment[]    @relation("SupplyInvoicePaymentBy")
   projectDocumentDecisions ProjectDocumentDecision[] @relation("ProjectDocumentDecidedBy")
   /// ADR 0042 D10: the kick-off meetings this person scheduled or recorded as held, and attended.
   kickOffMeetingsScheduled KickOffMeeting[]          @relation("KickOffScheduledBy")
@@ -1447,6 +1456,8 @@ model DocumentClass {
   onlineBidFilePolicies         DocumentStorePolicy[] @relation("OnlineBidFileClass")
   /// ADR 0042 D7: the store policy that names this class for every Project workspace file.
   projectDocumentPolicies       DocumentStorePolicy[] @relation("ProjectDocumentClass")
+  /// ADR 0045 D1: the store policy that names this class for an online award return's files.
+  awardReturnPolicies           DocumentStorePolicy[] @relation("AwardReturnClass")
   supplierBankStatementPolicies SupplierPolicy[] @relation("SupplierBankStatementClass")
 
   @@unique([organisationId, code])
@@ -2454,6 +2465,9 @@ model ContractType {
   makingGoodCertificate       Boolean?
   nominationAllowed           Boolean?
   interimPaymentRule          String?
+  /// ADR 0045 D5 (FR-MTD-012, BD-613-128): the typed twin of `interimPaymentRule`, which stays as its label: how a contract of this type is paid.
+  /// Read live at each act (WV-9). It has no provenance of its own (WV-14): the type's one tag is not split. Null: not set.
+  paymentRoute                PaymentRoute?
   sumAdjustmentDrivers        String[] @default([])
   claimsApprovalCommitteeCode String?
   /// 6.13 Part A step 1 (A7, FR-MTD-012): the typed twin of `sumAdjustmentDrivers`, which stays as its label:
@@ -2487,6 +2501,12 @@ model ContractType {
 
   @@unique([organisationId, code])
   @@index([organisationId, sortOrder])
+}
+
+/// ADR 0045 D5: how a contract type is paid. A certified valuation and its certificate (works, services), or the contractor's delivery order and invoice (supply).
+enum PaymentRoute {
+  CERTIFIED_CLAIM
+  DELIVERY_ORDER_INVOICE
 }
 
 /// FR-SUP-003 (SK005 §7.3.1, §7.3.3): the delegation letter pair a contract type takes.
@@ -3865,6 +3885,9 @@ model Award {
   documents         AwardDocument[]
   distributions     AwardDistribution[]
   awardReturn       AwardReturn?
+  /// ADR 0045 D1, D3: what the contractor lodged online, and its questions.
+  onlineReturns     AwardOnlineReturn[]
+  queries           AwardQuery[]
   conditions        AwardCondition[]
   contract          Contract?
   approvalInstances ApprovalInstance[]
@@ -3978,6 +4001,75 @@ model AwardReturn {
   witnessSigned    Boolean?
 
   updatedAt DateTime @updatedAt
+}
+
+/// ADR 0045 D1: a return the contractor lodged online, waiting for an officer to verify it into the AwardReturn (and the award's attachments) or refuse it.
+/// Insert-only, but for its one decision, set once (trigger PA048). At most one undecided row per award (partial unique index, raw SQL).
+model AwardOnlineReturn {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  awardId        String
+  award          Award        @relation(fields: [awardId], references: [id], onDelete: Restrict)
+
+  /// A portal account of the awardee (trigger).
+  submittedBySupplierAccountId String
+  submittedBySupplierAccount   SupplierAccount @relation("AwardOnlineReturnSubmittedBy", fields: [submittedBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// Server time, and the organisation's day from the same moment: the received day of every item (WV-3).
+  submittedAt                  DateTime
+  submittedOn                  DateTime
+  /// When the password was asked again.
+  stepUpAt                     DateTime
+
+  // A work indent's acceptance page: every field set together, or none (a Letter of Acceptance) (CHECK).
+  signatoryName    String   @default("")
+  /// SULIT, as AwardReturn.icNumber.
+  icNumber         String   @default("")
+  occupation       String   @default("")
+  address          String   @default("")
+  capacity         String   @default("")
+  witnessName      String   @default("")
+  /// True when lodged, or null (CHECK).
+  contractorSigned Boolean?
+  stampAffixed     Boolean?
+  witnessSigned    Boolean?
+
+  // The one decision: verified, or refused with a reason, never both (CHECK), set once (trigger).
+  verifiedByPersonId String?
+  verifiedBy         Person?   @relation("AwardOnlineReturnVerifiedBy", fields: [verifiedByPersonId], references: [id], onDelete: Restrict)
+  verifiedAt         DateTime?
+  refusedByPersonId  String?
+  refusedBy          Person?   @relation("AwardOnlineReturnRefusedBy", fields: [refusedByPersonId], references: [id], onDelete: Restrict)
+  refusedAt          DateTime?
+  refusedReason      String    @default("")
+
+  /// The scans, under the award's return purposes. Pinned by the submit act only.
+  files DocumentAttachment[]
+
+  @@index([awardId])
+}
+
+/// ADR 0045 D3: a contractor's question on an issued award, and the officer's one answer. Insert-only, but for the answer, set once (trigger PA049).
+model AwardQuery {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  awardId        String
+  award          Award        @relation(fields: [awardId], references: [id], onDelete: Restrict)
+
+  /// 1 to 2000 characters (CHECK).
+  body                     String          @db.Text
+  askedBySupplierAccountId String
+  askedBySupplierAccount   SupplierAccount @relation("AwardQueryAskedBy", fields: [askedBySupplierAccountId], references: [id], onDelete: Restrict)
+  askedAt                  DateTime
+
+  /// Empty until answered. The answer, who and when are set together (CHECK).
+  answer             String    @default("") @db.Text
+  answeredByPersonId String?
+  answeredBy         Person?   @relation("AwardQueryAnsweredBy", fields: [answeredByPersonId], references: [id], onDelete: Restrict)
+  answeredAt         DateTime?
+
+  @@index([awardId, askedAt])
 }
 
 /// A Pemberitahuan Perlantikan variant (FR-AWD-007): contract type plus the exercise's
@@ -4115,6 +4207,8 @@ model Contract {
   contractorSubmissions  ContractorSubmission[]
   /// ADR 0042 D1: the Project workspace's documents.
   projectDocuments       ProjectDocument[]
+  /// ADR 0045 D7: Finance's payments of its supply claims.
+  supplyInvoicePayments  SupplyInvoicePayment[]
   /// ADR 0042 D10: its one kick-off meeting.
   kickOffMeeting         KickOffMeeting?
   siteMeetings           SiteMeeting[]
@@ -4543,6 +4637,10 @@ enum AttachmentPurpose {
   PORTAL_APPLICATION_BANK_STATEMENT
   /// ADR 0042 D1: a file of a Project workspace document's version, on the version.
   PROJECT_DOCUMENT_FILE
+  /// ADR 0045 D6 (WV-11): a supply claim's delivery order, on the claim's version.
+  DELIVERY_ORDER
+  /// ADR 0045 D6 (WV-11): a supply claim's invoice, on the claim's version.
+  SUPPLY_INVOICE
 }
 
 enum DocumentAccessKind {
@@ -4570,6 +4668,9 @@ model DocumentStorePolicy {
   /// ADR 0042 D7 (PW-14): the class every Project workspace file takes. Must be classified and not SULIT. Null: not set, and nothing can be created or uploaded in the workspace, naming the setting.
   projectDocumentClassId String?
   projectDocumentClass   DocumentClass? @relation("ProjectDocumentClass", fields: [projectDocumentClassId], references: [id], onDelete: Restrict)
+  /// ADR 0045 D1 (WV-5): the class a contractor's online award return files take. Must be SULIT (the page carries the IC number). Null: not set, and an online return is refused, naming the setting.
+  awardReturnClassId String?
+  awardReturnClass   DocumentClass? @relation("AwardReturnClass", fields: [awardReturnClassId], references: [id], onDelete: Restrict)
 
   provenance Provenance @default(ASSUMED)
   notes      String     @default("")
@@ -4762,6 +4863,9 @@ model DocumentAttachment {
   /// ADR 0042 D1: a version of a Project workspace document (its files).
   projectDocumentVersionId    String?
   projectDocumentVersion      ProjectDocumentVersion?    @relation(fields: [projectDocumentVersionId], references: [id], onDelete: Restrict)
+  /// ADR 0045 D1: a contractor's online award return (its scans, under the award's return purposes).
+  awardOnlineReturnId         String?
+  awardOnlineReturn           AwardOnlineReturn?         @relation(fields: [awardOnlineReturnId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -4788,6 +4892,7 @@ model DocumentAttachment {
   @@index([portalApplicationDocumentId])
   @@index([portalApplicationCreditorId])
   @@index([projectDocumentVersionId])
+  @@index([awardOnlineReturnId])
   @@index([supplierDocumentId])
   @@index([supplierApplicationId])
   @@index([contractId])
@@ -11606,6 +11711,32 @@ model FinancePayment {
   recordedAt     DateTime
 }
 
+/// ADR 0045 D7 (WV-13): Finance's payment of a verified supply claim, typed by hand from Finance's remittance. One per claim, write-once: never updated or deleted
+/// (trigger PA050). Nothing is matched: the amount is never compared with the invoice, the contract sum or the budget.
+model SupplyInvoicePayment {
+  id             String                 @id @default(cuid())
+  organisationId String
+  organisation   Organisation           @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  contractId     String
+  contract       Contract               @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  /// The SUPPLY_CLAIM project document.
+  documentId     String                 @unique
+  document       ProjectDocument        @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  /// Its verified (TAKEN_UP) version.
+  versionId      String
+  version        ProjectDocumentVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  paidOn         DateTime
+  batchNo        String
+  /// Greater than zero (CHECK).
+  amount         Decimal                @db.Decimal(18, 2)
+  personId       String
+  person         Person                 @relation("SupplyInvoicePaymentBy", fields: [personId], references: [id], onDelete: Restrict)
+  note           String                 @default("")
+  recordedAt     DateTime
+
+  @@index([contractId])
+}
+
 /// FR-LAD-003: the warning letter of intention to impose damages (its certificate), with the registered post.
 model LadWarning {
   id                 String       @id @default(cuid())
@@ -12607,6 +12738,9 @@ model SupplierAccount {
   projectDocumentsCreated  ProjectDocument[]         @relation("ProjectDocumentCreatedBySupplier")
   projectVersionsUploaded  ProjectDocumentVersion[]  @relation("ProjectDocumentVersionUploadedBySupplier")
   projectRequestsMade      ProjectDocumentRequest[]  @relation("ProjectDocumentRequestedBySupplier")
+  /// ADR 0045 D1, D3: the online award returns this account lodged, and the questions it asked.
+  onlineReturnsSubmitted   AwardOnlineReturn[]       @relation("AwardOnlineReturnSubmittedBy")
+  awardQueriesAsked        AwardQuery[]              @relation("AwardQueryAskedBy")
   /// ADR 0042 D10: the kick-off meetings this account attended.
   kickOffAttended          KickOffAttendance[]       @relation("KickOffAttendeeAccount")
   diaryEntriesAttested     SiteDiaryEntry[]          @relation("DiaryAgentAttestedBy")
@@ -13091,6 +13225,8 @@ enum ContractorSubmissionKind {
   DELAY_NOTICE
   DEFECTS_RECTIFIED
   STATUTORY_DECLARATION
+  /// ADR 0045 D6: a supply contract's delivery order and invoice. Project workspace only: the legacy ContractorSubmission refuses it (CHECK).
+  SUPPLY_CLAIM
 }
 
 /// The officer's answer: taken up (recorded on the contract through the act it calls for) or returned to the contractor with the reason.
@@ -13228,6 +13364,8 @@ model ProjectDocument {
   approvers ProjectDocumentApprover[]
   /// ADR 0042 D10: the kick-off meeting whose minutes this document is, if it is.
   kickOffMinutesOf KickOffMeeting? @relation("KickOffMinutes")
+  /// ADR 0045 D7: Finance's payment of this supply claim, once recorded.
+  supplyPayment    SupplyInvoicePayment?
 
   @@index([contractId, createdAt])
   @@index([organisationId])
@@ -13267,6 +13405,8 @@ model ProjectDocumentVersion {
 
   files     DocumentAttachment[]
   decisions ProjectDocumentDecision[]
+  /// ADR 0045 D7: the payment recorded against this verified version of a supply claim.
+  supplyPayments SupplyInvoicePayment[]
 
   @@unique([documentId, number])
   @@index([organisationId, uploadedAt])
