@@ -1,31 +1,42 @@
 # Questions for RSAJ
 
-Open questions the product cannot answer from RSAJ's documents. Each one is loaded as unset or ASSUMED until RSAJ answers in writing. Raised 2026-10-24 (starter pack review, simplification step 4.4).
+Open questions the product cannot answer from RSAJ's documents. Each one is loaded as unset or ASSUMED until it is answered in writing. Raised 2026-10-24 (starter pack review, simplification step 4.4).
 
-1. **Slashed codes.** What do "JR/R", "JR/P" and "MR/P" mean, and who is the joint partner? Affects B.4 above RM5M; B.6 items 4, 6, 8, 10, 11, 12; B.7 items 4, 6, 8, 9, 11, 13, 15, 17.
-2. **Asterisk notation.** What do "(*by CP)", "(*by FIN)" and "(*by AD)" mean: the Head of Contract & Procurement acting, or C&P preparing for the named office? Governs approval to tender (B.6/B.7 items 1, 3, 14, 15) and deeds of assignment.
-3. **Exactly RM300,000.00.** A written ruling on which side of the threshold it falls (decision D3).
-4. **Claims Committee.** Is it a real body? Its mandate and members (KP003 5.11.5 only)?
-5. **Committees.** Composition and quorum of the Quotation Committee, Quotation Opening Committee, Variation Orders Committee, Technical Committee, Technical & CAPEX Committee and Claims Committee.
-6. **Chairman.** Who takes the Chairman's matter when the Chairman is absent or must not approve their own matter (B.9 is silent)?
-7. **Quotation declaration.** Is the bidder's declaration a separate part of the quotation document, or bound into the quotation form? Where does it print?
-8. **Corrigendum.** Always part of the quotation document, or only when one is issued?
-9. **Quotation table document.** Does a quotation have one? If so, which parts does it hold?
-10. **Standard or bespoke.** The class of: invitation or notice, conditions with appendices, bond forms, summary of tender, registration background, declaration, instructions; and the quotation notice, conditions, specification, form and background.
-11. **Evaluation.** Where and by whom are the four SK003 7.2.2 aspects assessed? Does a score exactly on a pass mark pass? Marks for each Phase 2 criterion? Must Phases 2, 3 and 4 each be passed? Who acts on the checklist, combined-score and recommendation stages?
-12. **Interim payment routing sheet (CPD/INT-SFA-INDEN).** What selects variant (i), 52 days, versus variant (ii), 41 days?
-13. **Newspaper date.** How many days before the expected newspaper date should a closing date warn (FR-ADV-004)?
-14. **Term contracts.** Which value bands may a Schedule of Rates or term-contract call-off be used in (FR-MTD-010)?
-15. **Direct appointments.** What document pack does a direct appointment use, if any?
-16. **Decision D2 (already open in the specification).** Termination (SK008 vs DAL), extension of time with no financial impact, and extension of the contract period.
-17. **Missing document.** Please supply "Syarat-syarat Sebutharga Untuk Kerja" (conditions of quotation; FR-DOC-013 note).
-18. **Bank list.** The supplier bank list (conventional and Islamic) was entered without access to Bank Negara Malaysia's published list; confirm or supply the list RSAJ accepts.
-19. **Contract document parts.** The parts and their order for each contract basis (SK004 §7.3.1 is cited but not supplied).
-20. **Appointment-letter variants.** Which contract types (work, service, supply) each of the six variants serves, and the six templates (FR-AWD-007).
-21. **Consultancy series.** Which contract type takes the consultancy contract number series (RSAJ/KP/P)?
-22. **Other numbering patterns.** Which records the §9.5 patterns RSAJ/TA/NNN/YYYY, RSAJ/KP/Q(JB|MR|IP)/NNN/YY and RSAJ/KP/ST/NN/YY number; and the pattern for an addendum or corrigendum (FR-ADV-014).
-23. **Suruhanjaya Tenaga.** Should it be a registration body, so its class can be recorded?
-24. **Mandatory documents.** Which supplier document types are mandatory at registration?
-25. **Contract number restart.** Numbers restart "in the year the contract starts"; the product restarts by the calendar year the number is allocated. Acceptable?
-26. **Requisition note number.** An example NM/YYYY/NNNNN number.
-27. **Committed budget and SULIT.** A budget code with a single commitment shows that requisition's estimate as its committed figure. Is a committed figure SULIT, and who may see it?
+## Answered (founder, 2026-10-24, from RSAJ's documents)
+
+- **1. Slashed codes.** "JR/R" is two entries stacked in one DAL cell (e.g. "*JR" above "R"). The starred line is the head of the office named in Remarks (*By CP, *By AD, *By FIN); the unstarred line is the head of the requesting department. So "JR/R": the Head of C&P jointly recommends and the user department head recommends. "MR/P" (tender item 4): C&P gives a mandatory recommendation and the user department proposes. The "joint partner" is the requesting department's line. Definitions: DAL 1.3 (JR = jointly recommend, MR = mandatory recommendation, P = propose).
+- **2. Asterisks.** The asterisk names who acts in that slot, not who prepares (same notation as "*A By Quotation Opening Committee", "*A As Superintending Officer/Project Director"). "*by CP" = the Head of Contract & Procurement acts. Deed of assignment (DAL 3.1.4.3 item 11): Head of Finance Division approves (*A by FIN), Head of C&P recommends (**R by CP).
+- **3. Exactly RM300,000.00** is a quotation. The DAL bands are "more than RM15K and up to RM300K" and "more than RM300K"; SK001–SK003 say "melebihi RM300,000". KP002 5.1.1's "less than RM300,000" is loose wording; the DAL governs.
+- **5. Committees (partly).** Tender Board quorum 3 (SK003 7.6.2). Tender Opening Committee: 2 appointed executives (SK002 7.7.2). Variation Orders Committee: chaired by the COO and CFO, members the division heads of P&D, P&M, QM and F&C (KP002 flowchart 6.2); it also approves extensions of time (SK006 7.5.3).
+- **6. Chairman (partly).** If the Tender Board Chairman is absent he may appoint the CEO as chairman (SK003 7.6.3). For their own matter, DAL 1.6(a) sends it to the next higher authority.
+- **7–9. Quotation documents.** The evaluation checklist scores the Borang Sebutharga and the Surat Akuan Pembida as separate items, so the declaration is most likely a separate document. Quotation documents are sold (SK002, minimum RM50 fee). Nothing mentions a quotation table document: a quotation has none.
+- **10. Standard or bespoke.** SK001 7.3.4: standard = conditions of contract, form of tender, letter of acceptance, standard specification, standard schedule of rates; bespoke = BQ, addendum specification, drawings.
+- **11. Evaluation.** Phase 1 by CPD; Phase 2 by CPD with the implementing department; Phases 3 and 4 by CPD. Every phase must be passed ("Petender yang lulus semua Fasa"). Band edges are inclusive (80 = Terbaik, ±15% = Kompetitif).
+- **12. Interim payment routing sheet.** Variant (i): 21 days user department, 21 CPD, 10 Finance (52), through CPD checks. Variant (ii): 21 days user department, 5 S.O. approval, 15 Finance (41), skipping CPD.
+- **13. Newspaper date.** Warn when closing is less than 14 days after the expected newspaper date (SK002 7.4.2(g): at least 2 weeks for tendering). Document sale ends at least 2 days before closing.
+- **14. Term contracts.** DAL 3.1.4.2 item 2 allows a Schedule of Rates under open and selective procurement at every value band.
+- **15. Direct appointments.** The Direct & Selective letter carries only an inden number, no quotation number: no quotation pack is needed.
+- **16. Decision D2.** The documents conflict (termination: DAL has the CEO approve, SK008 has the S.O./P.D. sign the notices — possibly two steps; extension of time: SK006 variation committee vs DAL Head of Division as S.O.; extension of contract period: SK006 Tender Board vs DAL FD after the Quotation Committee's mandatory recommendation). Founder ruling: **make it configurable** — the product ships the choice and the customer sets it.
+- **19. Contract document parts.** SK004 7.3.1 gives the parts and their order for three bases (BQ; drawings & specification; service & maintenance). The SK004 file is in the founder's Post Tender folder, to be supplied to the developer.
+- **20. Appointment-letter variants.** Six samples (Pre Tender folder), split by procurement route and value, not by work/service/supply: Direct & Selective under RM50K; One Shot under and over RM50K; IT & QA under and over RM50K; Schedule of Rates (tanks, buildings & plants). Over RM50K adds 10% retention and a 6-month defects period; One Shot and Direct add insurance, SPAN permit C4/D, PERKESO and SWMS; IT & QA leave those out.
+- **21. Consultancy series.** SK004 7.2.1: RSAJ/KP/P/serial/year is consultancy services; RSAJ/KP/T is tenders.
+- **22. Numbering (partly).** RSAJ/TA/NN/YYYY is the tender number. RSAJ/KP/Q(JB|MR|IP)/NNN/YY is the quotation number and also the contract number of quotation contracts (SOR letter).
+- **23. Suruhanjaya Tenaga.** Yes, a registration body (SK001 7.3.4(a): ST registration is an eligibility condition where the work needs it).
+- **24. Mandatory documents.** SK001 lists what each tender must submit (SSM, CIDB/SPKK, MOF with field code, non-blacklist declaration) but nothing about registration. Founder ruling: keep them optional at registration.
+- **26. Requisition note number.** NM/2025/00461 (Expenditure Request Form, shown with PROC2025137846).
+
+## Still open
+
+- **4. Claims Committee.** It appears only in KP003 5.11.5; KP002 gives loss-and-expense claims to the Tender Board and the DAL never mentions a Claims Committee. Is it a real body, or should KP003 say Tender Board?
+- **5. Committees.** Members of the Quotation Committee, Quotation Opening Committee and Technical Committee. Please send the Tender Board terms of reference and procedure OM/KP/SP/002, which both SOPs cite.
+- **6. Chairman.** What happens when the Tender Board Chairman is absent and has not appointed the CEO?
+- **8. Corrigendum.** Always part of the quotation document, or only when one is issued?
+- **11. Evaluation.** Marks for each Phase 2 criterion. The formulas use whole-number bands, so a score such as 79.5 falls into no band: how is it rounded?
+- **12. Interim payment.** When may an interim payment skip CPD (variant (ii))?
+- **14. Term contracts.** Confirm there is no other value limit on a Schedule of Rates.
+- **15. Direct appointments.** Confirm no quotation pack is needed.
+- **17. Missing document.** Please supply "Syarat-syarat Sebutharga Untuk Kerja" (conditions of quotation; FR-DOC-013 note).
+- **18. Bank list.** The supplier bank list (conventional and Islamic) was entered without access to Bank Negara Malaysia's published list; confirm or supply the list RSAJ accepts.
+- **22. Numbering.** What JB, MR and IP stand for; what RSAJ/KP/ST numbers; the addendum or corrigendum format (FR-ADV-014).
+- **25. Contract number restart.** Numbers restart "in the year the contract starts"; the product restarts by the calendar year the number is allocated. Acceptable?
+- **27. Committed budget and SULIT.** A budget code with a single commitment shows that requisition's estimate as its committed figure. Is a committed figure SULIT, and who may see it?
