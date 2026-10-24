@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 
 import {
   BellIcon,
   ChevronRight,
   HelpCircle,
   MenuIcon,
-  SearchIcon,
   UserIcon,
 } from "@/components/icons";
 import { ButtonLink, iconButtonClass } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { CONFIG_LABELS, FOLDER_SECTION, workspaceFor } from "@/lib/nav";
 import type { ShellUser } from "@/lib/shell";
 
 import { useRecordCrumb, useRecordParentCrumb } from "./record-crumb";
+import { SearchBox } from "./search-box";
 import { UserMenu } from "./user-menu";
 
 export interface Crumb {
@@ -218,16 +219,11 @@ export function Topbar({
 
       <div className="flex-1" />
 
-      <button
-        type="button"
-        disabled
-        aria-label={say(SHELL_WORDS.search)}
-        title={say(SHELL_WORDS.searchNotBuilt)}
-        className="hidden h-10 w-56 shrink-0 2xl:w-64 cursor-not-allowed items-center gap-2.5 overflow-hidden rounded-full border border-line bg-surface px-4 text-[13.5px] text-ink-4 md:flex"
-      >
-        <SearchIcon size={16} />
-        <span className="flex-1 truncate text-left">{say(SHELL_WORDS.search)}</span>
-      </button>
+      {workspace !== "supplier" && (
+        <Suspense fallback={null}>
+          <SearchBox onSearchPage={pathname === "/search"} />
+        </Suspense>
+      )}
 
       {workspace === "supplier" ? (
         <button type="button" disabled aria-label={say(SHELL_WORDS.notifications)} title={say(SHELL_WORDS.supplierNoticesNotBuilt)} className={iconButtonClass()}>

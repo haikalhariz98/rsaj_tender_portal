@@ -25,9 +25,15 @@ const nested = (path: string, filter: object): object => path.split(".").reduceR
 export const likeLiteral = (word: string): string => word.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /// Every word must match at least one of the entity's fields, case-insensitive substring. No words: matches everything.
-export function wordsWhere<E extends SearchEntity>(entity: E, words: readonly string[]): SearchWhere[E] {
+/// `hidden` (the exercises the reader may not see): a project is not found through its exercise's own paths when that exercise is hidden
+/// from the reader (AC-18; its reference and contract number still find it).
+export function wordsWhere<E extends SearchEntity>(entity: E, words: readonly string[], hidden: readonly string[] = []): SearchWhere[E] {
   const fields = SEARCH_FIELDS[entity];
-  return { AND: words.map((w) => ({ OR: fields.map((path) => nested(path, { contains: likeLiteral(w), mode: "insensitive" })) })) } as SearchWhere[E];
+  const clause = (path: string, w: string): object => {
+    const match = nested(path, { contains: likeLiteral(w), mode: "insensitive" });
+    return entity === "project" && hidden.length && path.startsWith("exercise.") ? { AND: [match, { exercise: { id: { notIn: [...hidden] } } }] } : match;
+  };
+  return { AND: words.map((w) => ({ OR: fields.map((path) => clause(path, w)) })) } as SearchWhere[E];
 }
 
 /// A whole-value, case-insensitive match of q on one of the entity's case keys (ST-4). Null for an entity with none.
