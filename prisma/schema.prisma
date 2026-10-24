@@ -2407,6 +2407,9 @@ model SourcingMethod {
   defaultEvaluationModelCode        String?
   /// The numbering series (NumberingSeries.key) a dossier reference is issued from.
   dossierSeriesKey String?
+  /// RSAJ answer 22: the numbering series (NumberingSeries.key) an exercise of this method takes its reference from, once,
+  /// when it is opened. Null: the organisation's "exercise" series.
+  exerciseSeriesKey String?
 
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
