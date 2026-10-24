@@ -904,7 +904,7 @@ The six spec Musts the document would otherwise break are each given a compliant
   - **Compliant reading: an online return.**
     - The account with signing authority, after re-entering its password, uploads the signed letter, the declaration and the Surat Pewakilan Kuasa (or the indent's acceptance page), with witness and stamp, and types in the page's fields.
     - The return is complete only when an officer verifies the scans (OD-5).
-  - Acceptance with no scans sits behind an unset organisation switch until CPD and Legal rule on electronic signature.
+  - ~~Acceptance with no scans sits behind an unset organisation switch until CPD and Legal rule on electronic signature.~~ Amended 2026-10-24 (WV-2): no switch and no column. Acceptance with no scans is not built until CPD and Legal rule on electronic signature (R-5, default "not built; scans required"); the switch and its path are then built together.
   - The contractor accepts the LoA or indent, not the ERP PO.
   - The PO number is shown when recorded; it is not a precondition.
   - A query does not pause the indent's 14 days.
@@ -1679,7 +1679,7 @@ and no code (AC-7). The C-2 Project stage holds today's tabs and the MN-02 bridg
 - Portal upload of the instrument's scans, with the typed page fields and the password step-up. Only the signing-authority account
   (`authorisedToSignForContractor` and `contractorPortalSigning`) may do this.
 - An officer verifies the scans, which completes the return through the existing `acceptOnCompleteReturn`.
-- The click-only switch `AwardPolicy.clickOnlyAcceptance` is nullable and unset; unset refuses.
+- ~~The click-only switch `AwardPolicy.clickOnlyAcceptance` is nullable and unset; unset refuses.~~ Struck 2026-10-24 (WV-2, AC-31 as amended): not built.
 - **Done when:**
   - an online return without officer verification leaves the award ISSUED;
   - a query does not move the 14-day clock;
