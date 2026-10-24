@@ -47,7 +47,7 @@ vi.mock("@/app/_auth/supplier", async () => {
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
 import { answerAwardQuery, cancelAward, recordReturn, refuseOnlineReturn, verifyOnlineReturn } from "@/app/awards/actions";
-import { attachDocument, withdrawVersion } from "@/app/documents/actions";
+import { attachDocument, loadDocumentDrawer, withdrawVersion } from "@/app/documents/actions";
 import { POST as queryRoute } from "@/app/supplier/projects/award-query/route";
 import { POST as submitRoute } from "@/app/supplier/projects/award-return/submit/route";
 import { POST as uploadRoute } from "@/app/supplier/projects/award-return/upload/route";
@@ -55,10 +55,15 @@ import { POST as uploadRoute } from "@/app/supplier/projects/award-return/upload
 import { askAwardQuery, AWARD_RETURN_EVENT_KEY, lodgeOnlineReturn } from "./online-return-store";
 import { AwardReturnRefused } from "./online-return-words";
 import { preflightReturnUpload, storeReturnFile } from "./return-upload";
-import { indentExpiryRaised, indentState } from "./indent";
+import { contractsToAccept } from "@/lib/portal/projects/award-card-store";
+
+import { indentExpiryRaised, indentLateWords, indentState } from "./indent";
 import { QUERY_OPEN_MAX } from "./online-return";
 import { WITHHELD_WORDS } from "./return-withheld";
-import { instrumentReturned } from "./stage-two";
+import { withLockedAward } from "./repo";
+import { returnRecordOf } from "./return-acceptance";
+import { saveReturn } from "./return-store";
+import { instrumentReturned, type ReturnRecord } from "./stage-two";
 
 const run = randomId();
 const DAY = 24 * 60 * 60 * 1000;
@@ -381,7 +386,7 @@ describe("verifying a lodged return (ADR 0045 D1)", () => {
     expect(JSON.stringify(plain.changes)).not.toContain(WITHHELD_WORDS.field);
   });
 
-  it("keeps the scans of a return waiting, verified or refused: withdrawing one is refused by the act and by the database (security review L1)", async () => {
+  it("keeps the scans of a return waiting, verified or refused: the drawer offers no Withdraw, and withdrawing one is refused by the act and by the database (security review L1)", async () => {
     const c = await contractor();
     const waiting = await lodge(c, await issued(c.supplierId));
     const verified = await lodge(c, await issued(c.supplierId));
@@ -389,7 +394,9 @@ describe("verifying a lodged return (ADR 0045 D1)", () => {
     const refused = await lodge(c, await issued(c.supplierId));
     expect(await as(p.officer, () => refuseOnlineReturn({ ok: false }, form({ id: refused.onlineReturnId, reason: "Unreadable." })))).toEqual({ ok: true });
     for (const [state, id] of [["waiting", waiting.onlineReturnId], ["verified", verified.onlineReturnId], ["refused", refused.onlineReturnId]] as const) {
-      const pin = await db.documentAttachment.findFirstOrThrow({ where: { awardOnlineReturnId: id, purpose: "DECLARATION" } });
+      const pin = await db.documentAttachment.findFirstOrThrow({ where: { awardOnlineReturnId: id, purpose: "DECLARATION" }, include: { version: { select: { documentId: true } } } });
+      // One rule (`heldByProjectFile`): the drawer reads the scan as kept, as the act does.
+      expect((await as(p.officer, () => loadDocumentDrawer(pin.version.documentId)))?.versions.map((v) => v.keptAsProjectFile), state).toEqual([true]);
       const r = await as(p.officer, () => withdrawVersion({ ok: false }, form({ versionId: pin.versionId, reason: "Uploaded to the wrong record" })));
       expect([r.ok, r.message], state).toEqual([false, "This file is kept: a project document or an award return sent online holds it."]);
       expect(await sqlState(db.documentVersion.update({ where: { id: pin.versionId }, data: { withdrawnAt: new Date(), withdrawnReason: "Uploaded to the wrong record" } })), state).toBe("PA047");
@@ -412,6 +419,20 @@ describe("verifying a lodged return (ADR 0045 D1)", () => {
     expect(award.status).toBe("ISSUED");
     expect(award.awardReturn!.signedLetterReceivedOn).toBeNull();
     expect(await db.documentAttachment.count({ where: { awardId: k.awardId } })).toBe(0);
+  });
+
+  it("rolls back the blanking on a work indent too: the waiting row keeps the page's five personal values and its capacity (PDPA, review R3)", async () => {
+    const c = await contractor();
+    const k = await issued(c.supplierId, { kind: "WORK_INDENT" });
+    const { onlineReturnId } = await lodge(c, k, { kind: "WORK_INDENT" });
+    await db.documentAttachment.updateMany({ where: { awardOnlineReturnId: onlineReturnId, purpose: "ACCEPTANCE_PAGE" }, data: { detachedAt: new Date(), detachReason: "Test: the page short" } });
+    const r = await verify(onlineReturnId);
+    expect(r.ok).toBe(false);
+    expect(await db.awardOnlineReturn.findUniqueOrThrow({ where: { id: onlineReturnId } })).toMatchObject({ verifiedAt: null, signatoryName: await nameOf(c.actor.contactId), icNumber: PAGE.icNumber, occupation: PAGE.occupation, address: PAGE.address, witnessName: PAGE.witnessName, capacity: PAGE.capacity });
+    expect(await db.auditEntry.count({ where: { organisationId, entity: "AwardOnlineReturn", entityId: onlineReturnId, action: "UPDATE" } })).toBe(0);
+    const award = await db.award.findUniqueOrThrow({ where: { id: k.awardId }, include: { awardReturn: true } });
+    expect(award.status).toBe("ISSUED");
+    expect(award.awardReturn!.signedLetterReceivedOn).toBeNull();
   });
 
   it("is refused to an officer the identity card number is closed to, and the refusal is logged", async () => {
@@ -591,15 +612,15 @@ describe("who is told (WV-8)", () => {
   });
 });
 
-describe("the paper path and the staff attach, moved into their cores, behave as before (wave V plan V2)", () => {
-  /// A scan an officer uploaded, staged in the internal class.
-  async function staffScan(personId: string, title: string): Promise<string> {
-    const doc = await db.document.create({ data: { organisationId, title, documentClassId: internalClassId, classificationSnapshot: "INTERNAL", retentionSnapshot: {}, status: "STAGED" } });
-    const bytes = new TextEncoder().encode(`%PDF-1.4 paper ${run} ${++counter}`);
-    await db.blobContent.createMany({ data: [{ organisationId, sha256: sha256Hex(bytes), byteSize: BigInt(bytes.length), bytes, storedAt: new Date() }], skipDuplicates: true });
-    return (await db.documentVersion.create({ data: { organisationId, documentId: doc.id, versionNo: 1, sha256: sha256Hex(bytes), byteSize: BigInt(bytes.length), mediaType: "application/pdf", originalFilename: `${title}.pdf`, recordedByPersonId: personId, storedAt: new Date() } })).id;
-  }
+/// A scan an officer uploaded, staged in the internal class.
+async function staffScan(personId: string, title: string): Promise<string> {
+  const doc = await db.document.create({ data: { organisationId, title, documentClassId: internalClassId, classificationSnapshot: "INTERNAL", retentionSnapshot: {}, status: "STAGED" } });
+  const bytes = new TextEncoder().encode(`%PDF-1.4 paper ${run} ${++counter}`);
+  await db.blobContent.createMany({ data: [{ organisationId, sha256: sha256Hex(bytes), byteSize: BigInt(bytes.length), bytes, storedAt: new Date() }], skipDuplicates: true });
+  return (await db.documentVersion.create({ data: { organisationId, documentId: doc.id, versionNo: 1, sha256: sha256Hex(bytes), byteSize: BigInt(bytes.length), mediaType: "application/pdf", originalFilename: `${title}.pdf`, recordedByPersonId: personId, storedAt: new Date() } })).id;
+}
 
+describe("the paper path and the staff attach, moved into their cores, behave as before (wave V plan V2)", () => {
   it("records a paper return, attaches each scan (filed, audited), refuses a second of the same, detaches with a reason, and the last scan accepts the award", async () => {
     const c = await contractor();
     const k = await issued(c.supplierId);
@@ -804,5 +825,73 @@ describe("the online return through the portal routes (wave V, V10)", () => {
       expect(award.status).toBe("ACCEPTED");
       expect(storedDay(award.awardReturn!.signedLetterReceivedOn!)).toBe(dayPlus(today, -5));
     });
+  });
+
+  it("FR-AWD-006: a correction to an accepted award whose indent has since expired saves on the same received day; a new day past the expiry is refused (review R3)", async () => {
+    await withValidity(async () => {
+      const c = await contractor();
+      const k = await indentReceived(c, 18);
+      const { onlineReturnId } = await lodge(c, k, { kind: "WORK_INDENT", now: at(-5) });
+      expect(await verify(onlineReturnId)).toMatchObject({ ok: true });
+      // The core the decided correction runs (`saveReturn`), under the award's lock.
+      const correct = (change: Partial<ReturnRecord>) =>
+        withLockedAward(organisationId, k.awardId, (tx, l) => saveReturn(tx, staff(p.officer), l, { values: { ...returnRecordOf(l.award.awardReturn!), whereHeld: l.award.awardReturn!.whereHeld, ...change }, receivedByPersonId: p.officer, correction: "Occupation misread" }));
+      expect(await correct({ occupation: "Managing director" })).toMatchObject({ ok: true });
+      const lateDay = dayPlus(today, -3);
+      expect(await correct({ signedLetterReceivedOn: lateDay })).toEqual({ ok: false, state: { ok: false, message: indentLateWords(dayPlus(today, -4), lateDay, true) } });
+      const ret = await db.awardReturn.findUniqueOrThrow({ where: { id: k.returnId } });
+      expect([storedDay(ret.signedLetterReceivedOn!), ret.occupation]).toEqual([dayPlus(today, -5), "Managing director"]);
+      expect((await db.award.findUniqueOrThrow({ where: { id: k.awardId } })).status).toBe("ACCEPTED");
+    });
+  });
+
+  /// A paper indent's page, as the officer types it.
+  const PAPER_PAGE = { signatoryName: "Ahmad bin Ali", icNumber: "800101-01-1234", occupation: "Director", address: "1 Jalan Satu", capacity: "Director", contractorSigned: "yes", stampAffixed: "yes", witnessName: "Siti binti Omar", witnessSigned: "yes" };
+  const attachPage = (awardId: string, versionId: string) => as(p.officer, () => attachDocument({ ok: false }, form({ ownerKind: "award", ownerId: awardId, purpose: "ACCEPTANCE_PAGE", versionId })));
+
+  it("FR-AWD-006 (ruling B): validity set after the received day was saved, the scan does not accept the indent: refused, nothing written, the award still issued", async () => {
+    await withValidity(async () => {
+      const c = await contractor();
+      const k = await indentReceived(c, 20);
+      const receivedOn = dayPlus(today, -5);
+      await db.awardPolicy.update({ where: { organisationId }, data: { indentValidityDays: null } });
+      expect(await as(p.officer, () => recordReturn({ ok: false }, form({ id: k.awardId, ...PAPER_PAGE, signedLetterReceivedOn: receivedOn })))).toMatchObject({ ok: true });
+      await db.awardPolicy.update({ where: { organisationId }, data: { indentValidityDays: 14 } });
+      const scan = await staffScan(p.officer, "Acceptance page");
+      expect(await attachPage(k.awardId, scan)).toEqual({ ok: false, message: indentLateWords(dayPlus(today, -6), receivedOn, true) });
+      const award = await db.award.findUniqueOrThrow({ where: { id: k.awardId } });
+      expect(award.status).toBe("ISSUED");
+      expect(await db.documentAttachment.count({ where: { versionId: scan } })).toBe(0);
+      expect(await db.auditEntry.count({ where: { organisationId, entity: "DocumentAttachment", entityLabel: { startsWith: award.reference } } })).toBe(0);
+      expect((await db.documentVersion.findUniqueOrThrow({ where: { id: scan }, include: { document: true } })).document.status).toBe("STAGED");
+    });
+  });
+
+  it("FR-AWD-006 (ruling B): received inside the validity, the scan accepts the indent", async () => {
+    await withValidity(async () => {
+      const c = await contractor();
+      const k = await indentReceived(c, 20);
+      // The expiry day itself: inside the validity.
+      expect(await as(p.officer, () => recordReturn({ ok: false }, form({ id: k.awardId, ...PAPER_PAGE, signedLetterReceivedOn: dayPlus(today, -6) })))).toMatchObject({ ok: true });
+      expect(await attachPage(k.awardId, await staffScan(p.officer, "Acceptance page"))).toMatchObject({ ok: true, message: expect.stringMatching(/accepted/) });
+      expect((await db.award.findUniqueOrThrow({ where: { id: k.awardId } })).status).toBe("ACCEPTED");
+    });
+  });
+
+  it("FR-AWD-006: an expired indent is not to accept on the project list or the portal home; with its validity not set it still is (review R5)", async () => {
+    const c = await contractor();
+    const expired = await indentReceived(c, 40);
+    const fresh = await indentReceived(c, 2);
+    const numberOf = async (k: Case) => (await db.contract.findUniqueOrThrow({ where: { id: k.contractId } })).number;
+    const listed = async () => (await contractsToAccept(db, c.actor)).map((x) => x.number);
+    await withValidity(async () => expect(await listed()).toEqual(expect.arrayContaining([await numberOf(fresh)])));
+    await withValidity(async () => expect(await listed()).not.toContain(await numberOf(expired)));
+    const policy = await db.awardPolicy.findUnique({ where: { organisationId } });
+    await db.awardPolicy.upsert({ where: { organisationId }, update: { indentValidityDays: null }, create: { organisationId, indentValidityDays: null } });
+    try {
+      expect(await listed()).toContain(await numberOf(expired));
+    } finally {
+      await db.awardPolicy.update({ where: { organisationId }, data: { indentValidityDays: policy?.indentValidityDays ?? null } });
+    }
   });
 });

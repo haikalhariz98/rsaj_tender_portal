@@ -13,10 +13,12 @@
  */
 
 import type { Tx } from "@/lib/audit/record";
-import { withLockedAwardFor, type LoadedAward } from "@/lib/award/repo";
+import { indentReturnLate } from "@/lib/award/indent";
+import { loadAwardPolicy, withLockedAwardFor, type LoadedAward } from "@/lib/award/repo";
 import { contractLabel, withLockedContract } from "@/lib/contract/repo";
 import { acceptOnCompleteReturn } from "@/lib/award/return-acceptance";
 import { withLockedSitting } from "@/lib/committee/sittings";
+import { dayOrNull } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { requisitionOfExercise, withLockedRequisitionForSourcing } from "@/lib/method/repo";
 import { lockDelegation } from "@/lib/people/lock";
@@ -58,7 +60,7 @@ export interface LockedOwner {
  * An award as a locked owner, from the award its caller has locked and loaded. The staff attach reaches it through `withLockedOwner`; the verify act of an online return
  * (ADR 0045 D1) builds it under its own lock, with `onlineReturnWaiting` false once it has marked the return verified, so both judge an attach on the same facts.
  */
-export function awardLockedOwner(l: LoadedAward, actor: AuditActor, overrides: { onlineReturnWaiting?: boolean } = {}): LockedOwner {
+export function awardLockedOwner(l: LoadedAward, actor: AuditActor, overrides: { onlineReturnWaiting?: boolean; indentLate?: { expiredOn: string; receivedOn: string } | null } = {}): LockedOwner {
   const a = l.award;
   // OD-5: an award accepted before scans were required has no scan snapshot.
   const facts: OwnerFacts = { ...awardFacts(a), ...overrides };
@@ -73,6 +75,18 @@ export function awardLockedOwner(l: LoadedAward, actor: AuditActor, overrides: {
     // OD-5, BD-12: the scan that completes the return accepts the award in the same act.
     afterChange: (tx) => acceptOnCompleteReturn(tx, actor, l),
   };
+}
+
+/**
+ * FR-AWD-006 (ruling B, 2026-10-24): an issued work indent whose stored received day is past its expiry, judged on that day, never today, with the validity as it stands now
+ * (it may have been set after the day was saved, or the day saved before the rule). Issued awards only: a correction to an accepted award attaches as before.
+ */
+async function indentLateOf(tx: Tx, l: LoadedAward): Promise<{ expiredOn: string; receivedOn: string } | null> {
+  const a = l.award;
+  const receivedOn = dayOrNull(a.awardReturn?.signedLetterReceivedOn);
+  if (a.status !== "ISSUED" || a.instrumentKind !== "WORK_INDENT" || !receivedOn) return null;
+  const expiredOn = indentReturnLate(dayOrNull(a.indentReceivedOn), (await loadAwardPolicy(l.org.id, tx)).indentValidityDays, receivedOn);
+  return expiredOn ? { expiredOn, receivedOn } : null;
 }
 
 /// Run `fn` with the owner locked, inside one transaction. Null when the owner does not exist.
@@ -120,7 +134,7 @@ export async function withLockedOwner<T>(scope: Reader, actor: AuditActor, ref: 
       });
     }
     case "award":
-      return withLockedAwardFor(scope, ref.id, (tx, l) => fn(tx, awardLockedOwner(l, actor)));
+      return withLockedAwardFor(scope, ref.id, async (tx, l) => fn(tx, awardLockedOwner(l, actor, { indentLate: await indentLateOf(tx, l) })));
     case "specificationPanel": {
       // 6.2: requisition, exercise, then the panel, as the scope actions lock it.
       const exerciseId = await exerciseOfPanel(scope.organisationId, ref.id);

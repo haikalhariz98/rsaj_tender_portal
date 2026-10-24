@@ -1,7 +1,11 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { parseSubmitBody } from "@/lib/award/online-return-api";
 import type { AwardCardView } from "@/lib/portal/projects/award-card";
 
 vi.mock("./award-return-drawer", () => ({
@@ -101,5 +105,13 @@ describe("the Questions card", () => {
     const closed = questions({ mayAsk: false, queries: [{ id: "q1", body: "Q", askedOn: "2026-10-21", answer: "A", answeredOn: "2026-10-22" }] });
     expect(closed).not.toContain("Ask a question");
     expect(closed).toContain(">A<");
+  });
+});
+
+describe("the signatory's error (Wave V review)", () => {
+  it("is read under the key the parser writes it to", () => {
+    const parsed = parseSubmitBody({ contractId: "c1", files: { ACCEPTANCE_PAGE: "v1" }, page: { signatoryContactId: "" }, password: "x" });
+    expect(parsed.ok || Object.keys(parsed.errors)).toContain("page.signatoryContactId");
+    expect(readFileSync(join(__dirname, "award-return-drawer.tsx"), "utf8")).toContain(`error={errors["page.signatoryContactId"]}`);
   });
 });

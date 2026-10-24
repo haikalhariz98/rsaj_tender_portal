@@ -77,7 +77,8 @@ export async function saveReturn(
     if (!receivedBy) errors.receivedByPersonId = "Choose someone on record and active.";
   }
   if (Object.keys(errors).length) return no({ ok: false, errors });
-  // FR-AWD-006 (product owner ruling, 2026-10-24): one refusal, here, for paper and online alike. Not in acceptOnCompleteReturn: a scan attached later accepts on a day judged here.
+  // FR-AWD-006 (product owner ruling, 2026-10-24): refused here as the day is saved, paper and online alike. A scan attached later is judged again on the stored day
+  // (`indentLateOf`, documents/owners.ts): the validity may have been set since, or the day saved before this rule.
   const receivedOn = v.signedLetterReceivedOn;
   if (a.instrumentKind === "WORK_INDENT" && receivedOn && (!correcting || receivedOn !== dayOrNull(a.awardReturn.signedLetterReceivedOn))) {
     const late = indentReturnLate(dayOrNull(a.indentReceivedOn), (await loadAwardPolicy(l.org.id, tx)).indentValidityDays, receivedOn);

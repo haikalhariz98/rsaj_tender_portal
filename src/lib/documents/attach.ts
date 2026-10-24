@@ -56,6 +56,8 @@ export type OwnerFacts =
       /// ADR 0045 D1 (WV-4): a return lodged online waits for an officer. Its scans are not mixed with paper ones: a return purpose is frozen until it is decided.
       /// Absent reads as none waiting.
       onlineReturnWaiting?: boolean;
+      /// FR-AWD-006 (ruling B, 2026-10-24): an issued work indent whose stored received day is past its expiry. Set by the staff attach under the award's lock; absent reads as not late.
+      indentLate?: { expiredOn: string; receivedOn: string } | null;
     }
   /// `ended` null: today cannot be told (no time zone set), so whether it has ended is not judged (66-C2).
   | { kind: "delegation"; ended: boolean | null }
@@ -246,6 +248,8 @@ export type AttachFault =
   | "SCHEDULE_IS_ONE_FILE"
   /// Go-live R4: a purpose that must be held PUBLIC meets a document held at another classification, or none. Its own words, not the "below" ones: a class is never lowered to fit.
   | "NOT_PUBLIC"
+  /// FR-AWD-006: the acceptance page of an indent received after it expired.
+  | "INDENT_EXPIRED"
   | "ALREADY_ATTACHED";
 
 /// Whether the purpose belongs on this owner at all.
@@ -526,6 +530,8 @@ export function attachFault(i: AttachInput): Finding<AttachFault>[] {
   const st = ownerState(i.purpose, i.owner);
   if (st.state === "NOT_READY") out.push({ code: "OWNER_NOT_READY", level: "block", data: exitData(st) });
   if (st.state === "FROZEN") out.push({ code: "OWNER_FROZEN", level: "block", data: exitData(st) });
+  // Attach only, not ownerState: taking a scan off or re-pinning it stays as it was.
+  if (i.owner.kind === "award" && i.owner.indentLate && RETURN_PURPOSES.WORK_INDENT.includes(i.purpose)) out.push({ code: "INDENT_EXPIRED", level: "block", data: { ...i.owner.indentLate } });
   if (i.version.withdrawnAt != null) out.push({ code: "VERSION_WITHDRAWN", level: "block" });
   const classification = i.documentClass ? (i.documentClassification === undefined ? i.documentClass.classification : i.documentClassification) : null;
   if (!i.documentClass) out.push({ code: "CLASS_NOT_SET", level: "block" });

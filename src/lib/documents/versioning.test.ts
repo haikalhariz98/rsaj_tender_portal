@@ -44,14 +44,20 @@ describe("versions are immutable: a correction is a new version", () => {
     expect(documentFaultText(withdrawFault({ withdrawnAt: null }, "x", kept)!)).toBe("This file is kept: a project document or an award return sent online holds it.");
   });
   it("only a live project pin holds a version: a detached one, or another purpose, holds nothing", () => {
-    expect(heldByProjectFile([{ purpose: "PROJECT_DOCUMENT_FILE", detachedAt: null }])).toBe(true);
-    expect(heldByProjectFile([{ purpose: "PROJECT_DOCUMENT_FILE", detachedAt: when }])).toBe(false);
+    const pin = (purpose: string, detachedAt: Date | null, awardOnlineReturnId: string | null = null) => ({ purpose, detachedAt, awardOnlineReturnId });
+    expect(heldByProjectFile([pin("PROJECT_DOCUMENT_FILE", null)])).toBe(true);
+    expect(heldByProjectFile([pin("PROJECT_DOCUMENT_FILE", when)])).toBe(false);
     // ADR 0045 D6: a supply claim's delivery order and invoice are project files too.
-    expect(heldByProjectFile([{ purpose: "DELIVERY_ORDER", detachedAt: null }])).toBe(true);
-    expect(heldByProjectFile([{ purpose: "SUPPLY_INVOICE", detachedAt: null }])).toBe(true);
-    expect(heldByProjectFile([{ purpose: "SUPPLY_INVOICE", detachedAt: when }])).toBe(false);
-    expect(heldByProjectFile([{ purpose: "PROGRAMME", detachedAt: null }, { purpose: "AS_BUILT", detachedAt: null }])).toBe(false);
+    expect(heldByProjectFile([pin("DELIVERY_ORDER", null)])).toBe(true);
+    expect(heldByProjectFile([pin("SUPPLY_INVOICE", null)])).toBe(true);
+    expect(heldByProjectFile([pin("SUPPLY_INVOICE", when)])).toBe(false);
+    expect(heldByProjectFile([pin("PROGRAMME", null), pin("AS_BUILT", null)])).toBe(false);
     expect(heldByProjectFile([])).toBe(false);
+  });
+  it("an online award return's scan is kept, live or detached (security review L1); the same purpose on the award alone is not", () => {
+    expect(heldByProjectFile([{ purpose: "DECLARATION", detachedAt: null, awardOnlineReturnId: "ret_1" }])).toBe(true);
+    expect(heldByProjectFile([{ purpose: "DECLARATION", detachedAt: when, awardOnlineReturnId: "ret_1" }])).toBe(true);
+    expect(heldByProjectFile([{ purpose: "DECLARATION", detachedAt: null, awardOnlineReturnId: null }])).toBe(false);
   });
 });
 

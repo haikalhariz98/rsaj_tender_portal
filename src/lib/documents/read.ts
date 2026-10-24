@@ -286,7 +286,7 @@ export async function documentDrawer(organisationId: string, documentId: string,
         byteSize: v.byteSize.toString(),
         download: decision.allow ? { allowed: true as const, href: `/api/documents/versions/${v.id}`, unscanned: asksBeforeOpening(v, scannerConfigured) } : { allowed: false as const, reason: DOWNLOAD_REFUSAL_TEXT[decision.reason].replace(/ The request was refused and logged\.$/, "") },
         accessEvents: v.accessEvents.map((e) => ({ id: e.id, kind: e.kind, at: e.at, reason: accessReasonText(e.reasonCode), by: e.actorPerson?.name ?? e.actorSystemLabel ?? null })),
-        attachments: v.attachments.map((a) => ({ id: a.id, purpose: a.purpose, attachedAt: a.attachedAt, detachedAt: a.detachedAt, detachReason: a.detachReason, owner: ownerLabel(a), href: hrefOf(a) })),
+        attachments: v.attachments.map((a) => ({ id: a.id, purpose: a.purpose, attachedAt: a.attachedAt, detachedAt: a.detachedAt, detachReason: a.detachReason, awardOnlineReturnId: a.awardOnlineReturnId, owner: ownerLabel(a), href: hrefOf(a) })),
       };
     }),
     holds: d.holds,

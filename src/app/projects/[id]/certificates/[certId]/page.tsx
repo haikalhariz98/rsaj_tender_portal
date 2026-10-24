@@ -70,6 +70,11 @@ const VARIATION_APPROVED_KINDS: readonly string[] = ["VARIATION_APPLICATION", "V
 
 import { AcknowledgeDrawer, CheckDrawer, ChooseRejectionDrawer, CorrectDateDrawer, DecideRouteStepDrawer, DespatchDrawer, FinancePaymentDrawer, OverrideDrawer, ReceivedDrawer, SendForApprovalDrawer, SendForRoutingDrawer, SendToSigningDrawer, SignatureDrawer, VoidDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { loadCase } from "@/app/_auth/case";
+import { CASE_HEADER_WORDS as H } from "@/lib/contract/case-page-words";
+import type { Words } from "@/lib/contract/labels";
+import { ENGLISH } from "@/lib/i18n/language";
+import { say } from "@/lib/i18n/say";
 import { sulitGate } from "@/app/_auth/sulit";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
 import type { Sulit } from "@/lib/auth/sulit-access";
@@ -96,6 +101,10 @@ const NOTE_ID = "certificate-action-note";
 export default async function CertificatePage(props: PageProps<"/projects/[id]/certificates/[certId]">) {
   const actor = await requireStaff();
   const [{ id, certId }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
+  const loaded = await loadCase(actor, id);
+  if (loaded.kind !== "CONTRACT") notFound();
+  const visibility = loaded.visibility;
+  const t = (words: Words) => say(words, ENGLISH);
   const l = await loadCertificate(actor.organisationId, certId);
   if (!l || l.contract.id !== id) notFound();
   const cert = l.cert;
@@ -193,7 +202,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
       <PageHeader
         title={cert.number ? `${kind} ${cert.number}` : kind}
         badge={<Badge tone={TONE[STATUS_TONE[status]]} dot>{STATUS_WORDS[status].en}</Badge>}
-        subtitle={l.ex.title}
+        subtitle={visibility === "WHOLE" ? l.ex.title : t(H.titleRestricted)}
         meta={[
           cert.number ? `Number ${cert.number}` : CERT_WORDS.numberOnIssue.en,
           cert.sequence ? `${kind} ${cert.sequence} on this contract` : null,

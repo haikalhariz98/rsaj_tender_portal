@@ -74,3 +74,17 @@ describe("the case header (L8)", () => {
     expect(page).not.toMatch(/subtitle=\{ex\.title\}/);
   });
 });
+
+describe("the certificate header (L8, product owner ruling A of 2026-10-24)", () => {
+  const page = readFileSync(join(__dirname, "[id]", "certificates", "[certId]", "page.tsx"), "utf8");
+
+  it("shows the exercise title in the subtitle only to a reader who sees the whole case, read as the case page reads it", () => {
+    expect(page).toContain("const loaded = await loadCase(actor, id);");
+    expect(page).toContain(`subtitle={visibility === "WHOLE" ? l.ex.title : t(H.titleRestricted)}`);
+    expect(page).not.toMatch(/subtitle=\{l\.ex\.title\}/);
+  });
+
+  it("keeps the real title on the Print sheet: the issue act renders the title from the record", () => {
+    expect(page).toContain("contract: { number: l.contract.number, title: l.ex.title, contractorName: l.award.awardeeName }");
+  });
+});

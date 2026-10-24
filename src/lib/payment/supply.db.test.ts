@@ -201,7 +201,7 @@ describe("a supply claim from delivery order to payment (worked example)", () =>
     // The contractor downloads its own delivery order, and the store keeps it as a project file.
     expect(await findProjectFile(db, c.actor, files[0]!.id)).toMatchObject({ ok: true });
     const kept = await as(p.so, () => withdrawVersion({ ok: false }, form({ versionId: files[0]!.versionId, reason: "Wrong file." })));
-    expect(kept).toMatchObject({ ok: false, message: expect.stringMatching(/project file is kept/) });
+    expect(kept).toMatchObject({ ok: false, message: expect.stringMatching(/This file is kept/) });
     expect(await claimsOf(contractId)).toMatchObject([{ documentId, invoiceNo: "INV-2026-0042", state: "WITH_ORGANISATION", stateLabel: `With ${ORG_NAME}`, payment: null, payable: false }]);
 
     // Returned with remarks: the contractor sends Version 2, which must carry both files again.

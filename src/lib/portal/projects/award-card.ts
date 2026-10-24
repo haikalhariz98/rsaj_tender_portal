@@ -27,7 +27,8 @@ export function acceptGate(f: { classSet: boolean; today: string | null; paperSt
 }
 
 /// An issued award with no return waiting and none accepted: what the contractor still has to do. One rule for the card, the project list's chip and the portal home.
-export const toAccept = (awardStatus: string, state: OnlineReturnState): boolean => awardStatus === "ISSUED" && state !== "WAITING" && state !== "VERIFIED";
+/// FR-AWD-006: an expired indent is not to accept (the card's EXPIRED arm); `indentExpired` is the card's reading (`indentState`), so a validity not set is not expired.
+export const toAccept = (awardStatus: string, state: OnlineReturnState, indentExpired: boolean): boolean => awardStatus === "ISSUED" && state !== "WAITING" && state !== "VERIFIED" && !indentExpired;
 
 export const commitmentLine = (kind: string | null, no: string | null): string | null => (no ? `${kind === "PURCHASE_ORDER" ? "Purchase order" : kind === "INDENT" ? "Indent" : "Commitment"} ${no}` : null);
 

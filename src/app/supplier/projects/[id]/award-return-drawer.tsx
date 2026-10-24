@@ -103,7 +103,7 @@ export function AcceptDrawer({ contractId, token, form }: Common & { form: Accep
           ))}
           {form.isIndent && (
             <>
-              <Field label="Signatory" htmlFor={`${f}-signatory`} required error={errors["page.signatoryName"]}>
+              <Field label="Signatory" htmlFor={`${f}-signatory`} required error={errors["page.signatoryContactId"]}>
                 <Select id={`${f}-signatory`} value={v.signatoryId} onChange={(e) => setV((x) => chooseSignatory(form, x, e.target.value))}>
                   {form.signatories.map((s) => (
                     <Option key={s.id} value={s.id}>{s.name}</Option>

@@ -10,6 +10,7 @@ import { dayOf, dayOrNull, storedDay } from "@/lib/dates";
 import { awardReturnClassFault } from "@/lib/documents/award-return-class";
 import { isLive } from "@/lib/documents/evidence";
 import { loadStorePolicy } from "@/lib/documents/service";
+import { exerciseOrg } from "@/lib/method/repo";
 import { inOrder } from "@/lib/series";
 
 import { awardCardView, toAccept, type AwardCardView } from "./award-card";
@@ -108,7 +109,12 @@ export async function contractsToAccept(client: Tx, actor: Pick<SupplierActor, "
   const rows = await client.contract.findMany({
     where: { organisationId: actor.organisationId, award: { vendorId: actor.supplierId, status: { in: [...STANDING_AWARD] } } },
     orderBy: [{ numberedOn: "desc" }, { number: "asc" }],
-    select: { id: true, number: true, award: { select: { status: true, onlineReturns: { select: { submittedAt: true, verifiedAt: true, refusedAt: true } } } } },
+    select: { id: true, number: true, award: { select: { status: true, instrumentKind: true, indentReceivedOn: true, onlineReturns: { select: { submittedAt: true, verifiedAt: true, refusedAt: true } } } } },
   });
-  return rows.filter((r) => toAccept(r.award.status, onlineReturnState(r.award.onlineReturns))).map((r) => ({ id: r.id, number: r.number }));
+  // FR-AWD-006: an expired indent by the card's own reading (`loadAwardCard`), read only where there is an indent.
+  const indents = rows.some((r) => r.award.instrumentKind === "WORK_INDENT");
+  const today = indents ? (await exerciseOrg(actor.organisationId, client))?.today : null;
+  const validity = today ? (await loadAwardPolicy(actor.organisationId, client)).indentValidityDays : null;
+  const expired = (a: (typeof rows)[number]["award"]) => a.instrumentKind === "WORK_INDENT" && !!today && indentState(dayOrNull(a.indentReceivedOn), validity, today).state === "EXPIRED";
+  return rows.filter((r) => toAccept(r.award.status, onlineReturnState(r.award.onlineReturns), expired(r.award))).map((r) => ({ id: r.id, number: r.number }));
 }

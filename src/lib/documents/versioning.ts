@@ -44,5 +44,7 @@ export function withdrawFault(version: Pick<VersionFact, "withdrawnAt">, reason:
 }
 
 /// Whether a version is held by a live project file: an attachment of a project version's purpose (PROJECT_DOCUMENT_FILE, or a supply claim's delivery order or invoice,
-/// ADR 0045 D6) that is not detached. A detached pin holds nothing. Keyed on the owner, as trigger PA047 is.
-export const heldByProjectFile = (attachments: readonly { purpose: string; detachedAt: Date | null }[]): boolean => attachments.some((a) => PURPOSE_OWNER[a.purpose as AttachmentPurpose] === "projectDocumentVersion" && a.detachedAt == null);
+/// ADR 0045 D6) that is not detached. A detached pin holds nothing. Keyed on the owner, as trigger PA047 is. The scans of an online award return are kept too, waiting or
+/// decided, detached or not (security review L1): one rule for the drawer and the withdraw act.
+export const heldByProjectFile = (attachments: readonly { purpose: string; detachedAt: Date | null; awardOnlineReturnId: string | null }[]): boolean =>
+  attachments.some((a) => a.awardOnlineReturnId != null || (PURPOSE_OWNER[a.purpose as AttachmentPurpose] === "projectDocumentVersion" && a.detachedAt == null));

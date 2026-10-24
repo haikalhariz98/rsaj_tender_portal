@@ -37,11 +37,14 @@ describe("the gate on Accept", () => {
 
 describe("what waits for the contractor to accept", () => {
   it("an issued award with nothing waiting and nothing accepted", () => {
-    expect(toAccept("ISSUED", "NONE")).toBe(true);
-    expect(toAccept("ISSUED", "REFUSED")).toBe(true);
-    expect(toAccept("ISSUED", "WAITING")).toBe(false);
-    expect(toAccept("ISSUED", "VERIFIED")).toBe(false);
-    expect(toAccept("ACCEPTED", "NONE")).toBe(false);
+    expect(toAccept("ISSUED", "NONE", false)).toBe(true);
+    expect(toAccept("ISSUED", "REFUSED", false)).toBe(true);
+    expect(toAccept("ISSUED", "WAITING", false)).toBe(false);
+    expect(toAccept("ISSUED", "VERIFIED", false)).toBe(false);
+    expect(toAccept("ACCEPTED", "NONE", false)).toBe(false);
+    // FR-AWD-006: an expired indent is the card's EXPIRED arm, not something to accept.
+    expect(toAccept("ISSUED", "NONE", true)).toBe(false);
+    expect(toAccept("ISSUED", "REFUSED", true)).toBe(false);
   });
 });
 

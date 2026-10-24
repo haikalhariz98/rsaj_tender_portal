@@ -6,6 +6,7 @@
 
 import { actStatusFault, actStatusText, type ContractAct } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
+import { indentLateWords } from "@/lib/award/indent";
 import { formatDate } from "@/lib/format";
 
 import type { OwnerExit, Reliance } from "./attach";
@@ -431,6 +432,8 @@ export function documentFaultText(f: Finding): string {
       return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} is kept ${classificationLabel(d.required as SecurityClass)}, and this document is ${d.classification ? classificationLabel(d.classification as SecurityClass) : "not classified"}. Raise its classification to ${classificationLabel(d.required as SecurityClass)} on the document, or upload it again under a class classified ${classificationLabel(d.required as SecurityClass)}.`;
     case "ALREADY_ATTACHED":
       return "That document is already attached here.";
+    case "INDENT_EXPIRED":
+      return indentLateWords(String(d.expiredOn), String(d.receivedOn), true);
     case "NOT_PUBLIC":
       return `${PURPOSE_LABEL[d.purpose as AttachmentPurpose] ?? "That kind of document"} is read by the public, so its document must be Public, and this one is ${d.classification ? classificationLabel(d.classification as SecurityClass) : "not classified"}. A classification is never lowered. Upload the file again under a Public class.`;
     case "SCHEDULE_IS_ONE_FILE":

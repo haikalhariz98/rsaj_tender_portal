@@ -21,7 +21,7 @@ import { attachTargetsOf, documentDrawer, ownerPanel, TARGET_CAP, uploadContext 
 import { documentOrg, lockDocument, LOCKED_VERSION_SELECT, logAccess } from "@/lib/documents/service";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
 import { ATTACHMENT_PURPOSES, OWNER_COLUMN, OWNER_KINDS, SECURITY_CLASSES, type Finding } from "@/lib/documents/types";
-import { withdrawFault } from "@/lib/documents/versioning";
+import { heldByProjectFile, withdrawFault } from "@/lib/documents/versioning";
 import { loadAttributions } from "@/lib/auth/attribution-read";
 import { drawerAttributionQueries, drawerView, panelAttributionQueries, panelView, type DrawerView, type PanelOptions, type PanelView } from "@/lib/documents/views";
 import { db } from "@/lib/db";
@@ -210,11 +210,9 @@ export async function withdrawVersion(_prev: FormState, data: FormData): Promise
   if (!v0) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
   return inDocument(actor, v0.documentId, async (tx, orgId) => {
     const v = await tx.documentVersion.findFirstOrThrow({ where: { id: versionId, organisationId: orgId }, include: { document: { select: { title: true } } } });
-    // Read under the document's lock (`inDocument`): a project pin committed while this act waited is seen (trigger PA047 is the backstop).
-    // Keyed on the project version owner, as PA047 is: a supply claim's delivery order and invoice are project files too (ADR 0045 D6). The scans of an online award return,
-    // waiting or decided, are kept as well (security review L1).
-    const heldByProjectFile = (await tx.documentAttachment.count({ where: { versionId: v.id, organisationId: orgId, OR: [{ projectDocumentVersionId: { not: null }, detachedAt: null }, { awardOnlineReturnId: { not: null } }] } })) > 0;
-    const f = withdrawFault(v, reason, { heldByProjectFile });
+    // Read under the document's lock (`inDocument`): a project pin committed while this act waited is seen (trigger PA047 is the backstop). The drawer's rule (`heldByProjectFile`).
+    const pins = await tx.documentAttachment.findMany({ where: { versionId: v.id, organisationId: orgId }, select: { purpose: true, detachedAt: true, awardOnlineReturnId: true } });
+    const f = withdrawFault(v, reason, { heldByProjectFile: heldByProjectFile(pins) });
     if (f) return f.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: documentFaultText(f) } } : refuse([f]);
     await tx.documentVersion.update({ where: { id: v.id, organisationId: actor.organisationId }, data: { withdrawnAt: new Date(), withdrawnReason: reason } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "DocumentVersion", entityId: v.id, entityLabel: `${docLabel(v.document.title)} · version ${v.versionNo}`, reason }, "UPDATE", versionWithdrawn({ versionNo: v.versionNo, reason }));
