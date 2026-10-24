@@ -14,6 +14,8 @@ Founder, 2026-10-04 (chat): "let skip part b acceptance and bundle and 6.16 and 
 | 6.16 Contractor performance | Moved after go-live by the founder. Contracts close without a performance report until it is built, and say so on screen (BD-613-86, OD-B18). | `plans/6.16-contractor-performance.md` |
 | 6.17 Reporting | Removed by the founder 2026-10-04 (aac3495). Listed here only so it is not forgotten. | `plans/6.17-reporting.md` (marked out of scope) |
 | 6.13 Part B acceptance, bundle and screenshots | Skipped by the founder to speed up 6.13. Part B is reviewed once per run instead. | decisions log, 6.13 Part B entries |
+| Reporting dashboard (FR-RPT-001 to FR-RPT-012, including the Must case extract FR-RPT-010) | Deferred by the founder 2026-10-24 until RSAJ supplies full reporting requirements. Direction: the product's own dashboard, Power BI-like but not a Power BI integration, over budget, pipeline, requisitions and others. No Reports menu item until then (SP-12). | ADR 0044 D7; `plans/step7-plan.md` ST-14, ST-16; `plans/6.17-reporting.md` (earlier plan, for reference) |
+| Email through Microsoft Entra ID and Outlook (INT-09 and the email-dependent FRs) | Deferred by the founder 2026-10-24: no SMTP; later an Entra and Outlook (Microsoft Graph) integration behind a mail façade, links into the portal only, never approve-by-email. The inbox and portal notices are the channel until then. RSAJ to confirm its mail platform: the specification (§9.1) says Zimbra. | ADR 0044 D6; `plans/step7-plan.md` ST-15 |
 
 ## From the build
 
