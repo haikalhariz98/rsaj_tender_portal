@@ -1,22 +1,19 @@
 import { ClipboardIcon, PlusIcon } from "@/components/icons";
-import { DataList, type Row } from "@/components/data-list";
+import { DataList } from "@/components/data-list";
 import { ButtonLink } from "@/components/ui/button";
-import { Card, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusCounts } from "@/components/ui/status-counts";
-import { formatDate } from "@/lib/format";
-import { STATUS_LABEL, STATUS_ORDER, STATUS_TONE } from "@/lib/requisition/labels";
-import { listRequisitions, REQUISITIONS_PAGE } from "@/lib/requisition/repo";
-import { SENT_BACK_LABEL } from "@/lib/requisition/sent-back";
+import { listRequisitions, REQUISITION_VIEWS, type RequisitionView } from "@/lib/requisition/repo";
 import { requireStaff } from "@/app/_auth/actor";
-import { sulitGates } from "@/app/_auth/sulit";
-import { sulitCell } from "@/components/sulit-cell";
+import { LIST_EXPORT_MAX_ROWS, listHref, parseListQuery, sortKeys } from "@/lib/list-query";
+import { serverMode } from "@/components/server-list";
+
+import { buildRequisitionRows } from "./rows";
 
 export const metadata = { title: "Requisitions" };
 export const dynamic = "force-dynamic";
-
-const TONE = { neutral: undefined, brand: "brand", ok: "ok", warn: "warn", err: "err", info: "info" } as const;
 
 /**
  * Requisitions raised in the portal. Receiving one typed in from the finance system was removed
@@ -27,39 +24,11 @@ const TONE = { neutral: undefined, brand: "brand", ok: "ok", warn: "warn", err: 
  */
 export default async function RequisitionsPage(props: PageProps<"/requisitions">) {
   const actor = await requireStaff();
-  const query = (await props.searchParams) as { page?: string; view?: string };
-  const page = Math.max(0, Number.parseInt(query.page ?? "0", 10) || 0);
-  const { org, rows, total, counts } = await listRequisitions(actor.organisationId, page);
-
-  // The department estimate is SULIT: a requisition keeps no list of who is named, so only the organisation-wide permission opens it (undecided until decided).
-  // Judged for each row and logged, as a record's own page would; a withheld cell carries no figure and no sort key.
-  const gates = await sulitGates(actor, rows.map((r) => ({ scope: "requisition" as const, entity: "Requisition", id: r.id, label: r.reference })), ["estimatedValue"], { list: true });
-  const list: Row[] = rows.map((r) => {
-    const erp = r.erpRequisitionNo ?? null;
-    const statusText = r.sentBack ? SENT_BACK_LABEL : STATUS_LABEL[r.status];
-    const statusTone = r.sentBack ? "warn" : STATUS_TONE[r.status];
-    return {
-      id: r.id,
-      views: [
-        ...(r.status === "PENDING_APPROVAL" ? ["pending"] : []),
-        ...(r.status === "DRAFT" || r.status === "RETURNED" || r.status === "RECALLED" ? ["drafts"] : []),
-        ...(r.status === "OVER_BUDGET" ? ["over"] : []),
-      ],
-      // A finance-system number finds the requisition, as its own reference does.
-      search: [r.title, r.reference, r.erpRequisitionNo, r.erpNoteNo, r.requesterName, r.unitName, r.routeName, statusText].filter(Boolean).join(" "),
-      sortKeys: { ...(gates.get(r.id)?.state === "GRANTED" ? { value: r.estimatedValue } : {}), required: r.dateRequired.getTime(), title: r.title },
-      cells: {
-        title: { kind: "link", text: r.title, href: `/requisitions/${r.id}`, sub: erp ? `${erp} · ${r.reference}` : r.reference },
-        funding: { kind: "text", text: r.routeName ?? "Funding route not set" },
-        value: sulitCell(gates.get(r.id)!, () => ({ kind: "money", value: r.estimatedValue })),
-        status: { kind: "badge", text: statusText, tone: TONE[statusTone] },
-        // Founder, 2026-10-04: who asked, and for which department, in place of the checks
-        // column. The budget check stays on the requisition's own Checks tab.
-        requester: { kind: "stack", title: r.requesterName, sub: r.unitName },
-        required: { kind: "text", text: formatDate(r.dateRequired) },
-      },
-    };
-  });
+  const q = parseListQuery((await props.searchParams) as Record<string, string | string[] | undefined>, REQUISITION_VIEWS, sortKeys("requisition"));
+  const { org, rows, total, page, counts } = await listRequisitions(actor.organisationId, q);
+  const list = await buildRequisitionRows(actor, rows, { forExport: false });
+  const view = (v: RequisitionView | null) => listHref("/requisitions", { q: q.q, view: v, sort: q.sort, dir: q.dir, size: q.size });
+  const over = total > LIST_EXPORT_MAX_ROWS;
 
   return (
     <>
@@ -80,9 +49,10 @@ export default async function RequisitionsPage(props: PageProps<"/requisitions">
         label="Where requisitions stand"
         className="mb-6"
         items={[
-          { label: "Open", count: counts.open, href: "/requisitions", active: !query.view },
-          { label: "Pending approval", count: counts.pending, href: "/requisitions?view=pending", tone: "info", active: query.view === "pending" },
-          { label: "Over budget", count: counts.overBudget, href: "/requisitions?view=over", tone: "warn", active: query.view === "over" },
+          { label: "Open", count: counts.open, href: view(null), active: !q.view },
+          { label: "Pending approval", count: counts.pending, href: view("pending"), tone: "info", active: q.view === "pending" },
+          { label: "Drafts", count: counts.drafts, href: view("drafts"), active: q.view === "drafts" },
+          { label: "Over budget", count: counts.overBudget, href: view("over"), tone: "warn", active: q.view === "over" },
         ]}
       />
 
@@ -108,39 +78,22 @@ export default async function RequisitionsPage(props: PageProps<"/requisitions">
         <DataList
           flat
           selectable={false}
-          initialView={query.view}
           exportName="requisitions"
           searchPlaceholder="Search by title or number"
           emptyTitle="No requisitions yet"
-          views={[
-            { id: "pending", label: "Pending approval" },
-            { id: "drafts", label: "Drafts" },
-            { id: "over", label: "Over budget" },
-          ]}
-          filters={[{ key: "status", label: "Status", order: [SENT_BACK_LABEL, ...STATUS_ORDER.map((s) => STATUS_LABEL[s])] }]}
           rowAction={{ label: "Open", hrefTemplate: "/requisitions/{id}" }}
           rowOpens
           columns={[
-            { key: "title", label: "Requisition", sortable: true, mobile: "primary" },
+            { key: "title", label: "Requisition", mobile: "primary" },
             { key: "funding", label: "Funding", width: "16%", hideBelow: "2xl" },
-            { key: "value", label: "Value", width: "120px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
-            { key: "status", label: "Status", width: "208px", sortable: true, mobile: "meta" },
+            { key: "value", label: "Value", width: "120px", numeric: true, sulit: true, mobile: "meta" },
+            { key: "status", label: "Status", width: "208px", mobile: "meta" },
             { key: "requester", label: "Requester and department", width: "20%", hideBelow: "md", mobile: "meta" },
-            { key: "required", label: "Required by", width: "112px", sortable: true, hideBelow: "2xl", mobile: "meta" },
+            { key: "required", label: "Required by", width: "112px", hideBelow: "2xl", mobile: "meta" },
           ]}
           rows={list}
+          server={serverMode("/requisitions", q, { total, page, sortColumns: { title: "title" }, exportBlocked: over ? "This view cannot be exported" : undefined })}
         />
-        {total > REQUISITIONS_PAGE && (
-          <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
-            <span>
-              {page * REQUISITIONS_PAGE + 1} to {Math.min(total, (page + 1) * REQUISITIONS_PAGE)} of {total}
-            </span>
-            <span className="flex gap-2">
-              {page > 0 && <ButtonLink href={page > 1 ? `/requisitions?page=${page - 1}` : "/requisitions"} size="sm" variant="ghost">Previous</ButtonLink>}
-              {(page + 1) * REQUISITIONS_PAGE < total && <ButtonLink href={`/requisitions?page=${page + 1}`} size="sm" variant="ghost">Next</ButtonLink>}
-            </span>
-          </CardFooter>
-        )}
       </Card>
     </>
   );

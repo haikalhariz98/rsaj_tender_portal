@@ -25,10 +25,14 @@ describe("the screens that say it ask the helper", () => {
   const read = (p: string) => readFileSync(path.join(process.cwd(), ...p.split("/")), "utf8");
 
   it("the sourcing list's chip, view membership, header count and view text all go through it", () => {
+    // 7.3: the chip is built in rows.ts (the page and the export share it); the page judges the whole boundary set for its count and view.
+    const rows = read("src/app/sourcing/rows.ts");
+    expect(rows).toMatch(/boundaryShown\(r\.onBoundary, values\.get\(r\.id\)\?\.state === "GRANTED"\)/);
+    // The raw flag is read once only, by the helper (with the reader's gate).
+    expect(rows.split("r.onBoundary").length - 1).toBe(1);
     const src = read("src/app/sourcing/page.tsx");
-    expect(src).toMatch(/const onBoundary = \(r: \(typeof rows\)\[number\]\) => boundaryShown\(r\.onBoundary, values\.get\(r\.id\)\?\.state === "GRANTED"\)/);
-    // The raw flag is read once only, by the helper (with the reader's gate); the header counts the boundary set it was given.
-    expect(src.match(/\br\.onBoundary\b/g)).toHaveLength(1);
+    expect(src).not.toContain("r.onBoundary");
+    expect(src).toMatch(/state === "GRANTED"/);
     expect(src).toMatch(/boundaryCountNote\(/);
     expect(src).toMatch(/about: BOUNDARY_VIEW_ABOUT/);
   });

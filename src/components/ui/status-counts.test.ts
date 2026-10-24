@@ -23,4 +23,9 @@ describe("StatusCounts (plan 6.1)", () => {
   it("draws nothing at all when every count is zero", () => {
     expect(render([{ label: "Sent back", count: 0, href: "?x" }])).toBe("");
   });
+  it("keeps the view being shown at zero, so a reader on an empty view sees where they are", () => {
+    const out = render([{ label: "Open", count: 4, href: "?x" }, { label: "Drafts", count: 0, href: "?view=drafts", active: true }, { label: "Sent back", count: 0, href: "?view=back" }]);
+    expect(out).toContain("Drafts");
+    expect(out).not.toContain("Sent back");
+  });
 });

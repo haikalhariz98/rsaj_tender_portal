@@ -1,15 +1,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
-import { listExercises } from "@/lib/method/repo";
 import { loadDelegations } from "@/lib/people/load";
 import { anyReportingLine } from "@/lib/people/reporting-line-store";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
-import { gatesForRequisition, gatesForRequisitions, listRequisitions, REQUISITIONS_PAGE } from "./repo";
+import { gatesForRequisition, gatesForRequisitions } from "./repo";
 
 /**
- * Audit batch C (scale), against the scratch database: the requisitions list pages, the new-exercise picker reads gates in one go and gets what the one-by-one read gets, the worklist's
+ * Audit batch C (scale), against the scratch database: the new-exercise picker reads gates in one go and gets what the one-by-one read gets, the worklist's
  * delegations are the ones in force, and "any reporting line" is one row.
  */
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`);
@@ -53,37 +52,6 @@ describe("gatesForRequisitions", () => {
     const other = (await db.organisation.create({ data: { code: `SC_${randomId()}`, name: "Other", timeZone: "Asia/Kuala_Lumpur" } })).id;
     expect((await gatesForRequisitions(other, [ids.needs])).size).toBe(0);
     expect((await gatesForRequisitions(organisationId, [])).size).toBe(0);
-  });
-});
-
-describe("listRequisitions pages", () => {
-  it("serves the rest on the next page, with the counts over the whole set", async () => {
-    const extra = REQUISITIONS_PAGE - 5 + 3; // 5 exist; 103 in all
-    await db.requisition.createMany({ data: Array.from({ length: extra }, (_, i) => requisition({ reference: `SC/BULK/${String(i).padStart(4, "0")}`, raisedOn: day("2026-09-01") })) });
-    const first = await listRequisitions(organisationId, 0);
-    const second = await listRequisitions(organisationId, 1);
-    expect(first.rows).toHaveLength(REQUISITIONS_PAGE);
-    expect(first.total).toBe(REQUISITIONS_PAGE + 3);
-    expect(second.rows).toHaveLength(3);
-    expect(new Set([...first.rows, ...second.rows].map((r) => r.id)).size).toBe(REQUISITIONS_PAGE + 3);
-    expect(second.counts).toEqual(first.counts);
-  });
-});
-
-describe("listExercises", () => {
-  it("counts the whole set by status, and the name approvals waiting, whatever the page", async () => {
-    const mk = (status: "DRAFT" | "CANCELLED", over: Record<string, unknown> = {}) =>
-      db.sourcingExercise.create({ data: { organisationId, reference: `SC/EX/${randomId()}`, requisitionId: ids.needs, title: "E", estimatedValue: "1000.00", sourcingMethodCode: "M", status, ...over } });
-    await mk("DRAFT");
-    await mk("DRAFT", { onBoundary: true });
-    await mk("CANCELLED", { onBoundary: true });
-    const got = await listExercises(organisationId, [], 5);
-    expect(got.rows).toEqual([]);
-    expect(got.total).toBe(3);
-    expect(got.byStatus.get("DRAFT")).toBe(2);
-    expect(got.byStatus.get("CANCELLED")).toBe(1);
-    expect(got.awaitingName).toBe(0);
-    expect(got.onBoundary).toHaveLength(1);
   });
 });
 

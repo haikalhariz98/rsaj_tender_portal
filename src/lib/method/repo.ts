@@ -5,6 +5,10 @@
  * own transaction, so a sibling-sum check and the write it guards see the same data.
  */
 
+import type { Prisma } from "@/generated/prisma/client";
+import { LIST_EXPORT_MAX_ROWS, listOrderBy, type ListQuery } from "@/lib/list-query";
+import { wordsWhere } from "@/lib/search/words";
+import { isPublished } from "@/lib/window/phase";
 import { SEALED_AUDIT_ENTITIES } from "@/lib/bids/online/audit-mask";
 import { exerciseNotHidden, refuseHiddenExercise, type Reader } from "@/lib/auth/sulit-store";
 import { routedValue } from "@/lib/approvals/routed-value";
@@ -24,7 +28,7 @@ import { byValue } from "./bands";
 import { EXERCISE_ROUTES_WHERE, type FunderContext } from "./approval";
 import type { EvaluationContext, ExerciseDraft, MethodConfig } from "./evaluate";
 import { classificationTaxonomies } from "./taxonomy";
-import { NAME_APPROVAL_DOMAIN, type ContractTypeRow, type DeliverableKind, type ExerciseStatus, type Method, type TermsBand } from "./types";
+import { EXERCISE_STATUSES, NAME_APPROVAL_DOMAIN, type ContractTypeRow, type DeliverableKind, type ExerciseStatus, type Method, type TermsBand } from "./types";
 import type { ApprovedRoute } from "./value";
 import { inOrder } from "@/lib/series";
 
@@ -253,32 +257,86 @@ export async function evaluationContext(
   return { issue, cfg, ctx, on };
 }
 
-export const EXERCISES_PAGE = 100;
+/// The list's own views (ST-8). The first five are a status set or a pending route and are answered by the database; `open`, `soon` and `boundary` are judged
+/// (from stored instants and the reader's SULIT grant) by `judgedViewIds` in `src/app/sourcing/rows.ts`, over the candidates `exerciseCandidates` loads.
+export const EXERCISE_VIEWS = ["drafts", "preparing", "approval", "published", "open", "soon", "name", "boundary"] as const;
+export type ExerciseView = (typeof EXERCISE_VIEWS)[number];
+export type JudgedView = "open" | "soon" | "boundary";
+export const isJudgedView = (v: ExerciseView | null): v is JudgedView => v === "open" || v === "soon" || v === "boundary";
 
-/// `hidden`: the restricted exercises the reader may not see (`hiddenExercises`, FR-MTD-007). They are left out of the rows and of the count, so
-/// neither the list nor its page count gives away that one exists. A caller says so with `[]` rather than leaving it out.
-/// One `page` (from 0) of EXERCISES_PAGE rows; `byStatus`, `awaitingName` and `onBoundary` (the not-cancelled exercises on the boundary: few, so all of them) are over the whole set, for the header.
-export async function listExercises(organisationId: string, hidden: readonly string[], page = 0) {
+/// The statuses of a published exercise, from the one rule that says so.
+export const PUBLISHED_STATUSES = EXERCISE_STATUSES.filter(isPublished);
+/// A pending name-approval route (the same where the header's count uses).
+const AWAITING_NAME = { status: { not: "CANCELLED" as const }, approvalInstances: { some: { awardId: null, domain: NAME_APPROVAL_DOMAIN, status: "PENDING" as const } } };
+
+/// What a view adds to the where. The judged views get a superset (published, or on the boundary and not cancelled); `judgedViewIds` narrows it.
+function viewWhere(view: ExerciseView | null): Prisma.SourcingExerciseWhereInput {
+  switch (view) {
+    case "drafts": return { status: "DRAFT" };
+    case "preparing": return { status: "DOCUMENTS_IN_PREPARATION" };
+    case "approval": return { status: "PENDING_APPROVAL_FOR_TENDERING" };
+    case "published": case "open": case "soon": return { status: { in: PUBLISHED_STATUSES } };
+    case "name": return AWAITING_NAME;
+    case "boundary": return { onBoundary: true, status: { not: "CANCELLED" } };
+    default: return {};
+  }
+}
+
+/// The list's where: the organisation, the restricted exercises left out (FR-MTD-007), the search words and the view. Never a bare `onBoundary: true` for a count: see `exerciseListFacts`.
+export const exerciseListWhere = (organisationId: string, hidden: readonly string[], q: Pick<ListQuery<ExerciseView>, "words" | "view">): Prisma.SourcingExerciseWhereInput => ({
+  AND: [{ organisationId }, exerciseNotHidden(hidden), wordsWhere("exercise", q.words), viewWhere(q.view)],
+});
+
+/// What the header reads, over the whole set and never the page (`hidden`: the restricted exercises the reader may not see, left out so neither the list nor its count gives away that one exists):
+/// the count by status, the name approvals waiting, the not-cancelled exercises on the boundary (few, so all of them; the caller judges them for the reader), and the ids of the published ones, for the open and closing-soon counts.
+export async function exerciseListFacts(organisationId: string, hidden: readonly string[]) {
   const org = await exerciseOrg(organisationId);
-  if (!org) return { org: null, rows: [], total: 0, byStatus: new Map<string, number>(), awaitingName: 0, onBoundary: [] as { id: string; reference: string; estimatedValue: { toString(): string } }[] };
+  if (!org) return { org: null, byStatus: new Map<string, number>(), awaitingName: 0, onBoundary: [] as { id: string; reference: string; estimatedValue: { toString(): string } }[], publishedIds: [] as string[] };
   const where = { organisationId: org.id, ...exerciseNotHidden(hidden) };
-  const [rows, total, statuses, awaitingName, onBoundary] = await Promise.all([
-    db.sourcingExercise.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }, { reference: "desc" }],
-      skip: page * EXERCISES_PAGE,
-      take: EXERCISES_PAGE,
-      include: {
-        requisition: { select: { id: true, reference: true, erpRequisitionNo: true } },
-        approvalInstances: { where: EXERCISE_ROUTES_WHERE, select: { status: true, openedAt: true, domain: true, awardId: true } },
-      },
-    }),
-    db.sourcingExercise.count({ where }),
+  const [statuses, awaitingName, onBoundary, published] = await Promise.all([
     db.sourcingExercise.groupBy({ by: ["status"], where, _count: { _all: true } }),
-    db.sourcingExercise.count({ where: { ...where, status: { not: "CANCELLED" }, approvalInstances: { some: { awardId: null, domain: NAME_APPROVAL_DOMAIN, status: "PENDING" } } } }),
+    db.sourcingExercise.count({ where: { ...where, ...AWAITING_NAME } }),
     db.sourcingExercise.findMany({ where: { ...where, onBoundary: true, status: { not: "CANCELLED" } }, select: { id: true, reference: true, estimatedValue: true } }),
+    db.sourcingExercise.findMany({ where: { ...where, status: { in: PUBLISHED_STATUSES } }, select: { id: true } }),
   ]);
-  return { org, rows, total, byStatus: new Map(statuses.map((s) => [s.status as string, s._count._all])), awaitingName, onBoundary };
+  return { org, byStatus: new Map(statuses.map((s) => [s.status as string, s._count._all])), awaitingName, onBoundary, publishedIds: published.map((p) => p.id) };
+}
+
+/// The candidates of a judged view under the search, in the list's order (ST-7), ids and what judging needs only. The judgement is not here.
+export async function exerciseCandidates(organisationId: string, hidden: readonly string[], q: ListQuery<ExerciseView>) {
+  return db.sourcingExercise.findMany({
+    where: exerciseListWhere(organisationId, hidden, q),
+    orderBy: listOrderBy("exercise", q),
+    select: { id: true, reference: true, estimatedValue: true },
+  });
+}
+
+/// One page of the list under the search and the view, ordered by `listOrderBy` (ST-7); a page past the end is the last. `total` is the count under the same where.
+/// `ids`: for a judged view, the ids that passed the judgement in the order given (the candidates' order, so sort is set before paging); they are still read under the where, so the
+/// organisation and the hidden exercises hold. With `{ all: true }` (the export): no skip, and `LIST_EXPORT_MAX_ROWS + 1` rows, to tell "over".
+export async function listExercises(organisationId: string, hidden: readonly string[], q: ListQuery<ExerciseView>, opts: { ids?: readonly string[]; all?: boolean } = {}) {
+  const org = await exerciseOrg(organisationId);
+  if (!org) return { org: null, rows: [], total: 0, page: 0 };
+  const where: Prisma.SourcingExerciseWhereInput = opts.ids ? { AND: [exerciseListWhere(org.id, hidden, q), { id: { in: [...opts.ids] } }] } : exerciseListWhere(org.id, hidden, q);
+  const total = opts.ids ? opts.ids.length : await db.sourcingExercise.count({ where });
+  const page = opts.all ? 0 : Math.min(q.page, Math.max(0, Math.ceil(total / q.size) - 1));
+  const include = {
+    requisition: { select: { id: true, reference: true, erpRequisitionNo: true } },
+    approvalInstances: { where: EXERCISE_ROUTES_WHERE, select: { status: true, openedAt: true, domain: true, awardId: true } },
+  };
+  if (opts.ids) {
+    const slice = opts.all ? opts.ids.slice(0, LIST_EXPORT_MAX_ROWS + 1) : opts.ids.slice(page * q.size, (page + 1) * q.size);
+    const found = await db.sourcingExercise.findMany({ where: { AND: [where, { id: { in: [...slice] } }] }, include });
+    const byId = new Map(found.map((r) => [r.id, r]));
+    return { org, rows: slice.flatMap((id) => byId.get(id) ?? []), total, page };
+  }
+  const rows = await db.sourcingExercise.findMany({
+    where,
+    orderBy: listOrderBy("exercise", q),
+    ...(opts.all ? { take: LIST_EXPORT_MAX_ROWS + 1 } : { skip: page * q.size, take: q.size }),
+    include,
+  });
+  return { org, rows, total, page };
 }
 
 export const HISTORY_PAGE = 200;

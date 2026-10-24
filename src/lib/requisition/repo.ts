@@ -7,7 +7,9 @@
 
 import { liveAttachmentWhere } from "@/lib/documents/repo";
 import type { Tx } from "@/lib/audit/record";
-import type { Prisma } from "@/generated/prisma/client";
+import type { Prisma, RequisitionStatus } from "@/generated/prisma/client";
+import { LIST_EXPORT_MAX_ROWS, listOrderBy, type ListQuery } from "@/lib/list-query";
+import { wordsWhere } from "@/lib/search/words";
 import type { BudgetCode as PureBudgetCode } from "@/lib/budget/codes";
 import { decisionRecord, type DecisionRecord } from "@/lib/committee/record";
 import { isRegisterSnapshot } from "@/lib/committee/assess-sitting";
@@ -215,19 +217,30 @@ export async function withLockedRequisition<T>(organisationId: string, id: strin
   );
 }
 
-export const REQUISITIONS_PAGE = 100;
+/// The list's own views (ST-8 does not touch these: each is a status set), and the statuses each one holds.
+export const REQUISITION_VIEWS = ["pending", "drafts", "over"] as const;
+export type RequisitionView = (typeof REQUISITION_VIEWS)[number];
+const VIEW_STATUSES: Record<RequisitionView, readonly RequisitionStatus[]> = { pending: ["PENDING_APPROVAL"], drafts: ["DRAFT", "RETURNED", "RECALLED"], over: ["OVER_BUDGET"] };
 
-/// The organisation's requisitions for the list, newest first, one `page` (from 0) of REQUISITIONS_PAGE, with what the list shows.
-export async function listRequisitions(organisationId: string, page = 0) {
+/// The list's where for a query: the organisation, the search words and the view's status set, all ANDed.
+export const requisitionListWhere = (organisationId: string, q: Pick<ListQuery<RequisitionView>, "words" | "view">): Prisma.RequisitionWhereInput => ({
+  AND: [{ organisationId }, wordsWhere("requisition", q.words), q.view ? { status: { in: [...VIEW_STATUSES[q.view]] } } : {}],
+});
+
+/// The organisation's requisitions for the list: one page of `q.size` (a page past the end is the last), ordered by `listOrderBy` (ST-7), under the search and the view.
+/// `total` is the count under the same where. With `{ all: true }` (the export): no skip, and `LIST_EXPORT_MAX_ROWS + 1` rows, to tell "over".
+export async function listRequisitions(organisationId: string, q: ListQuery<RequisitionView>, opts: { all?: boolean } = {}) {
   const org = await requisitionOrg(organisationId);
-  if (!org) return { org: null, rows: [], total: 0, counts: { open: 0, pending: 0, overBudget: 0, flagged: 0 } };
-  const where = { organisationId: org.id };
-  const [rows, total, routes, units] = await Promise.all([
+  if (!org) return { org: null, rows: [], total: 0, page: 0, counts: { open: 0, pending: 0, overBudget: 0, flagged: 0, drafts: 0 } };
+  const where = requisitionListWhere(org.id, q);
+  const total = await db.requisition.count({ where });
+  const page = opts.all ? 0 : Math.min(q.page, Math.max(0, Math.ceil(total / q.size) - 1));
+  const orgWhere = { organisationId: org.id };
+  const [rows, routes, units] = await Promise.all([
     db.requisition.findMany({
       where,
-      orderBy: [{ raisedOn: "desc" }, { reference: "desc" }],
-      skip: page * REQUISITIONS_PAGE,
-      take: REQUISITIONS_PAGE,
+      orderBy: listOrderBy("requisition", q),
+      ...(opts.all ? { take: LIST_EXPORT_MAX_ROWS + 1 } : { skip: page * q.size, take: q.size }),
       include: {
         requestingPerson: { select: { name: true } },
         budgetChecks: { orderBy: { checkedAt: "desc" }, take: 1, select: { verdict: true } },
@@ -236,24 +249,24 @@ export async function listRequisitions(organisationId: string, page = 0) {
         approvalInstances: { select: { status: true, openedAt: true, closedAt: true, rejectionApplied: true, rejectionReason: true } },
       },
     }),
-    db.requisition.count({ where }),
-    db.fundingRoute.findMany({ where, select: { code: true, nameEn: true } }),
-    db.orgUnit.findMany({ where, select: { code: true, nameEn: true, effectiveFrom: true }, orderBy: { effectiveFrom: "desc" } }),
+    db.fundingRoute.findMany({ where: orgWhere, select: { code: true, nameEn: true } }),
+    db.orgUnit.findMany({ where: orgWhere, select: { code: true, nameEn: true, effectiveFrom: true }, orderBy: { effectiveFrom: "desc" } }),
   ]);
-  const [open, pending, overBudget, flagged] = await Promise.all([
-    db.requisition.count({ where: { ...where, status: { notIn: ["CANCELLED", "CLOSED", "APPROVED", "SOURCING", "PARTIALLY_FULFILLED", "FULFILLED"] } } }),
-    db.requisition.count({ where: { ...where, status: "PENDING_APPROVAL" } }),
+  const [open, pending, overBudget, flagged, drafts] = await Promise.all([
+    db.requisition.count({ where: { ...orgWhere, status: { notIn: ["CANCELLED", "CLOSED", "APPROVED", "SOURCING", "PARTIALLY_FULFILLED", "FULFILLED"] } } }),
+    db.requisition.count({ where: { ...orgWhere, status: "PENDING_APPROVAL" } }),
     // Open, and over budget on its latest check — whether or not it has gone on to the
     // over-budget approvers.
     db.requisition
       .findMany({
-        where: { ...where, status: { in: ["REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET", "PENDING_APPROVAL"] } },
+        where: { ...orgWhere, status: { in: ["REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET", "PENDING_APPROVAL"] } },
         select: { budgetChecks: { orderBy: { checkedAt: "desc" }, take: 1, select: { verdict: true } } },
       })
       .then((xs) => xs.filter((x) => x.budgetChecks[0]?.verdict === "EXCEEDS").length),
     db.requisition.count({
-      where: { ...where, status: { notIn: ["CANCELLED", "CLOSED"] }, splitChecks: { some: { state: "FLAGGED", overrideJustification: null } } },
+      where: { ...orgWhere, status: { notIn: ["CANCELLED", "CLOSED"] }, splitChecks: { some: { state: "FLAGGED", overrideJustification: null } } },
     }),
+    db.requisition.count({ where: { ...orgWhere, status: { in: [...VIEW_STATUSES.drafts] } } }),
   ]);
   const unitName = new Map<string, string>();
   for (const u of units) if (!unitName.has(u.code)) unitName.set(u.code, u.nameEn);
@@ -270,7 +283,8 @@ export async function listRequisitions(organisationId: string, page = 0) {
       sentBack: sentBackBy(r.status, r.approvalInstances, r.returnedOn),
     })),
     total,
-    counts: { open, pending, overBudget, flagged },
+    page,
+    counts: { open, pending, overBudget, flagged, drafts },
   };
 }
 

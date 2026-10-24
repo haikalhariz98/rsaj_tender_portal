@@ -17,7 +17,9 @@ export interface StatusCount {
 /// out, and with nothing anywhere the row is too: no "0 sent back". Replaces a counter subtitle under a title; `label` names the group for a
 /// screen reader.
 export function StatusCounts({ items, label, className }: { items: StatusCount[]; label: string; className?: string }) {
-  const shown = items.filter((i) => i.count > 0);
+  // The view being shown stays, even at zero, so a reader on an empty view sees where they are; with nothing anywhere the row is still left out.
+  const any = items.some((i) => i.count > 0);
+  const shown = items.filter((i) => i.count > 0 || (any && i.active));
   if (shown.length === 0) return null;
   return (
     <nav aria-label={label} className={cx("flex flex-wrap items-center gap-2", className)}>

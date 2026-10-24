@@ -1,5 +1,6 @@
 "use client";
 
+import Form from "next/form";
 import Link from "next/link";
 import { Fragment, useId, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 
@@ -11,7 +12,7 @@ import {
 import { useLanguage, useSay } from "@/components/i18n/language-context";
 import { AvatarStack, Avatar } from "@/components/ui/avatar";
 import { Badge, Chip, SulitLock, SulitWithheld } from "@/components/ui/badge";
-import { Button, buttonClass, iconButtonClass } from "@/components/ui/button";
+import { Button, ButtonLink, buttonClass, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter, Note } from "@/components/ui/feedback";
 import { MoreText } from "@/components/ui/more-text";
@@ -34,6 +35,36 @@ import { canExport, cellText, exportColumns, listCsv, type Cell, type Column, ty
  * the pure text of a cell, live in `src/lib/ui/list-cells.ts`, so a route handler can use them.
  */
 export type { Cell, Column, Row, StatusItem };
+
+/**
+ * Server mode (plan step 7, 7.3): the list the server searches, sorts and pages. The address carries the query (`ListQuery`); the page
+ * reads one page of rows and the true total and passes them in, so the client never filters a partial set. Every href is made by the page
+ * with `listHref`, because a function cannot cross to a client component.
+ */
+export interface ServerMode {
+  /// The search text now in the address.
+  q: string | null;
+  /// The list's own address; the search box is a GET form to it, name "q".
+  action: string;
+  /// Hidden inputs a search keeps (the view, the sort, the page size). The page is dropped: a new search starts at the first.
+  keep?: Record<string, string>;
+  total: number;
+  page: number;
+  size: number;
+  prevHref: string | null;
+  nextHref: string | null;
+  sizeHrefs: Record<(typeof PAGE_SIZES)[number], string>;
+  /// ST-7: a column is drawn sortable only if its key is here, and its header is this link. Whatever else a column says, it is not sortable on the client.
+  sortHrefs: Record<string, string>;
+  /// The order now (column key), for the arrow and `aria-sort`.
+  sorted: { key: string; dir: "asc" | "desc" } | null;
+  /// Export is this route's link; absent, the list keeps its own client export of the page shown (until the export routes).
+  exportHref?: string;
+  /// Set where this view or size cannot be exported: Export is not offered, and this one line is said instead (ST-8).
+  exportBlocked?: string;
+  /// The way back to the whole list; set when a search or a view is narrowing it.
+  clearHref: string | null;
+}
 export { canExport, exportColumns };
 
 /// The SULIT columns in which every row is withheld from this reader (FR-EVL-014): a column of nothing but "SULIT · withheld" says it once, above the
@@ -338,6 +369,7 @@ export function DataList({
   toolbarLead,
   toolbarFilters,
   paging = true,
+  server,
 }: {
   columns: Column[];
   rows: Row[];
@@ -388,6 +420,8 @@ export function DataList({
   onViewChange?: (id: string) => void;
   /// The view the list opens on (a view named in the address). Ignored if no such view exists.
   initialView?: string;
+  /// Opt-in server mode: search, sort and paging are the server's, driven by the address. Views are the page's own chips and filters are not offered.
+  server?: ServerMode;
 }) {
   const gone = withheldColumns(allColumns, rows);
   const columns = gone.length > 0 ? allColumns.filter((c) => !gone.includes(c)) : allColumns;
@@ -423,6 +457,7 @@ export function DataList({
   }, [filters, rows, language]);
 
   const visible = useMemo(() => {
+    if (server) return rows;
     const needle = query.trim().toLowerCase();
     let out = rows.filter(
       (r) =>
@@ -451,10 +486,10 @@ export function DataList({
       });
     }
     return out;
-  }, [rows, view, query, sort, chosen, language]);
+  }, [rows, view, query, sort, chosen, language, server]);
 
   // Paging controls say nothing when everything fits on one page at every size.
-  const showFooter = paging && needsPaging(visible.length);
+  const showFooter = !server && paging && needsPaging(visible.length);
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const current = Math.min(page, pageCount - 1);
   const start = paging ? current * pageSize : 0;
@@ -464,7 +499,7 @@ export function DataList({
 
   // Filtering an empty list is noise. The tools appear once there is something to use
   // them on, or once a filter is what emptied it.
-  const narrowed = view !== "all" || query !== "" || Object.keys(chosen).length > 0;
+  const narrowed = server ? server.clearHref != null : view !== "all" || query !== "" || Object.keys(chosen).length > 0;
   const showTools = toolbar && (rows.length > 0 || narrowed || toolbarLead != null || toolbarFilters != null);
 
   function toggleSort(key: string) {
@@ -473,25 +508,34 @@ export function DataList({
     );
   }
 
-  const sortButton = (c: Column) => (
-    <button
-      type="button"
-      onClick={() => toggleSort(c.key)}
-      title={c.label}
-      className={cx(
-        // Held to the column: a heading wider than a narrow column is
-        // cut with an ellipsis rather than spilling into the next one.
-        "inline-flex max-w-full min-w-0 items-center gap-1 rounded-md align-middle hover:text-ink",
-        c.numeric ? "text-right" : "text-left",
-        sort?.key === c.key && "text-ink",
-      )}
-    >
+  const shownSort = server ? server.sorted : sort;
+  const sortClass = (c: Column) =>
+    cx(
+      // Held to the column: a heading wider than a narrow column is
+      // cut with an ellipsis rather than spilling into the next one.
+      "inline-flex max-w-full min-w-0 items-center gap-1 rounded-md align-middle hover:text-ink",
+      c.numeric ? "text-right" : "text-left",
+      shownSort?.key === c.key && "text-ink",
+    );
+  const sortBody = (c: Column) => (
+    <>
       <span className="min-w-0 break-words">{c.label}</span>
-      <span aria-hidden="true" className={cx("shrink-0 text-[9px]", sort?.key !== c.key && "opacity-40")}>
-        {sort?.key === c.key && sort.dir === "desc" ? "▼" : "▲"}
+      <span aria-hidden="true" className={cx("shrink-0 text-[9px]", shownSort?.key !== c.key && "opacity-40")}>
+        {shownSort?.key === c.key && shownSort.dir === "desc" ? "▼" : "▲"}
       </span>
-    </button>
+    </>
   );
+  const sortableCol = (c: Column) => (server ? Object.hasOwn(server.sortHrefs, c.key) : !!c.sortable);
+  const sortButton = (c: Column) =>
+    server ? (
+      <Link href={server.sortHrefs[c.key]} title={c.label} className={cx(sortClass(c), "no-underline hover:no-underline")}>
+        {sortBody(c)}
+      </Link>
+    ) : (
+      <button type="button" onClick={() => toggleSort(c.key)} title={c.label} className={sortClass(c)}>
+        {sortBody(c)}
+      </button>
+    );
 
   const exportable = canExport(allColumns);
   const leavesOutSulit = allColumns.some((c) => c.sulit);
@@ -553,7 +597,7 @@ export function DataList({
       {showTools && (
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5">
           {toolbarLead}
-          {views.length > 0 && (
+          {!server && views.length > 0 && (
             <Select
               variant="chip"
               aria-label={say(WORDS.view)}
@@ -573,7 +617,24 @@ export function DataList({
             </Select>
           )}
 
-          {searchable && (
+          {searchable && server && (
+            <Form action={server.action} className="relative min-w-40 flex-1 sm:max-w-80" role="search">
+              {Object.entries(server.keep ?? {}).map(([name, value]) => (
+                <input key={name} type="hidden" name={name} value={value} />
+              ))}
+              <SearchIcon size={15} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-4" />
+              <input
+                key={server.q ?? ""}
+                type="search"
+                name="q"
+                defaultValue={server.q ?? ""}
+                className={cx(smallControl, "w-full pl-9 outline-none placeholder:text-ink-4 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15")}
+                placeholder={searchPlaceholder ?? say(WORDS.searchPlaceholder)}
+                aria-label={say(WORDS.searchThisList)}
+              />
+            </Form>
+          )}
+          {searchable && !server && (
             <div className="relative min-w-40 flex-1 sm:max-w-80">
               <SearchIcon
                 size={15}
@@ -593,7 +654,7 @@ export function DataList({
           )}
 
           {toolbarFilters}
-          {filters.map((f) => (
+          {(server ? [] : filters).map((f) => (
             <Select
               key={f.key}
               variant="chip"
@@ -619,7 +680,19 @@ export function DataList({
           ))}
 
           <div className="ml-auto flex items-center gap-1.5">
-            {exportable && (
+            {server?.exportBlocked ? (
+              <span className="inline-flex items-center gap-1">
+                <span aria-disabled="true" className={iconButtonClass("sm", true, "size-9 opacity-50")}>
+                  <DownloadIcon size={16} />
+                </span>
+                <MoreText text={server.exportBlocked} label="Why this cannot be exported" />
+              </span>
+            ) : server?.exportHref ? (
+              <a href={server.exportHref} aria-label="Download as Excel" title="Download as Excel" className={iconButtonClass("sm", true, "size-9")}>
+                <DownloadIcon size={16} />
+              </a>
+            ) : (
+              exportable && (
             <button
               type="button"
               onClick={exportCsv}
@@ -629,6 +702,7 @@ export function DataList({
             >
               <DownloadIcon size={16} />
             </button>
+              )
             )}
           </div>
         </div>
@@ -650,10 +724,15 @@ export function DataList({
       {visible.length === 0 ? (
         <EmptyState
           size="sm"
-          title={narrowed ? (views.find((v) => v.id === view)?.emptyTitle ?? say(WORDS.nothingMatches)) : (emptyTitle ?? say(WORDS.nothingHere))}
+          title={server ? (server.q ? say(WORDS.nothingMatches) : (emptyTitle ?? say(WORDS.nothingHere))) : narrowed ? (views.find((v) => v.id === view)?.emptyTitle ?? say(WORDS.nothingMatches)) : (emptyTitle ?? say(WORDS.nothingHere))}
           className={cx(showTools && "border-t border-line")}
           action={
             narrowed ? (
+              server ? (
+                <ButtonLink href={server.clearHref!} variant="secondary" size="sm">
+                  {say(WORDS.showAllRecords)}
+                </ButtonLink>
+              ) : (
               <Button
                 variant="secondary"
                 size="sm"
@@ -666,6 +745,7 @@ export function DataList({
               >
                 {say(WORDS.showAllRecords)}
               </Button>
+              )
             ) : undefined
           }
         />
@@ -768,8 +848,8 @@ export function DataList({
                   <th
                     key={c.key}
                     aria-sort={
-                      sort?.key === c.key
-                        ? sort.dir === "asc"
+                      shownSort?.key === c.key
+                        ? shownSort.dir === "asc"
                           ? "ascending"
                           : "descending"
                         : undefined
@@ -784,10 +864,10 @@ export function DataList({
                   >
                     {c.sulit ? (
                       <span className={cx("inline-flex items-center gap-1", c.numeric ? "justify-end" : "justify-start")}>
-                        {c.sortable ? sortButton(c) : c.label}
+                        {sortableCol(c) ? sortButton(c) : c.label}
                         <SulitMark label={c.sulitLabel} />
                       </span>
-                    ) : c.sortable ? (
+                    ) : sortableCol(c) ? (
                       sortButton(c)
                     ) : (
                       c.label
@@ -917,6 +997,48 @@ export function DataList({
         </>
       )}
 
+      {server && needsPaging(server.total) && (
+        <div className="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3 text-[13px] text-ink-3 sm:px-5">
+          <span className="tabular-nums">
+            {server.page * server.size + 1}–{Math.min(server.total, (server.page + 1) * server.size)} of {server.total}
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-[12.5px]">Rows per page</span>
+            <nav className="flex items-center gap-1" aria-label="Rows per page">
+              {PAGE_SIZES.map((n) => (
+                <Link
+                  key={n}
+                  href={server.sizeHrefs[n]}
+                  aria-current={n === server.size ? "true" : undefined}
+                  className="grid h-8 min-w-8 place-items-center rounded-full px-2 text-[13px] font-semibold text-ink-2 no-underline hover:bg-ink/5 hover:no-underline aria-[current=true]:bg-brand-700 aria-[current=true]:text-white"
+                >
+                  {n}
+                </Link>
+              ))}
+            </nav>
+          </div>
+          <nav className="flex items-center gap-1" aria-label={say(WORDS.pagination)}>
+            {server.prevHref ? (
+              <Link href={server.prevHref} className={iconButtonClass("sm")} aria-label={say(WORDS.previousPage)}>
+                <ChevronRight size={14} className="rotate-180" />
+              </Link>
+            ) : (
+              <span aria-disabled="true" className={iconButtonClass("sm", false, "opacity-40")}>
+                <ChevronRight size={14} className="rotate-180" />
+              </span>
+            )}
+            {server.nextHref ? (
+              <Link href={server.nextHref} className={iconButtonClass("sm")} aria-label={say(WORDS.nextPage)}>
+                <ChevronRight size={14} />
+              </Link>
+            ) : (
+              <span aria-disabled="true" className={iconButtonClass("sm", false, "opacity-40")}>
+                <ChevronRight size={14} />
+              </span>
+            )}
+          </nav>
+        </div>
+      )}
       {showFooter && (
         <div className="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3 text-[13px] text-ink-3 sm:px-5">
           <span className="tabular-nums">
