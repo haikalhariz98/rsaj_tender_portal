@@ -14,7 +14,8 @@
 
   The plan builds no email and no Reports area (§6).
 - **Approval:** the founder approved the programme on 2026-10-23 and gave full permission to proceed on 2026-10-24.
-  The product owner rules ST-1 to ST-18 (§5).
+  The product owner rules ST-1 to ST-18 (§5). Ruled 2026-10-24 (decisions log): ST-3, ST-7 and ST-11 changed, ST-1 and ST-8
+  gained an addition; §2, §4, §7.1 to §7.3 and §7.5 carry the rulings, and they override §5's recommendations where they differ.
 - **Standing rules (simplification plan, unchanged):**
   - Desktop only. English only. Minimal words; explanations go in popovers.
   - No customer value in product code.
@@ -57,18 +58,27 @@
 // src/lib/list-query.ts (pure)
 export const Q_MIN = 2;
 export const Q_MAX = 100;
-export interface ListQuery<V extends string = string> {
+export interface ListQuery<V extends string = string, S extends string = string> {
   q: string | null;          // trimmed, inner whitespace collapsed; null when shorter than Q_MIN
   words: string[];           // q split on spaces, each kept literal (no wildcard meaning)
   view: V | null;            // only one of the list's own view keys; anything else is null
   page: number;              // from 0; a bad value is 0
   size: (typeof PAGE_SIZES)[number]; // 10 | 25 | 50 from src/lib/paging.ts; default 25
+  sort: S | null;            // ST-7: only one of the list's own sort keys; null is the list's default, newest first
+  dir: "asc" | "desc";       // default "desc"
 }
 /// The most rows one export writes: a technical ceiling, not customer policy (ST-10). A repo's full-set read takes one more, to tell "over".
 export const LIST_EXPORT_MAX_ROWS = 5000;
-export function parseListQuery<V extends string>(sp: Record<string, string | string[] | undefined>, views: readonly V[]): ListQuery<V>;
-/// The list's own address with q, view, page and size; empty parts left out. Used by the pager, StatusCounts and Export.
-export function listHref(base: string, q: Partial<Pick<ListQuery, "q" | "view" | "page" | "size">>): string;
+export function parseListQuery<V extends string, S extends string = never>(sp: Record<string, string | string[] | undefined>, views: readonly V[], sorts?: readonly S[]): ListQuery<V, S>;
+/// The list's own address with q, view, sort, dir, page and size; empty and default parts left out. Used by the pager,
+/// StatusCounts, the sortable headers and Export. A base that already holds a query (`?tab=`, `?sv=`) keeps it.
+export function listHref(base: string, q: Partial<Pick<ListQuery, "q" | "view" | "sort" | "dir" | "page" | "size">>): string;
+/// ST-7: each server list's sort set, a stable URL key to a stored column (reference, title or name, main date). The default
+/// is the main date, newest first. No SULIT, money or AC-18-withheld column is in a set (order discloses value; NFR-SEC-001,
+/// FR-EVL-014); `list-sort.scan.test.ts` holds it to that.
+export const LIST_SORTS: Readonly<Record<SearchEntity, { keys: Record<string, string>; date: string }>>;
+/// The Prisma orderBy for a query: the chosen column, then id, both in `dir`; or the main date and id, newest first.
+export function listOrderBy(entity: SearchEntity, q: Pick<ListQuery<string, string>, "sort" | "dir">): object[];
 ```
 
 ```ts
@@ -110,8 +120,8 @@ export interface SearchHit {
   exact: boolean;                             // whole-value match on a case key
 }
 export interface SearchGroup {
-  entity: "requisition" | "exercise" | "project" | "supplier";
-  label: string;                              // "Requisitions", "Tenders & quotations", "Projects", "Suppliers"
+  entity: SearchEntity;                       // ST-3: committee sittings are the fifth group
+  label: string;                              // SEARCH_GROUP_LABEL: "Requisitions", "Tenders & quotations", "Projects", "Suppliers", "Committees"
   hits: SearchHit[];                          // at most SEARCH_GROUP_SIZE (10), exact first, then newest
   total: number;                              // a count under the same where: honest "10 of 34"
   seeAllHref: string;                         // the list with ?q=
@@ -131,6 +141,8 @@ export type { Cell, Column, Row } from "...";   // the types move here; data-lis
 export function cellText(cell: Cell | undefined, lang?: Language): string;
 export function exportColumns(columns: readonly Column[]): Column[]; // unchanged: drops every `sulit` column
 export function canExport(columns: readonly Column[]): boolean;
+/// The in-card list's client CSV: a UTF-8 byte-order mark, then `listToCsv` of the export columns (ST-9).
+export function listCsv(columns: readonly Column[], rows: readonly Row[], lang?: Language): string;
 ```
 
 ```ts
@@ -209,8 +221,13 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
     - a column of the evaluation, opening, bid or sealing models (read from the Prisma DMMF).
 
     Every `CASE_KEYS` entry is also in `SEARCH_FIELDS`.
+  - `list-sort.scan.test.ts` (ST-7): every `LIST_SORTS` path resolves, hop by hop through to-one relations, to a stored
+    `String` or `DateTime` column; none is a `SULIT_FIELDS` field, a money column (`Decimal` or `BigInt`, or a value, amount,
+    price or estimate name), or a project path through `exercise` (AC-18 withholds it). Planted bad paths are refused.
   - `words.db.test.ts` (`test:db`): a requisition titled `50% works` and one titled `500 works`. The word `50%` finds only the
-    first, and `a_b` does not match `axb`.
+    first, and `a_b` does not match `axb`; `a_b` finds `a_b` (the escape does not break a literal match).
+    - ST-1 (NFR-LNG-004): a Malay name with an honorific and an apostrophe is found by two of its words out of order and in
+      capitals. An alias (FR-CRT-011) is not matched: that stays open.
   - The existing `data-list.test.ts` passes unchanged, and one new case checks that the CSV starts with the BOM.
 - **Done when:**
   - the types compile;
@@ -232,7 +249,11 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
      - exercises under `exerciseNotHidden(hidden)` AND `wordsWhere("exercise")`;
      - projects (awards) under `caseVisibilityWhere(hidden)` AND `wordsWhere("project")`. The matchers on `exercise.*` paths
        are AND-ed with `exerciseNotHidden` on the award's exercise, so a hidden exercise's title or reference finds nothing;
-     - suppliers under `wordsWhere("supplier")`.
+     - suppliers under `wordsWhere("supplier")`;
+     - committee sittings (ST-3, the fifth group, "Committees") under the committee's organisation AND
+       `wordsWhere("sitting")`, on the sittings list's own fields (`SEARCH_FIELDS.sitting`). A hit shows only the sitting's
+       reference, the committee's name, the date and the status, and never an agenda item or a matter's title (FR-MTD-007).
+       Sittings are not in the case group.
 
      `hidden` is `hiddenExerciseIds(client, viewer)`, read once. Each kind runs `findMany({ take: SEARCH_GROUP_SIZE, orderBy: newest })`
      and `count()` under the same where, in parallel (`Promise.all`), and **selects only** the columns a `SearchHit` shows.
@@ -274,6 +295,8 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
     6. a contract-stage project under a restricted exercise the reader is not named on is in `caseGroup.projects`, and the
        hit's text holds no word of the exercise's title;
     7. a project is not found through `exercise.title` or `exercise.reference` when that exercise is hidden from the reader;
+    8. a sitting is found by its reference and by its committee's name, under organisation A only; its hit's text holds its
+       reference, committee name, date and status and no word of a restricted matter's title on its agenda (ST-3, FR-MTD-007);
   - `exercise-scan.test.ts` passes with `store.ts` and `case-group.ts` using the guards. No `READ_AFTER_A_GUARD` entry is added.
   - `tenant-scan.test.ts` and `auth-reach.test.ts` pass, with the page calling `requireStaff` first.
 - **Done when:**
@@ -298,8 +321,11 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
        links;
      - the client view selector is not drawn: the page's `StatusCounts` chips are the views, linking with `listHref` and
        keeping q;
-     - column sort works only when `total <= size` (the whole result is loaded). Otherwise the headers are inert and the
-       order is the server's, newest first (ST-7);
+     - sort is on the server (ST-7): a column whose key is in the list's `LIST_SORTS` set has a header link built with
+       `listHref` (`sort`, `dir`, keeping q and view, back to page 0); a column outside the set is not drawn sortable. The
+       order is `listOrderBy`, newest first by default with an id tie-break, and the pager, the views and Export keep
+       `sort` and `dir`. No SULIT, money or AC-18-withheld column is in a set (order discloses value; NFR-SEC-001,
+       FR-EVL-014): the set is written in 7.1 and held by `list-sort.scan.test.ts`;
      - Export is a link to `server.exportHref` when given, and not drawn when it is absent. A list's client CSV export goes
        away in server mode, because it would export one page;
      - filters (`filters`) are not offered in server mode. A list that needs one makes it a view.
@@ -328,24 +354,27 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
 
        The judgement lives in `src/app/sourcing/rows.ts` (`judgedViewIds(actor, view, candidates)`), not in the page, so the
        page and the export route share one code path. It uses the same functions as today (the grant for boundary), then
-       pages the judged ids. Never a bare `onBoundary: true` where: its count would give away rows whose estimate is
-       withheld.
-     - **The boundary view has no Export.** Judging the grant writes `SulitAccessEvent` rows (ADR 0034 D14), and an export
-       must write none (7.5). So `exportHref` is absent on that view, and the route answers 400 for `view=boundary`.
+       pages the judged ids. The candidates are loaded under `listOrderBy`, so the order is set before paging (ST-7). Never
+       a bare `onBoundary: true` where: its count would give away rows whose estimate is withheld.
+     - **The boundary view has no Export (ST-8).** Its rows disclose the estimate, so exporting them would be a SULIT
+       disclosure under NFR-AUD-004: the audited SULIT download, which is ruled not wanted. So `exportHref` is absent on
+       that view, and Export there shows the same one-line popover as the over-cap case: "This view cannot be exported".
+       The route answers 400 for `view=boundary`.
      - The header's counts are unchanged and over the whole set.
      - `EXERCISES_PAGE` is retired.
 
      The rows move into `rows.ts`.
   4. **The full-set read for export.** Both repo functions take `{ all: true }`: no `skip`, and
      `take: LIST_EXPORT_MAX_ROWS + 1`. The export (7.5) calls this mode.
-  5. **Export is not drawn when `total > LIST_EXPORT_MAX_ROWS`.** A popover on the count says "Narrow the search to export".
-     The route's 413 is only the backstop.
+  5. **Export is not drawn as a link when `total > LIST_EXPORT_MAX_ROWS`, or on the boundary view.** Its one-line popover
+     says "This view cannot be exported". The route's 413 is only the backstop.
   6. Old addresses keep working: `?page=n` without `size` reads as size 25. A page past the end clamps to the last page.
 - **Tests:**
   - `data-list.test.ts`, server mode:
     - no client filtering of typed text;
     - the footer counts from `total`;
-    - sort is inert when `total > size` and live when it is not;
+    - a column in the sort set is a header link carrying `sort` and `dir` and keeping q and view; a column outside it is
+      not drawn sortable, whatever `total` is;
     - no Export without `exportHref`;
     - an all-withheld SULIT column still collapses (6.1);
   - `requisition-list.db.test.ts`:
@@ -411,6 +440,7 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
 - **Files it owns:**
   - new: `src/lib/export/xlsx.ts` and `src/lib/export/xlsx.test.ts` (`LIST_EXPORT_MAX_ROWS` is imported from
     `list-query.ts`);
+  - new: `src/lib/export/record.ts`, the shared export audit entry (ST-11), which 7.6's routes also call;
   - new: `src/app/requisitions/export/route.ts` and `src/app/sourcing/export/route.ts`;
   - the `exportHref` line in `src/app/requisitions/page.tsx` and `src/app/sourcing/page.tsx` (7.3 has finished with them).
 - **Work:**
@@ -433,8 +463,17 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
      any export.
   3. The page passes `exportHref = listHref("<list>/export", { q, view })`. The button reads "Export", with a popover: "An
      Excel file of every row that matches. SULIT columns are left out."
-  4. Exports are not audited, as the client export is not today, and carry no SULIT column (ST-11). An audited download of
-     SULIT columns stays out (backlog: "An audited 'download this view'…", ruling on log line 1755).
+  4. **Every server list export writes one audit entry (ST-11, NFR-AUD-001),** in the route, on the trail export's pattern
+     (`src/app/configuration/audit/actions.ts`), through one shared record call that every export route uses
+     (`recordListExport` in `src/lib/export/record.ts`, owned here):
+     - `writeAudit` CREATE on entity `ListExport` with a fresh id, and a label such as "Requisitions export, 342 rows";
+     - its changes hold the list and the view as **labels, never keys**, the search text, the row count and the file
+       name. `writeAudit` takes an entity with no table behind it (checked in 7.1: the entity is a free string with no
+       foreign key, and the trail and its export read the stored label and `recordTypeLabel`, "List export"), so there is
+       no new table, migration or digest;
+     - it is the one place a search text is written (ST-18's exception);
+     - exports still carry, read and log no SULIT value. The client CSVs of in-card lists are not recorded. An audited
+       download of SULIT columns stays out (backlog: "An audited 'download this view'…", ruling on log line 1755).
 - **Tests:**
   - `xlsx.test.ts`, reading the buffer back with exceljs:
     - `=1+1` stays the string `=1+1`;
@@ -447,10 +486,12 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
     - the header has no SULIT column label;
     - no `SulitAccessEvent` is written by an export;
     - `view=boundary` gives 400 and writes nothing;
-    - 5,001 matching rows give 413 with the words;
+    - 5,001 matching rows give 413 with the words, and write no audit entry;
+    - an export writes exactly one `ListExport` audit entry, whose changes hold the list's and view's labels (no key), the
+      search text, the row count and the file name, and no SULIT value;
   - `auth-reach.test.ts` and `tenant-scan.test.ts` cover the two new routes, with no allow-list entry;
-  - a source test: every `src/app/**/export/route.ts` calls `staffRoute` and `downloadRequestFault`, and reaches rows only
-    through a `rows.ts` builder with `forExport: true`.
+  - a source test: every `src/app/**/export/route.ts` calls `staffRoute` and `downloadRequestFault`, reaches rows only
+    through a `rows.ts` builder with `forExport: true`, and calls the shared `recordListExport`.
 - **Done when:** exporting a filtered list of three pages gives one file with every matching row, and opening it in Excel
   shows registration numbers with their zeros and amounts as numbers.
 
@@ -574,6 +615,8 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
 | Research "Excel export" item | — | XLSX of the whole filtered list | 7.5, 7.6 |
 | FR-RPT-001 to FR-RPT-009, FR-RPT-011, FR-RPT-012 | M/S/C | **Deferred by the founder 2026-10-24** until RSAJ supplies full reporting requirements; direction: an in-product dashboard (backlog) | — |
 | FR-RPT-010 (tamper-evident case extract) | M | **Deferred by the founder 2026-10-24** with reports (ST-14). In place: the trail export with digest (FR-APR-015), and the search case group to find the case | — |
+| NFR-AUD-003 (a tamper-evident export of any case's complete record, verifiable against the system record) | M | **Deferred with FR-RPT-010** (ST-14): the same case extract, named so it is not hidden | — |
+| NFR-AUD-001 (an audit entry for every create, read of a classified record, … and despatch) | M | Every server list export writes one `ListExport` audit entry: list and view as labels, search text, row count, file name (ST-11) | 7.5, 7.6 |
 | INT-09 (notification and correspondence) | — | **Deferred by the founder 2026-10-24** to a Microsoft Entra ID and Outlook (Microsoft Graph) integration; the inbox and portal notices stay the channel | — |
 | FR-ADV-012, FR-ADV-014, FR-ADV-015, FR-ADV-016 (notify purchasers, per-recipient delivery status) | M | Email **deferred by the founder 2026-10-24**; portal notices and the officer's despatch record stand | — |
 | FR-AWD-006, FR-AWD-009, FR-AWD-010, FR-AWD-012, FR-BID-009, FR-APR-018, FR-CTE-009, FR-LAD-012, FR-SUP-013, FR-PAY-003, FR-CMP-016, FR-FIN-012, FR-NSC-007 (alerts and notifications) | M/S | Email **deferred by the founder 2026-10-24**; where built, shown in the inbox or on the record | — |

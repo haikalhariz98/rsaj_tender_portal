@@ -42,6 +42,9 @@
 - Exercises: `exerciseNotHidden`.
 - Projects: `caseVisibilityWhere`.
 - Suppliers: the organisation.
+- Committee sittings (ST-3, a fifth group): the committee's organisation, on the sittings list's own fields. A hit shows only
+  the reference, the committee's name, the date and the status, never an agenda item or a matter's title (FR-MTD-007).
+  Sittings are not in the case group.
 
 Every count is taken under the same where as its rows, so a hidden record changes neither.
 
@@ -56,15 +59,24 @@ Every count is taken under the same where as its rows, so a hidden record change
 **D5. Server lists search, filter, page and export on the server.**
 - `DataList` gains an opt-in `server` mode. Its search is a `next/form` GET (`?q=`), its views are links (`?view=`), and
   there is one pager (`?page=&size=`, sizes 10, 25 and 50).
-- Column sort works only when the whole result is loaded.
+- Sort is on the server too (ST-7), on a per-list set of stored columns: reference, title or name, and the main date
+  (`LIST_SORTS`). `sort` and `dir` are in `ListQuery` and `listHref`, and the pager, the views and Export keep them. The
+  default is newest first with an id tie-break; a judged view sorts before it pages. No SULIT, money or AC-18-withheld
+  column is in a set, because an order discloses the value (NFR-SEC-001, FR-EVL-014); a source scan holds the sets, as
+  D1's holds the search fields. A column outside the set is not drawn sortable.
 - A view whose answer depends on the reader's SULIT grant, or on derived window state, is judged over a bounded candidate set
   by the same functions as today, then paged. It is never turned into a bare database filter whose count would leak.
 - Export is a route handler: `GET <list>/export`, under the same query.
   - It is built by the same row builder as the page, with SULIT columns not built at all.
   - It is written as `.xlsx` with `exceljs`, which is already installed: identifiers as text cells, amounts as numbers.
   - It is guarded by `staffRoute()` and the cross-site download refusal, and capped at 5,000 rows.
-  - It writes no `SulitAccessEvent`. A view that needs a SULIT judgement to list its rows (Tenders & quotations' "On the
-    boundary") offers no export.
+  - It writes no `SulitAccessEvent`. A view whose rows disclose a SULIT value (Tenders & quotations' "On the boundary"
+    discloses the estimate) offers no export: exporting it would be a SULIT disclosure under NFR-AUD-004, the audited SULIT
+    download that is ruled not wanted (ST-8). Export there, as over the cap, says "This view cannot be exported".
+  - It writes one audit entry (ST-11, NFR-AUD-001), as the trail export does: CREATE on entity `ListExport` with a fresh id,
+    a label such as "Requisitions export, 342 rows", and changes holding the list and view as labels (never keys), the
+    search text, the row count and the file name. There is no new table, migration or digest. It is the one place a search
+    text is recorded (ST-18). One shared record call does it, and a source test requires every export route to make it.
 - In-card lists keep the client CSV, which gains a UTF-8 byte-order mark. The audit trail export stays CSV, because its
   digest is over its bytes.
 
@@ -92,9 +104,11 @@ search columns. Otherwise there is no schema change.
   - finding any record from anywhere by its number;
   - one rule for what a requisition "matches", shared by search, its list and its export;
   - adding an entity to search (one allow-list entry, held by the scan);
-  - Excel files that keep registration numbers intact.
+  - Excel files that keep registration numbers intact;
+  - knowing who exported which list, under which view and search, and how many rows.
 - **Hard, or given up:**
-  - sorting a list of many pages by any column (only newest first);
+  - sorting by a column outside the list's sort set (reference, title or name, main date), and by any SULIT, money or
+    withheld column at all;
   - fuzzy or ranked search;
   - an audited export of SULIT columns (still out, by the 2026-10-08 ruling);
   - searching people, settings or document contents.
@@ -104,5 +118,6 @@ search columns. Otherwise there is no schema change.
   - SMTP plumbing built ahead of the Entra and Outlook decision.
 - **Left open:**
   - FR-RPT-001 to FR-RPT-012, including the Must case extract FR-RPT-010 (deferred by the founder 2026-10-24);
+  - NFR-AUD-003 (M), the tamper-evident export of a case's complete record, deferred with FR-RPT-010 (ST-14);
   - INT-09 and every email-dependent requirement (deferred by the founder 2026-10-24; shown in the portal where built);
   - RSAJ's mail platform: the specification says Zimbra, and the founder plans Outlook. RSAJ must confirm.
