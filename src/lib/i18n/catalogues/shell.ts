@@ -43,6 +43,7 @@ export const SHELL_WORDS = {
 export const SEGMENT_LABEL: Readonly<Record<string, Words>> = {
   configuration: w("Settings"),
   "no-access": w("No access"),
+  dashboard: w("Dashboard"),
   "approval-matrix": CONFIG_LABELS["approval-matrix"],
   committees: w("Committees"),
   organisation: CONFIG_LABELS["organisation"],

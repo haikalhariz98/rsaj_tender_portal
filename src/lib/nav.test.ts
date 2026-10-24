@@ -11,7 +11,7 @@ const items = STAFF_NAV.flatMap((g) => g.items);
 describe("the staff sidebar (plan 6.1)", () => {
   it("has four groups, with the labels the plan names and the addresses unchanged (SP-10)", () => {
     expect(STAFF_NAV.map((g) => [g.label.en, g.items.map((i) => [i.label.en, i.href])])).toEqual([
-      ["Work", [["Home", "/"], ["My approvals", "/approvals"], ["Inbox", "/inbox"]]],
+      ["Work", [["Home", "/"], ["Dashboard", "/dashboard"], ["My approvals", "/approvals"], ["Inbox", "/inbox"]]],
       ["Buying", [["Requisitions", "/requisitions"], ["Tenders & quotations", "/sourcing"], ["Projects", "/projects"]]],
       ["Records", [["Suppliers", "/suppliers"], ["Committees", "/committees"]]],
       ["Settings", [["Settings", "/configuration"]]],

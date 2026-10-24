@@ -156,3 +156,11 @@ describe("breadcrumbs of the supplier's registration (Phase 4b)", () => {
     for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
   });
 });
+
+describe("breadcrumbs of the Dashboard", () => {
+  it("is named, not a record, and links to a page that exists", () => {
+    const c = trail("/dashboard", null);
+    expect(labels(c)).toEqual(["Dashboard"]);
+    for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
+  });
+});

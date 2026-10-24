@@ -41,6 +41,8 @@ export const STAFF_NAV: NavGroup[] = [
     label: w("Work"),
     items: [
       { href: "/", label: w("Home"), icon: "grid", built: true },
+      // Organisation-wide figures and charts (design note 0007); Home stays the place for one's own work.
+      { href: "/dashboard", label: w("Dashboard"), icon: "chart", built: true },
       // The steps waiting for the person signed in, and every open approval's next step by the office deciding it. The count is the steps waiting for them (FR-APR-018).
       { href: "/approvals", label: w("My approvals"), icon: "clock", built: true },
       // The staff inbox: notices shown in the portal, since email is not connected (INT-09). The count is the unread ones.
