@@ -148,7 +148,7 @@ export function PaymentsPanel({ l, v, people, today, page, hidden = [], supply =
   const body = (
     <Sections
       items={[
-        ...(supply ? [{ id: "supply", label: "Supply invoices", node: <SupplyInvoices contractId={l.contract.id} rows={supply} people={people} today={today} blocker={zone(today) ?? actStatusBlocker("PROJECT_WORKSPACE", l.contract.status as ContractStatus)} /> }] : []),
+        ...(supply ? [{ id: "supply", label: "Supply invoices", node: <SupplyInvoices contractId={l.contract.id} status={l.contract.status as ContractStatus} rows={supply} people={people} today={today} zoneBlocker={zone(today)} /> }] : []),
         { id: "valuations", label: "Valuations", node: <ValuationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} /> },
         { id: "retention", label: "Retention", node: <RetentionSection l={l} v={v} people={people} today={today} hidden={hidden} /> },
         { id: "advance", label: "Advance payment", node: <AdvanceSection l={l} v={v} people={people} hidden={hidden} /> },

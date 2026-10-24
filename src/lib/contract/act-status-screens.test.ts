@@ -232,6 +232,7 @@ function offersActIn(sources: Sources) {
 /// Each section that offers an act, and the families of the acts it offers (as each act's wrapper names them).
 const SECTION_FAMILIES: Readonly<Record<string, readonly ContractAct[]>> = {
   OpeningCard: ["OPENING_POSITION"],
+  SupplyInvoices: ["PROJECT_WORKSPACE"],
   ValuationsSection: ["VALUATION"],
   CurrentValuation: ["VALUATION"],
   RetentionSection: ["RETENTION_RELEASE"],
