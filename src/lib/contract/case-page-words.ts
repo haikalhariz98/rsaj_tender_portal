@@ -311,7 +311,7 @@ export const SECURITIES_VIEW_WORDS = {
   insurerNotRecorded: w("Insurer not recorded"),
   notRecorded: w("Not recorded"),
   awardeeAndContract: w("{awardee} · contract {number}"),
-  title: w("Contracts"),
+  title: w("Securities"),
   nLodgedNotVerified: w("{count} lodged, not verified"),
   nExpiring: w("{count} expiring or expired"),
   cardTitle: w("Securities expiring or not verified"),

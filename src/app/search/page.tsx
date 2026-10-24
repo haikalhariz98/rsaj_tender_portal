@@ -84,7 +84,7 @@ const INDENT = ["pl-5", "pl-10", "pl-16"] as const;
 function CaseLine({ hit, level }: { hit: SearchHit; level: 0 | 1 | 2 }) {
   return (
     <li className={`flex items-center justify-between gap-3 py-3 pr-5 ${INDENT[level]}`}>
-      <Link href={hit.href} className="min-w-0 truncate font-semibold">
+      <Link href={hit.href} className="min-w-0 truncate font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline">
         {hit.title}
         {hit.sub && <span className="ml-2 font-normal text-ink-3">{hit.sub}</span>}
       </Link>

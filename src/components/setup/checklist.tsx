@@ -21,7 +21,7 @@ function Row({ item, at }: { item: ChecklistItem; at: (d: Date) => string }) {
       </span>
       {item.detail && <MoreText text={item.detail} label={`About: ${item.label}`} />}
       {item.also && <Link href={item.also.href} className="text-[13px] font-semibold text-brand-700 underline-offset-2 hover:underline">{item.also.label}</Link>}
-      <Link href={item.href} className="inline-flex min-h-9 items-center rounded-lg px-3 text-[13px] font-semibold text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" aria-label={`${link}: ${item.label}`}>{link}</Link>
+      <Link href={item.href} className="inline-flex min-h-9 min-w-20 items-center justify-end rounded-lg px-3 text-[13px] font-semibold text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" aria-label={`${link}: ${item.label}`}>{link}</Link>
     </li>
   );
 }
