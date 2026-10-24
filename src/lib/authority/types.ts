@@ -64,6 +64,11 @@ export interface Rule {
   /// chain was not checked. False is a decision ("as entered"), with its reason.
   generateCoreChain?: boolean | null;
   coreChainReason?: string | null;
+  /// A route choice (decision D2): rows of one matter carrying an option are alternative readings, and the customer
+  /// picks one. The option in words; null or absent on a row that is no option.
+  choiceOptionEn?: string | null;
+  /// Whether the row's option is chosen. Null: not made, and a matter it would route says so. False: never routed.
+  chosen?: boolean | null;
 }
 
 export type Provenance = "STATED" | "OBSERVED" | "ASSUMED";
@@ -153,7 +158,8 @@ export interface ResolutionWarning {
     | "CORE_CHAIN_FAULT"
     | "CORE_AS_ENTERED"
     | "EDGE_UNDECIDED"
-    | "TYPE_ROW_SKIPPED";
+    | "TYPE_ROW_SKIPPED"
+    | "CHOICE_NOT_MADE";
   level: WarningLevel;
   messageEn: string;
   clause?: string;

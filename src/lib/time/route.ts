@@ -51,7 +51,9 @@ export function resolveMatterRoute(ctx: FunderContext, q: MatterRouteQuery, matr
     method: q.method,
     contractTypeCode: q.contractTypeCode,
     cond: q.cond ?? null,
-    value: q.value == null ? null : amountOf(senToDecimalString(q.value)),
+    // Decision (RSAJ answers stage 2): a period extension raised with no value adds nothing to the contract, so it is
+    // routed as RM0, where a row for "RM0" (SK006 §7.6.2's) finds it; the value written on the route stays not given.
+    value: q.value == null ? (q.kind === "PERIOD_EXTENSION" ? 0 : null) : amountOf(senToDecimalString(q.value)),
     contractValue: amountOf(senToDecimalString(q.contractValue)),
     pctRatio: q.ratio,
     absentRoleCodes: [...(q.absentRoleCodes ?? [])],

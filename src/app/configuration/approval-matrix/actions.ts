@@ -10,6 +10,7 @@ import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { ISSUE_TIME_ZONE_UNSET, issueFault, onRoute, predecessorOf, startOfDay } from "@/lib/authority/issue";
 import { formatOrgDateTime } from "@/lib/format";
 import { boundaryFaultsAcross, boundaryRuleFault, rulesTiedWith } from "@/lib/authority/resolve";
+import { choiceFaults, choiceFaultText, routeChoices } from "@/lib/authority/choice";
 import type { AuthorityAct, CoreLevel, Rule } from "@/lib/authority/types";
 import type { Tx } from "@/lib/audit/record";
 import { loadIssue } from "@/lib/authority/load";
@@ -427,6 +428,8 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
       // form never sent is kept as stored rather than written as empty — otherwise every
       // save of a variation rule would quietly strip the band it routes on.
       cond: data.has("cond") ? r.optionalText("cond") : (before?.cond ?? null),
+      // Decision D2: the drawer does not carry a route choice's option (the pack loads it); kept as stored. Whether it is chosen is the Choose act's, never this form's.
+      choiceOptionEn: data.has("choiceOptionEn") ? r.optionalText("choiceOptionEn") : (before?.choiceOptionEn ?? null),
       minValue,
       maxValue,
       pctMin: before?.pctMin?.toString() ?? null,
@@ -486,6 +489,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
         contractValueMin: x.contractValueMin == null ? null : Number(x.contractValueMin.toString()),
         contractValueMax: x.contractValueMax == null ? null : Number(x.contractValueMax.toString()),
         followsBoundarySwitch: x.followsBoundarySwitch ?? null,
+        choiceOptionEn: x.choiceOptionEn ?? null,
       }) as Rule;
     if (!r.failed) {
       // An edge on the boundary must say whether it follows the switch, and two rules
@@ -843,6 +847,9 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
     if (draft._count.rules === 0) {
       refusals.push("This draft has no rules, so nothing could be routed under it. Add its rules first.");
     }
+    // Decision D2: a route choice must be well formed. One not made may go in force: its matters say so until a new version chooses.
+    const choiceRows = await tx.authorityRule.findMany({ where: { authorityMatrixId: draft.id }, select: { domain: true, choiceOptionEn: true, chosen: true } });
+    for (const f of choiceFaults(choiceRows)) refusals.push(choiceFaultText(f, matterLabel(f.domain)));
     // Core routing (FR-APR-004): every core row sound, and every rule taking its chain
     // from the core routing able to — none shortened, weakened or out of order.
     const issue = await issueIn(actor, tx, draft.id);
@@ -902,6 +909,49 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
   }).catch((e: unknown) => attributionRefusalState(e) ?? Promise.reject(e));
   if (!result.ok) return result;
 
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * Choose a route (decision D2): on a draft only, the chosen option's rows of the matter are routed and every other option's are set aside.
+ * A change to the draft like any other, so the chooser becomes one of its makers; audited with the choice before and after and the reason.
+ */
+export async function chooseRoute(_prev: FormState, data: FormData): Promise<FormState> {
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
+  const orgId = await organisationId(actor);
+  if (!orgId) return NO_ORG;
+  const authorityMatrixId = String(data.get("authorityMatrixId") ?? "");
+  const domain = String(data.get("domain") ?? "");
+  const r = new FormReader(data);
+  const option = r.text("option", "Route", { required: true, max: 240 });
+  const reason = r.text("reason", "Why", { required: true, max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+
+  const result = await db.$transaction(async (tx): Promise<FormState> => {
+    await lockIssue(tx, authorityMatrixId);
+    const matrix = await tx.authorityMatrix.findFirst({ where: { id: authorityMatrixId, organisationId: orgId }, select: { id: true, label: true, issuedAt: true } });
+    if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." };
+    if (matrix.issuedAt) return FROZEN;
+    const rows = await tx.authorityRule.findMany({ where: { authorityMatrixId, domain, choiceOptionEn: { not: null } }, select: { domain: true, choiceOptionEn: true, chosen: true } });
+    const choice = routeChoices(rows)[0];
+    if (!choice) return { ok: false, message: "That matter has no route choice." };
+    if (!choice.options.includes(option)) return { ok: false, errors: { option: "Choose one of the routes listed." } };
+    if (choice.chosen === option && rows.every((x) => x.chosen === (x.choiceOptionEn === option))) return { ok: true };
+    await tx.authorityRule.updateMany({ where: { authorityMatrixId, domain, choiceOptionEn: option }, data: { chosen: true } });
+    await tx.authorityRule.updateMany({ where: { authorityMatrixId, domain, choiceOptionEn: { not: null, notIn: [option] } }, data: { chosen: false } });
+    await writeAudit(
+      tx,
+      { actor: toAuditActor(actor), organisationId: orgId, entity: "AuthorityMatrix", entityId: matrix.id, entityLabel: `${matrix.label} — ${matterLabel(domain)}`, reason },
+      "UPDATE",
+      [{ field: "routeChosen", before: choice.chosen ?? "Not chosen", after: option }],
+    );
+    await noteMaker(tx, { matrixId: matrix.id, actor });
+    return { ok: true };
+  });
+  if (!result.ok) return result;
   revalidatePath(PATH);
   return { ok: true };
 }

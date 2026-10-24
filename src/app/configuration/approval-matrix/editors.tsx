@@ -10,6 +10,7 @@ import { actorField } from "@/lib/auth/actor-field";
 
 import {
   adoptDraft,
+  chooseRoute,
   discardDraft,
   endRejectionDestination,
   issueDraft,
@@ -603,6 +604,27 @@ export function IssueDraft({
       submitBlock={blocked}
       trigger={{ label: "Put in force", className: buttonClass("primary", "sm") }}
       size="md"
+    />
+  );
+}
+
+/// Choose a matter's route where the governing documents give two (decision D2). Only on a draft.
+export function ChooseRoute({ matrixId, domain, matter, options, chosen }: { matrixId: string; domain: string; matter: string; options: string[]; chosen: string | null }) {
+  return (
+    <RecordEditor
+      title={`Route for ${matter}`}
+      description="The documents give more than one route. Choose the one to follow."
+      fields={[
+        { kind: "hidden", name: "authorityMatrixId" },
+        { kind: "hidden", name: "domain" },
+        { kind: "select", name: "option", label: "Route", required: true, placeholder: "Choose", options: options.map((o) => ({ value: o, label: o })) },
+      ]}
+      values={{ authorityMatrixId: matrixId, domain, option: chosen }}
+      action={chooseRoute}
+      submitLabel="Choose"
+      reason={{ label: "Why this route?" }}
+      trigger={{ label: chosen ? "Change" : "Choose", className: buttonClass(chosen ? "ghost" : "secondary", "sm") }}
+      size="sm"
     />
   );
 }

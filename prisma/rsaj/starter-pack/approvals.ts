@@ -14,7 +14,7 @@
 
 import { SIGNATORY_DOMAIN } from "../../../src/lib/award/types";
 import { NEGOTIATION_DOMAIN } from "../../../src/lib/evaluation/types";
-import { LAD_WAIVER_DOMAIN, TERMINATION_DOMAIN, EOT_DOMAIN } from "../../../src/lib/matter/matter";
+import { LAD_WAIVER_DOMAIN, TERMINATION_DOMAIN, EOT_DOMAIN, PERIOD_EXTENSION_DOMAIN } from "../../../src/lib/matter/matter";
 import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN } from "../../../src/lib/method/types";
 import { REQUISITION_DOMAIN } from "../../../src/lib/requisition/types";
 import { SO_DOMAIN } from "../../../src/lib/supervision/so";
@@ -261,6 +261,21 @@ const SO_BANDS = [
 const asSo = (prefix: string, domain: string, what: string, clause: string, requirement: string): PackRule[] =>
   SO_BANDS.map((b) => stacked({ ruleKey: `${prefix}_${b.key}`, domain, contractValueMin: b.min, contractValueMax: b.max, labelEn: `${what}, ${b.words}`, ...CP_THEN_HOD, approverCode: b.office, clause }, requirement));
 
+/// Route choices (decision D2, RSAJ answer 16; founder: "make it configurable"). Where the DAL and an SK procedure give different routes, both
+/// load as options, STATED, each citing its own document, and none chosen: RSAJ chooses on the draft. One constant per option, so a typo cannot
+/// split a choice.
+const CHOICE_ANSWER = "route choice per RSAJ answer 16 (2026-10-24)";
+const DAL_OPTION = "DAL Appendix B";
+const SK008_OPTION = "SK008 §7.5.1";
+const SK006_EOT_OPTION = "SK006 §7.6.1";
+const SK006_PX_OPTION = "SK006 §7.6.2";
+/// A row of a route choice from a document other than the DAL: its clause and source are that document's, never the DAL's.
+const sk = (r: RuleIn, requirement: string): PackRule => rule({ ...r, source: `${r.clause}; ${CHOICE_ANSWER}` }, requirement);
+const option = (choiceOptionEn: string, rows: PackRule[]): PackRule[] => rows.map((r) => ({ ...r, choiceOptionEn, chosen: null }));
+const NO_FIN = { domain: EOT_DOMAIN, cond: "no_financial_impact" } as const;
+const VOC_MR = { recommenders: steps(["VOC", "MR"]), committeeCode: "VOC", committeeAct: "MR", nonDelegable: true } as const;
+const VOC_APPROVES = { approverCode: "VOC", committeeCode: "VOC", committeeAct: "A" } as const;
+
 const RULES: PackRule[] = [
   // B.3 §3.1.4.1 Approval of requisition. Requisition bands do not follow the boundary switch (ruling OD-4).
   rule({ ruleKey: "REQ_UP_TO_500", domain: REQUISITION_DOMAIN, labelEn: "Requisition, up to RM500", maxValue: 500, approverCode: "HOD", followsBoundarySwitch: false, clause: "§3.1.4.1" }, REQ),
@@ -322,8 +337,7 @@ const RULES: PackRule[] = [
   rule({ ruleKey: "LAD_WAIVER_ABOVE_30", domain: LAD_WAIVER_DOMAIN, ...TENDER_CONTRACTS, labelEn: "Waiver of LAD, more than 30% of the LAD amount", pctMin: "30", approverCode: "TBC", committeeCode: "TBC", committeeAct: "A", clause: "§3.1.4.4 item 12a" }, "FR-LAD-009, FR-APR-002"),
   rule({ ruleKey: "LAD_WAIVER_UP_TO_30", domain: LAD_WAIVER_DOMAIN, ...TENDER_CONTRACTS, labelEn: "Waiver of LAD, up to 30% of the LAD amount", pctMax: "30", approverCode: "CEO", clause: "§3.1.4.4 item 12b" }, "FR-LAD-009, FR-APR-002"),
 
-  // B.7 §3.1.4.4 items 13 and 15, "JR/P by CP": the requesting department's head proposes and the Head of C&P jointly recommends.
-  stacked({ ruleKey: "TERMINATION", domain: TERMINATION_DOMAIN, ...TENDER_CONTRACTS, labelEn: "Termination, arbitration or litigation", proposerCode: "HOD", recommenders: steps(["CP", "JR"], ["HODIV", "R"]), approverCode: "CEO", clause: "§3.1.4.4 item 13" }, "FR-TRM-005, FR-APR-002"),
+  // B.7 §3.1.4.4 item 15, "JR/P by CP": the requesting department's head proposes and the Head of C&P jointly recommends.
   stacked({ ruleKey: "ADVANCE_PAYMENT", domain: "advance_payment", ...TENDER_CONTRACTS, labelEn: "Advance payment", proposerCode: "HOD", recommenders: steps(["CP", "JR"], ["HODIV", "R"]), approverCode: "CEO", clause: "§3.1.4.4 item 15" }, "FR-PAY-001, FR-APR-002"),
 
   // B.7 §3.1.4.4 item 16 Interim payment, by the certificate's value.
@@ -331,8 +345,8 @@ const RULES: PackRule[] = [
   rule({ ruleKey: "IPC_100K_TO_500K", domain: "payment", ...TENDER_CONTRACTS, labelEn: "Interim payment, more than RM100,000 and up to RM500,000", minValue: 100 * K, maxValue: 500 * K, approverCode: "FD", clause: "§3.1.4.4 item 16b" }, "FR-PAY-016, FR-APR-002"),
   rule({ ruleKey: "IPC_ABOVE_500K", domain: "payment", ...TENDER_CONTRACTS, labelEn: "Interim payment, more than RM500,000", minValue: 500 * K, approverCode: "CEO", clause: "§3.1.4.4 item 16a" }, "FR-PAY-016, FR-APR-002"),
 
-  // Plan step 4.6: the B.6 and B.7 rows the DAL states plainly. Extension of time with no financial impact, extension of a term contract's
-  // period and the quotation termination wait for the route choices of decision D2.
+  // Plan step 4.6: the B.6 and B.7 rows the DAL states plainly. Extension of time with no financial impact, extension of the contract period
+  // and termination are route choices (decision D2), below.
   // B.6 item 6 and B.7 item 5: the office that acts as Superintending Officer, by the contract's value.
   rule({ ruleKey: "SO_QUOTATION", domain: SO_DOMAIN, ...QUOTATION_CONTRACTS, labelEn: "Superintending Officer, contract more than RM15,000 and up to RM300,000", approverCode: "HODIV", clause: "§3.1.4.3 item 6" }, "FR-SUP-001, FR-APR-002"),
   rule({ ruleKey: "SO_300K_TO_1M", domain: SO_DOMAIN, contractValueMin: TENDER_FLOOR, contractValueMax: 1 * M, labelEn: "Superintending Officer, contract more than RM300,000 and up to RM1 million", approverCode: "HODIV", clause: "§3.1.4.4 item 5c" }, "FR-SUP-001, FR-APR-002"),
@@ -366,6 +380,40 @@ const RULES: PackRule[] = [
   ...asSo("PC_T", "practical_completion", "Certificate of practical completion", "§3.1.4.4 item 11", "FR-CMP-006, FR-APR-002"),
   ...asSo("MGD_T", "making_good", "Certificate of making good defects", "§3.1.4.4 item 11", "FR-CMP-016, FR-APR-002"),
   ...asSo("FINAL_T", "final_payment", "Final payment", "§3.1.4.4 item 17", "FR-FIN-010, FR-APR-002"),
+
+  // Route choice: termination (FR-TRM-005). The DAL has the CEO approve (B.6 item 8, B.7 item 13, "JR/P by CP"); SK008 §7.5.1 has the S.O./P.D. act.
+  ...option(DAL_OPTION, [
+    stacked({ ruleKey: "TERMINATION", domain: TERMINATION_DOMAIN, ...TENDER_CONTRACTS, labelEn: "Termination, arbitration or litigation", proposerCode: "HOD", recommenders: steps(["CP", "JR"], ["HODIV", "R"]), approverCode: "CEO", clause: "§3.1.4.4 item 13" }, "FR-TRM-005, FR-APR-002"),
+    stacked({ ruleKey: "TERMINATION_QUOTATION", domain: TERMINATION_DOMAIN, ...QUOTATION_CONTRACTS, labelEn: "Termination, arbitration or litigation, quotation contract", proposerCode: "HOD", recommenders: steps(["CP", "JR"], ["HODIV", "R"], ["FD", "MR"]), approverCode: "CEO", nonDelegable: true, clause: "§3.1.4.3 item 8" }, "FR-TRM-005, FR-APR-002"),
+  ]),
+  ...option(
+    SK008_OPTION,
+    [{ key: "QUOTATION", words: "contract more than RM15,000 and up to RM300,000", min: QUOTATION_FLOOR, max: TENDER_FLOOR, office: "HODIV" }, ...SO_BANDS].map((b) =>
+      sk({ ruleKey: `TERMINATION_SO_${b.key}`, domain: TERMINATION_DOMAIN, contractValueMin: b.min, contractValueMax: b.max, labelEn: `Termination by the S.O./P.D., ${b.words}`, approverCode: b.office, clause: "SK008 §7.5.1" }, "FR-TRM-005, FR-APR-002"),
+    ),
+  ),
+
+  // Route choice: extension of time with no financial impact (FR-EOT-007). The DAL has the S.O./P.D. approve after the Variation Orders
+  // Committee's mandatory recommendation (B.7 item 10b; B.6 item 6 on a quotation contract); SK006 §7.6.1, as amended 12.01.2026, and 7.5.3
+  // have the committee approve.
+  ...option(DAL_OPTION, [
+    ...SO_BANDS.map((b) => rule({ ruleKey: `EOT_NOFIN_${b.key}`, ...NO_FIN, contractValueMin: b.min, contractValueMax: b.max, labelEn: `Extension of time with no financial impact, ${b.words}`, ...VOC_MR, approverCode: b.office, clause: "§3.1.4.4 item 10b" }, "FR-EOT-007, FR-APR-002")),
+    stacked({ ruleKey: "EOT_NOFIN_Q", ...NO_FIN, ...QUOTATION_CONTRACTS, labelEn: "Extension of time with no financial impact, quotation contract", ...CP_THEN_HOD, approverCode: "HODIV", clause: "§3.1.4.3 item 6" }, "FR-EOT-007, FR-APR-002"),
+  ]),
+  ...option(SK006_EOT_OPTION, [sk({ ruleKey: "EOT_NOFIN_SK006", ...NO_FIN, labelEn: "Extension of time with no financial impact, by the Variation Orders Committee", ...VOC_APPROVES, clause: "SK006 §7.6.1 (as amended 12.01.2026), 7.5.3" }, "FR-EOT-007, FR-APR-002")]),
+
+  // Route choice: extension of the contract period (FR-EOT-012). The DAL bands it by the contract's value (B.7 item 9, "JR/R by CP", the Tender
+  // Board approving; B.6 item 9, the Quotation Committee's mandatory recommendation, the FD approving). SK006 §7.6.2 bands it by the extension's
+  // own value: more than RM50,000 to the Tender Board after the Variation Orders Committee, RM0 to the committee. It has no row for RM0.01 to
+  // RM50,000, so none is loaded. A period extension raised with no value is routed as RM0 (src/lib/time/route.ts).
+  ...option(DAL_OPTION, [
+    stacked({ ruleKey: "PX_TENDER", domain: PERIOD_EXTENSION_DOMAIN, ...TENDER_CONTRACTS, labelEn: "Extension of the contract period, tender contract", ...CP_THEN_HOD, approverCode: "TBC", committeeCode: "TBC", committeeAct: "A", clause: "§3.1.4.4 item 9" }, "FR-EOT-012, FR-APR-002"),
+    rule({ ruleKey: "PX_QUOTATION", domain: PERIOD_EXTENSION_DOMAIN, ...QUOTATION_CONTRACTS, labelEn: "Extension of the contract period, quotation contract", recommenders: steps(["QC", "MR"]), approverCode: "FD", committeeCode: "QC", committeeAct: "MR", nonDelegable: true, clause: "§3.1.4.3 item 9" }, "FR-EOT-012, FR-APR-002"),
+  ]),
+  ...option(SK006_PX_OPTION, [
+    sk({ ruleKey: "PX_SK006_ABOVE_50K", domain: PERIOD_EXTENSION_DOMAIN, minValue: 50 * K, labelEn: "Extension of the contract period, more than RM50,000", ...VOC_MR, approverCode: "TBC", clause: "SK006 §7.6.2" }, "FR-EOT-012, FR-APR-002"),
+    sk({ ruleKey: "PX_SK006_NO_VALUE", domain: PERIOD_EXTENSION_DOMAIN, maxValue: 0, labelEn: "Extension of the contract period, no added value", ...VOC_APPROVES, clause: "SK006 §7.6.2" }, "FR-EOT-012, FR-APR-002"),
+  ]),
 ].map((r, i) => ({ ...r, sortOrder: i + 1 }));
 
 export const DAL_DRAFT: PackMatrixDraft = {

@@ -122,6 +122,8 @@ export async function loadIssue(
     })),
     generateCoreChain: r.generateCoreChain,
     coreChainReason: r.coreChainReason,
+    choiceOptionEn: r.choiceOptionEn,
+    chosen: r.chosen,
   }));
 
   const coreRouting: CoreLevel[] = version.coreRouting.map((l) => ({

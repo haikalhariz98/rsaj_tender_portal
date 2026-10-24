@@ -167,6 +167,8 @@ async function writeMatrixDraft(tx: Tx, organisationId: string, m: PackMatrixDra
         sortOrder: r.sortOrder || i + 1,
         generateCoreChain: r.generateCoreChain ?? null,
         coreChainReason: r.coreChainReason ?? null,
+        choiceOptionEn: r.choiceOptionEn ?? null,
+        chosen: r.chosen ?? null,
         recommenders: { create: r.recommenders.map((x, n) => ({ roleCode: x.roleCode, act: x.act, sequence: n + 1 })) },
       },
       select: { id: true },
@@ -184,6 +186,7 @@ async function writeMatrixDraft(tx: Tx, organisationId: string, m: PackMatrixDra
       approver: r.approverCode ? a.office(r.approverCode) : null,
       clause: r.clause,
       note: r.note || null,
+      routeOption: r.choiceOptionEn ? `${r.choiceOptionEn}, ${r.chosen == null ? "not chosen yet" : r.chosen ? "chosen" : "set aside"}` : null,
       ...draftOrigin(r.provenance, r.source),
     });
   }

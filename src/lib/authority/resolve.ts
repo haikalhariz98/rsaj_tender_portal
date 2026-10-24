@@ -16,6 +16,8 @@ import { comparePercent, inPercentBandExact, onPercent, type ExactRatio } from "
 import { parsePercent } from "@/lib/securities/money";
 import { ACT_RANK, generateChain } from "./core-routing";
 import { AS_ENTERED_INFO, coreFaultWarning, NO_LONGER_CONFIGURED, notDecidedWarning, type Words } from "./core-routing-labels";
+import { routeChoices } from "./choice";
+import { matterLabel } from "@/lib/labels";
 
 /// Maximum upward hops when escalating past absent holders. Guards against a cycle
 /// in a mis-seeded escalation map.
@@ -204,6 +206,7 @@ const tenThousandths = (v: string) => parsePercent(v);
  *
  * This is the save-time twin of the AMBIGUOUS warning. Gap rows are left out on
  * purpose: they sit below real rows as a fallback, so overlapping one is their design.
+ * So are two options of one route choice (decision D2): only the chosen one is routed.
  */
 export function rulesTiedWith(rule: Rule, others: readonly Rule[]): Rule[] {
   if (rule.isGap) return [];
@@ -211,6 +214,7 @@ export function rulesTiedWith(rule: Rule, others: readonly Rule[]): Rule[] {
     (o) =>
       o.ruleKey !== rule.ruleKey &&
       !o.isGap &&
+      !(o.choiceOptionEn && rule.choiceOptionEn && o.choiceOptionEn !== rule.choiceOptionEn) &&
       o.domain === rule.domain &&
       (o.method ?? null) === (rule.method ?? null) &&
       (o.contractTypeCode ?? null) === (rule.contractTypeCode ?? null) &&
@@ -260,7 +264,9 @@ export function approverAct(rule: Pick<Rule, "approverMandatory">): AuthorityAct
 
 /// The rules that match a matter, and the percentage edges a ratio sat exactly on with the side undecided.
 function candidateRules(matrix: Matrix, q: ResolveQuery): { rules: Rule[]; undecidedEdges: string[]; typeSkipped: Rule[] } {
-  const { policy, rules } = matrix;
+  const { policy } = matrix;
+  // Decision D2: an option passed over in a route choice is never routed, nor counted as a sibling.
+  const rules = matrix.rules.filter((r) => r.chosen !== false);
   const method = q.method ?? null;
   const cond = q.cond ?? null;
   const undecidedEdges = new Set<string>();
@@ -354,6 +360,19 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
       messageEn: `“${r.labelEn}” is confined to one contract type, and this matter was routed without its contract type, so the row was not considered.`,
       clause: r.clause,
     });
+  }
+
+  // Decision D2: the best match is an option of a route choice nobody has made. No route: picking one would be the
+  // engine's choice, not the customer's. Said before AMBIGUOUS, since the options may tie by design.
+  if (rule?.choiceOptionEn && rule.chosen == null) {
+    const options = routeChoices(matrix.rules).find((c) => c.domain === rule.domain)?.options ?? [rule.choiceOptionEn];
+    warnings.push({
+      code: "CHOICE_NOT_MADE",
+      level: "err",
+      messageEn: `No route is chosen yet for “${matterLabel(rule.domain)}”: ${options.map((o) => `“${o}”`).join(" or ")}. Choose one on the approval matrix.`,
+      clause: rule.clause,
+    });
+    return { rule: null, boundaryOperator: null, chain: [], warnings, regime, approverCode: null, committeeCode: null, nonDelegable: false, query };
   }
 
   // Two rules that match equally well: which one routes is down to row order, which
@@ -671,6 +690,8 @@ export function ruleChain(
 export function routedOffices(matrix: Matrix): string[] {
   const out = new Set<string>();
   for (const rule of matrix.rules) {
+    // An option passed over in a route choice routes nobody (decision D2).
+    if (rule.chosen === false) continue;
     for (const s of ruleChain(matrix, rule).steps) out.add(s.roleCode);
     if (rule.committeeCode) out.add(rule.committeeCode);
   }

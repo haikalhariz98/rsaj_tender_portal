@@ -56,7 +56,9 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-import { adoptDraft, issueDraft } from "@/app/configuration/approval-matrix/actions";
+import { adoptDraft, chooseRoute, issueDraft, startRevision } from "@/app/configuration/approval-matrix/actions";
+import { loadMatrix } from "@/lib/authority/load";
+import { resolveApproval } from "@/lib/authority/resolve";
 
 let orgId = "";
 const PACKS = [RSAJ_PACK, GENERIC_PACK];
@@ -178,6 +180,21 @@ describe("putting the DAL in force", () => {
     expect(await issue()).toMatchObject({ ok: false, message: expect.stringContaining("Nobody is recorded") });
     expect(await adoptDraft({ ok: false }, form({ id: draft.id, reason: "I reviewed the transcription" }))).toEqual({ ok: true });
 
+    // Decision D2 (B2): the pack loads both readings, none chosen; a route is chosen on the draft, audited with its reason.
+    const choose = (domain: string, option: string, reason = "RSAJ follows the DAL") => chooseRoute({ ok: false }, form({ authorityMatrixId: draft.id, domain, option, reason }));
+    const optionsOf = async (authorityMatrixId: string, domain: string) =>
+      new Set((await db.authorityRule.findMany({ where: { authorityMatrixId, domain, choiceOptionEn: { not: null } }, select: { choiceOptionEn: true, chosen: true } })).map((t) => `${t.choiceOptionEn}: ${t.chosen}`));
+    expect(await optionsOf(draft.id, "termination")).toEqual(new Set(["DAL Appendix B: null", "SK008 §7.5.1: null"]));
+    const loadedTrail = await db.auditEntry.findFirstOrThrow({ where: { organisationId: orgId, entity: "AuthorityRule", entityLabel: { endsWith: "Termination, arbitration or litigation, quotation contract" } } });
+    expect(loadedTrail.changes).toContainEqual(expect.objectContaining({ field: "routeOption", after: "DAL Appendix B, not chosen yet" }));
+    expect(await choose("termination", "Not an option")).toMatchObject({ ok: false, errors: { option: expect.any(String) } });
+    expect(await choose("termination", "DAL Appendix B", "")).toMatchObject({ ok: false, errors: { reason: expect.any(String) } });
+    expect(await choose("termination", "DAL Appendix B")).toEqual({ ok: true });
+    expect(await optionsOf(draft.id, "termination")).toEqual(new Set(["DAL Appendix B: true", "SK008 §7.5.1: false"]));
+    const chosenTrail = await db.auditEntry.findFirstOrThrow({ where: { organisationId: orgId, entity: "AuthorityMatrix", entityId: draft.id, reason: "RSAJ follows the DAL" } });
+    expect(chosenTrail.changes).toContainEqual(expect.objectContaining({ field: "routeChosen", before: "Not chosen", after: "DAL Appendix B" }));
+    expect((await loadMakers(db, draft.id)).personIds).toEqual([person.person.id]);
+
     await db.securityPolicy.update({ where: { organisationId: orgId }, data: { twoPersonChanges: true } });
     expect(await issue()).toMatchObject({ ok: false, message: expect.stringMatching(/second person|cannot issue/) });
     expect((await db.authorityMatrix.findUniqueOrThrow({ where: { id: draft.id } })).issuedAt).toBeNull();
@@ -187,8 +204,23 @@ describe("putting the DAL in force", () => {
     const ad = await db.authorityRole.findFirstOrThrow({ where: { organisationId: orgId, code: "AD" } });
     expect(await db.roleAssignment.count({ where: { roleCode: "AD", person: { organisationId: orgId } } })).toBe(0);
     expect(ad.nameEn).toBe("Head of Administration Division");
+    // Two choices are still not made (extension of time with no financial impact, extension of the contract period): that does not hold it back.
     expect(await issue()).toEqual({ ok: true });
     expect(await db.authorityMatrix.findUniqueOrThrow({ where: { id: draft.id } })).toMatchObject({ issuedAt: expect.any(Date), issuedByPersonId: person.person.id });
+
+    // Loaded as stored: termination on a RM200,000 contract routes by the DAL's B.6 item 8; an unmade choice still refuses.
+    const { code } = await db.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { code: true } });
+    const issued = await loadMatrix(code, new Date(), draft.id);
+    expect(resolveApproval(issued, { domain: "termination", contractValue: 200_000 }).rule?.ruleKey).toBe("TERMINATION_QUOTATION");
+    expect(resolveApproval(issued, { domain: "eot", cond: "no_financial_impact", contractValue: 2_000_000 }).warnings.map((w) => w.code)).toContain("CHOICE_NOT_MADE");
+    // Frozen once issued.
+    expect(await choose("eot", "SK006 §7.6.1")).toMatchObject({ ok: false, message: expect.stringMatching(/issued/) });
+    expect(await optionsOf(draft.id, "eot")).toEqual(new Set(["DAL Appendix B: null", "SK006 §7.6.1: null"]));
+    // Copied on revision: the new draft carries the choice made and the ones not made.
+    await expect(startRevision({ ok: false }, form({ fromId: draft.id, label: "DAL Issue A, Revision 01 (draft)", effectiveFrom: "2031-01-01" }))).rejects.toThrow(/^redirect /);
+    const revision = await db.authorityMatrix.findFirstOrThrow({ where: { organisationId: orgId, issuedAt: null } });
+    expect(await optionsOf(revision.id, "termination")).toEqual(new Set(["DAL Appendix B: true", "SK008 §7.5.1: false"]));
+    expect(await optionsOf(revision.id, "contract_period_extension")).toEqual(new Set(["DAL Appendix B: null", "SK006 §7.6.2: null"]));
   });
 });
 

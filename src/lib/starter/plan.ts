@@ -27,11 +27,13 @@
 import { Prisma } from "@/generated/prisma/browser";
 import { policyFault } from "@/lib/auth/policy";
 import { coreChainFaultsAcross, coreLevelFaults } from "@/lib/authority/core-routing";
+import { choiceFaults, choiceFaultText } from "@/lib/authority/choice";
 import { destinationRowFaults, type RejectionKind } from "@/lib/authority/rejection";
 import { boundaryFaultsAcross } from "@/lib/authority/resolve";
 import type { Role } from "@/lib/authority/types";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { documentFaultText } from "@/lib/documents/labels";
+import { matterLabel } from "@/lib/labels";
 import { policyFaults } from "@/lib/documents/policy";
 import { isLoopKey } from "@/lib/evaluation/loop";
 import { patternFaults, type NumberingReset } from "@/lib/numbering/series";
@@ -190,6 +192,8 @@ function matrixShapeFaults(m: PackMatrixDraft): string[] {
   if (m.rules.length === 0) out.push("the draft has no rules.");
   if (new Set(m.rules.map((r) => r.ruleKey)).size !== m.rules.length) out.push("two rules share a key.");
   for (const r of m.rules) if (!r.labelEn.trim() || r.labelEn === r.ruleKey) out.push(`the rule ${r.ruleKey} needs a label in words.`);
+  // As the issue's own rule (decision D2): a route choice is well formed, made or not.
+  for (const f of choiceFaults(m.rules)) out.push(choiceFaultText(f, matterLabel(f.domain)));
   // As the issue's own rule: a boundary ruling is STATED only with its written source.
   if (m.boundaryProvenance === "STATED" && !m.boundarySource?.trim()) out.push("a stated boundary ruling needs its source.");
   return out;

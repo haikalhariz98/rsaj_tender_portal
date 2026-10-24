@@ -8,15 +8,18 @@ import RSAJ_PACK from "../../../prisma/rsaj/starter-pack";
 import { CONTRACTS } from "../../../prisma/rsaj/starter-pack/contracts";
 import { SUPPLIERS } from "../../../prisma/rsaj/starter-pack/suppliers";
 import { SYSTEM } from "../../../prisma/rsaj/starter-pack/system";
+import { applyChoice, choiceFaults, routeChoices } from "@/lib/authority/choice";
 import { DAL_FIXTURE } from "@/lib/authority/dal-fixture";
-import { resolveApproval } from "@/lib/authority/resolve";
+import { resolveApproval, rulesTiedWith } from "@/lib/authority/resolve";
 import type { Matrix, ResolveQuery, Role } from "@/lib/authority/types";
 import { matchesFormat } from "@/lib/integration/award-commitment";
+import { parseSen } from "@/lib/money";
 import { ratioOfPercent } from "@/lib/percent-band";
 import { toPosix } from "@/lib/scan/files";
 import { documentTypeFaults } from "@/lib/suppliers/config";
 import { SUPPLIER_EXPIRY_EVENT } from "@/lib/suppliers/expiry";
 import { resolveSo } from "@/lib/supervision/so";
+import { resolveMatterRoute } from "@/lib/time/route";
 
 import { columnsOf, planPacks } from "./plan";
 
@@ -196,10 +199,12 @@ describe("the DAL draft, put in force, routes a contract's matters whatever its 
     expect(r.warnings.filter((w) => w.level === "err")).toEqual([]);
   });
 
-  // Part 2 loaded B.6 item 7, so a waiver of LAD on a RM200,000 contract now routes; termination there (B.6 item 8, slashed) is the gap.
-  it("routes a waiver of LAD on a RM200,000 contract to the CEO, and finds no rule for its termination, saying so", () => {
+  // Part 2 loaded B.6 item 7, so a waiver of LAD on a RM200,000 contract now routes. Deliberate change (stage 2, B2): termination there is a route
+  // choice not made, no longer the gap; the gap case moves to a matter the DAL has no row for (loss and expense).
+  it("routes a waiver of LAD on a RM200,000 contract to the CEO; its termination waits for the route choice, and loss and expense finds no rule", () => {
     expect(route({ domain: "lad_waiver", method: "open_selective", pctRatio: pct("10"), contractValue: 200_000 })).toEqual({ rule: "LAD_WAIVER_QUOTATION", approver: "CEO", errors: [] });
-    expect(route({ domain: "termination", method: "open_selective", contractValue: 200_000 })).toEqual({ rule: null, approver: null, errors: ["NO_RULE"] });
+    expect(route({ domain: "termination", method: "open_selective", contractValue: 200_000 })).toEqual({ rule: null, approver: null, errors: ["CHOICE_NOT_MADE"] });
+    expect(route({ domain: "loss_expense", method: "open_selective", value: 10_000, contractValue: 200_000 })).toEqual({ rule: null, approver: null, errors: ["NO_RULE"] });
   });
 
   it("resolves the Superintending Officer by the contract's value (B.6 item 6, B.7 item 5)", () => {
@@ -209,6 +214,84 @@ describe("the DAL draft, put in force, routes a contract's matters whatever its 
     };
     expect([200_000, 300_000, 300_000.01, 1_000_000, 2_000_000, 3_000_000, 3_500_000].map(so)).toEqual(["HODIV", "HODIV", "HODIV", "HODIV", "FD", "FD", "CEO"]);
     expect(resolveSo(matrix, { contractValue: 300_000, method: null, contractTypeCode: null })).toMatchObject({ ruleKey: "SO_QUOTATION" });
+  });
+});
+
+describe("the route choices of decision D2 (RSAJ answer 16): both readings load, none chosen", () => {
+  const offices = RSAJ_PACK.lists.find((l) => l.model === "AuthorityRole")!.rows;
+  const roles: Record<string, Role> = Object.fromEntries(offices.map((o) => [o.code, { code: o.code, ...(o.values as Omit<Role, "code">) }]));
+  const matrixOf = (rules = dal.rules): Matrix => ({ policy: dal.policy, roles, rules, coreRouting: dal.coreRouting });
+  const pick = (domain: string, option: string) => matrixOf(applyChoice(dal.rules, domain, option));
+  const chainOf = (m: Matrix, q: ResolveQuery) => {
+    const r = resolveApproval(m, q);
+    return r.rule ? [r.rule.ruleKey, ...r.chain.map((s) => `${s.roleCode} ${s.act}`)] : r.warnings.filter((w) => w.level === "err").map((w) => w.code);
+  };
+
+  it("are three, each with two options, none chosen, well formed, STATED and citing its own document", () => {
+    expect(routeChoices(dal.rules)).toEqual([
+      { domain: "termination", options: ["DAL Appendix B", "SK008 §7.5.1"], chosen: null },
+      { domain: "eot", options: ["DAL Appendix B", "SK006 §7.6.1"], chosen: null },
+      { domain: "contract_period_extension", options: ["DAL Appendix B", "SK006 §7.6.2"], chosen: null },
+    ]);
+    expect(choiceFaults(dal.rules)).toEqual([]);
+    const options = dal.rules.filter((r) => r.choiceOptionEn);
+    expect(options.every((r) => r.chosen === null && r.provenance === "STATED")).toBe(true);
+    for (const r of options.filter((x) => x.choiceOptionEn !== "DAL Appendix B")) expect([r.clause, r.source], r.ruleKey).toEqual([expect.stringMatching(/^SK00[68] §/), `${r.clause}; route choice per RSAJ answer 16 (2026-10-24)`]);
+    for (const r of options.filter((x) => x.choiceOptionEn === "DAL Appendix B")) expect(r.source, r.ruleKey).toMatch(/^DAL Issue A/);
+    // Every row with a mandatory recommendation is fixed.
+    for (const r of dal.rules.filter((x) => x.recommenders.some((s) => s.act === "MR") && x.ruleKey !== "DP_ABOVE_5M" && !DAL_FIXTURE.rules.some((f) => f.ruleKey === x.ruleKey))) expect(r.nonDelegable, r.ruleKey).toBe(true);
+  });
+
+  it("leave no two rows of the draft tied for any matter", () => {
+    for (const r of dal.rules) expect(rulesTiedWith(r, dal.rules).map((x) => x.ruleKey), r.ruleKey).toEqual([]);
+  });
+
+  it("termination: not chosen, refused; the DAL's B.6 item 8 or B.7 item 13; SK008's S.O./P.D. by the contract's value", () => {
+    const q = (contractValue: number): ResolveQuery => ({ domain: "termination", method: "open_selective", contractValue });
+    expect(chainOf(matrixOf(), q(200_000))).toEqual(["CHOICE_NOT_MADE"]);
+    expect(resolveApproval(matrixOf(), q(200_000)).warnings[0].messageEn).toBe("No route is chosen yet for “Termination / Arbitration”: “DAL Appendix B” or “SK008 §7.5.1”. Choose one on the approval matrix.");
+    const dalM = pick("termination", "DAL Appendix B");
+    expect(chainOf(dalM, q(200_000))).toEqual(["TERMINATION_QUOTATION", "HOD P", "CP JR", "HODIV R", "FD MR", "CEO A"]);
+    expect(chainOf(dalM, q(300_000.01))).toEqual(["TERMINATION", "HOD P", "CP JR", "HODIV R", "CEO A"]);
+    const sk = pick("termination", "SK008 §7.5.1");
+    expect([200_000, 300_000, 300_000.01, 1_000_000.01, 3_000_000.01].map((v) => chainOf(sk, q(v)))).toEqual([
+      ["TERMINATION_SO_QUOTATION", "HODIV A"],
+      ["TERMINATION_SO_QUOTATION", "HODIV A"],
+      ["TERMINATION_SO_300K_TO_1M", "HODIV A"],
+      ["TERMINATION_SO_1M_TO_3M", "FD A"],
+      ["TERMINATION_SO_ABOVE_3M", "CEO A"],
+    ]);
+  });
+
+  it("extension of time with no financial impact: the DAL's S.O./P.D. after the committee, or SK006's committee approving", () => {
+    const q = (contractValue: number): ResolveQuery => ({ domain: "eot", cond: "no_financial_impact", method: "open_selective", contractValue });
+    expect(chainOf(matrixOf(), q(2_000_000))).toEqual(["CHOICE_NOT_MADE"]);
+    const dalM = pick("eot", "DAL Appendix B");
+    expect(chainOf(dalM, q(2_000_000))).toEqual(["EOT_NOFIN_1M_TO_3M", "VOC MR", "FD A"]);
+    expect(chainOf(dalM, q(200_000))).toEqual(["EOT_NOFIN_Q", "CP JR", "HOD R", "HODIV A"]);
+    const sk = pick("eot", "SK006 §7.6.1");
+    for (const v of [200_000, 2_000_000]) expect(chainOf(sk, q(v)), String(v)).toEqual(["EOT_NOFIN_SK006", "VOC A"]);
+    // The choice is the no-financial-impact matter's only: an EOT with a financial impact routes as before, chosen or not.
+    expect(chainOf(matrixOf(), { ...q(2_000_000), cond: "financial_not_authority" })).toEqual(["EOT_FIN_NOT_AUTHORITY", "VOC MR", "TBC A"]);
+  });
+
+  it("extension of the contract period: the DAL by the contract's value, or SK006 by the extension's own (RM0, more than RM50,000, and no row between)", () => {
+    const ctx = (dal: Matrix) => ({ dal, override: null, supersedes: false });
+    const send = (m: Matrix, value: string | null, contractValue = "2000000.00") => {
+      const r = resolveMatterRoute(ctx(m), { kind: "PERIOD_EXTENSION", value: value == null ? null : parseSen(value), ratio: null, contractValue: parseSen(contractValue), method: "open_selective", contractTypeCode: null }, "draft", () => false);
+      return r.ok ? [r.resolution.rule!.ruleKey, ...r.resolution.chain.map((s) => `${s.roleCode} ${s.act}`)] : r.faults.map((f) => `${f.code}${/No route is chosen/.test(String(f.data?.why)) ? " (choice not made)" : ""}`);
+    };
+    expect(send(matrixOf(), null)).toEqual(["NO_RULE (choice not made)"]);
+    const dalM = pick("contract_period_extension", "DAL Appendix B");
+    expect(send(dalM, null)).toEqual(["PX_TENDER", "CP JR", "HOD R", "TBC A"]);
+    expect(send(dalM, "80000.00", "200000.00")).toEqual(["PX_QUOTATION", "QC MR", "FD A"]);
+    const sk = pick("contract_period_extension", "SK006 §7.6.2");
+    // Raised with no value: routed as RM0, so SK006's "RM0" row finds it (the stage 1 note).
+    expect(send(sk, null)).toEqual(["PX_SK006_NO_VALUE", "VOC A"]);
+    expect(send(sk, "0.00")).toEqual(["PX_SK006_NO_VALUE", "VOC A"]);
+    expect(send(sk, "0.01")).toEqual(["NO_RULE"]);
+    expect(send(sk, "50000.00")).toEqual(["NO_RULE"]);
+    expect(send(sk, "50000.01")).toEqual(["PX_SK006_ABOVE_50K", "VOC MR", "TBC A"]);
   });
 });
 

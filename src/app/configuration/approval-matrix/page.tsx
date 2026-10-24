@@ -1,5 +1,6 @@
 import { periodText } from "@/lib/effective-text";
 import { gapMatters, gapTitle } from "@/lib/authority/gaps";
+import { choicesNotMade, routeChoices } from "@/lib/authority/choice";
 import { AlertTriangle, CheckIcon, SlidersIcon } from "@/components/icons";
 import { ActBadge, RuleChain, type ChainStep } from "@/components/rule-chain";
 import { listIssues, loadCoreRows, loadMatrix, loadRuleRows, type IssueSummary } from "@/lib/authority/load";
@@ -22,6 +23,7 @@ import {
   AddRule,
   AddTermsBand,
   AdoptDraft,
+  ChooseRoute,
   DiscardDraft,
   EditCoreLevel,
   EditMatrix,
@@ -240,6 +242,9 @@ export default async function ApprovalMatrixPage({
   }
   const domains = [...byDomain.entries()].sort((a, b) => b[1].length - a[1].length);
 
+  // Decision D2: the matters whose route the documents give two ways, and those nobody has chosen yet.
+  const choices = new Map(routeChoices(matrix.rules).map((c) => [c.domain, c]));
+  const notMade = choicesNotMade(matrix.rules);
   const fixed = matrix.rules.filter((r) => !ruleIsDelegable(r)).length;
   const gapList = gapMatters(matrix.rules);
   const gaps = gapList.length;
@@ -422,12 +427,32 @@ export default async function ApprovalMatrixPage({
           </Callout>
         )}
 
+        {notMade.length > 0 && (
+          <Callout tone="warn" title={noun(notMade.length, "choice not made", "choices not made")}>
+            <ul className="mt-1 flex flex-col gap-2">
+              {notMade.map((c) => (
+                <li key={c.domain} className="flex flex-wrap items-center gap-2">
+                  <span className="min-w-0 flex-1 break-words">{`${matterLabel(c.domain)}: ${c.options.join(" or ")}`}</span>
+                  {editable && <ChooseRoute matrixId={matrixId} domain={c.domain} matter={matterLabel(c.domain)} options={c.options} chosen={null} />}
+                </li>
+              ))}
+            </ul>
+            <MoreText label="About route choices" text="The documents give two routes for these matters. Until one is chosen, such a matter cannot be routed." />
+          </Callout>
+        )}
+
         <Card id="routing-rules" className="scroll-mt-24">
           <CardHeader icon={<SlidersIcon size={17} />} title="Approval routes" />
           <CardBody className="flex flex-col gap-3">
             {domains.length === 0 && <EmptyState size="sm" title={selectedRoute ? "No funder routes supplied" : "No approval routes yet"} />}
             {domains.map(([domain, rules]) => (
               <Disclosure key={domain} boxed title={matterLabel(domain)} summary={noun(rules.length, "route", "routes")} defaultOpen={startsOpen({ finding: refusedDomains.has(domain) })}>
+                {choices.has(domain) && (
+                  <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px] text-ink-2">
+                    <span>{`Route chosen: ${choices.get(domain)!.chosen ?? "not yet"}`}</span>
+                    {editable && <ChooseRoute matrixId={matrixId} domain={domain} matter={matterLabel(domain)} options={choices.get(domain)!.options} chosen={choices.get(domain)!.chosen} />}
+                  </div>
+                )}
                 <Table stack minWidth={editable ? 920 : 820}>
                   <colgroup>
                     <col style={{ width: editable ? "13%" : "15%" }} />
@@ -485,6 +510,12 @@ export default async function ApprovalMatrixPage({
                               <RuleInfo label={`The rule behind ${rule.labelEn}`} rule={rule.note ? `${rule.labelEn}. ${rule.note}` : rule.labelEn} clause={rule.clause} source={rule.isGap ? "ASSUMED" : null} />
                             </div>
                             <div className="mt-1 text-[12.5px] break-words text-ink-3">{chainNote(rule)}</div>
+                            {rule.choiceOptionEn && (
+                              <div className="mt-1 text-[12.5px] break-words text-ink-3">
+                                {`${rule.choiceOptionEn} · `}
+                                {rule.chosen == null ? <Badge tone="warn">Not chosen</Badge> : rule.chosen ? "Chosen" : "Set aside"}
+                              </div>
+                            )}
                             {editable && (ruleRows[rule.ruleKey]?.recommenders.length ?? 0) > 0 && (
                               <div className="mt-1.5 flex flex-wrap gap-1">
                                 {ruleRows[rule.ruleKey]!.recommenders.map((step) => {
