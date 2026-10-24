@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { CONFIG_LABELS, FOLDER_SECTION, sectionOfPath, SETTINGS_RAIL, SETTINGS_SECTIONS } from "@/lib/nav";
+import { CONFIG_LABELS, FOLDER_SECTION, NON_SETTING_PAGES, sectionOfPath, SETTINGS_RAIL, SETTINGS_SECTIONS } from "@/lib/nav";
 
 import { crumbTrail } from "./topbar";
 
@@ -17,7 +17,7 @@ const slugs = SETTINGS_SECTIONS.map((s) => s.slug);
 const folders = readdirSync(CONFIG, { withFileTypes: true })
   .filter((d) => d.isDirectory() && existsSync(path.join(CONFIG, d.name, "page.tsx")))
   .map((d) => d.name);
-const pages = folders.filter((f) => !slugs.includes(f as never));
+const pages = folders.filter((f) => !slugs.includes(f as never) && !NON_SETTING_PAGES.includes(f));
 
 describe("Settings' sections", () => {
   it("there are six, and the rail is Getting started then those six", () => {

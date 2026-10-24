@@ -42,6 +42,7 @@ export const SHELL_WORDS = {
 /// (`CONFIG_LABELS`), so the two cannot split; the key is still needed here, because a key is how a known section word is told from a record's key.
 export const SEGMENT_LABEL: Readonly<Record<string, Words>> = {
   configuration: w("Settings"),
+  "no-access": w("No access"),
   "approval-matrix": CONFIG_LABELS["approval-matrix"],
   committees: w("Committees"),
   organisation: CONFIG_LABELS["organisation"],

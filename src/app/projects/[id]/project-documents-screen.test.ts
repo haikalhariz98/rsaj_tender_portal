@@ -145,7 +145,7 @@ const page = (o: Partial<DocumentPage> = {}): DocumentPage => ({
       uploadedByName: "Aminah Binti Razak",
       answersRequest: false,
       signed: false,
-      files: [{ versionId: "f1", name: "layout-v1.pdf", bytes: 2048, mediaType: "application/pdf", scanLabel: "Not scanned for malware — scanning not built" }],
+      files: [{ versionId: "f1", name: "layout-v1.pdf", bytes: 2048, mediaType: "application/pdf", scanLabel: "Not scanned for malware" }],
       decisions: [{ approverName: "Hassan Bin Ali", outcome: "REJECTED", outcomeLabel: "Rejected", remarks: "The levels are wrong.", decidedOn: "2026-10-21", decidedByName: "Hassan Bin Ali" }],
     },
     {
@@ -158,7 +158,7 @@ const page = (o: Partial<DocumentPage> = {}): DocumentPage => ({
       uploadedByName: "Aminah Binti Razak",
       answersRequest: false,
       signed: false,
-      files: [{ versionId: "f2", name: "layout-v2.pdf", bytes: 4096, mediaType: "application/pdf", scanLabel: "Not scanned for malware — scanning not built" }],
+      files: [{ versionId: "f2", name: "layout-v2.pdf", bytes: 4096, mediaType: "application/pdf", scanLabel: "Not scanned for malware" }],
       decisions: [],
     },
   ],

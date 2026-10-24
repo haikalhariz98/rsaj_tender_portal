@@ -23,7 +23,7 @@ export const FINGERPRINT_STATEMENT =
 
 /// Every version, until scanning is built (OD-4).
 export const SCAN_LABEL: Readonly<Record<ScanState, string>> = {
-  NOT_SCANNED: "Not scanned for malware — scanning not built",
+  NOT_SCANNED: "Not scanned for malware",
   CLEAN: "Scanned, nothing found",
   THREAT: "Malware found — not served",
 };

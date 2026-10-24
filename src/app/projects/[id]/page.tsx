@@ -626,7 +626,7 @@ const ENTITY_LABEL: Record<string, string> = {
   IssuedCopy: "Controlled copy",
   CustodyItem: "Original in custody",
   CustodyMovement: "Custody movement",
-  CaseOwnershipEvent: "Case handed over",
+  CaseOwnershipEvent: "Handed to contracts",
   SecurityInstrument: "Security",
   // 6.14: a certificate's rows, written under the contract's label.
   Certificate: "Certificate",

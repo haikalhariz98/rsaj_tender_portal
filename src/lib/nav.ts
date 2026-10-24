@@ -229,6 +229,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
   },
 ];
 
+/// Page folders under Settings that are not settings: they belong to no section and have no rail entry.
+export const NON_SETTING_PAGES: readonly string[] = ["no-access"];
+
 /// The rail: Getting started, then the six sections.
 export const SETTINGS_RAIL: ConfigItem[] = [
   SETTINGS_START,

@@ -21,12 +21,12 @@ import { ScheduleSitting, type ProposedItem } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Committee sittings" };
+export const metadata = { title: "Committees" };
 
 const TONE = { info: "info", brand: "brand", ok: "ok", neutral: undefined } as const;
 
 /**
- * Committee sittings: the running of committees, apart from their setup.
+ * Committees: the running of committees, apart from their setup.
  *
  * Not in the prototype, which only shows a committee's votes on each matter's own
  * record. That view arrives with the modules that own the matters; this list works
@@ -92,8 +92,8 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <PageHeader
-        title="Committee sittings"
-        info={{ title: "Committee sittings", text: "Registers, tabled matters, votes and minutes. A sitting tables the items waiting for its committee when scheduled." }}
+        title="Committees"
+        info={{ title: "Committees", text: "Registers, tabled matters, votes and minutes. A sitting tables the items waiting for its committee when scheduled." }}
         actions={schedulable.length > 0 ? <ScheduleSitting committees={schedulable} numbered={numbered} proposed={proposed} fromRecord={fromRecord} /> : undefined}
       />
 

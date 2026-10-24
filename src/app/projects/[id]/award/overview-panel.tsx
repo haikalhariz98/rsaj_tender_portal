@@ -85,7 +85,7 @@ export function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodNam
               },
               { label: "Contract sum", value: c ? <span className="tabular-nums">{money(c.contractSum)}</span> : notSet("On issue") },
               {
-                label: "Case handed over",
+                label: "Handed to contracts",
                 value: handover ? `${formatDate(handover.on)}${handover.fromUnitCode || handover.toUnitCode ? ` · from ${unitName(handover.fromUnitCode) ?? "a section not set"} to ${unitName(handover.toUnitCode) ?? "a section not set"}` : " · sections not set"}` : notSet("On issue"),
               },
               {

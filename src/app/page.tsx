@@ -199,7 +199,10 @@ export default async function Dashboard() {
         </Card>
 
         {data.upcoming.length === 0 ? (
-          <p className="px-2 text-[13px] text-ink-3">No sittings scheduled.</p>
+          <Card>
+            <CardHeader icon={<CalendarIcon size={17} />} title={t(D.upcomingTitle)} />
+            <EmptyState size="sm" title="No sittings scheduled" />
+          </Card>
         ) : (
           <Card>
             <CardHeader icon={<CalendarIcon size={17} />} title={t(D.upcomingTitle)} />

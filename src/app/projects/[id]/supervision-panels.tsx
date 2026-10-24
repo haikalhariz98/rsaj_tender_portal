@@ -242,7 +242,7 @@ export async function TeamPanel({ actor, l, v, people, today }: { actor: StaffAc
           <CardFooter className="text-[12.5px] text-ink-3">
             {reResolve.state === "NOT_SET" ? (
               <span>
-                S.O. change on a band move: not set. <Link href="/configuration/post-award">Configuration › Post-award</Link>
+                S.O. change on a band move: not set. <Link href="/configuration/post-award">Settings › Contracts &amp; payments</Link>
               </span>
             ) : (
               <span>S.O. stays as resolved when the sum moves.</span>

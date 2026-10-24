@@ -26,7 +26,7 @@ describe("which bytes are served (OD-2, OD-4; Phase 3b: SULIT to the entitled)",
   it("Public and Internal are served, unscanned, and the screens say both", () => {
     expect(downloadDecision({ classification: "PUBLIC", scanState: "NOT_SCANNED" })).toEqual({ allow: true });
     expect(downloadDecision({ classification: "INTERNAL", scanState: "NOT_SCANNED" })).toEqual({ allow: true });
-    expect(SCAN_LABEL.NOT_SCANNED).toBe("Not scanned for malware — scanning not built");
+    expect(SCAN_LABEL.NOT_SCANNED).toBe("Not scanned for malware");
     // Phase 3b: the statement says who opens what and that every download is logged; it still claims nothing it does not do (secure, confidential), and no longer says there is no sign-in.
     expect(ACCESS_STATEMENT).toMatch(/SULIT/);
     expect(ACCESS_STATEMENT).toMatch(/logged/);
