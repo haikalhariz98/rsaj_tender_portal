@@ -31,7 +31,9 @@
     - a sibling-screen check (AGENTS.md).
   - **Files other builders hold right now** (uncommitted in the tree): `src/app/projects/page.tsx`, `src/app/projects/rows.ts`,
     `src/lib/award/repo.ts`, `src/lib/contract/case-load.ts`, `src/lib/search/fields.ts`, `src/app/suppliers/**` and
-    `src/app/committees/**`.
+    `src/app/committees/**`. Later in the day, `prisma/rsaj/starter-pack/approvals.ts`, `src/lib/authority/*` and
+    `src/lib/time/route.ts` were also uncommitted.
+    - This list was taken on 2026-10-24. Each step checks `git status` on its own paths before it starts.
     - No step here edits `src/app/projects/page.tsx`, `rows.ts`, `search/fields.ts`, `suppliers/**` or `committees/**`.
     - V2 edits `src/lib/award/repo.ts`, and V5 may edit `case-load.ts`. Each starts only after `git status` shows that path clean.
 
@@ -318,8 +320,19 @@ the three shares a file with it.
   - **new:**
     - `src/lib/award/online-return.ts` (pure, §2.2);
     - `src/lib/award/return-store.ts`: the `recordReturn` core moved out of the action, so the paper and online paths share it.
-      It covers the SULIT write refusal, the not-before-issue and not-after-today checks, the update, the audit pair and the
-      call to `acceptOnCompleteReturn`;
+      It covers the SULIT write refusal, the not-before-issue and not-after-today checks, the update and the audit pair. It does
+      not accept: each caller calls `acceptOnCompleteReturn` itself, `recordReturn` at once and the verify act after its attaches;
+    - `src/lib/documents/attach-store.ts`: the locked attach core moved out of `attachDocument` (`src/app/documents/actions.ts`),
+      so the staff action and the verify act share one set of rules. It covers:
+      - `lockVersion`;
+      - the hidden-exercise check;
+      - `sulitAttachRefused`;
+      - `attachFault` with the live-of-purpose count;
+      - the insert and its audit row;
+      - STAGED to FILED;
+      - the owner's `afterChange`.
+
+      The action becomes a guard and a call;
     - `src/lib/award/online-return-store.ts`: `lodgeOnlineReturn`, `verifyOnlineReturn`, `refuseOnlineReturn`, `askAwardQuery`
       and `answerAwardQuery`, each under the award's lock (the contract, then the award, in the canonical order of
       `inHeldContract` for the supplier acts);
@@ -337,6 +350,7 @@ the three shares a file with it.
       once decided);
     - `src/lib/documents/service.ts` (`loadStorePolicy` returns `awardReturnClassId`);
     - `src/lib/award/repo.ts` (`LoadedAward` includes the latest online return with its attachments, and the queries);
+    - `src/app/documents/actions.ts`: `attachDocument` calls `attach-store.ts`. Its behaviour is unchanged;
     - `src/app/awards/actions.ts`:
       - `recordReturn` calls `return-store.ts`;
       - it refuses while an online return waits (WV-4);
@@ -355,14 +369,17 @@ the three shares a file with it.
     5. writes the notices to the recipients of `award.return.lodged`.
   - **`verifyOnlineReturn`.** It:
     1. runs `verifyFaults`;
-    2. builds the `AwardReturn` fields with `returnRecordFromOnline`;
-    3. runs the `return-store.ts` core with the verifying person as `receivedBy`;
-    4. attaches each of the row's versions to the award under its purpose, through the same attach rules as
-       `attachDocument`'s core;
-    5. sets the row verified;
-    6. calls `acceptOnCompleteReturn`.
+    2. **sets the row verified first.** While a row waits, the award's owner facts refuse a return-purpose attach (WV-4), so
+       the attaches below would refuse the verifier;
+    3. builds the `AwardReturn` fields with `returnRecordFromOnline`;
+    4. runs the `return-store.ts` core, with the verifying person as `receivedBy`;
+    5. attaches each of the row's versions to the award under its purpose, through `attach-store.ts`;
+    6. calls `acceptOnCompleteReturn` with the fresh record.
 
-    Any refusal writes nothing.
+    The award owner's `afterChange` runs on each attach with the award as loaded before step 3, so it accepts nothing. If it
+    ever does accept first, step 6's guarded update changes nothing. **Check this; do not assume it.**
+
+    All of it is one transaction. Any refusal, including an incomplete return, rolls back everything, the verified mark included.
   - **`refuseOnlineReturn`** sets the refusal and its reason. Nothing is attached to the award.
   - **`askAwardQuery`** (ISSUED only) and **`answerAwardQuery`** (an answer, once). A query writes no clock field (AC-31).
 - **Tests:**
@@ -378,6 +395,10 @@ the three shares a file with it.
     - verifying moves it to ACCEPTED, with the scan snapshot holding the pins and the received days equal to the lodged day
       when verification is two days later;
     - refusing leaves it ISSUED, with no award attachment;
+    - a verify whose return is incomplete (a pin withdrawn meanwhile) rolls back, and the row is still waiting;
+    - acceptance happens once: one ACCEPTED audit row, whichever of `afterChange` and step 6 runs;
+    - the staff attach and detach of every existing owner behave as before the move (the existing `src/app/documents/actions.test.ts`
+      passes unchanged, plus one case for a return purpose refused while a row waits);
     - a second lodge while one waits is refused;
     - a lodge after a paper item is recorded is refused, and so is `recordReturn` while a return waits;
     - another supplier's account gets 404;

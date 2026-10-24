@@ -110,13 +110,19 @@ owner rules WV-1 to WV-16 in `docs/notes/plans/wave-v-plan.md` §6. The build pl
   - the not-before-issue and not-after-today checks.
 
   Under the award's lock, the act:
-  1. writes the `AwardReturn` fields from the online row;
-  2. attaches each of the row's versions to the award under the same return purpose, through the same attach rules as a staff
-     upload. The officer is entitled to it through the row;
-  3. sets the row verified;
-  4. calls `acceptOnCompleteReturn`.
+  1. sets the row verified. This comes first because, while a row waits, the award's owner facts refuse a return-purpose
+     attach (WV-4);
+  2. writes the `AwardReturn` fields from the online row;
+  3. attaches each of the row's versions to the award under the same return purpose, through the attach core that the staff
+     upload also uses (moved into `src/lib/documents/`). The officer is entitled to the file through the row;
+  4. calls `acceptOnCompleteReturn` with the fresh record.
 
-  All four steps write their audit rows in the same transaction. If the return is not complete, nothing is written.
+  The award owner's `afterChange` runs on each attach, with the award as loaded before step 2. It therefore finds the return
+  incomplete and accepts nothing. Step 4 is the act that accepts. If a hook ever does accept first, step 4 changes nothing,
+  because its update is guarded on ISSUED. A test holds both.
+
+  All four steps write their audit rows in the same transaction. Any refusal, including an incomplete return, rolls back
+  everything, the verified mark included.
 - **Refusing.** The officer gives a required reason. Nothing is attached to the award. The refused row keeps its files, as the
   record of what was sent. The contractor sees the reason and may lodge again, with new uploads.
 - **The days.**
