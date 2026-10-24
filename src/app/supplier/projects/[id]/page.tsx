@@ -32,11 +32,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   if (!ctx) notFound();
   const tab: ProjectTab = isProjectTab(asked) ? asked : "overview";
   const acting = tab === "diary" || tab === "certificates" || tab === "submissions";
-  const token = acting ? issueFormToken("projects") : null;
+  const token = acting || tab === "overview" ? issueFormToken("projects") : null;
   const status = CONTRACT_STATUS_WORDS[ctx.contract.status].en;
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: <ClipboardIcon size={15} />, lazy: true, panel: tab === "overview" ? <OverviewPanel actor={actor} ctx={ctx} /> : null },
+    { id: "overview", label: "Overview", icon: <ClipboardIcon size={15} />, lazy: true, panel: tab === "overview" ? <OverviewPanel actor={actor} ctx={ctx} token={token} /> : null },
     { id: "programme", label: "Programme", icon: <CalendarIcon size={15} />, lazy: true, panel: tab === "programme" ? <ProgrammePanel actor={actor} ctx={ctx} /> : null },
     { id: "diary", label: "Site diary", icon: <FileIcon size={15} />, lazy: true, panel: tab === "diary" ? <DiaryPanel actor={actor} ctx={ctx} token={token} page={page} /> : null },
     { id: "payments", label: "Payments", icon: <WalletIcon size={15} />, lazy: true, panel: tab === "payments" ? <PaymentsPanel actor={actor} ctx={ctx} /> : null },

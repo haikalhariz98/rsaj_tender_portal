@@ -254,7 +254,8 @@ describe("Waiting for you", () => {
   it("is not drawn on the home for nobody, or for a contractor with nothing waiting; the overview says nothing waits only when nothing does", () => {
     const home = readFileSync(join(process.cwd(), "src/app/supplier/waiting-card.tsx"), "utf8");
     expect(home).toMatch(/if \(!actor\) return null;/);
-    expect(home).toMatch(/if \(waiting\.rows\.length === 0\) return null;/);
+    // The home's rows are an issued award to accept (V4) and the documents waiting: the card is not drawn when both are empty.
+    expect(home).toMatch(/if \(rows\.length === 0\) return null;/);
     const page = readFileSync(join(process.cwd(), "src/app/supplier/page.tsx"), "utf8");
     expect(page).toContain("<WaitingForYouCard />");
     // The home asks no sign-in itself: it is a public page, and the card reads the session without sending anyone away.

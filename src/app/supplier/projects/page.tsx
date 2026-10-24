@@ -6,6 +6,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
 import { db } from "@/lib/db";
+import { contractsToAccept } from "@/lib/portal/projects/award-card-store";
 import { loadMyContracts } from "@/lib/portal/projects/list-store";
 
 import { requireSupplier } from "../../_auth/supplier";
@@ -19,10 +20,12 @@ export const dynamic = "force-dynamic";
  */
 export default async function SupplierProjectsPage() {
   const actor = await requireSupplier();
-  const rows = await loadMyContracts(db, actor);
+  const [rows, accept] = await Promise.all([loadMyContracts(db, actor), contractsToAccept(db, actor)]);
+  const toAccept = new Set(accept.map((c) => c.id));
   const list: Row[] = rows.map((r) => {
     const status = CONTRACT_STATUS_WORDS[r.status].en;
     const chips = [
+      ...(toAccept.has(r.id) ? [{ text: "To accept", tone: "warn" as const }] : []),
       ...(r.toAttest ? [{ text: `${r.toAttest} diary ${r.toAttest === 1 ? "entry" : "entries"} to attest`, tone: "warn" as const }] : []),
       ...(r.toSign ? [{ text: `${r.toSign} ${r.toSign === 1 ? "certificate" : "certificates"} to sign`, tone: "warn" as const }] : []),
       ...(r.returned ? [{ text: `${r.returned} returned`, tone: "warn" as const }] : []),

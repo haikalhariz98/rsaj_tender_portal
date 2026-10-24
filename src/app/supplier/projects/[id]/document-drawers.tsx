@@ -52,7 +52,7 @@ async function stageFiles(files: readonly File[], contractId: string, token: str
   return { ok: true, ids };
 }
 
-function useEscape(open: boolean, busy: boolean, close: () => void) {
+export function useEscape(open: boolean, busy: boolean, close: () => void) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && close();
@@ -62,7 +62,7 @@ function useEscape(open: boolean, busy: boolean, close: () => void) {
 }
 
 /// The drawer's frame: the dimmed scrim, the panel, the header, the refusal, the fields and the two buttons. One copy for the three drawers.
-function Frame({ title, heading, error, busy, onClose, onSend, canSend, sendLabel, children }: { title: string; heading: string; error: string | null; busy: boolean; onClose: () => void; onSend: () => void; canSend: boolean; sendLabel: string; children: ReactNode }) {
+export function Frame({ title, heading, error, busy, onClose, onSend, canSend, sendLabel, children }: { title: string; heading: string; error: string | null; busy: boolean; onClose: () => void; onSend: () => void; canSend: boolean; sendLabel: string; children: ReactNode }) {
   return (
     <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>

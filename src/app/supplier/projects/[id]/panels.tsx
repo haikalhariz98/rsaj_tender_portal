@@ -21,6 +21,9 @@ import { loadWaitingForYou } from "@/lib/project-docs/portal-read";
 import { loadPortalTeam } from "@/lib/project-docs/team-read";
 import { delayWords, ENTRY_STATE_TONE, ENTRY_STATE_WORDS, PROGRAMME_DECISION_WORDS } from "@/lib/supervision/labels";
 
+import { loadAwardCard } from "@/lib/portal/projects/award-card-store";
+
+import { AwardQuestionsCard, AwardReturnCard } from "./award-return-card";
 import { AttestControl, DisputeDiaryControl, SignCertificateControl } from "./controls";
 import { PortalDocumentsPanel } from "./documents-panel";
 import { PortalKickOffCard, PortalTeamCard } from "./kick-off-portal";
@@ -34,13 +37,15 @@ import { WaitingList } from "./waiting-for-you";
 
 type Props = { actor: SupplierActor; ctx: ProjectContext; token: string | null };
 
-export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
+export async function OverviewPanel({ actor, ctx, token }: Props) {
   const o = await overviewTab(db, actor, ctx);
+  const award = await loadAwardCard(db, actor, ctx);
   const waiting = await loadWaitingForYou(db, actor, { contractId: ctx.contract.id });
   // The team and the meeting are read here, in the panel, never in `overviewTab`: each takes the supplier and organisation from the actor and the held contract.
   const team = await loadPortalTeam(db, actor, ctx);
   const kickOff = await loadPortalKickOff(db, actor, ctx);
   const todo = [
+    ...(award && (award.action === "ACCEPT" || award.action === "PAPER") ? ["The award is waiting for your acceptance."] : []),
     ...(o.counts.toAttest ? [`${o.counts.toAttest} diary ${o.counts.toAttest === 1 ? "entry" : "entries"} to attest.`] : []),
     ...(o.counts.toSign ? [`${o.counts.toSign} ${o.counts.toSign === 1 ? "certificate" : "certificates"} to sign.`] : []),
     ...(o.counts.returned ? [`${o.counts.returned} ${o.counts.returned === 1 ? "document" : "documents"} returned to you.`] : []),
@@ -49,6 +54,12 @@ export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
   return (
     <div className="flex flex-col gap-6">
       {o.closed && <Callout tone="warn" title="Sending closed">{o.closed}</Callout>}
+      {award && (
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          {award.showAccept ? <AwardReturnCard view={award} token={token} /> : null}
+          <AwardQuestionsCard view={award} token={token} />
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Diary entries to attest" value={o.counts.toAttest} tone={o.counts.toAttest ? "warn" : "brand"} />
         <Stat label="Certificates to sign" value={o.counts.toSign} tone={o.counts.toSign ? "warn" : "brand"} />
