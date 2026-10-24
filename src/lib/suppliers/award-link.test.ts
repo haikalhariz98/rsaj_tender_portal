@@ -40,11 +40,11 @@ describe("an award's register link follows its awardee party (fix M-1)", () => {
     const acts = readFileSync("src/app/awards/actions.ts", "utf8");
     const create = acts.slice(acts.indexOf("export async function createAward"), acts.indexOf("export async function updateAwardDetails"));
     expect(create).toMatch(/const link = awardVendorOnParty\(null, partyId, party\?\.vendor\?\.id \?\? null\)/);
-    expect(create).toMatch(/vendorId: link\.vendorId,/);
+    expect(create).toContain("vendorId: chosen?.ok ? chosen.vendorId : link.vendorId,");
     expect(create).toMatch(/supplierLink: "Follows the awardee party's link"/);
     const edit = acts.slice(acts.indexOf("export async function updateAwardDetails"), acts.indexOf("export async function updateAwardTerms"));
     expect(edit).toMatch(/awardVendorOnParty\(\{ awardeePartyId: l\.award\.awardeePartyId, vendorId: l\.award\.vendorId \}, partyWrite,/);
     expect(edit).toMatch(/if \(link\?\.fault\) return \{ ok: false, errors: \{ awardeePartyId:/);
-    expect(edit).toMatch(/\.\.\.\(link \? \{ vendorId: link\.vendorId \} : \{\}\)/);
+    expect(edit).toContain("...(link && !fromRegister ? { vendorId: link.vendorId } : {})");
   });
 });

@@ -85,17 +85,30 @@ export function AwardForm({ exercise, cancelHref, valueHint, dossier, parties, r
               </div>
             );
           })()}
-          <Field label="Awardee" required htmlFor="awardeeName" error={err("awardeeName")}>
-            <Input id="awardeeName" name="awardeeName" value={v.awardeeName ?? ""} onChange={set("awardeeName")} />
-          </Field>
-          <Field label="Registration number" htmlFor="awardeeRegistrationNo" error={err("awardeeRegistrationNo")}>
-            <Input id="awardeeRegistrationNo" name="awardeeRegistrationNo" value={v.awardeeRegistrationNo ?? ""} onChange={set("awardeeRegistrationNo")} />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Address" htmlFor="awardeeAddress" error={err("awardeeAddress")}>
-              <Textarea id="awardeeAddress" name="awardeeAddress" rows={2} value={v.awardeeAddress ?? ""} onChange={set("awardeeAddress")} />
-            </Field>
-          </div>
+          {!parties && (
+            <div className="sm:col-span-2">
+              <Field label="Supplier on the register" htmlFor="awardeeSupplierId" hint="Type to search. Details are copied from it." error={err("awardeeSupplierId")}>
+                <Select id="awardeeSupplierId" name="awardeeSupplierId" value={v.awardeeSupplierId ?? ""} onChange={set("awardeeSupplierId")} placeholder="Not on the register: type below" search={{ url: "/api/lookup?kind=supplier", minChars: 0 }}>
+                  <option value="">Not on the register: type below</option>
+                </Select>
+              </Field>
+            </div>
+          )}
+          {v.awardeeSupplierId && !parties ? null : (
+            <>
+              <Field label="Awardee" required htmlFor="awardeeName" error={err("awardeeName")}>
+                <Input id="awardeeName" name="awardeeName" value={v.awardeeName ?? ""} onChange={set("awardeeName")} />
+              </Field>
+              <Field label="Registration number" htmlFor="awardeeRegistrationNo" error={err("awardeeRegistrationNo")}>
+                <Input id="awardeeRegistrationNo" name="awardeeRegistrationNo" value={v.awardeeRegistrationNo ?? ""} onChange={set("awardeeRegistrationNo")} />
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="Address" htmlFor="awardeeAddress" error={err("awardeeAddress")}>
+                  <Textarea id="awardeeAddress" name="awardeeAddress" rows={2} value={v.awardeeAddress ?? ""} onChange={set("awardeeAddress")} />
+                </Field>
+              </div>
+            </>
+          )}
         </CardBody>
       </Card>
       {recommended && (

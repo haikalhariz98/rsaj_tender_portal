@@ -63,6 +63,7 @@ import { bondFaults, bondRequiredUntil, checkedOnFault, requiredBond } from "@/l
 import { applicableRequirements, countsAs, insuranceFaults, wcSumCheck } from "@/lib/securities/insurance";
 import { completionDay } from "@/lib/securities/period";
 import { supplierFaultText } from "@/lib/suppliers/labels";
+import { awardeeFromRegister } from "@/lib/suppliers/award-awardee";
 import { awardVendorOnParty } from "@/lib/suppliers/link";
 import { FormReader } from "@/lib/validate";
 import { contractCancellable } from "@/lib/contract/status";
@@ -197,6 +198,14 @@ function recordedReasons(e: EvaluationGate, value: Sen, period: AwardFigures["pe
   return { recValueDiffersReason: diffs.includes("value") ? reasons.value : null, recPeriodDiffersReason: diffs.includes("period") ? reasons.period : null };
 }
 
+
+/// The supplier a form chose from the register, read with the organisation and judged by `awardeeFromRegister` (the link rules). `words` is how the audit names it.
+async function awardeeFromRegisterRow(tx: Prisma.TransactionClient, organisationId: string, award: { awardeePartyId: string | null; vendorId: string | null }, supplierId: string) {
+  const supplier = await tx.supplier.findFirst({ where: { id: supplierId, organisationId }, select: { id: true, reference: true, registeredName: true, registrationNo: true, registeredAddress: true, status: true } });
+  const out = awardeeFromRegister(award, supplier);
+  return out.ok ? { ...out, words: supplierWords(supplier!) } : out;
+}
+
 // ------------------------------------------------------------------ opening
 
 /**
@@ -210,8 +219,10 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
   const actor = txGuard.actor;
   const exerciseId = String(data.get("exerciseId") ?? "");
   const r = new FormReader(data);
+  // A supplier chosen from the register names the awardee (its name, number and address are copied from it below); otherwise they are typed.
+  const awardeeSupplierId = r.optionalText("awardeeSupplierId");
   const v = {
-    awardeeName: r.text("awardeeName", "Awardee", { required: true, max: 240 }),
+    awardeeName: r.text("awardeeName", "Awardee", { required: !awardeeSupplierId, max: 240 }),
     awardeeRegistrationNo: r.text("awardeeRegistrationNo", "Registration number", { max: 120 }),
     awardeeAddress: r.text("awardeeAddress", "Address", { max: 1000 }),
     awardedValue: r.money("awardedValue", "Awarded value", { required: true }),
@@ -293,6 +304,10 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
       const partyId = awardeePartyWrite(opening, awardeePartyId) ?? null;
       const party = partyId ? await tx.exerciseParty.findUnique({ where: { id: partyId, organisationId: actor.organisationId }, select: { vendor: { select: { id: true, reference: true, registeredName: true } } } }) : null;
       const link = awardVendorOnParty(null, partyId, party?.vendor?.id ?? null);
+      // A supplier chosen from the register (an award with no party): read back with the organisation, and its own figures replace what was posted.
+      const chosen = awardeeSupplierId ? await awardeeFromRegisterRow(tx, org.id, { awardeePartyId: partyId, vendorId: null }, awardeeSupplierId) : null;
+      if (chosen && !chosen.ok) return { ok: false, errors: { awardeeSupplierId: supplierFaultText(chosen.fault) } };
+      const awardee = chosen ? { awardeeName: chosen.awardeeName, awardeeRegistrationNo: chosen.awardeeRegistrationNo, awardeeAddress: chosen.awardeeAddress } : { awardeeName: v.awardeeName, awardeeRegistrationNo: v.awardeeRegistrationNo, awardeeAddress: v.awardeeAddress };
       const row = await tx.award.create({
         data: {
           organisationId: org.id,
@@ -301,10 +316,8 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
           instrumentKind: instrument.kind,
           // R-2: written only where the openings apply and the bidder was carried.
           awardeePartyId: awardeePartyWrite(opening, awardeePartyId) ?? null,
-          vendorId: link.vendorId,
-          awardeeName: v.awardeeName,
-          awardeeRegistrationNo: v.awardeeRegistrationNo,
-          awardeeAddress: v.awardeeAddress,
+          vendorId: chosen?.ok ? chosen.vendorId : link.vendorId,
+          ...awardee,
           awardedValue: senToDecimalString(value),
           completionPeriod: v.completionPeriod!,
           completionUnit: v.completionUnit!,
@@ -315,7 +328,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
           ...(filled.regulatedActivity != null ? { regulatedActivity: filled.regulatedActivity } : {}),
         },
       });
-      await audit(tx, toAuditActor(actor), org.id, "Award", row.id, labelOf(row), "CREATE", awardAuditCreate(row, { exercise: ex.reference, instrument: instrument.kind, ...(row.awardeePartyId ? { awardeeBidder: awardeeBidderText(opening.carried, row.awardeePartyId) } : {}), ...(party?.vendor ? { supplier: supplierWords(party.vendor), supplierLink: "Follows the awardee party's link" } : {}), ...(tender ? { termsFrom: `the tender Appendix, documents version ${tender.packVersion}` } : {}) }));
+      await audit(tx, toAuditActor(actor), org.id, "Award", row.id, labelOf(row), "CREATE", awardAuditCreate(row, { exercise: ex.reference, instrument: instrument.kind, ...(row.awardeePartyId ? { awardeeBidder: awardeeBidderText(opening.carried, row.awardeePartyId) } : {}), ...(party?.vendor ? { supplier: supplierWords(party.vendor), supplierLink: "Follows the awardee party's link" } : {}), ...(chosen?.ok ? { supplier: chosen.words, supplierLink: "Chosen from the register" } : {}), ...(tender ? { termsFrom: `the tender Appendix, documents version ${tender.packVersion}` } : {}) }));
       id = row.id;
       return { ok: true };
     });
@@ -339,8 +352,10 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
   const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
+  // A supplier chosen from the register names the awardee (copied from it below); otherwise the name, number and address are typed.
+  const awardeeSupplierId = r.optionalText("awardeeSupplierId");
   const v = {
-    awardeeName: r.text("awardeeName", "Awardee", { required: true, max: 240 }),
+    awardeeName: r.text("awardeeName", "Awardee", { required: !awardeeSupplierId, max: 240 }),
     awardeeRegistrationNo: r.text("awardeeRegistrationNo", "Registration number", { max: 120 }),
     awardeeAddress: r.text("awardeeAddress", "Address", { max: 1000 }),
     awardedValue: r.money("awardedValue", "Awarded value", { required: true }),
@@ -379,7 +394,11 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
     // 64-C4: damages the tender states as a percentage, still as resolved against the old sum, follow the new one.
     const tender = await frozenTenderOf(l.ex.id, l.org.timeZone, tx);
     const lad = tender ? ladOnValueChange(tender, senFromDecimal(l.award.awardedValue), parseSen(v.awardedValue!), termsOf(l.award)) : null;
-    const after = { ...v, awardedValue: senToDecimalString(parseSen(v.awardedValue!)), completionPeriod: v.completionPeriod!, completionUnit: v.completionUnit!, ...recorded, ...(lad != null ? { ladAmount: senToDecimalString(lad) } : {}), ...(partyWrite !== undefined ? { awardeePartyId: partyWrite } : {}), ...(link ? { vendorId: link.vendorId } : {}) };
+    // An award with no party, naming a supplier from the register: read back with the organisation; an own link is never moved to another supplier.
+    const chosen = awardeeSupplierId ? await awardeeFromRegisterRow(tx, l.org.id, { awardeePartyId: partyWrite !== undefined ? partyWrite : l.award.awardeePartyId, vendorId: l.award.vendorId }, awardeeSupplierId) : null;
+    if (chosen && !chosen.ok) return { ok: false, errors: { awardeeSupplierId: supplierFaultText(chosen.fault) } };
+    const fromRegister = chosen?.ok ? { awardeeName: chosen.awardeeName, awardeeRegistrationNo: chosen.awardeeRegistrationNo, awardeeAddress: chosen.awardeeAddress, vendorId: chosen.vendorId } : null;
+    const after = { ...v, ...fromRegister, awardedValue: senToDecimalString(parseSen(v.awardedValue!)), completionPeriod: v.completionPeriod!, completionUnit: v.completionUnit!, ...recorded, ...(lad != null ? { ladAmount: senToDecimalString(lad) } : {}), ...(partyWrite !== undefined ? { awardeePartyId: partyWrite } : {}), ...(link && !fromRegister ? { vendorId: link.vendorId } : {}) };
     const { facts } = await awardFacts({ ...l, award: { ...l.award, awardedValue: after.awardedValue as never } }, tx);
     const ev = evaluateAward(facts);
     const blocks = ev.valueFaults.filter((f) => f.level === "block");
@@ -389,7 +408,8 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
     // R-7: the bidder named reads by name in the trail, never as the party's id.
     const bidder = opening && partyWrite !== undefined && partyWrite !== l.award.awardeePartyId ? diffFields({ awardeeBidder: awardeeBidderText(opening.carried, l.award.awardeePartyId) }, { awardeeBidder: awardeeBidderText(opening.carried, partyWrite) }) : [];
     const relinked = link && link.vendorId !== l.award.vendorId ? diffFields({ supplier: l.award.vendor ? supplierWords(l.award.vendor) : null }, { supplier: party?.vendor ? supplierWords(party.vendor) : null, supplierLink: "Follows the awardee party's link" }) : [];
-    await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(l.award), "UPDATE", [...awardAuditPair(l.award, { ...l.award, ...after }), ...bidder, ...relinked], String(data.get("reason") ?? ""));
+    const registerLink = chosen?.ok && chosen.vendorId !== l.award.vendorId ? diffFields({ supplier: l.award.vendor ? supplierWords(l.award.vendor) : null }, { supplier: chosen.words, supplierLink: "Chosen from the register" }) : [];
+    await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(l.award), "UPDATE", [...awardAuditPair(l.award, { ...l.award, ...after }), ...bidder, ...relinked, ...registerLink], String(data.get("reason") ?? ""));
     return { ok: true };
   });
 }

@@ -57,9 +57,13 @@ const UNITS: Option[] = [
 export const AWARD_NOTE_ID = "award-actions-note";
 
 /// 6.7 (C-7): where the exercise's openings apply, the awardee is picked from the bidders carried to evaluation.
-export function detailFields(parties?: Option[], recommended?: { valueText: string } | null): Field[] {
+export function detailFields(parties?: Option[], recommended?: { valueText: string } | null, supplier?: { currentLabel: string | null }): Field[] {
   return [
     ...(parties ? [{ kind: "select", name: "awardeePartyId", label: "Bidder carried to evaluation", required: true, placeholder: "Choose", options: parties, hint: "Compared as the bidder carried to evaluation." } as Field] : []),
+    // No bidder carried: the awardee is a supplier from the register (its name, number and address are copied from it, and the award is linked to it), or typed below for one not on it.
+    ...(!parties && supplier
+      ? [{ kind: "select", name: "awardeeSupplierId", label: "Supplier on the register", placeholder: "Not on the register: type below", options: [], search: { url: "/api/lookup?kind=supplier" }, orphanLabel: supplier.currentLabel ?? undefined, hint: "Type to search. Details are copied from it." } as Field]
+      : []),
     { kind: "text", name: "awardeeName", label: "Awardee", required: true, hint: "As registered; kept as written." },
     { kind: "text", name: "awardeeRegistrationNo", label: "Registration number" },
     { kind: "textarea", name: "awardeeAddress", label: "Address" },
@@ -76,13 +80,17 @@ export function detailFields(parties?: Option[], recommended?: { valueText: stri
   ];
 }
 
-export function EditDetailsDrawer({ id, values, parties, recommended, menu }: { id: string; values: Values; parties?: Option[]; recommended?: { valueText: string } | null; /** A menu entry rather than a header button. */ menu?: boolean }) {
+/// The manual awardee fields show only while no register supplier is chosen.
+const MANUAL_AWARDEE_SHOWN: Record<string, { name: string; in: readonly string[] }> = Object.fromEntries(["awardeeName", "awardeeRegistrationNo", "awardeeAddress"].map((n) => [n, { name: "awardeeSupplierId", in: [""] }]));
+
+export function EditDetailsDrawer({ id, values, parties, recommended, supplier, menu }: { id: string; values: Values; parties?: Option[]; recommended?: { valueText: string } | null; supplier?: { currentLabel: string | null }; /** A menu entry rather than a header button. */ menu?: boolean }) {
   return (
     <RecordEditor
       title="Edit the award"
       description="Awardee, value and period change only while the award is a draft."
-      fields={[hidden("id"), ...detailFields(parties, recommended)]}
+      fields={[hidden("id"), ...detailFields(parties, recommended, supplier)]}
       values={{ id, ...values }}
+      showWhen={!parties && supplier ? MANUAL_AWARDEE_SHOWN : undefined}
       action={updateAwardDetails}
       submitLabel="Save"
       trigger={{ label: "Edit", className: menu ? moreItemClass() : buttonClass("secondary", "sm") }}
