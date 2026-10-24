@@ -1,5 +1,6 @@
 import { MoreText } from "@/components/ui/more-text";
-import type { ReactNode } from "react";
+import { billItemOptions } from "@/lib/contract/bill-items";
+import type { ComponentProps, ReactNode } from "react";
 import Link from "next/link";
 import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker, actStatusText } from "@/lib/contract/act-status";
@@ -244,7 +245,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
           </div>
         );
       case "formation":
-        return facts && sulit ? <FormationPanel sulit={sulit!} l={lc} facts={facts} people={people} today={today} /> : notice(t(R.notJudged), t(R.setTimeZoneFirst));
+        return facts && sulit ? <FormationWithBill sulit={sulit!} l={lc} facts={facts} people={people} today={today} /> : notice(t(R.notJudged), t(R.setTimeZoneFirst));
       case "baseline":
         return facts ? <BaselinePanel l={lc} facts={facts} timeZone={l.org.timeZone} /> : notice(t(R.notJudged), t(R.setTimeZoneFirst));
       case "overview":
@@ -393,6 +394,11 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
 type Facts = NonNullable<Awaited<ReturnType<typeof signingFacts>>>;
 
 // ------------------------------------------------------------------ overview
+
+/// The formation tab with the contract's tendered bill beside it, so an item is picked, not typed (read for this tab only).
+async function FormationWithBill(props: Omit<ComponentProps<typeof FormationPanel>, "bill">) {
+  return <FormationPanel {...props} bill={await billItemOptions(props.l.org.id, props.l.ex.id)} />;
+}
 
 async function OverviewPanel({ actor, sulit, l, awardOpen, facts, today, supervision, payments, variations }: { actor: StaffActor; sulit: Sulit<true>; l: LoadedContract; awardOpen: boolean; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView; variations: VariationView }) {
   const lang = ENGLISH;

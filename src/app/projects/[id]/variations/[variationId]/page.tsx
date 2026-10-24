@@ -1,4 +1,5 @@
 import { ActedBy } from "@/components/attribution";
+import { billItemOptions } from "@/lib/contract/bill-items";
 import Link from "next/link";
 import type { ContractStatus } from "@/lib/contract/types";
 import { actStatusBlocker, actStatusFault, actStatusText, statusCalloutTitle } from "@/lib/contract/act-status";
@@ -496,7 +497,8 @@ function InstructionPanel({ l, v, f, vv, people, today, hidden, blockedBy }: Pan
 
 // ------------------------------------------------------------------ measurement
 
-function MeasurementPanel({ l, v, people, today, hidden, blockedBy }: { l: LoadedContract; v: VariationRow; people: Option[]; today: string | null; hidden: readonly HiddenAct[]; blockedBy: string | null }) {
+async function MeasurementPanel({ l, v, people, today, hidden, blockedBy }: { l: LoadedContract; v: VariationRow; people: Option[]; today: string | null; hidden: readonly HiddenAct[]; blockedBy: string | null }) {
+  const bill = await billItemOptions(l.org.id, l.ex.id);
   const ins = liveInstructionRow(v);
   const orderLive = !!liveOrderRow(v);
   const pre = measurementFaults({ instruction: { description: ins?.description ?? "", issued: ins?.certificate.status === "ISSUED" }, orderLive, heading: ins?.description ?? "", itemRef: "item", measuredRefs: [], rateSource: "CONTRACT_RATE", bqItemRef: "item", agreedRateApproved: true, quantity: 1n, baseRate: 0n, adjustmentTt: null, coveredUp: false, recordsNote: "", measuredOn: today ?? "", today: today ?? "" }).filter((x) => x.code === "INSTRUCTION_NOT_ISSUED" || x.code === "ORDER_RAISED");
@@ -510,7 +512,7 @@ function MeasurementPanel({ l, v, people, today, hidden, blockedBy }: { l: Loade
         icon={<ScaleIcon size={17} />}
         title="Measured items"
         subtitle={ins ? `Under “${ins.description}”. Net so far ${formatMoney(total)}.` : "After the instruction is issued"}
-        actions={hidden.includes("VALUATION") ? undefined : <MeasurementDrawer id={l.contract.id} variationId={v.id} heading={ins?.description ?? ""} people={people} sources={RATE_SOURCES.map((x) => ({ value: x, label: RATE_SOURCE_WORDS[x].en }))} directions={ADJUSTMENT_DIRECTIONS.map((x) => ({ value: x, label: DIRECTION_WORDS[x].en }))} today={today} blocker={blocker} />}
+        actions={hidden.includes("VALUATION") ? undefined : <MeasurementDrawer bill={bill} id={l.contract.id} variationId={v.id} heading={ins?.description ?? ""} people={people} sources={RATE_SOURCES.map((x) => ({ value: x, label: RATE_SOURCE_WORDS[x].en }))} directions={ADJUSTMENT_DIRECTIONS.map((x) => ({ value: x, label: DIRECTION_WORDS[x].en }))} today={today} blocker={blocker} />}
         divided={items.length > 0}
       />
       {items.length === 0 ? (

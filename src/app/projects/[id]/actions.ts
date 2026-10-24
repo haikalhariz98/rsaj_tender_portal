@@ -1,5 +1,7 @@
 "use server";
 
+import { billItemFault } from "@/lib/contract/bill-item-choices";
+import { billItemOptions } from "@/lib/contract/bill-items";
 import { actStatusFault, actStatusText, type ContractAct } from "@/lib/contract/act-status";
 import { revalidatePath } from "next/cache";
 
@@ -315,6 +317,8 @@ export async function addCorrection(_prev: FormState, data: FormData): Promise<F
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = openCheck(c, checkId);
     if (k.kind !== "ARITHMETIC") return { ok: false, message: "Corrections are recorded on the arithmetic check." };
+    const billFault = billItemFault(await billItemOptions(c.l.org.id, c.l.ex.id, c.tx), itemRef);
+    if (billFault) return { ok: false, errors: { itemRef: billFault } };
     // Phase 3b: the priced working of a contract is SULIT; whoever may not read it may not add to it, and is told why (logged in this transaction).
     const closed = await sulitWriteRefusal(c.tx, actor, { scope: "contract", entity: "Contract", id: c.l.contract.id, label: c.l.contract.number }, ["tenderedLineAmount", "correctedLineAmount"]);
     if (closed) return { ok: false, message: `Nothing was saved: this is SULIT and is closed to you. ${closed}` };
@@ -343,6 +347,8 @@ export async function addRate(_prev: FormState, data: FormData): Promise<FormSta
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = openCheck(c, checkId);
     if (k.kind !== "FRONT_LOADING") return { ok: false, message: "Rates are compared on the front-loading check." };
+    const billFault = billItemFault(await billItemOptions(c.l.org.id, c.l.ex.id, c.tx), itemRef);
+    if (billFault) return { ok: false, errors: { itemRef: billFault } };
     // Phase 3b: the priced working of a contract is SULIT; whoever may not read it may not add to it, and is told why (logged in this transaction).
     const closed = await sulitWriteRefusal(c.tx, actor, { scope: "contract", entity: "Contract", id: c.l.contract.id, label: c.l.contract.number }, ["estimateRate"]);
     if (closed) return { ok: false, message: `Nothing was saved: this is SULIT and is closed to you. ${closed}` };

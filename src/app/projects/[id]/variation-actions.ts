@@ -1,5 +1,7 @@
 "use server";
 
+import { billItemFault } from "@/lib/contract/bill-item-choices";
+import { billItemOptions } from "@/lib/contract/bill-items";
 import { tablingOf } from "@/lib/matter/tabling";
 import { actStatusFault, actStatusText, type ContractAct } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
@@ -848,6 +850,8 @@ export async function addMeasurement(_prev: FormState, data: FormData): Promise<
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     const who = await recordedFor(c, act, { act: "VALUATION" }, measuredOn);
+    const billFault = billItemFault(await billItemOptions(c.l.org.id, c.l.ex.id, c.tx), bqItemRef);
+    if (billFault) return { ok: false, errors: { bqItemRef: billFault } };
     const ins = liveInstructionRow(v);
     const fs = measurementFaults({
       instruction: { description: ins?.description ?? "", issued: ins?.certificate.status === "ISSUED" },

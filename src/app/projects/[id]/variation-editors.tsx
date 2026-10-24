@@ -1,5 +1,6 @@
 "use client";
 
+import { billItemField, type Bill } from "./bill-field";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
@@ -285,7 +286,7 @@ export function OralLoopDrawer({ id, variationId, values }: { id: string; variat
 
 // ------------------------------------------------------------------ measurement and daywork
 
-export function MeasurementDrawer({ id, variationId, heading, people, sources, directions, today, blocker }: { id: string; variationId: string; heading: string; people: Option[]; sources: Option[]; directions: Option[]; today: string | null; blocker: string | null }) {
+export function MeasurementDrawer({ id, variationId, heading, people, sources, directions, today, blocker, bill }: { bill?: Bill; id: string; variationId: string; heading: string; people: Option[]; sources: Option[]; directions: Option[]; today: string | null; blocker: string | null }) {
   return (
     <RecordEditor
       title="Measure an item"
@@ -300,7 +301,7 @@ export function MeasurementDrawer({ id, variationId, heading, people, sources, d
         { kind: "text", name: "itemRef", label: "Item reference", required: true },
         { kind: "text", name: "description", label: "Item", required: true },
         choose("rateSource", "Where the rate comes from", sources),
-        { kind: "text", name: "bqItemRef", label: "Contract item (bill or schedule of rates)", hint: "For a contract rate." },
+        billItemField("bqItemRef", "Contract item (bill or schedule of rates)", bill, { hint: "For a contract rate." }),
         { kind: "text", name: "quantity", label: "Quantity", required: true, hint: "To at most three places." },
         { kind: "text", name: "unit", label: "Unit", required: true },
         { kind: "money", name: "baseRate", label: "Rate (RM)", required: true },

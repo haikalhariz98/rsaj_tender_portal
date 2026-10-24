@@ -1,4 +1,5 @@
 import { Say, SayWith } from "@/components/i18n/language-context";
+import type { Bill } from "./bill-field";
 import { Sections } from "./sections";
 import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { ActedBy } from "@/components/attribution";
@@ -68,7 +69,7 @@ const notSet = (what = "Not set") => <span className="text-ink-4">{what}</span>;
 const open = (s: string) => s === "IN_PREPARATION" || s === "RETURNED_FOR_AMENDMENT";
 const money = (v: { toString(): string }) => formatMoney(senFromDecimal(v));
 
-export function FormationPanel({ sulit, l, facts, people, today }: { sulit: Sulit<true>; l: LoadedContract; facts: Facts; people: Option[]; today: string | null }) {
+export function FormationPanel({ sulit, l, facts, people, today, bill }: { bill?: Bill; sulit: Sulit<true>; l: LoadedContract; facts: Facts; people: Option[]; today: string | null }) {
   const status = l.contract.status as ContractStatus;
   const notStarted = status === "NUMBER_ALLOCATED";
   return (
@@ -80,7 +81,7 @@ export function FormationPanel({ sulit, l, facts, people, today }: { sulit: Suli
         <Sections
           items={[
             { id: "assembly", label: "Assembly", node: <AssemblySection l={l} facts={facts} /> },
-            { id: "checks", label: "Reconciliation and checks", node: <ChecksSection sulit={sulit} l={l} facts={facts} people={people} today={today} /> },
+            { id: "checks", label: "Reconciliation and checks", node: <ChecksSection sulit={sulit} l={l} facts={facts} people={people} today={today} bill={bill} /> },
             { id: "legal", label: "Legal review", node: <LegalSection l={l} facts={facts} people={people} today={today} /> },
             { id: "signing", label: "Signing", node: <SigningSection l={l} facts={facts} people={people} today={today} /> },
             { id: "copies", label: "Copies and custody", node: <CopiesSection l={l} people={people} today={today} /> },
@@ -128,7 +129,7 @@ function AssemblySection({ l, facts }: { l: LoadedContract; facts: Facts }) {
 
 // ------------------------------------------------------------------ reconciliation and checks
 
-function ChecksSection({ sulit, l, facts, people, today }: { sulit: Sulit<true>; l: LoadedContract; facts: Facts; people: Option[]; today: string | null }) {
+function ChecksSection({ sulit, l, facts, people, today, bill }: { bill?: Bill; sulit: Sulit<true>; l: LoadedContract; facts: Facts; people: Option[]; today: string | null }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -180,14 +181,14 @@ function ChecksSection({ sulit, l, facts, people, today }: { sulit: Sulit<true>;
       </Card>
       {(facts.form.applicable ?? []).map((kind) => {
         const k = c.checks.find((x) => x.kind === kind);
-        return k ? <CheckCard sulit={sulit} key={kind} l={l} check={k} people={people} today={today} editable={editable} preparationOn={facts.form.snap?.startedOn ?? null} applicable={facts.form.applicable} /> : null;
+        return k ? <CheckCard bill={bill} sulit={sulit} key={kind} l={l} check={k} people={people} today={today} editable={editable} preparationOn={facts.form.snap?.startedOn ?? null} applicable={facts.form.applicable} /> : null;
       })}
     </>
     </ActGate>
   );
 }
 
-function CheckCard({ sulit, l, check: k, people, today, editable, preparationOn, applicable }: { sulit: Sulit<true>; l: LoadedContract; check: LoadedContract["contract"]["checks"][number]; people: Option[]; today: string | null; editable: boolean; preparationOn: string | null; applicable: readonly FormationCheckKind[] | null }) {
+function CheckCard({ sulit, l, check: k, people, today, editable, preparationOn, applicable, bill }: { bill?: Bill; sulit: Sulit<true>; l: LoadedContract; check: LoadedContract["contract"]["checks"][number]; people: Option[]; today: string | null; editable: boolean; preparationOn: string | null; applicable: readonly FormationCheckKind[] | null }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -207,8 +208,8 @@ function CheckCard({ sulit, l, check: k, people, today, editable, preparationOn,
         subtitle={done ? <>{k.completedBy ? <ActedBy entity="FormationCheck" id={k.id} slot="completedBy" name={k.completedBy.name} /> : "an officer"}, {formatDate(k.completedOn)}{k.note ? ` · ${k.note}` : ""}</> : "Not complete"}
         actions={
           <span className="flex flex-wrap items-center gap-2">
-            {editable && !done && kind === "ARITHMETIC" && <CorrectionDrawer id={c.id} checkId={k.id} />}
-            {editable && !done && kind === "FRONT_LOADING" && <RateDrawer id={c.id} checkId={k.id} />}
+            {editable && !done && kind === "ARITHMETIC" && <CorrectionDrawer id={c.id} checkId={k.id} bill={bill} />}
+            {editable && !done && kind === "FRONT_LOADING" && <RateDrawer id={c.id} checkId={k.id} bill={bill} />}
             {editable && !done && <CompleteCheckDrawer id={c.id} checkId={k.id} label={CHECK_WORDS[kind].en} people={people} today={today} blocker={blocker.length ? blocker.map(contractFaultText).join(" ") : null} noteHint={kind === "FRONT_LOADING" ? "What was done about the listed rates." : "Optional."} />}
             {done && <Badge tone="ok">Complete</Badge>}
           </span>

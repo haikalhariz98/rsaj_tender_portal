@@ -1,4 +1,5 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
+import { billItemField, type Bill } from "./bill-field";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 import type { AwardTerm } from "@/lib/contract/award-correction";
@@ -156,7 +157,7 @@ export function AmendmentDrawer({ id, reconciliationId, people, today }: { id: s
 
 // ------------------------------------------------------------------ checks
 
-export function CorrectionDrawer({ id, checkId }: { id: string; checkId: string }) {
+export function CorrectionDrawer({ id, checkId, bill }: { id: string; checkId: string; bill?: Bill }) {
   return (
     <RecordEditor
       title="Record an arithmetical correction"
@@ -165,7 +166,7 @@ export function CorrectionDrawer({ id, checkId }: { id: string; checkId: string 
       fields={[
         hidden("id"),
         hidden("checkId"),
-        { kind: "text", name: "itemRef", label: "Item", required: true, mono: true },
+        billItemField("itemRef", "Item", bill, { required: true, mono: true }),
         { kind: "text", name: "description", label: "Description" },
         { kind: "money", name: "tendered", label: "As tendered", required: true },
         { kind: "money", name: "corrected", label: "Corrected", required: true },
@@ -178,7 +179,7 @@ export function CorrectionDrawer({ id, checkId }: { id: string; checkId: string 
   );
 }
 
-export function RateDrawer({ id, checkId }: { id: string; checkId: string }) {
+export function RateDrawer({ id, checkId, bill }: { id: string; checkId: string; bill?: Bill }) {
   return (
     <RecordEditor
       title="Compare a rate"
@@ -187,7 +188,7 @@ export function RateDrawer({ id, checkId }: { id: string; checkId: string }) {
       fields={[
         hidden("id"),
         hidden("checkId"),
-        { kind: "text", name: "itemRef", label: "Item", required: true, mono: true },
+        billItemField("itemRef", "Item", bill, { required: true, mono: true }),
         { kind: "text", name: "description", label: "Description" },
         { kind: "money", name: "tenderedRate", label: "Tendered rate", required: true },
         { kind: "money", name: "estimateRate", label: "Estimate rate (SULIT)", required: true },
