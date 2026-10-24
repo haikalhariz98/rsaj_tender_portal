@@ -134,6 +134,17 @@ async function lodge(c: Holder, k: Case, o: { kind?: "LETTER_OF_ACCEPTANCE" | "W
   return lodgeOnlineReturn(c.actor, { contractId: k.contractId, files, page: o.kind === "WORK_INDENT" ? PAGE : null, stepUpAt: await stepUp(c) }, o.now);
 }
 
+/// The SQLSTATE a write is refused with, or null where it goes through (as `online-return-schema.db.test.ts` reads it): PA048 to PA051 are the wave's own triggers.
+async function sqlState(work: Promise<unknown>): Promise<string | null> {
+  try {
+    await work;
+    return null;
+  } catch (error) {
+    const cause = (error as { meta?: { driverAdapterError?: { cause?: { originalCode?: string; code?: string } } } }).meta?.driverAdapterError?.cause;
+    return cause?.originalCode ?? cause?.code ?? `not a database refusal: ${String(error).slice(0, 200)}`;
+  }
+}
+
 const refusedWith = async (work: Promise<unknown>, code: string, status?: number) => {
   const e = await work.then(() => null, (x) => x);
   expect(e, `expected a refusal with ${code}`).toBeInstanceOf(AwardReturnRefused);
@@ -288,8 +299,8 @@ describe("verifying a lodged return (ADR 0045 D1)", () => {
     const accepted = (await db.auditEntry.findMany({ where: { organisationId, entity: "Award", entityId: k.awardId } })).filter((e) => JSON.stringify(e.changes).includes("ACCEPTED"));
     expect(accepted).toHaveLength(1);
     // A decided return is decided once (PA048), and its files are frozen (PA051).
-    await expect(db.awardOnlineReturn.update({ where: { id: onlineReturnId }, data: { refusedByPersonId: p.officer, refusedAt: new Date(), refusedReason: "Changed my mind" } })).rejects.toThrow();
-    await expect(db.documentAttachment.updateMany({ where: { awardOnlineReturnId: onlineReturnId }, data: { detachedAt: new Date(), detachReason: "x" } })).rejects.toThrow();
+    expect(await sqlState(db.awardOnlineReturn.update({ where: { id: onlineReturnId }, data: { verifiedByPersonId: p.outsider, verifiedAt: new Date() } }))).toBe("PA048");
+    expect(await sqlState(db.documentAttachment.updateMany({ where: { awardOnlineReturnId: onlineReturnId }, data: { detachedAt: new Date(), detachReason: "x" } }))).toBe("PA051");
   });
 
   it("verifies an indent: the page's fields are written as lodged, and the award is accepted", async () => {
@@ -347,7 +358,10 @@ describe("verifying a lodged return (ADR 0045 D1)", () => {
     h.who = { ...staff(foreign), organisationId: elsewhere } as StaffActor;
     expect(await verifyOnlineReturn({ ok: false }, form({ id: onlineReturnId }))).toEqual({ ok: false, message: "That return is not on record." });
     expect(await refuseOnlineReturn({ ok: false }, form({ id: onlineReturnId, reason: "No" }))).toEqual({ ok: false, message: "That return is not on record." });
-    expect((await db.awardOnlineReturn.findUniqueOrThrow({ where: { id: onlineReturnId } })).verifiedAt).toBeNull();
+    const { queryId } = await askAwardQuery(c.actor, { contractId: k.contractId, body: "Is the bond due on signing?" });
+    expect(await answerAwardQuery({ ok: false }, form({ id: queryId, answer: "Yes." }))).toEqual({ ok: false, message: "That question is not on record." });
+    expect(await db.awardOnlineReturn.findUniqueOrThrow({ where: { id: onlineReturnId } })).toMatchObject({ verifiedAt: null, refusedAt: null });
+    expect((await db.awardQuery.findUniqueOrThrow({ where: { id: queryId } })).answeredAt).toBeNull();
   });
 });
 
@@ -416,7 +430,7 @@ describe("questions on an award (ADR 0045 D3, WV-7)", () => {
     expect(await db.awardQuery.findUniqueOrThrow({ where: { id: queryId } })).toMatchObject({ answer: "On 1 November.", answeredByPersonId: p.officer });
     expect(await as(p.officer, () => answerAwardQuery({ ok: false }, form({ id: queryId, answer: "Again." })))).toMatchObject({ ok: false, message: expect.stringMatching(/already been answered/) });
     // The answer is set once by the database too (PA049).
-    await expect(db.awardQuery.update({ where: { id: queryId }, data: { answer: "Changed" } })).rejects.toThrow();
+    expect(await sqlState(db.awardQuery.update({ where: { id: queryId }, data: { answer: "Changed" } }))).toBe("PA049");
   });
 });
 
