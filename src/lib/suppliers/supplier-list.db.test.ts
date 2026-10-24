@@ -129,12 +129,14 @@ describe("listSuppliers, the register (server mode)", () => {
 describe("listSuppliers, the applications tab (server mode)", () => {
   const refs = (d: Awaited<ReturnType<typeof list>>) => d!.queue.map((a) => a.supplier.reference);
 
-  it("lists the open applications, newest first, and the count of the whole open set", async () => {
+  it("lists the open applications, oldest first (a work queue), and the count of the whole open set", async () => {
     const data = (await list(register(), { applications: applications({ size: "10" }) }))!;
     expect(data.queue).toHaveLength(10);
     expect(data.applicationsTotal).toBe(12);
     expect(data.queueTotal).toBe(12);
-    expect(refs(data)[0]).toBe(`SUP/${run}/011`);
+    expect(refs(data)[0]).toBe(`SUP/${run}/000`);
+    // Newest first is one click away, and is kept by an explicit sort.
+    expect(refs((await list(register(), { applications: applications({ sort: "date", size: "10" }) }))!)[0]).toBe(`SUP/${run}/011`);
   });
 
   it("finds an application on a later page from the first, by the applicant's name or registration number", async () => {

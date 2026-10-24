@@ -107,7 +107,7 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
             { key: "quorum", label: "Quorum", width: "96px", mobile: "meta" },
           ]}
           rows={rows}
-          server={serverMode("/committees", q, { total, page, sortColumns: { committee: "name", reference: "reference", date: "date" }, exportBlocked: total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined })}
+          server={serverMode("/committees", q, { total, page, sortColumns: { committee: "name", reference: "reference", date: "date" }, exportHref: total > LIST_EXPORT_MAX_ROWS ? undefined : listHref("/committees/export", { q: q.q, view: q.view, sort: q.sort, dir: q.dir }), exportBlocked: total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined })}
         />
       </Card>
     </>

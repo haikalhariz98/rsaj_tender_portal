@@ -108,7 +108,7 @@ export function ApplicationForm({
           {select("countryCode", "Country", countries, { required: true, hint: countries.length ? undefined : "None set under Configuration › Supplier register." })}
           {text("incorporatedOn", "Date incorporated", { required: true, type: "date", hint: "As the certificate states it; not after today." })}
           {bumiputeraStatuses.length > 0 && select("bumiputeraClaimCode", "Bumiputera status (declared)", bumiputeraStatuses, { hint: "What the applicant declares. Blank for no claim." })}
-          {text("companyEmail", "Company email", { required: true, type: "email", hint: "Not verified: nothing is e-mailed from the portal." })}
+          {text("companyEmail", "Company email", { required: true, type: "email", hint: "Not verified." })}
         </CardBody>
       </Card>
       <Card>

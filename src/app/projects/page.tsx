@@ -8,14 +8,9 @@ import { StatusCounts } from "@/components/ui/status-counts";
 import { CASE_LIST_VIEWS, listCases, type CaseListView, type CaseRowView } from "@/lib/contract/case-load";
 import { CASE_WORK_VIEWS } from "@/lib/contract/case-work-views";
 import { CASE_VIEW_WORDS } from "@/lib/contract/case-list-words";
-import { DERIVE_CAP, endorsedPhases } from "@/lib/contract/load";
-import type { ContractPhase } from "@/lib/contract/status";
-import { loadAwardPolicy } from "@/lib/award/repo";
-import { dayOf, daysFrom, storedDay } from "@/lib/dates";
+import { daysFrom, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal } from "@/lib/money";
-import { exerciseOrg } from "@/lib/method/repo";
-import { inDelayContractIds } from "@/lib/supervision/load";
 import { commencedPendingAll } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
 import { ENGLISH } from "@/lib/i18n/language";
@@ -33,6 +28,7 @@ import { SecuritiesView } from "./securities-view";
 import { documentsWaitingCount } from "@/lib/project-docs/waiting-read";
 
 import { DocumentsWaitingView } from "./documents-waiting-view";
+import { loadCaseContext } from "./context";
 import { buildCaseRows } from "./rows";
 
 export const metadata = { title: "Projects" };
@@ -69,10 +65,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   const page = q.page;
   const parsed: CaseListView | null = q.view;
   // 6.13 Part A review 14: In Delay is a view over the whole set, judged across every possessed contract, then paged.
-  const org0 = await exerciseOrg(actor.organisationId);
-  const today = org0?.timeZone ? dayOf(new Date(), org0.timeZone) : null;
-  const delay = org0 && today ? await inDelayContractIds(org0.id, today) : { ids: [], assumed: new Set<string>() };
-  const delayIds = delay.ids;
+  const { org: org0, today, delayIds, derived, policy } = await loadCaseContext(actor.organisationId);
   const delayView = parsed === "delay";
   // 6.13 Part A step 4 (FR-VAR-014): every variation commenced pending approval, across contracts, with its estimate
   // and age, judged over the whole set and then paged.
@@ -90,14 +83,12 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   // "commenced" is the variations' exposure report above, not a view over cases; every other view is one `listCases` pages.
   const rowView: CaseRowView | undefined = parsed && parsed !== "commenced" ? parsed : undefined;
   const data = await listCases(actor.organisationId, hidden, { view: rowView, page, size: q.size, words: q.words, sort: q.sort, dir: q.dir, delayIds, commencedContractIds: [...new Set(commenced.map((v) => v.contract.id))] });
-  const derived: Map<string, ContractPhase> = org0 ? await endorsedPhases(org0.id, DERIVE_CAP) : new Map();
   const ready = [...derived.values()].filter((x) => x === "READY_TO_SIGN").length;
   const awaiting = [...derived.values()].filter((x) => x === "AWAITING_CONDITIONS").length;
   // 6.13 Part A (FR-SUP-010): In Delay, derived, never stored. Tagged ASSUMED (the shared badge) only where the
   // reading rests on the straight-line assumption (BD-613-12, narrowed by the residual review); a lapsed date for
   // completion does not.
   const inDelay = new Set(delayIds);
-  const policy = org0 ? await loadAwardPolicy(org0.id) : null;
 
   const rows: Row[] = commencedView ? [] : buildCaseRows(data.rows, { derived, inDelay, policy, today: org0?.today ?? null, lang }, { forExport: false });
   // A view's address keeps the search, the sort and the page size; the page starts again.
@@ -179,7 +170,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
             { key: "dates", label: t(L.colDates), width: "220px", mobile: "meta" },
           ]}
           rows={rows}
-          server={serverMode("/projects", q, { total: data.total, page: data.page, sortColumns: { contract: "reference" }, exportBlocked: data.total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined })}
+          server={serverMode("/projects", q, { total: data.total, page: data.page, sortColumns: { contract: "reference" }, exportHref: data.total > LIST_EXPORT_MAX_ROWS ? undefined : listHref("/projects/export", { q: q.q, view: q.view, sort: q.sort, dir: q.dir }), exportBlocked: data.total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined })}
         />
       </Card>
       )}

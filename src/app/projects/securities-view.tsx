@@ -1,9 +1,9 @@
-import { DataList, type Row } from "@/components/data-list";
+import { DataList } from "@/components/data-list";
 import { ShieldIcon } from "@/components/icons";
 import { Card, CardHeader } from "@/components/ui/card";
+import { buildSecurityRows } from "./securities-rows";
 import { PageHeader } from "@/components/ui/page-header";
-import { REGISTER_STATUS_TONE } from "@/lib/award/labels";
-import { INSURANCE_KIND_WORDS, REGISTER_STATUS_WORDS, CASES_LIST_WORDS, SECURITIES_VIEW_WORDS as V, SECURITY_KIND_WORDS } from "@/lib/contract/case-page-words";
+import { CASES_LIST_WORDS, SECURITIES_VIEW_WORDS as V } from "@/lib/contract/case-page-words";
 import type { Words } from "@/lib/contract/labels";
 import type { Language } from "@/lib/i18n/language";
 import { say, sayWith } from "@/lib/i18n/say";
@@ -11,10 +11,7 @@ import { listRegister, type RegisterView } from "@/lib/award/repo";
 import { serverMode } from "@/components/server-list";
 import { LIST_EXPORT_MAX_ROWS, listHref, type ListQuery } from "@/lib/list-query";
 import { ButtonLink } from "@/components/ui/button";
-import { issuerStanding } from "@/lib/securities/bond";
-import { storedDay } from "@/lib/dates";
-import { formatDate } from "@/lib/format";
-import { expiryAlert, expiryChip, remindersText } from "@/lib/securities/expiry";
+import { remindersText } from "@/lib/securities/expiry";
 import type { StaffActor } from "@/lib/auth/types";
 
 /**
@@ -36,55 +33,8 @@ export async function SecuritiesView({ actor, sv, query, lang = "en" }: { actor:
   // The securities views are `sv`, not `view`: the address keeps both, and the list's own links add the search, the size and the page to it.
   const base = (v: RegisterView) => `/projects?${new URLSearchParams({ view: "securities", ...(v !== "attention" ? { sv: v } : {}) }).toString()}`;
   const href = (v: RegisterView) => listHref(base(v), { q: query.q, size: query.size });
-  const today = org?.today ?? null;
   const offsets = config?.expiryOffsets ?? [];
-  const alertOf = (d: Date | null) => (today ? expiryAlert(d ? storedDay(d) : null, offsets, today) : null);
-  const chip = (a: ReturnType<typeof alertOf>) => {
-    const c = expiryChip(a, lang);
-    return c ? [c] : [];
-  };
-  // Where the issuer stood on the approved list when it was lodged (the checks' own rule), and since.
-  const onList = (i: { retiredOn: Date | null } | null, lodgedOn: Date) => {
-    const at = issuerStanding(i, storedDay(lodgedOn));
-    if (at === "NOT_ON_LIST") return t(V.notOnList);
-    if (at === "RETIRED") return t(V.retiredBefore);
-    return i?.retiredOn ? sayWith(V.onListRetired, lang, { date: formatDate(i.retiredOn, lang) }) : t(V.onList);
-  };
-  const unsorted: Row[] = [
-    ...securities.map((s) => {
-      const a = s.status === "REJECTED" ? null : alertOf(s.expiresOn);
-      return {
-        id: s.id,
-        search: [t(SECURITY_KIND_WORDS[s.kind]), s.contract.number, s.contract.award.awardeeName, s.issuer?.name ?? s.issuerNameAsWritten, s.instrumentRef].join(" "),
-        sortKeys: { value: Number(s.value.toString()), expiry: s.expiresOn?.getTime() ?? Number.MIN_SAFE_INTEGER },
-        cells: {
-          what: { kind: "link" as const, text: t(SECURITY_KIND_WORDS[s.kind]), href: `/projects/${s.contract.id}?tab=securities`, sub: sayWith(V.awardeeAndContract, lang, { awardee: s.contract.award.awardeeName, number: s.contract.number }) },
-          issuer: { kind: "stack" as const, title: s.issuer?.name ?? (s.issuerNameAsWritten || t(V.issuerNotRecorded)), sub: onList(s.issuer, s.lodgedOn) },
-          value: { kind: "money" as const, value: Number(s.value.toString()) },
-          expiry: { kind: "text" as const, text: s.expiresOn ? formatDate(s.expiresOn, lang) : t(V.notRecorded), dim: !s.expiresOn },
-          status: { kind: "chips" as const, items: [{ text: t(REGISTER_STATUS_WORDS[s.status]), tone: REGISTER_STATUS_TONE[s.status] }, ...chip(a)] },
-        },
-      };
-    }),
-    ...policies.map((p) => {
-      const a = p.status === "REJECTED" ? null : alertOf(p.periodEnd);
-      return {
-        id: p.id,
-        search: [t(INSURANCE_KIND_WORDS[p.kind]), p.contract.number, p.contract.award.awardeeName, p.issuer?.name ?? p.issuerNameAsWritten, p.policyNo].join(" "),
-        sortKeys: { value: Number(p.sumInsured.toString()), expiry: p.periodEnd.getTime() },
-        cells: {
-          what: { kind: "link" as const, text: t(INSURANCE_KIND_WORDS[p.kind]), href: `/projects/${p.contract.id}?tab=securities`, sub: sayWith(V.awardeeAndContract, lang, { awardee: p.contract.award.awardeeName, number: p.contract.number }) },
-          issuer: { kind: "stack" as const, title: p.issuer?.name ?? (p.issuerNameAsWritten || t(V.insurerNotRecorded)), sub: onList(p.issuer, p.lodgedOn) },
-          value: { kind: "money" as const, value: Number(p.sumInsured.toString()) },
-          expiry: { kind: "text" as const, text: formatDate(p.periodEnd, lang) },
-          status: { kind: "chips" as const, items: [{ text: t(REGISTER_STATUS_WORDS[p.status]), tone: REGISTER_STATUS_TONE[p.status] }, ...chip(a)] },
-        },
-      };
-    }),
-  ];
-  // In the database's order: live first, then long expired, then rejected; soonest to expire first.
-  const byId = new Map(unsorted.map((r) => [r.id, r]));
-  const rows = order.map((o) => byId.get(o.id)).filter((r): r is Row => !!r);
+  const rows = buildSecurityRows({ securities, policies, order, config }, { today: org?.today ?? null, lang }, { forExport: false });
   return (
     <>
       <PageHeader title={t(V.title)} meta={[sayWith(V.nLodgedNotVerified, lang, { count: String(counts.unverified) }), sayWith(V.nExpiring, lang, { count: String(counts.expiring) }), remindersText(offsets, lang)] } />
@@ -114,7 +64,7 @@ export async function SecuritiesView({ actor, sv, query, lang = "en" }: { actor:
             { key: "status", label: t(V.colStatus), width: "200px", mobile: "meta" },
           ]}
           rows={rows}
-          server={{ ...serverMode(base(view), { ...query, view: null, sort: null }, { total, page, sortColumns: {}, exportBlocked: total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined }), action: "/projects", keep: { view: "securities", ...(view !== "attention" ? { sv: view } : {}), ...(query.size !== 25 ? { size: String(query.size) } : {}) } }}
+          server={{ ...serverMode(base(view), { ...query, view: null, sort: null }, { total, page, sortColumns: {}, exportHref: total > LIST_EXPORT_MAX_ROWS ? undefined : listHref(`/projects/export?view=securities${view !== "attention" ? `&sv=${view}` : ""}`, { q: query.q }), exportBlocked: total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined }), action: "/projects", keep: { view: "securities", ...(view !== "attention" ? { sv: view } : {}), ...(query.size !== 25 ? { size: String(query.size) } : {}) } }}
         />
       </Card>
     </>

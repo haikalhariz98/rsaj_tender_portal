@@ -83,6 +83,10 @@ describe("listOrderBy (ST-7)", () => {
     expect(listOrderBy("requisition", { sort: null, dir: "asc" })).toEqual([{ raisedOn: "desc" }, { id: "desc" }]);
     expect(listOrderBy("sitting", { sort: null, dir: "desc" })).toEqual([{ meetingDate: "desc" }, { id: "desc" }]);
   });
+  it("the applications queue is the one exception: oldest first, then id, until a column is chosen", () => {
+    expect(listOrderBy("application", { sort: null, dir: "desc" })).toEqual([{ receivedOn: "asc" }, { id: "asc" }]);
+    expect(listOrderBy("application", { sort: "date", dir: "desc" })).toEqual([{ receivedOn: "desc" }, { id: "desc" }]);
+  });
   it("a chosen column, then id, both in the chosen direction; a relation path nests", () => {
     expect(listOrderBy("exercise", { sort: "title", dir: "asc" })).toEqual([{ title: "asc" }, { id: "asc" }]);
     expect(listOrderBy("sitting", { sort: "name", dir: "desc" })).toEqual([{ committee: { nameEn: "desc" } }, { id: "desc" }]);

@@ -12,24 +12,21 @@ import { StatusCounts } from "@/components/ui/status-counts";
 import { loadRegisterSettings } from "@/lib/portal/apply-repo";
 import { flagWords } from "@/lib/portal/queue";
 import { loadPortalQueue } from "@/lib/portal/queue-repo";
-import { daysFrom, dayOrNull as day } from "@/lib/dates";
+import { daysFrom } from "@/lib/dates";
 import { addDays } from "@/lib/securities/period";
 import { formatDate } from "@/lib/format";
 import { routeState } from "@/lib/suppliers/blacklist";
-import { documentStates } from "@/lib/suppliers/documents";
-import { expiryBand, reminderDue, startsOn, worstBand, type ExpiryBand } from "@/lib/suppliers/expiry";
+import { reminderDue, startsOn, type ExpiryBand } from "@/lib/suppliers/expiry";
 import { blacklistEndWords, eventReasonWords, renewalUpcomingWords, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords } from "@/lib/suppliers/labels";
 import { db } from "@/lib/db";
-import { APPLICATION_VIEWS, answeredOnTimeIds, documentFacts, documentsToSeeToIds, listSuppliers, loadSupplierConfig, supplierOrg, SUPPLIER_VIEWS, SUPPLIERS_PAGE } from "@/lib/suppliers/repo";
+import { APPLICATION_VIEWS, answeredOnTimeIds, documentsToSeeToIds, listSuppliers, loadSupplierConfig, supplierOrg, SUPPLIER_VIEWS, SUPPLIERS_PAGE } from "@/lib/suppliers/repo";
 import { LIST_EXPORT_MAX_ROWS, listHref, parseListQuery, sortKeys, type ListQuery } from "@/lib/list-query";
-import { standing } from "@/lib/suppliers/standing";
-import { standingEventFacts } from "@/lib/suppliers/standing-repo";
-import type { SupplierStatus } from "@/lib/suppliers/types";
 import { permissionGate, requireStaff } from "@/app/_auth/actor";
 import { BOARD_PAGE, loadBoard } from "@/lib/portal/projects/announcement-store";
 import { CATEGORY_TONE, CATEGORY_WORDS } from "@/lib/portal/projects/announcements";
 
 import { PinDrawer, PublishDrawer, WithdrawDrawer } from "./announcement-editors";
+import { readSuppliers } from "./readings";
 import { buildApplicationRows, buildRegisterRows } from "./rows";
 
 export const dynamic = "force-dynamic";
@@ -76,19 +73,8 @@ export default async function SuppliersPage(props: { searchParams: Promise<Recor
   const mayPublish = tab === "announcements" ? await permissionGate(actor, "announcements.publish") : null;
   // Phase 4c: which requests the supplier answered online in time, so a passed deadline reads "answered online" and not "lapsed".
   const answered = await answeredOnTimeIds(db, org0.id, [...openApplications.map((a) => a.id), ...suppliers.flatMap((s) => s.applications.map((a) => a.id))]);
-  const typeExpires = new Map(cfg.types.map((t) => [t.id, t.expires]));
-
   // a2: each supplier's standing (derived, OD-7 A) and its documents' expiry bands (FR-VND-008).
-  const readings = new Map(
-    [...suppliers, ...expiring, ...standingSuppliers].map((s) => {
-      const docs = s.documents.map(documentFacts);
-      const states = today ? documentStates(cfg.typeFacts, docs, today) : [];
-      const st = today ? standing({ status: s.status as SupplierStatus, registeredOn: day(s.registeredOn) }, s.standingEvents.map(standingEventFacts), states.filter((x) => x.mandatory).map((x) => ({ typeLabel: x.type.label, state: x.state })), { autoSuspendOnLapse: p?.autoSuspendOnLapse ?? null }, today) : null;
-      // The band of each type's document in force (a renewal counts once verified).
-      const expiring = today ? states.filter((x) => x.effective && !x.effective.notApplicable && x.effective.expiresOn && typeExpires.get(x.type.id) !== false).map((x) => ({ type: x.type.label, doc: x.effective!, pending: !!x.pending, upcoming: x.upcoming?.validFrom ?? null, ...expiryBand(x.effective!.expiresOn, today, bands) })) : [];
-      return [s.id, { states, standing: st, expiring, worst: worstBand(expiring.map((e) => e.band).filter((b) => b !== "NONE")) }] as const;
-    }),
-  );
+  const readings = readSuppliers([...suppliers, ...expiring, ...standingSuppliers], cfg, today);
 
   // ------------------------------------------------------------------ the register
   const register = buildRegisterRows(suppliers, { readings, answered, today }, { forExport: false });
@@ -166,7 +152,8 @@ export default async function SuppliersPage(props: { searchParams: Promise<Recor
   const barredCount = data.barredCount;
   // A tab's own list: its search is a GET form to /suppliers that keeps the tab, and its links carry the tab.
   const tabMode = (id: string, q: ListQuery, o: { total: number; page: number; sortColumns: Record<string, string> }): ServerMode => {
-    const m = serverMode(`/suppliers?tab=${id}`, q, { ...o, exportBlocked: o.total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined });
+    const over = o.total > LIST_EXPORT_MAX_ROWS;
+    const m = serverMode(`/suppliers?tab=${id}`, q, { ...o, exportHref: over ? undefined : listHref(`/suppliers/export?tab=${id}`, { q: q.q, view: q.view, sort: q.sort, dir: q.dir }), exportBlocked: over ? "This view cannot be exported" : undefined });
     return { ...m, action: "/suppliers", keep: { tab: id, ...m.keep } };
   };
   const registerAt = (v: (typeof SUPPLIER_VIEWS)[number] | null) => listHref("/suppliers?tab=register", { q: registerQ.q, view: v, sort: registerQ.sort, dir: registerQ.dir, size: registerQ.size });
@@ -231,7 +218,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<Recor
       count: data.queueTotal,
       panel: (
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClipboardIcon size={17} />} title="Applications awaiting a decision" subtitle="Newest first" divided={false} />
+          <CardHeader icon={<ClipboardIcon size={17} />} title="Applications awaiting a decision" subtitle="Oldest first" divided={false} />
           <div className="flex flex-wrap gap-1.5 px-5 pb-3 sm:px-6">
             {applicationViews.map((v) => (
               <ButtonLink key={v.id ?? "all"} href={applicationsAt(v.id)} size="sm" variant={(applicationsQ.view ?? null) === v.id ? "secondary" : "ghost"} aria-current={(applicationsQ.view ?? null) === v.id ? "page" : undefined}>

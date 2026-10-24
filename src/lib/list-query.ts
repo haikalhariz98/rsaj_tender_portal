@@ -93,6 +93,9 @@ export const sortKeys = <E extends SearchEntity>(entity: E): SortKey<E>[] => Obj
 
 const ordered = (path: string, dir: SortDir): object => path.split(".").reduceRight<object | SortDir>((inner, key) => ({ [key]: inner }), dir) as object;
 
+/// A work queue is worked in arrival order, so the open applications default to oldest first: the one exception to ST-7's newest first (orchestrator, 2026-10-24).
+const DEFAULT_DIR: Partial<Record<SearchEntity, SortDir>> = { application: "asc" };
+
 /// The orderBy input of each entity's model.
 export interface ListOrderBy {
   requisition: Prisma.RequisitionOrderByWithRelationInput[];
@@ -103,10 +106,10 @@ export interface ListOrderBy {
   application: Prisma.SupplierApplicationOrderByWithRelationInput[];
 }
 
-/// The Prisma orderBy for a query: the chosen column, then id, both in `dir`; or the main date and id, newest first. The id makes
+/// The Prisma orderBy for a query: the chosen column, then id, both in `dir`; or the main date and id, newest first (oldest first for the applications queue). The id makes
 /// the order total, so a page boundary never repeats or drops a row. A key outside the set (even "constructor") is the default.
 export function listOrderBy<E extends SearchEntity>(entity: E, q: Pick<ListQuery<string, string>, "sort" | "dir">): ListOrderBy[E] {
   const keys: Readonly<Record<string, string>> = LIST_SORTS[entity].keys;
   const path = q.sort && Object.hasOwn(keys, q.sort) ? keys[q.sort] : null;
-  return (path ? [ordered(path, q.dir), { id: q.dir }] : [ordered(LIST_SORTS[entity].date, "desc"), { id: "desc" }]) as ListOrderBy[E];
+  return (path ? [ordered(path, q.dir), { id: q.dir }] : [ordered(LIST_SORTS[entity].date, DEFAULT_DIR[entity] ?? "desc"), { id: DEFAULT_DIR[entity] ?? "desc" }]) as ListOrderBy[E];
 }
