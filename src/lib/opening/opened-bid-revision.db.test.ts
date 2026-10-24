@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { Prisma } from "@/generated/prisma/client";
-import { db } from "@/lib/db";
+import { db, type Tx } from "@/lib/db";
 import { randomId } from "@/lib/test-db/auth-fixtures";
 
 import { applyAppRole } from "../../../scripts/db-role-apply";
@@ -15,7 +14,6 @@ import { applyAppRole } from "../../../scripts/db-role-apply";
  */
 
 const TEST_ROLE = "perolehan_app_test";
-type Tx = Prisma.TransactionClient;
 
 function sqlState(error: unknown): string {
   type Cause = { originalCode?: string; code?: string; kind?: string };

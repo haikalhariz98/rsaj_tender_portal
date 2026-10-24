@@ -1,4 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import type { ITXClientDenyList } from "@prisma/client/runtime/client";
 import { PrismaClient } from "@/generated/prisma/client";
 import { ambientStore, nested, type Ambient, type SavepointSql } from "@/lib/ambient/ambient-tx";
 
@@ -31,6 +32,15 @@ function createClient() {
 
 const client = globalForPrisma.prisma ?? createClient();
 
+/// The application client: Prisma's default `PrismaClient` type, except that the sealed estimate's delegate is the one of the client built above, which carries the global
+/// omit (ADR 0012), so a query can no more read the figure by type than at runtime (nested reads through an `include` are not typed away; the runtime omit holds).
+/// Not the client's own type whole: its `log` and `omit` type arguments are invariant, so it differs from the `PrismaClient` and `TransactionClient` that scripts, tests
+/// and `$transaction` hand on, and every hand-over made the checker compare two whole clients model by model, which ran `tsc` out of memory.
+type AppClient = Omit<PrismaClient, "companyEstimateVersion"> & Pick<typeof client, "companyEstimateVersion">;
+
+/// The application client inside a transaction (a `TransactionClient`, with the same sealed delegate).
+export type Tx = Omit<AppClient, ITXClientDenyList>;
+
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = client;
 }
@@ -39,7 +49,7 @@ if (process.env.NODE_ENV !== "production") {
  * The application client. While an ambient transaction is set (`src/lib/ambient/ambient-tx.ts`: a two-person change being applied, or rehearsed) it stands for that
  * transaction, and a `$transaction` on it is a savepoint of it. Everywhere else it is the client, unchanged.
  */
-export const db: typeof client = new Proxy(client, {
+export const db = new Proxy(client, {
   get(target, prop) {
     const ambient: Ambient | undefined = ambientStore.getStore();
     if (ambient && typeof prop === "string" && prop !== "$connect" && prop !== "$disconnect" && prop !== "$on" && prop !== "$extends") {
@@ -58,7 +68,7 @@ export const db: typeof client = new Proxy(client, {
     const value = Reflect.get(target, prop, target);
     return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
   },
-});
+}) as unknown as AppClient; // the Proxy hands back the client itself; only its type is narrowed
 
 type SavepointClient = Pick<typeof client, "$executeRaw">;
 

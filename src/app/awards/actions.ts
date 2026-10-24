@@ -200,7 +200,7 @@ function recordedReasons(e: EvaluationGate, value: Sen, period: AwardFigures["pe
 
 
 /// The supplier a form chose from the register, read with the organisation and judged by `awardeeFromRegister` (the link rules). `words` is how the audit names it.
-async function awardeeFromRegisterRow(tx: Prisma.TransactionClient, organisationId: string, award: { awardeePartyId: string | null; vendorId: string | null }, supplierId: string) {
+async function awardeeFromRegisterRow(tx: Tx, organisationId: string, award: { awardeePartyId: string | null; vendorId: string | null }, supplierId: string) {
   const supplier = await tx.supplier.findFirst({ where: { id: supplierId, organisationId }, select: { id: true, reference: true, registeredName: true, registrationNo: true, registeredAddress: true, status: true } });
   const out = awardeeFromRegister(award, supplier);
   return out.ok ? { ...out, words: supplierWords(supplier!) } : out;

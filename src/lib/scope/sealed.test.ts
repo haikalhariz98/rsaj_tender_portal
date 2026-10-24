@@ -143,7 +143,10 @@ describe("one accessor reads the sealed columns", () => {
     const db = source("src/lib/db.ts");
     expect(db).toMatch(/SEALED_OMIT = \{ companyEstimateVersion: \{ value: true, reason: true \} \}/);
     expect(db).toMatch(/omit: SEALED_OMIT,/);
-    expect(source("src/lib/audit/record.ts")).toMatch(/export type Tx = Omit<typeof db, ITXClientDenyList>;/);
+    // The application client's type takes the sealed delegate from the omitting client, and a Tx is that type less the connection methods (record.ts re-exports it).
+    expect(db).toMatch(/type AppClient = Omit<PrismaClient, "companyEstimateVersion"> & Pick<typeof client, "companyEstimateVersion">;/);
+    expect(db).toMatch(/export type Tx = Omit<AppClient, ITXClientDenyList>;/);
+    expect(source("src/lib/audit/record.ts")).toMatch(/export type \{ Tx \} from "@\/lib\/db";/);
   });
   it("no raw SQL reads the versions table outside the store", () => {
     expect(matching(/\$(queryRaw|executeRaw)(Unsafe)?[\s\S]{0,300}CompanyEstimateVersion/, (f) => f !== STORE && !isTest(f))).toEqual([]);

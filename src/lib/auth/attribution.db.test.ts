@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { db } from "@/lib/db";
+import { db, type Tx } from "@/lib/db";
 import { applyAppRole } from "../../../scripts/db-role-apply";
 import { makeAccount, makePerson, randomId, setPolicy, SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
@@ -18,7 +18,6 @@ import type { PermissionKey, StaffActor } from "./types";
  */
 
 const TEST_ROLE = "perolehan_app_test";
-type Tx = Prisma.TransactionClient;
 
 function sqlState(error: unknown): string {
   const cause = (error as { meta?: { driverAdapterError?: { cause?: { originalCode?: string; code?: string; kind?: string } } } }).meta?.driverAdapterError?.cause;

@@ -4,9 +4,8 @@ import path from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { Prisma } from "@/generated/prisma/client";
 import { notYetPresent, SEALED_TABLES } from "@/lib/auth/db-role";
-import { db } from "@/lib/db";
+import { db, type Tx } from "@/lib/db";
 import { MAX_STAMP_SKEW_SECONDS } from "@/lib/portal/bids/limits";
 import { makeSupplierAccount, randomId } from "@/lib/test-db/auth-fixtures";
 
@@ -26,7 +25,6 @@ import { applyAppRole } from "../../../scripts/db-role-apply";
  */
 
 const TEST_ROLE = "perolehan_app_test";
-type Tx = Prisma.TransactionClient;
 
 /// A refusal inside a statement arrives wrapped by the client (`meta.driverAdapterError`); one at the commit, from a deferred trigger, arrives as the driver adapter's own
 /// error, with the code on its `cause`.

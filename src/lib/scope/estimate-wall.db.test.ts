@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { Prisma } from "@/generated/prisma/client";
 import { readRuntimeRole } from "@/lib/auth/runtime-role-store";
-import { db } from "@/lib/db";
+import { db, type Tx } from "@/lib/db";
 import { parseSen } from "@/lib/money";
 import { randomId, testOrganisation } from "@/lib/test-db/auth-fixtures";
 import { applyAppRole } from "../../../scripts/db-role-apply";
@@ -22,7 +21,6 @@ import { loadEstimates } from "./repo";
 
 const TEST_ROLE = "perolehan_app_test";
 const FIGURE = "123456.78";
-type Tx = Prisma.TransactionClient;
 
 function sqlState(error: unknown): string {
   const cause = (error as { meta?: { driverAdapterError?: { cause?: { originalCode?: string; code?: string; kind?: string } } } }).meta?.driverAdapterError?.cause;

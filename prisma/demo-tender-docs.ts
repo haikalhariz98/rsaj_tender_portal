@@ -449,6 +449,7 @@ export async function submit(db: Db, organisationId: string, s: { packId: string
     route: { issue: !!issue, state: route.tenderingState, refusal: route.refusal, errors: route.warnings.filter((w) => w.level === "err").map((w) => w.messageEn) },
     routeOpen: tenderingRoutesOf(l.ex.approvalInstances).some((i) => i.status === "PENDING"),
     conditions,
+    packKind: pack.packKind,
   });
   const blocks = blockingOf(findings);
   if (blocks.length) throw new Error(`Demo pack ${s.packId} fails its submission: ${blocks.map((f) => f.code).join(", ")}`);

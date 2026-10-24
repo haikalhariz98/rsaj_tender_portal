@@ -300,7 +300,7 @@ async function writeChildren(tx: Tx, actor: AuditActor, orgId: string, ex: { id:
  * from the `exercise` series in the same transaction as the row and its audit.
  */
 /// The parent contract is chosen from the organisation's contracts: a number that names none is refused. A number the exercise already holds (typed before it was a list) is let through, so an old draft can still be saved.
-async function parentContractFault(tx: Prisma.TransactionClient, organisationId: string, ref: string | null, held: string | null): Promise<FormState | null> {
+async function parentContractFault(tx: Tx, organisationId: string, ref: string | null, held: string | null): Promise<FormState | null> {
   if (!ref || ref === held) return null;
   if (await tx.contract.findFirst({ where: { organisationId, number: ref }, select: { id: true } })) return null;
   return { ok: false, errors: { parentContractRef: "Choose a contract from the register." } };

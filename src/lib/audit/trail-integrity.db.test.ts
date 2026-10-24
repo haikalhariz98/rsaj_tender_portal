@@ -1,12 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { Prisma } from "@/generated/prisma/client";
 import { writeAudit } from "@/lib/audit/record";
 import { applyAppRole } from "../../../scripts/db-role-apply";
 import { readRuntimeRole } from "@/lib/auth/runtime-role-store";
 import { recordSignInEvent } from "@/lib/auth/events";
-import { db } from "@/lib/db";
+import { db, type Tx } from "@/lib/db";
 import { randomId, SETTINGS, setPolicy, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
 /**
@@ -21,7 +20,6 @@ import { randomId, SETTINGS, setPolicy, testOrganisation } from "@/lib/test-db/a
  */
 
 const TEST_ROLE = "perolehan_app_test";
-type Tx = Prisma.TransactionClient;
 
 function sqlState(error: unknown): string {
   const cause = (error as { meta?: { driverAdapterError?: { cause?: { originalCode?: string; code?: string; kind?: string } } } }).meta?.driverAdapterError?.cause;
