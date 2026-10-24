@@ -64,6 +64,8 @@ export interface ListQuery<V extends string = string> {
   page: number;              // from 0; a bad value is 0
   size: (typeof PAGE_SIZES)[number]; // 10 | 25 | 50 from src/lib/paging.ts; default 25
 }
+/// The most rows one export writes: a technical ceiling, not customer policy (ST-10). A repo's full-set read takes one more, to tell "over".
+export const LIST_EXPORT_MAX_ROWS = 5000;
 export function parseListQuery<V extends string>(sp: Record<string, string | string[] | undefined>, views: readonly V[]): ListQuery<V>;
 /// The list's own address with q, view, page and size; empty parts left out. Used by the pager, StatusCounts and Export.
 export function listHref(base: string, q: Partial<Pick<ListQuery, "q" | "view" | "page" | "size">>): string;
@@ -108,7 +110,7 @@ export interface SearchHit {
   exact: boolean;                             // whole-value match on a case key
 }
 export interface SearchGroup {
-  entity: Exclude<SearchEntity, "sitting">;
+  entity: "requisition" | "exercise" | "project" | "supplier";
   label: string;                              // "Requisitions", "Tenders & quotations", "Projects", "Suppliers"
   hits: SearchHit[];                          // at most SEARCH_GROUP_SIZE (10), exact first, then newest
   total: number;                              // a count under the same where: honest "10 of 34"
@@ -117,6 +119,8 @@ export interface SearchGroup {
 export interface CaseGroup {                  // FR-REQ-002: the whole case, from the requisition down
   requisition: SearchHit;
   exercises: { hit: SearchHit; projects: SearchHit[] }[]; // only those the reader may see; a hidden one is neither shown nor counted
+  /// AC-18: projects the reader may see (contract stages) whose exercise is hidden from them. Shown without the exercise, never naming it.
+  projects: SearchHit[];
 }
 export interface SearchResult { q: string; caseGroup: CaseGroup | null; groups: SearchGroup[] }
 ```
@@ -131,7 +135,6 @@ export function canExport(columns: readonly Column[]): boolean;
 
 ```ts
 // src/lib/export/xlsx.ts (server only; exceljs)
-export const LIST_EXPORT_MAX_ROWS = 5000;      // a technical ceiling, not customer policy (ST-10)
 /// One sheet: a header row and the rows. A column's kind decides the cell: "text" is a string cell (identifiers keep
 /// leading zeros and are never formulas), "money" a number cell formatted to 2 places, "date" a date cell. Pure input.
 export interface SheetColumn { label: string; kind: "text" | "money" | "date" }
@@ -227,7 +230,8 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
   1. **The store** has `search(actor, q): Promise<SearchResult>`, with every read scoped by `actor.organisationId`:
      - requisitions under `wordsWhere("requisition")`;
      - exercises under `exerciseNotHidden(hidden)` AND `wordsWhere("exercise")`;
-     - projects (awards) under `caseVisibilityWhere(hidden)` AND `wordsWhere("project")`;
+     - projects (awards) under `caseVisibilityWhere(hidden)` AND `wordsWhere("project")`. The matchers on `exercise.*` paths
+       are AND-ed with `exerciseNotHidden` on the award's exercise, so a hidden exercise's title or reference finds nothing;
      - suppliers under `wordsWhere("supplier")`.
 
      `hidden` is `hiddenExerciseIds(client, viewer)`, read once. Each kind runs `findMany({ take: SEARCH_GROUP_SIZE, orderBy: newest })`
@@ -236,6 +240,8 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
      resolves its requisition (an exercise's or a project's own requisition), and `case-group.ts` loads the chain:
      requisition → exercises (`exerciseNotHidden`) → awards with their contract (`caseVisibilityWhere`).
      - A hidden exercise is not in the group and not counted.
+     - A project the reader may see whose exercise is hidden (AC-18: contract stages only) goes in `projects` at the top
+       level. Its line shows the project's own reference and contract number, and never the exercise's title or reference.
      - Two exact hits on different requisitions give no group. The hits show in their groups, `exact: true` first.
   3. **Ranking** (`rank.ts`, pure): exact hits first, then the record's `createdAt` newest first. There is no relevance score
      (ST-1).
@@ -248,7 +254,8 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
        advice;
      - a q shorter than 2 characters shows the empty state "Type at least 2 characters.";
      - `metadata.title` is "Search" (page-titles test).
-  5. **The top bar.** The disabled button becomes a `next/form` `<Form action="/search">` with one input named `q` and the
+  5. **The crumb.** `SEGMENT_LABEL` gains `search: "Search"`, so the crumb tests hold.
+  6. **The top bar.** The disabled button becomes a `next/form` `<Form action="/search">` with one input named `q` and the
      same look, in the staff workspace only (ST-5). The supplier workspace shows no search box.
      - The input carries the current q when on `/search`.
      - "/" focuses it unless focus is in a field.
@@ -264,6 +271,9 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
        both counts, and is present for a reader named on it;
     4. searching the digits of a requisition's estimated value returns no hit by that value;
     5. a supplier's registration number with a leading zero finds it;
+    6. a contract-stage project under a restricted exercise the reader is not named on is in `caseGroup.projects`, and the
+       hit's text holds no word of the exercise's title;
+    7. a project is not found through `exercise.title` or `exercise.reference` when that exercise is hidden from the reader;
   - `exercise-scan.test.ts` passes with `store.ts` and `case-group.ts` using the guards. No `READ_AFTER_A_GUARD` entry is added.
   - `tenant-scan.test.ts` and `auth-reach.test.ts` pass, with the page calling `requireStaff` first.
 - **Done when:**
@@ -316,13 +326,21 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
        - published and not cancelled for open and soon;
        - the existing `onBoundary` set for boundary.
 
-       The page judges them with the same functions as today (the grant for boundary), then pages the judged ids. Never a
-       bare `onBoundary: true` where: its count would give away rows whose estimate is withheld.
+       The judgement lives in `src/app/sourcing/rows.ts` (`judgedViewIds(actor, view, candidates)`), not in the page, so the
+       page and the export route share one code path. It uses the same functions as today (the grant for boundary), then
+       pages the judged ids. Never a bare `onBoundary: true` where: its count would give away rows whose estimate is
+       withheld.
+     - **The boundary view has no Export.** Judging the grant writes `SulitAccessEvent` rows (ADR 0034 D14), and an export
+       must write none (7.5). So `exportHref` is absent on that view, and the route answers 400 for `view=boundary`.
      - The header's counts are unchanged and over the whole set.
      - `EXERCISES_PAGE` is retired.
 
      The rows move into `rows.ts`.
-  4. Old addresses keep working: `?page=n` without `size` reads as size 25. A page past the end clamps to the last page.
+  4. **The full-set read for export.** Both repo functions take `{ all: true }`: no `skip`, and
+     `take: LIST_EXPORT_MAX_ROWS + 1`. The export (7.5) calls this mode.
+  5. **Export is not drawn when `total > LIST_EXPORT_MAX_ROWS`.** A popover on the count says "Narrow the search to export".
+     The route's 413 is only the backstop.
+  6. Old addresses keep working: `?page=n` without `size` reads as size 25. A page past the end clamps to the last page.
 - **Tests:**
   - `data-list.test.ts`, server mode:
     - no client filtering of typed text;
@@ -338,6 +356,7 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
     - a hidden exercise is not in any view's rows or count;
     - the boundary view lists and counts only exercises whose estimate the reader is granted;
     - q matches the requisition's PROC number;
+    - `{ all: true }` returns at most `LIST_EXPORT_MAX_ROWS + 1` rows under the same where as the page;
   - the existing sourcing and requisition screen tests, with the words unchanged.
 - **Done when:**
   - on a list of more than one page, a search finds a row from any page;
@@ -372,6 +391,7 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
     - its upcoming, awaiting and pending chips become views where they are status predicates;
     - "Waiting to be tabled" stays a client list. It is not paged.
   - The rows move into `rows.ts` per list, unchanged.
+  - Each repo gains the `{ all: true }` full-set read and the "no Export over the cap" rule, as 7.3 items 4 and 5.
 - **Tests:**
   - `case-list.db.test.ts`:
     - q by contract number, PROC number and commitment number;
@@ -380,6 +400,7 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
     - `total` equals the matching count;
   - `supplier-list.db.test.ts`: q on each tab; the tab is kept across paging;
   - `sittings-list.db.test.ts`: q by sitting reference and by committee name;
+  - each repo's `{ all: true }` read returns at most `LIST_EXPORT_MAX_ROWS + 1` rows under the page's where;
   - the existing projects, suppliers and committees screen tests pass.
 - **Done when:** the same three checks as 7.3 pass on these three lists.
 
@@ -388,7 +409,8 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
 - **Agent:** api-engineer. Runs in parallel with 7.4.
 - **Migration:** no.
 - **Files it owns:**
-  - new: `src/lib/export/xlsx.ts` and `src/lib/export/xlsx.test.ts`;
+  - new: `src/lib/export/xlsx.ts` and `src/lib/export/xlsx.test.ts` (`LIST_EXPORT_MAX_ROWS` is imported from
+    `list-query.ts`);
   - new: `src/app/requisitions/export/route.ts` and `src/app/sourcing/export/route.ts`;
   - the `exportHref` line in `src/app/requisitions/page.tsx` and `src/app/sourcing/page.tsx` (7.3 has finished with them).
 - **Work:**
@@ -401,13 +423,14 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
   2. **The route:**
      - `staffRoute()` first, then `downloadRequestFault`;
      - `parseListQuery` with the list's views;
-     - the repo with `{ all: true }`: no `skip`, `take: LIST_EXPORT_MAX_ROWS + 1`. One row over the cap means 413;
+     - the repo's `{ all: true }` read (7.3, 7.4). One row over the cap means 413;
      - then `build…Rows(actor, rows, { forExport: true })`, and then `exportColumns` on the columns;
      - the response: `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`,
        `Content-Disposition: attachment; filename="requisitions-2026-10-24.xlsx"` and `Cache-Control: no-store`.
 
-     For views judged per reader (7.3 ST-8), the route judges them exactly as the page does. A boundary export includes
-     only the granted rows. The estimate column itself is SULIT and is never in any export.
+     For "Open for purchase" and "Closing soon" (ST-8), the route calls `judgedViewIds` from `rows.ts`, exactly as the page
+     does. `view=boundary` answers 400 "This view cannot be exported." (7.3). The estimate column is SULIT and is never in
+     any export.
   3. The page passes `exportHref = listHref("<list>/export", { q, view })`. The button reads "Export", with a popover: "An
      Excel file of every row that matches. SULIT columns are left out."
   4. Exports are not audited, as the client export is not today, and carry no SULIT column (ST-11). An audited download of
@@ -423,6 +446,7 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
     - a restricted exercise the reader is not named on is absent;
     - the header has no SULIT column label;
     - no `SulitAccessEvent` is written by an export;
+    - `view=boundary` gives 400 and writes nothing;
     - 5,001 matching rows give 413 with the words;
   - `auth-reach.test.ts` and `tenant-scan.test.ts` cover the two new routes, with no allow-list entry;
   - a source test: every `src/app/**/export/route.ts` calls `staffRoute` and `downloadRequestFault`, and reaches rows only
@@ -455,7 +479,9 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
   - `src/lib/portal/bids/notices.ts`, `src/lib/portal/labels.ts` and `src/lib/portal/registration/state.ts`;
   - `src/app/projects/[id]/award/award-view.tsx`, `src/app/projects/[id]/award/clock-told.tsx`,
     `src/components/registration/company-fields.tsx` and `src/app/inbox/page.tsx` (its comment and subtitle);
-  - `prisma/rsaj/starter-pack/suppliers.ts`, `src/lib/starter/rsaj-pack.test.ts` and `rsaj-pack.db.test.ts`.
+  - `prisma/rsaj/starter-pack/suppliers.ts`, `src/lib/starter/rsaj-pack.test.ts` and `rsaj-pack.db.test.ts`;
+  - `src/lib/starter/plan.ts` (`ALLOWED_MODELS` gains `NotificationRule`, which is not on it today) and
+    `src/lib/starter/pack-guards.test.ts`.
 - **Work:**
   1. **ST-12.** Delete the following, then render nothing in their place:
      - `NOTICE_DELIVERY_STATEMENT` ("Shown here, not emailed");
@@ -478,6 +504,7 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
   - `clock-plan.test.ts`: the labels are `["No rule"]` and `["No rule", "Restricted"]`. The assertion changes because the
     behaviour changes, and the reason is recorded in the log line;
   - `text-rules.test.ts`: the `BANNED_WORDS` scan finds no "Not emailed" outside the scan's own test;
+  - `pack-guards.test.ts`: the allow-list still equals the tables the three packs write, now including `NotificationRule`;
   - `rsaj-pack.test.ts`: the rule has its requirement and source and is STATED, and the offsets are exactly [90, 60, 30, 7];
   - `rsaj-pack.db.test.ts`: after the load, `reminderDue` gives a reminder for a document 30 days from expiry.
 - **Done when:** `grep -ri "not emailed" src` finds only the banned-word test, and the product owner has signed off the one
@@ -507,7 +534,8 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
      - each list's page 0 with q;
      - each export of 5,000 rows.
 
-     It prints the p50 and p95. NFR-PRF-001: search p95 under 5 s and list p95 under 3 s. The figures go in the decisions log.
+     It prints the p50 and p95 for one client. The targets are search p95 under 5 s and list p95 under 3 s. This covers
+     NFR-PRF-001 partly: its acceptance is a load test "at the agreed concurrency", which stays a go-live item. The figures go in the decisions log.
      The script never touches `perolehan`.
   2. **The security review:**
      - tenancy (every new read has `organisationId`);
@@ -527,7 +555,7 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
 
      Then the script runs again. This is the plan's only possible schema step.
 - **Done when:**
-  - the timings are recorded and pass;
+  - the single-client timings are recorded and pass;
   - the review has no MUST open;
   - the screenshots are in the scratchpad;
   - the proposed log lines are handed to the orchestrator.
@@ -537,7 +565,7 @@ Two builders at once, never the same file. There are no schema steps (ST-2).
 | Requirement | Pri | What step 7 does | Step |
 | --- | --- | --- | --- |
 | FR-REQ-002 (acceptance: a PROC search returns the whole case) | M | Case group on `/search` from any case key | 7.1, 7.2 |
-| NFR-PRF-001 (list 3 s, search 5 s at p95) | M | Server-side q and paging; measured at volume; trigram index only if needed | 7.3, 7.4, 7.8 |
+| NFR-PRF-001 (list 3 s, search 5 s at p95, under load) | M | **Partly:** server-side q and paging; single-client p95 at ten times the demo volume; trigram index only if needed. The load test at the agreed concurrency stays a go-live item | 7.3, 7.4, 7.8 |
 | FR-EVL-014, NFR-SEC-001 ("including report, export and search") | M | Search fields allow-listed and scanned; exports drop SULIT columns and never judge or read them; restricted exercises guarded | 7.1, 7.2, 7.5, 7.6 |
 | FR-MTD-007 (restricted exercise hidden) | M | `exerciseNotHidden` / `caseVisibilityWhere` in search, lists and exports; counts honest | 7.2–7.6 |
 | ADR 0034 D10 (tenant isolation) | — | Every new read scoped by the actor's organisation; two-organisation db tests | 7.2–7.6 |
@@ -590,6 +618,7 @@ Each carries its recommendation.
   - "On the boundary" (it states the estimate), "Open for purchase" and "Closing soon" are judged over a bounded candidate
     set with today's functions, then paged.
   - None of them becomes a bare database filter.
+  - The boundary view offers no Export: judging the grant logs SULIT reads, and an export logs none.
 
   *Recommend: as written.*
 - **ST-9. Export format.**
@@ -660,3 +689,5 @@ Each carries its recommendation.
 - **The founder's Outlook direction against the specification's Zimbra (§9.1).** This is unresolved with RSAJ. ST-15 records
   it as a question.
 - **FR-RPT-010 is a Must left unbuilt,** by founder direction. It is recorded in ST-14 and the trace.
+- **NFR-PRF-001 under concurrent load is not measured** by this plan, only single-client latency at volume. The load test is
+  a go-live item.

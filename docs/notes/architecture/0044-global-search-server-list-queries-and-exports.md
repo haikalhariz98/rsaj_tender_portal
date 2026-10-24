@@ -50,6 +50,8 @@ Every count is taken under the same where as its rows, so a hidden record change
   number and contract number.
 - An exact match on one shows a case group: requisition, then its exercises, then their projects. Each child passes the
   reader's visibility. That is FR-REQ-002's "complete case history end to end", as far as the reader may see.
+- A project the reader may see whose exercise is hidden (AC-18, contract stages only) is listed on its own, never naming the
+  exercise.
 
 **D5. Server lists search, filter, page and export on the server.**
 - `DataList` gains an opt-in `server` mode. Its search is a `next/form` GET (`?q=`), its views are links (`?view=`), and
@@ -61,6 +63,8 @@ Every count is taken under the same where as its rows, so a hidden record change
   - It is built by the same row builder as the page, with SULIT columns not built at all.
   - It is written as `.xlsx` with `exceljs`, which is already installed: identifiers as text cells, amounts as numbers.
   - It is guarded by `staffRoute()` and the cross-site download refusal, and capped at 5,000 rows.
+  - It writes no `SulitAccessEvent`. A view that needs a SULIT judgement to list its rows (Tenders & quotations' "On the
+    boundary") offers no export.
 - In-card lists keep the client CSV, which gains a UTF-8 byte-order mark. The audit trail export stays CSV, because its
   digest is over its bytes.
 
