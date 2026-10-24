@@ -92,7 +92,7 @@ export default async function RequisitionsPage(props: PageProps<"/requisitions">
             { key: "required", label: "Required by", width: "112px", hideBelow: "2xl", mobile: "meta" },
           ]}
           rows={list}
-          server={serverMode("/requisitions", q, { total, page, sortColumns: { title: "title" }, exportBlocked: over ? "This view cannot be exported" : undefined })}
+          server={serverMode("/requisitions", q, { total, page, sortColumns: { title: "title" }, exportHref: over ? undefined : listHref("/requisitions/export", { q: q.q, view: q.view, sort: q.sort, dir: q.dir }), exportBlocked: over ? "This view cannot be exported" : undefined })}
         />
       </Card>
     </>

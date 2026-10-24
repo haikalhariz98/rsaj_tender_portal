@@ -688,7 +688,7 @@ export function DataList({
                 <MoreText text={server.exportBlocked} label="Why this cannot be exported" />
               </span>
             ) : server?.exportHref ? (
-              <a href={server.exportHref} aria-label="Download as Excel" title="Download as Excel" className={iconButtonClass("sm", true, "size-9")}>
+              <a href={server.exportHref} aria-label="Download as Excel" title="An Excel file of every row that matches. SULIT columns are left out." className={iconButtonClass("sm", true, "size-9")}>
                 <DownloadIcon size={16} />
               </a>
             ) : (

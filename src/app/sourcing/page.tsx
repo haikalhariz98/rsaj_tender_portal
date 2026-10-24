@@ -127,7 +127,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
             { key: "checks", label: "Band and checks", width: "168px", hideBelow: "2xl", mobile: "meta" },
           ]}
           rows={list}
-          server={serverMode("/sourcing", q, { total, page, sortColumns: { title: "title" }, exportBlocked })}
+          server={serverMode("/sourcing", q, { total, page, sortColumns: { title: "title" }, exportHref: exportBlocked ? undefined : listHref("/sourcing/export", { q: q.q, view: q.view, sort: q.sort, dir: q.dir }), exportBlocked })}
         />
       </Card>
     </>
