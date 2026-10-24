@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { AccountStatus } from "@/generated/prisma/client";
 import type { FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
@@ -202,6 +204,8 @@ export async function proposeChange(
       const lines = describeChange(input.kind, change.payload, snapshot(change, live), names).lines;
       const applied = await applyChange(tx, actor, null, change, lines, reason, target, names, request, now, true);
       if (!applied.ok) return applied;
+      // The signature of a decision made alone: the decider's act, written with the change, naming what it was a decision on (NFR-SIG-001).
+      await act.write(tx, randomUUID(), { document: { entity: target.accountId ? "StaffAccount" : "Organisation", id: target.accountId ?? actor.organisationId } });
       await applied.afterDecision?.();
       return { ok: true, applied: true, ...(applied.issued ? { code: applied.issued } : {}) };
     }

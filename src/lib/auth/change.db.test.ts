@@ -64,17 +64,21 @@ async function openSession(org: string, accountId: string): Promise<string> {
 const administrator = (org?: string) => signedIn({ admin: true, org });
 
 /// The act of a change, begun the way the server begins it: the signature of a decision asks the real password.
-async function actFor(who: Who, key: "ConfigurationChange.proposedBy" | "ConfigurationChange.decidedBy", changeId?: string, password = who.password): Promise<ChangeAct> {
+async function actFor(who: Who, key: "ConfigurationChange.proposedBy" | "ConfigurationChange.decidedBy", changeId?: string, password = who.password, entity = "ConfigurationChange"): Promise<ChangeAct> {
   const form = new FormData();
   form.set(actFieldNames("personId").password, password);
-  const begun = await beginActWith(deps, who.actor, form, key, { personField: "personId", ...(changeId ? { document: { entity: "ConfigurationChange", id: changeId } } : {}) });
+  const begun = await beginActWith(deps, who.actor, form, key, { personField: "personId", ...(changeId ? { document: { entity, id: changeId } } : {}) });
   if (!begun.ok) throw new Error(`the act was refused: ${JSON.stringify(begun.state)}`);
   return begun.act;
 }
 
-async function propose(who: Who, kind: ChangeKind, payload: unknown, reason = "A reason it is proposed", passwordConfirmed = true) {
-  return proposeChange(who.actor, await actFor(who, "ConfigurationChange.proposedBy"), { kind, payload, reason, passwordConfirmed });
+async function propose(who: Who, kind: ChangeKind, payload: unknown, reason = "A reason it is proposed", passwordConfirmed = false) {
+  // Saved alone (the switch is off), a change is signed with the password, as the action begins it; proposed, it is the proposer's act.
+  const act = passwordConfirmed ? await actFor(who, "ConfigurationChange.decidedBy", organisationId, who.password, "Organisation") : await actFor(who, "ConfigurationChange.proposedBy");
+  return proposeChange(who.actor, act, { kind, payload, reason, passwordConfirmed });
 }
+/// As the action does with the switch off.
+const proposeAlone = (who: Who, kind: ChangeKind, payload: unknown, reason?: string) => propose(who, kind, payload, reason, true);
 async function decide(who: Who, changeId: string, decision: "APPLY" | "DECLINE" | "WITHDRAW", reason = "", password?: string) {
   return decideChange(who.actor, await actFor(who, "ConfigurationChange.decidedBy", changeId, password), { changeId, decision, reason }, facts());
 }
@@ -639,7 +643,10 @@ describe("with the two-person switch off (ADR 0043 D3)", () => {
   it("applies a setting at once, with no change row, and every audit row carries the reason and the person", async () => {
     const a = await administrator();
     const before = await rows();
-    expect(await propose(a, "SECURITY_POLICY", { changes: { staffIdleMinutes: 20 } })).toEqual({ ok: true, applied: true });
+    const signed = () => db.actAttribution.count({ where: { organisationId, entity: "ConfigurationChange", slot: "decidedBy" } });
+    const signedBefore = await signed();
+    expect(await proposeAlone(a, "SECURITY_POLICY", { changes: { staffIdleMinutes: 20 } })).toEqual({ ok: true, applied: true });
+    expect(await signed()).toBe(signedBefore + 1);
     expect(await idle()).toBe(20);
     expect(await rows()).toBe(before);
     const audit = await db.auditEntry.findMany({ where: { entity: "SecurityPolicy", organisationId, actorPersonId: a.person.id } });
@@ -666,8 +673,8 @@ describe("with the two-person switch off (ADR 0043 D3)", () => {
 
   it("still refuses what the rules refuse, and a blank reason, and writes nothing", async () => {
     const a = await administrator();
-    expect(await propose(a, "SECURITY_POLICY", { changes: { staffIdleMinutes: 30 } })).toMatchObject({ ok: false, faults: [{ code: "NO_CHANGE" }] });
-    expect(await propose(a, "SECURITY_POLICY", { changes: { staffIdleMinutes: 20 } }, " ")).toMatchObject({ ok: false, faults: [{ code: "REASON_REQUIRED" }] });
+    expect(await proposeAlone(a, "SECURITY_POLICY", { changes: { staffIdleMinutes: 30 } })).toMatchObject({ ok: false, faults: [{ code: "NO_CHANGE" }] });
+    expect(await proposeAlone(a, "SECURITY_POLICY", { changes: { staffIdleMinutes: 20 } }, " ")).toMatchObject({ ok: false, faults: [{ code: "REASON_REQUIRED" }] });
     expect(await idle()).toBe(30);
   });
 
@@ -676,14 +683,14 @@ describe("with the two-person switch off (ADR 0043 D3)", () => {
     await setPolicy(org.id, SETTINGS);
     await db.securityPolicy.update({ where: { organisationId: org.id }, data: { twoPersonChanges: false } });
     const only = await administrator(org.id);
-    expect(await propose(only, "SECURITY_POLICY", { changes: { staffIdleMinutes: 20 } })).toEqual({ ok: true, applied: true });
+    expect(await proposeAlone(only, "SECURITY_POLICY", { changes: { staffIdleMinutes: 20 } })).toEqual({ ok: true, applied: true });
     expect(await db.configurationChange.count({ where: { organisationId: org.id } })).toBe(0);
   });
 
   it("makes an administrator at once", async () => {
     const a = await administrator();
     const target = await signedIn();
-    expect(await propose(a, "ADMINISTRATOR_GRANT", { accountId: target.account.id })).toEqual({ ok: true, applied: true });
+    expect(await proposeAlone(a, "ADMINISTRATOR_GRANT", { accountId: target.account.id })).toEqual({ ok: true, applied: true });
     expect(await db.staffAccount.findUniqueOrThrow({ where: { id: target.account.id } })).toMatchObject({ isAdministrator: true });
   });
 
@@ -691,16 +698,16 @@ describe("with the two-person switch off (ADR 0043 D3)", () => {
     const a = await administrator();
     const target = await signedIn();
     await db.roleAssignment.create({ data: { personId: target.person.id, roleCode: "TEST_OFFICE", effectiveFrom: new Date("2020-01-01") } });
-    const r = await propose(a, "ACCOUNT_CODE", { accountId: target.account.id, purpose: "RESET" });
+    const r = await proposeAlone(a, "ACCOUNT_CODE", { accountId: target.account.id, purpose: "RESET" });
     if (!r.ok || !r.applied || !r.code) throw new Error(`not made: ${JSON.stringify(r)}`);
     expect(await db.oneTimeCode.findFirstOrThrow({ where: { staffAccountId: target.account.id } })).toMatchObject({ issuedByPersonId: a.person.id, usedAt: null });
-    expect(await propose(a, "ACCOUNT_CODE", { accountId: a.account.id, purpose: "RESET" })).toMatchObject({ ok: false, faults: [{ code: "OWN_ACCOUNT" }] });
+    expect(await proposeAlone(a, "ACCOUNT_CODE", { accountId: a.account.id, purpose: "RESET" })).toMatchObject({ ok: false, faults: [{ code: "OWN_ACCOUNT" }] });
   });
 
   it("turning it on is saved at once; turning it off, while on, is a proposal a second person decides", async () => {
     const a = await administrator();
     const b = await administrator();
-    expect(await propose(a, "SECURITY_POLICY", { changes: { twoPersonChanges: "ON" } })).toEqual({ ok: true, applied: true });
+    expect(await proposeAlone(a, "SECURITY_POLICY", { changes: { twoPersonChanges: "ON" } })).toEqual({ ok: true, applied: true });
     expect(await switchIsOn()).toBe(true);
     const id = await proposed(a, "SECURITY_POLICY", { changes: { twoPersonChanges: "OFF" } });
     expect(await switchIsOn()).toBe(true);

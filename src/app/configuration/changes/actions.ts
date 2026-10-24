@@ -4,10 +4,9 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
-import { requireStaff, staffForPermission, stepUp } from "@/app/_auth/actor";
+import { requireStaff, staffForPermission } from "@/app/_auth/actor";
 import { currentRequestFacts, refuseForeignPost } from "@/app/_auth/cookies";
 import { editRegistry } from "@/app/_auth/stage";
-import { actFieldNames } from "@/lib/auth/act-field-names";
 import { decideChange, proposeChange, type ChangeFaults } from "@/lib/auth/change-store";
 import { decisionFaults, KIND_PERMISSION, type ChangeKind } from "@/lib/auth/configuration-change";
 import { isEditKind, parseEditPayload, unresolvedEditRule } from "@/lib/auth/configuration-edit";
@@ -48,20 +47,24 @@ function stateOf(outcome: ChangeFaults, fieldMap: Record<string, string> = {}): 
   return { ok: false, ...(Object.keys(errors).length > 0 ? { errors } : {}), ...(rest.length > 0 ? { message: rest.join(" ") } : {}) };
 }
 
-/// The one path every proposal takes: the proposer's attribution is begun (not a signature, so no password), then the store proposes.
+/// What a change signed alone is a decision on: the account it is about, else the organisation's settings.
+async function signedDocument(actor: StaffActor, kind: ChangeKind, payload: unknown): Promise<{ entity: string; id: string }> {
+  const accountId = kind === "ACCOUNT_CODE" || kind === "ADMINISTRATOR_GRANT" || kind === "ADMINISTRATOR_REVOKE" ? String((payload as { accountId?: unknown }).accountId ?? "") : "";
+  return accountId ? { entity: "StaffAccount", id: accountId } : { entity: "Organisation", id: actor.organisationId };
+}
+
+/// The one path every proposal takes: the attribution is begun, then the store proposes.
 async function propose(actor: StaffActor, data: FormData, kind: ChangeKind, payload: unknown, fieldMap: Record<string, string> = {}): Promise<FormState> {
-  const begun = await beginAct(actor, data, "ConfigurationChange.proposedBy", { personField: "personId" });
+  // A save that applies at once (the switch is off) is a decision made alone, so it is signed with the password a decision asks (the decider's slot), before the transaction
+  // (step 4.8 M2). Otherwise the proposer's attribution is begun (not a signature, so no password). The store refuses an at-once save that was not signed, so a switch turned
+  // off in between fails closed.
+  const alone = appliesAtOnce(kind, await twoPersonOn(db, actor.organisationId));
+  const begun = alone
+    ? await beginAct(actor, data, "ConfigurationChange.decidedBy", { personField: "personId", document: await signedDocument(actor, kind, payload) })
+    : await beginAct(actor, data, "ConfigurationChange.proposedBy", { personField: "personId" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
-  // A save that applies at once (the switch is off) is a decision made alone, so it asks the password a decision does, before the transaction (step 4.8 M2). The store
-  // refuses an at-once save that was not confirmed, so a switch turned off in between fails closed.
-  let passwordConfirmed = false;
-  if (appliesAtOnce(kind, await twoPersonOn(db, actor.organisationId))) {
-    const password = actFieldNames("personId").password;
-    const checked = await stepUp(actor, String(data.get(password) ?? ""));
-    if (!checked.ok) return { ok: false, errors: { [password]: checked.message } };
-    passwordConfirmed = true;
-  }
+  const passwordConfirmed = alone;
   try {
     const outcome = await proposeChange(actor, act, { kind, payload, reason: String(data.get("reason") ?? ""), passwordConfirmed }, new Date(), await currentRequestFacts());
     if (!outcome.ok) return stateOf(outcome, fieldMap);
