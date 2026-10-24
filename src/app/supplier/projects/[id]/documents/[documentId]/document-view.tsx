@@ -55,7 +55,7 @@ export function PortalDocumentView({ page, contractNumber, token }: { page: Port
         actionsNoteId={HEADER_NOTE}
         actions={
           <>
-            {upload.allowed ? <UploadVersionDrawer {...common} tone="primary" asksPassword={page.asksPassword} mayPickKind={page.mayPickKind} kinds={kindChoices()} /> : blocked("Upload a new version", upload)}
+            {upload.allowed ? <UploadVersionDrawer {...common} tone="primary" asksPassword={page.asksPassword} mayPickKind={page.mayPickKind} takesFiles={page.takesPurposes} kinds={kindChoices(page.paymentRoute)} /> : blocked("Upload a new version", upload)}
             {request.allowed ? <AskDrawer {...common} organisationName={page.organisationName} /> : blocked("Ask for it", request)}
           </>
         }

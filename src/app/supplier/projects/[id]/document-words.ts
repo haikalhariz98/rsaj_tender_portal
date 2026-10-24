@@ -23,3 +23,17 @@ export const OUTCOME_TONE = { APPROVED: "ok", REJECTED: "err", TAKEN_UP: "ok", R
 
 /// Said when the page's form key is not set: nothing can be sent, and the files are shown by name only.
 export const SENDING_CLOSED = "Sending is closed.";
+
+/// An invoice's state as the contractor reads it on the Payments tab, with the colour. The amount is the figure Finance recorded, already formatted by the loader.
+export function invoiceChip(r: { state: "WITH_ORGANISATION" | "RETURNED" | "VERIFIED" | "PAID"; payment: { paidText: string; batchNo: string } | null }): { text: string; tone: Tone } {
+  switch (r.state) {
+    case "PAID":
+      return { text: r.payment ? `Paid on ${r.payment.paidText}, batch ${r.payment.batchNo}` : "Paid", tone: "ok" };
+    case "VERIFIED":
+      return { text: "Verified", tone: "ok" };
+    case "RETURNED":
+      return { text: "Returned with remarks", tone: "warn" };
+    case "WITH_ORGANISATION":
+      return { text: "Sent", tone: "info" };
+  }
+}

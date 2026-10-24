@@ -12,7 +12,7 @@ import { SUPPLIER_PROJECT_DOCUMENTS_POSTS } from "@/lib/auth/routes";
 
 import { answerWords, postBids as postJson } from "../../bids/post-json";
 import { postForm, answerWords as formWords } from "../../company/post-form";
-import { createBody, kindOffered, passwordShown, versionBody, type KindChoice } from "./document-form";
+import { createBody, kindOffered, passwordShown, PURPOSE_CHOICES, purposesComplete, takesPurposes, titleFieldLabel, versionBody, type KindChoice } from "./document-form";
 
 /**
  * What the contractor does from the Documents list and a document's page (the simple Project workspace, plan step 5): start a document by sending files or asking the
@@ -21,7 +21,7 @@ import { createBody, kindOffered, passwordShown, versionBody, type KindChoice } 
  * field it concerns, and a code is never printed.
  *
  * A file that is staged stays staged: a refusal and a second press reuse what was already stored, because every staged file counts toward the account's hourly allowance whether
- * or not it is ever sent. A document's first version may name one of the six kinds (plan step 6); a statutory declaration is signed with the password, asked again here, posted once
+ * or not it is ever sent. A document's first version may name a kind (plan step 6); a statutory declaration is signed with the password, asked again here, posted once
  * with the act, kept in no state past the answer and never echoed back (`autocomplete="current-password"`). What the server refuses is shown in its own words; a code is never printed.
  */
 
@@ -119,6 +119,28 @@ export function KindFields({ id, kinds, kind, onKind, showKind, showPassword, pa
   );
 }
 
+/// A delivery order and invoice: each chosen file says which of the two it is, and both are needed.
+function PurposeFields({ id, files, purposes, onPurpose, error }: { id: string; files: readonly File[]; purposes: readonly string[]; onPurpose: (n: number, v: string) => void; error?: string }) {
+  if (files.length === 0) return null;
+  return (
+    <>
+      {files.map((file, n) => (
+        <Field key={keyOf(file)} label={`What is ${file.name}?`} htmlFor={`${id}-purpose-${n}`} required error={n === 0 ? error : undefined}>
+          <Select id={`${id}-purpose-${n}`} value={purposes[n] ?? ""} onChange={(e) => onPurpose(n, e.target.value)}>
+            <Option value="">Choose</Option>
+            {PURPOSE_CHOICES.map((p) => (
+              <Option key={p.value} value={p.value}>{p.label}</Option>
+            ))}
+          </Select>
+        </Field>
+      ))}
+      {!purposesComplete(files.length, purposes) && <p className="text-[12.5px] text-ink-3">Send at least one delivery order and one invoice.</p>}
+    </>
+  );
+}
+
+const setAt = (list: readonly string[], n: number, v: string) => Object.assign([...list], { [n]: v });
+
 /// A document, started by sending its first files or by asking the organisation for it. Goes to the new document's page.
 export function NewDocumentDrawer({ contractId, token, organisationName, kinds }: Common & { organisationName: string; kinds: readonly KindChoice[] }) {
   const router = useRouter();
@@ -127,6 +149,7 @@ export function NewDocumentDrawer({ contractId, token, organisationName, kinds }
   const [note, setNote] = useState("");
   const [mode, setMode] = useState<"upload" | "request">("upload");
   const [files, setFiles] = useState<File[]>([]);
+  const [purposes, setPurposes] = useState<string[]>([]);
   const [kind, setKind] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -143,6 +166,7 @@ export function NewDocumentDrawer({ contractId, token, organisationName, kinds }
   useEscape(open, busy, close);
   const showKind = kindOffered(mode, kinds);
   const showPassword = showKind && passwordShown(kinds, kind);
+  const showPurposes = mode === "upload" && takesPurposes(kind);
 
   const reset = () => {
     setTitle("");
@@ -151,6 +175,7 @@ export function NewDocumentDrawer({ contractId, token, organisationName, kinds }
     setPassword("");
     setMode("upload");
     setFiles([]);
+    setPurposes([]);
     setError(null);
     setErrors({});
     staged.current = new Map();
@@ -175,7 +200,7 @@ export function NewDocumentDrawer({ contractId, token, organisationName, kinds }
       }
       ids = s.ids;
     }
-    const res = await postJson(SUPPLIER_PROJECT_DOCUMENTS_POSTS.create, token, createBody({ contractId, title, note, mode, versionIds: ids, kinds, kind, password }));
+    const res = await postJson(SUPPLIER_PROJECT_DOCUMENTS_POSTS.create, token, createBody({ contractId, title, note, mode, versionIds: ids, purposes, kinds, kind, password }));
     setBusy(false);
     setPassword("");
     const made = res.body as { ok?: boolean; documentId?: string } | null;
@@ -197,8 +222,8 @@ export function NewDocumentDrawer({ contractId, token, organisationName, kinds }
         New document
       </Button>
       {open && (
-        <Frame title="New document" heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token && title.trim() !== "" && (!showPassword || password !== "")} sendLabel={mode === "upload" ? (showPassword ? "Sign and send" : "Send") : "Ask"}>
-          <Field label="Title" htmlFor={`${f}-title`} required error={errors.title}>
+        <Frame title="New document" heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token && title.trim() !== "" && (!showPassword || password !== "") && (!showPurposes || purposesComplete(files.length, purposes))} sendLabel={mode === "upload" ? (showPassword ? "Sign and send" : "Send") : "Ask"}>
+          <Field label={titleFieldLabel(mode === "upload" ? kind : "")} htmlFor={`${f}-title`} required error={errors.title}>
             <Input id={`${f}-title`} value={title} maxLength={200} autoFocus onChange={(e) => setTitle(e.target.value)} />
           </Field>
           <Field label="Note" htmlFor={`${f}-note`} error={errors.note}>
@@ -212,10 +237,11 @@ export function NewDocumentDrawer({ contractId, token, organisationName, kinds }
           </Field>
           {mode === "upload" && (
             <Field label="Files" htmlFor={`${f}-file`} required error={errors.file ?? errors.versionIds}>
-              <FileInput id={`${f}-file`} multiple disabled={busy} onChange={(e) => setFiles([...(e.currentTarget.files ?? [])])} />
+              <FileInput id={`${f}-file`} multiple disabled={busy} onChange={(e) => { setFiles([...(e.currentTarget.files ?? [])]); setPurposes([]); }} />
             </Field>
           )}
           <KindFields id={f} kinds={kinds} kind={kind} onKind={(v) => { setKind(v); setPassword(""); }} showKind={showKind} showPassword={showPassword} password={password} onPassword={setPassword} errors={errors} />
+          {showPurposes && <PurposeFields id={f} files={files} purposes={purposes} onPurpose={(n, v) => setPurposes((p) => setAt(p, n, v))} error={errors.files} />}
         </Frame>
       )}
     </>
@@ -223,11 +249,12 @@ export function NewDocumentDrawer({ contractId, token, organisationName, kinds }
 }
 
 /// A new version of the contractor's own document: files, and a note.
-export function UploadVersionDrawer({ contractId, documentId, title, token, tone = "secondary", asksPassword = false, mayPickKind = false, kinds = [] }: Common & { documentId: string; title: string; tone?: "primary" | "secondary"; asksPassword?: boolean; mayPickKind?: boolean; kinds?: readonly KindChoice[] }) {
+export function UploadVersionDrawer({ contractId, documentId, title, token, tone = "secondary", asksPassword = false, mayPickKind = false, takesFiles = false, kinds = [] }: Common & { documentId: string; title: string; tone?: "primary" | "secondary"; asksPassword?: boolean; mayPickKind?: boolean; takesFiles?: boolean; kinds?: readonly KindChoice[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [purposes, setPurposes] = useState<string[]>([]);
   const [kind, setKind] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -244,6 +271,7 @@ export function UploadVersionDrawer({ contractId, documentId, title, token, tone
   useEscape(open, busy, close);
   const showKind = mayPickKind && kinds.length > 0;
   const showPassword = passwordShown(showKind ? kinds : [], kind, asksPassword);
+  const showPurposes = takesFiles || (showKind && takesPurposes(kind));
 
   async function send() {
     setBusy(true);
@@ -260,7 +288,7 @@ export function UploadVersionDrawer({ contractId, documentId, title, token, tone
       setErrors({ file: s.message });
       return;
     }
-    const res = await postJson(SUPPLIER_PROJECT_DOCUMENTS_POSTS.version, token, versionBody({ contractId, documentId, versionIds: s.ids, note, mayPickKind, kinds, kind, pageAsksPassword: asksPassword, password }));
+    const res = await postJson(SUPPLIER_PROJECT_DOCUMENTS_POSTS.version, token, versionBody({ contractId, documentId, versionIds: s.ids, purposes, takesPurposes: showPurposes, note, mayPickKind, kinds, kind, pageAsksPassword: asksPassword, password }));
     setBusy(false);
     setPassword("");
     if (res.status === 201 && res.body?.ok) {
@@ -268,6 +296,7 @@ export function UploadVersionDrawer({ contractId, documentId, title, token, tone
       setNote("");
       setKind("");
       setFiles([]);
+      setPurposes([]);
       staged.current = new Map();
       router.refresh();
       return;
@@ -283,10 +312,11 @@ export function UploadVersionDrawer({ contractId, documentId, title, token, tone
         Upload a new version
       </Button>
       {open && (
-        <Frame title={`Upload a new version of ${title}`} heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token && (!showPassword || password !== "")} sendLabel={showPassword ? "Sign and send" : "Send"}>
+        <Frame title={`Upload a new version of ${title}`} heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token && (!showPassword || password !== "") && (!showPurposes || purposesComplete(files.length, purposes))} sendLabel={showPassword ? "Sign and send" : "Send"}>
           <Field label="Files" htmlFor={`${f}-file`} required error={errors.file ?? errors.versionIds}>
-            <FileInput id={`${f}-file`} multiple disabled={busy} onChange={(e) => setFiles([...(e.currentTarget.files ?? [])])} />
+            <FileInput id={`${f}-file`} multiple disabled={busy} onChange={(e) => { setFiles([...(e.currentTarget.files ?? [])]); setPurposes([]); }} />
           </Field>
+          {showPurposes && <PurposeFields id={f} files={files} purposes={purposes} onPurpose={(n, v) => setPurposes((p) => setAt(p, n, v))} error={errors.files} />}
           <Field label="Note" htmlFor={`${f}-note`} error={errors.note}>
             <Textarea id={`${f}-note`} value={note} maxLength={2000} rows={3} onChange={(e) => setNote(e.target.value)} />
           </Field>

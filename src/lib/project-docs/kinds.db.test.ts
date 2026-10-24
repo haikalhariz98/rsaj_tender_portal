@@ -49,7 +49,9 @@ import { documentState } from "./state";
 import { loadDocumentFacts } from "./facts";
 import { loadDocumentPage } from "./page-store";
 import { loadPortalEarlier, loadStaffEarlier } from "./earlier-read";
-import { loadPortalRegister, loadWaitingForYou } from "./portal-read";
+import { contractorCreate } from "./portal-acts";
+import { parseCreateBody } from "./portal-api";
+import { loadPortalDocumentPage, loadPortalRegister, loadPortalStart, loadWaitingForYou } from "./portal-read";
 import { loadRegister } from "./register";
 import { addVersion, createDocument, WorkspaceRefused, type WorkspaceCtx } from "./store";
 import { documentsWaitingCount, loadDocumentsWaiting } from "./waiting-read";
@@ -331,7 +333,7 @@ describe("the organisation marks a version: Taken up (Noted on defects rectified
     const pageP = await pageOf(p.so, contractId, plain.documentId);
     expect(pageP.markWords).toBeNull();
     expect(pageP.actions.markTakenUp.allowed).toBe(false);
-    expect(pageP.actions.markTakenUp.reasons.join(" ")).toMatch(/six kinds/);
+    expect(pageP.actions.markTakenUp.reasons.join(" ")).toMatch(/has a kind/);
   });
 });
 
@@ -355,6 +357,55 @@ describe("the seventh kind, a supply claim, is marked as the six are: Verified o
     await asContractor(c, contractId, async (ctx) => addVersion(ctx, { kind: "SUPPLIER", actor: c.actor }, { documentId: made.documentId, stagedVersionIds: [await stage({ account: c.accountId }), await stage({ account: c.accountId })], filePurposes: ["SUPPLY_INVOICE", "DELIVERY_ORDER"], note: "Signed." }, null));
     expect(await mark(p.so, contractId, made.documentId, await latestVersionOf(made.documentId), "TAKEN_UP")).toMatchObject({ ok: true, message: "Verified." });
     expect((await pageOf(p.so, contractId, made.documentId)).stateLabel).toBe("Verified");
+  });
+});
+
+describe("the portal's create route carries a delivery order and invoice with a purpose per file (V7)", () => {
+  const body = (contractId: string, ids: string[], purposes: string[], extra: Record<string, unknown> = {}) =>
+    parseCreateBody({ contractId, title: "INV-0077", mode: "upload", kind: "SUPPLY_CLAIM", files: ids.map((versionId, n) => ({ versionId, purpose: purposes[n] })), ...extra });
+
+  it("parses `files`, creates the claim through the route's act, pins each file with its purpose, and the portal reads then show it", async () => {
+    const c = await contractor();
+    const contractId = await contract(c.supplierId, "ACTIVE", SUPPLY_TYPE);
+    const ids = [await stage({ account: c.accountId }), await stage({ account: c.accountId })];
+    const parsed = body(contractId, ids, ["DELIVERY_ORDER", "SUPPLY_INVOICE"]);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed));
+    const done = await contractorCreate(c.actor, parsed.value.body, null);
+    expect(done, JSON.stringify(done)).toMatchObject({ status: 201 });
+    const documentId = (done.body as { documentId: string }).documentId;
+    const pinned = await db.documentAttachment.findMany({ where: { projectDocumentVersion: { documentId }, detachedAt: null }, select: { purpose: true, version: { select: { id: true } } } });
+    expect(pinned.map((a) => [a.version.id, a.purpose]).sort()).toEqual([[ids[0], "DELIVERY_ORDER"], [ids[1], "SUPPLY_INVOICE"]].sort());
+
+    // The portal offers the kind here and the card lists the invoice as sent.
+    const start = await loadPortalStart(db, c.actor, contractId);
+    expect(start!.kinds.map((k) => k.value)).toContain("SUPPLY_CLAIM");
+    expect(start!.kinds.map((k) => k.value)).not.toContain("INTERIM_CLAIM");
+    expect((await loadPortalDocumentPage(db, c.actor, contractId, documentId))).toMatchObject({ takesPurposes: true, paymentRoute: "DELIVERY_ORDER_INVOICE" });
+    const pay = await paymentsTab(db, c.actor, (await loadProjectContext(db, c.actor, contractId))!);
+    expect(pay.invoices.show).toBe(true);
+    expect(pay.invoices.rows.map((r) => [r.invoiceNo, r.state, r.stateLabel])).toEqual([["INV-0077", "WITH_ORGANISATION", `With ${ORG_NAME}`]]);
+    expect(pay.claims).toEqual([]);
+  });
+
+  it("a contract paid on certified claims neither offers the kind nor draws the card, and refuses the kind", async () => {
+    const c = await contractor();
+    const contractId = await contract(c.supplierId, "ACTIVE");
+    expect((await loadPortalStart(db, c.actor, contractId))!.kinds.map((k) => k.value)).not.toContain("SUPPLY_CLAIM");
+    expect((await paymentsTab(db, c.actor, (await loadProjectContext(db, c.actor, contractId))!)).invoices).toEqual({ show: false, rows: [] });
+    const ids = [await stage({ account: c.accountId }), await stage({ account: c.accountId })];
+    const parsed = body(contractId, ids, ["DELIVERY_ORDER", "SUPPLY_INVOICE"]);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed));
+    expect((await contractorCreate(c.actor, parsed.value.body, null)).status).toBe(422);
+  });
+
+  it("one purpose alone is refused, and nothing is created", async () => {
+    const c = await contractor();
+    const contractId = await contract(c.supplierId, "ACTIVE", SUPPLY_TYPE);
+    const ids = [await stage({ account: c.accountId }), await stage({ account: c.accountId })];
+    const parsed = body(contractId, ids, ["SUPPLY_INVOICE", "SUPPLY_INVOICE"]);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed));
+    expect((await contractorCreate(c.actor, parsed.value.body, null)).status).toBe(422);
+    expect(await db.projectDocument.count({ where: { contractId, kind: "SUPPLY_CLAIM" } })).toBe(0);
   });
 });
 

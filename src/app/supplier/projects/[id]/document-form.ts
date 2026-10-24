@@ -1,3 +1,5 @@
+import { SUPPLY_FILE_PURPOSES, type SupplyFilePurpose } from "@/lib/project-docs/kinds-offered";
+import { titleLabel } from "@/lib/project-docs/labels";
 import type { DocKind } from "@/lib/project-docs/types";
 
 /**
@@ -12,6 +14,23 @@ export interface KindChoice {
   asksPassword: boolean;
 }
 
+/// A delivery order and invoice: each file says which of the two it is, and both must be sent (WV-11). The server judges it again.
+export const takesPurposes = (kind: string): boolean => kind === "SUPPLY_CLAIM";
+
+export const PURPOSE_CHOICES: { value: SupplyFilePurpose; label: string }[] = SUPPLY_FILE_PURPOSES.map((value) => ({ value, label: value === "DELIVERY_ORDER" ? "Delivery order" : "Invoice" }));
+
+/// The title field's label for the chosen kind: "Invoice number" for a delivery order and invoice.
+export const titleFieldLabel = (kind: string): string => titleLabel(kind === "SUPPLY_CLAIM" ? "SUPPLY_CLAIM" : null);
+
+/// Every file has a purpose and both purposes are used. `purposes` is by file, "" where none is chosen yet.
+export const purposesComplete = (files: number, purposes: readonly string[]): boolean => {
+  const chosen = Array.from({ length: files }, (_, n) => purposes[n] ?? "");
+  return files > 0 && SUPPLY_FILE_PURPOSES.every((p) => chosen.includes(p)) && chosen.every((p) => p !== "");
+};
+
+/// The staged ids with their purposes, in the order the files were chosen, as the routes take a supply claim's `files`.
+export const filesBody = (versionIds: readonly string[], purposes: readonly string[]) => versionIds.map((versionId, n) => ({ versionId, purpose: purposes[n] ?? "" }));
+
 /// A kind is picked only with a file sent, never with a request.
 export const kindOffered = (mode: "upload" | "request", kinds: readonly KindChoice[]) => mode === "upload" && kinds.length > 0;
 
@@ -22,22 +41,25 @@ export const chosenKind = (kinds: readonly KindChoice[], value: string): KindCho
 export const passwordShown = (kinds: readonly KindChoice[], value: string, pageAsks = false) => pageAsks || (chosenKind(kinds, value)?.asksPassword ?? false);
 
 /// The body of the create route: `kind` only with a file sent and one chosen, `password` only with a kind that asks it (the route refuses it with any other).
-export function createBody(i: { contractId: string; title: string; note: string; mode: "upload" | "request"; versionIds: readonly string[]; kinds: readonly KindChoice[]; kind: string; password: string }): Record<string, unknown> {
+export function createBody(i: { contractId: string; title: string; note: string; mode: "upload" | "request"; versionIds: readonly string[]; purposes?: readonly string[]; kinds: readonly KindChoice[]; kind: string; password: string }): Record<string, unknown> {
   const chosen = i.mode === "upload" ? chosenKind(i.kinds, i.kind) : null;
+  const supply = chosen !== null && takesPurposes(chosen.value);
   return {
     contractId: i.contractId,
     title: i.title,
     note: i.note,
     mode: i.mode,
-    ...(i.mode === "upload" ? { versionIds: [...i.versionIds] } : {}),
+    ...(i.mode === "upload" ? (supply ? { files: filesBody(i.versionIds, i.purposes ?? []) } : { versionIds: [...i.versionIds] }) : {}),
     ...(chosen ? { kind: chosen.value } : {}),
     ...(chosen?.asksPassword ? { password: i.password } : {}),
   };
 }
 
 /// The body of the version route: `kind` where the first version of a document the organisation asked for may pick one, `password` where the act is signed.
-export function versionBody(i: { contractId: string; documentId: string; versionIds: readonly string[]; note: string; mayPickKind: boolean; kinds: readonly KindChoice[]; kind: string; pageAsksPassword: boolean; password: string }): Record<string, unknown> {
+export function versionBody(i: { contractId: string; documentId: string; versionIds: readonly string[]; purposes?: readonly string[]; takesPurposes?: boolean; note: string; mayPickKind: boolean; kinds: readonly KindChoice[]; kind: string; pageAsksPassword: boolean; password: string }): Record<string, unknown> {
   const chosen = i.mayPickKind ? chosenKind(i.kinds, i.kind) : null;
   const signed = i.pageAsksPassword || (chosen?.asksPassword ?? false);
-  return { contractId: i.contractId, documentId: i.documentId, versionIds: [...i.versionIds], note: i.note, ...(chosen ? { kind: chosen.value } : {}), ...(signed ? { password: i.password } : {}) };
+  // A delivery order and invoice, chosen now or already the document's kind, posts `files`; no other version does.
+  const supply = i.takesPurposes || (chosen !== null && takesPurposes(chosen.value));
+  return { contractId: i.contractId, documentId: i.documentId, ...(supply ? { files: filesBody(i.versionIds, i.purposes ?? []) } : { versionIds: [...i.versionIds] }), note: i.note, ...(chosen ? { kind: chosen.value } : {}), ...(signed ? { password: i.password } : {}) };
 }

@@ -145,7 +145,7 @@ function kindOf(b: Readonly<Record<string, unknown>>, errors: Record<string, str
   const v = b.kind;
   if (v == null || v === "") return null;
   if (isSubmissionKind(v)) return v;
-  errors.kind = "Not one of the six kinds.";
+  errors.kind = "Not a kind that can be sent.";
   return null;
 }
 

@@ -22,8 +22,18 @@ import type { PaymentRoute } from "./types";
 
 /// ADR 0045 D5 (WV-9): the contract type's payment route, read live in the act's transaction. No type, or the route unset: null (today's six kinds).
 export async function paymentRouteOf(tx: Tx, l: Pick<LoadedContract, "org" | "ex">): Promise<PaymentRoute | null> {
-  if (!l.ex.contractTypeCode) return null;
-  const t = await tx.contractType.findFirst({ where: { organisationId: l.org.id, code: l.ex.contractTypeCode }, select: { paymentRoute: true } });
+  return paymentRouteOfType(tx, l.org.id, l.ex.contractTypeCode);
+}
+
+/// The same read for the contractor's portal, which holds the contract's id and not a loaded contract (the exercise is reached through the award, not queried).
+export async function paymentRouteOfContract(tx: Tx, organisationId: string, contractId: string): Promise<PaymentRoute | null> {
+  const c = await tx.contract.findFirst({ where: { id: contractId, organisationId }, select: { award: { select: { exercise: { select: { contractTypeCode: true } } } } } });
+  return paymentRouteOfType(tx, organisationId, c?.award.exercise.contractTypeCode ?? null);
+}
+
+async function paymentRouteOfType(tx: Tx, organisationId: string, code: string | null): Promise<PaymentRoute | null> {
+  if (!code) return null;
+  const t = await tx.contractType.findFirst({ where: { organisationId, code }, select: { paymentRoute: true } });
   return t?.paymentRoute ?? null;
 }
 

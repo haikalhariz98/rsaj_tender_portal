@@ -38,7 +38,8 @@ import type { MergeLoader } from "./merge";
 import { walkMerged } from "./merge";
 import type { Gate } from "./page-store";
 import { documentLoader, REGISTER_BATCH } from "./register";
-import type { DocKind, Finding, Outcome } from "./types";
+import { paymentRouteOfContract } from "./supply-read";
+import type { DocKind, Finding, Outcome, PaymentRoute } from "./types";
 import { contractorAnswer, contractorFacts, contractorSeesRemarks } from "./visibility";
 
 export const PORTAL_PAGE = 50;
@@ -189,14 +190,18 @@ export interface PortalDocumentPage {
   actions: { upload: Gate; request: Gate };
   /// A statutory declaration (PW-10): every version is signed, so the upload form asks the password again. The upload gate is judged as if it were given.
   asksPassword: boolean;
-  /// A contractor document asked for by the organisation with no version yet: its first version may pick one of the six kinds (`PortalStart.kinds`).
+  /// A contractor document asked for by the organisation with no version yet: its first version may pick a kind (`PortalStart.kinds`).
   mayPickKind: boolean;
-  /// The contract's own state, when it shuts the workspace.
+  /// A delivery order and invoice: every version carries a delivery order and an invoice, each file saying which.
+  takesPurposes: boolean;
+  /// The contract's own state it shuts the workspace.
   workspaceShut: string | null;
   /// Project files have a class set (else nothing can be sent, and the reason says to ask the organisation).
   classSet: boolean;
   /// The organisation's configured name, for the page's own words.
   organisationName: string;
+  /// How the contract type is paid, read live: it decides which kinds the first version may pick (`kindChoices`).
+  paymentRoute: PaymentRoute | null;
 }
 
 function gateOf(faults: readonly Finding[], orgName: string, shut: string | null): Gate {
@@ -297,9 +302,11 @@ export async function loadPortalDocumentPage(client: Tx, actor: Pick<SupplierAct
     },
     asksPassword: head.kind === SIGNED_KIND,
     mayPickKind: head.side === "CONTRACTOR" && head.kind === null && facts.versions.length === 0,
+    takesPurposes: head.kind === "SUPPLY_CLAIM",
     workspaceShut: shut,
     classSet,
     organisationName: orgName,
+    paymentRoute: await paymentRouteOfContract(client, actor.organisationId, ctx.contract.id),
   };
 }
 
@@ -326,7 +333,7 @@ export async function loadPortalStart(client: Tx, actor: Pick<SupplierActor, "su
   const status = actStatusFault("PROJECT_WORKSPACE", ctx.contract.status as ContractStatus);
   const shut = status ? actStatusText(status) : null;
   const faults = createFaults({ actor: { side: "CONTRACTOR", accountId: actor.accountId }, classSet, title: "title", note: "", first: { upload: { files: 1, note: "", kind: null, signed: false } }, approvers: [] });
-  return { create: gateOf(faults, ctx.org.name, shut), kinds: kindChoices(), organisationName: ctx.org.name };
+  return { create: gateOf(faults, ctx.org.name, shut), kinds: kindChoices(await paymentRouteOfContract(client, actor.organisationId, ctx.contract.id)), organisationName: ctx.org.name };
 }
 
 // ------------------------------------------------------------------ "Waiting for you"

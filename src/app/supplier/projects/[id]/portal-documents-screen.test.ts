@@ -137,6 +137,8 @@ const page = (o: Partial<PortalDocumentPage> = {}): PortalDocumentPage => ({
   // Plan step 6 (server): an ordinary document asks no password and picks no kind; the screen step renders both.
   asksPassword: false,
   mayPickKind: false,
+  takesPurposes: false,
+  paymentRoute: null,
   workspaceShut: null,
   classSet: true,
   organisationName: ORG,
@@ -324,9 +326,23 @@ describe("the contractor's drawers carry the kind and the password (plan step 6;
     expect(drawers).not.toMatch(/\.code\b/);
   });
 
-  it("the version drawer is given what the page says: asks the password, may pick a kind, the six kinds", () => {
+  // V7: the kinds offered follow the contract's payment route, so the call is no longer bare `kindChoices()`.
+  it("the version drawer is given what the page says: asks the password, may pick a kind, takes purposes, the kinds its route offers", () => {
     const view = readFileSync(join(process.cwd(), "src/app/supplier/projects/[id]/documents/[documentId]/document-view.tsx"), "utf8");
-    expect(view).toContain("asksPassword={page.asksPassword} mayPickKind={page.mayPickKind} kinds={kindChoices()}");
+    expect(view).toContain("asksPassword={page.asksPassword} mayPickKind={page.mayPickKind} takesFiles={page.takesPurposes} kinds={kindChoices(page.paymentRoute)}");
+  });
+
+  it("the Payments tab draws the Invoices card from the loader's rows, ahead of the certificates, and the claims list stays interim and materials", () => {
+    const panels = readFileSync(join(process.cwd(), "src/app/supplier/projects/[id]/panels.tsx"), "utf8");
+    expect(panels).toContain("{p.invoices.show && <InvoicesCard contractId={ctx.contract.id} rows={p.invoices.rows} />}");
+    expect(panels.indexOf("<InvoicesCard")).toBeLessThan(panels.indexOf('title="Payment certificates"'));
+    const store = readFileSync(join(process.cwd(), "src/lib/portal/projects/workspace-store.ts"), "utf8");
+    expect(store).toContain('kind: { in: ["INTERIM_CLAIM", "MATERIALS_ON_SITE"] }');
+    expect(store).toContain("loadSupplyClaims(");
+    const card = readFileSync(join(process.cwd(), "src/app/supplier/projects/[id]/invoices-card.tsx"), "utf8");
+    expect(card).toContain("invoiceChip(r)");
+    expect(card).toContain("No invoice sent");
+    expect(card).not.toMatch(/\.code|formatMoney|senFromDecimal/);
   });
 
   it("the list hands the new-document drawer the loader's kinds", () => {

@@ -7,7 +7,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => undefined, r
 import { kindChoices } from "@/lib/project-docs/labels";
 
 import { KindFields } from "./document-drawers";
-import { chosenKind, createBody, kindOffered, passwordShown, versionBody } from "./document-form";
+import { chosenKind, createBody, filesBody, kindOffered, passwordShown, purposesComplete, takesPurposes, titleFieldLabel, versionBody } from "./document-form";
+import { invoiceChip } from "./document-words";
 
 const kinds = kindChoices();
 const BASE = { contractId: "c1", title: "Notice", note: "", versionIds: ["v1"], kinds };
@@ -85,13 +86,63 @@ describe("the kind picker and the password field, as drawn", () => {
   });
 
   it("the server's words sit beside the field they name, never a code", () => {
-    const html = fields({ showPassword: true, errors: { kind: "Not one of the six kinds.", password: "Enter your password to sign the notice." } });
-    expect(html).toContain("Not one of the six kinds.");
+    const html = fields({ showPassword: true, errors: { kind: "Not a kind that can be sent.", password: "Enter your password to sign the notice." } });
+    expect(html).toContain("Not a kind that can be sent.");
     expect(html).toContain("Enter your password to sign the notice.");
     expect(html).not.toMatch(/WRONG_PASSWORD|VALIDATION|THROTTLED|SIGNATURE_REFUSED|KIND_NOT_AVAILABLE/);
   });
 
   it("with no kind to pick and no signature, nothing extra is drawn", () => {
     expect(fields({ showKind: false, showPassword: false })).not.toMatch(/select|input/);
+  });
+});
+
+describe("a delivery order and invoice (WV-11, WV-12)", () => {
+  it("is offered only on the delivery-order route, and not beside interim or materials claims", () => {
+    const on = kindChoices("DELIVERY_ORDER_INVOICE").map((k) => k.value);
+    expect(on).toContain("SUPPLY_CLAIM");
+    expect(on).not.toContain("INTERIM_CLAIM");
+    expect(on).not.toContain("MATERIALS_ON_SITE");
+    expect(kindChoices().map((k) => k.value)).not.toContain("SUPPLY_CLAIM");
+    expect(kindChoices("CERTIFIED_CLAIM")).toEqual(kindChoices());
+  });
+
+  it("asks the invoice number as the title, only for that kind", () => {
+    expect(titleFieldLabel("SUPPLY_CLAIM")).toBe("Invoice number");
+    expect(titleFieldLabel("DELAY_NOTICE")).toBe("Title");
+    expect(titleFieldLabel("")).toBe("Title");
+    expect(takesPurposes("SUPPLY_CLAIM")).toBe(true);
+    expect(takesPurposes("")).toBe(false);
+  });
+
+  it("is ready only when every file has a purpose and both are used", () => {
+    expect(purposesComplete(0, [])).toBe(false);
+    expect(purposesComplete(2, ["DELIVERY_ORDER"])).toBe(false);
+    expect(purposesComplete(2, ["DELIVERY_ORDER", "DELIVERY_ORDER"])).toBe(false);
+    expect(purposesComplete(2, ["DELIVERY_ORDER", "SUPPLY_INVOICE"])).toBe(true);
+    expect(purposesComplete(3, ["SUPPLY_INVOICE", "DELIVERY_ORDER", "SUPPLY_INVOICE"])).toBe(true);
+    expect(purposesComplete(3, ["SUPPLY_INVOICE", "DELIVERY_ORDER", ""])).toBe(false);
+  });
+
+  const picked = kindChoices("DELIVERY_ORDER_INVOICE");
+  const purposes = ["DELIVERY_ORDER", "SUPPLY_INVOICE"];
+
+  it("posts `files` with a purpose each in place of `versionIds`, on create and on a version", () => {
+    expect(filesBody(["a", "b"], purposes)).toEqual([{ versionId: "a", purpose: "DELIVERY_ORDER" }, { versionId: "b", purpose: "SUPPLY_INVOICE" }]);
+    const create = createBody({ contractId: "c1", title: "INV-1", note: "", mode: "upload", versionIds: ["a", "b"], purposes, kinds: picked, kind: "SUPPLY_CLAIM", password: "" });
+    expect(create).toMatchObject({ kind: "SUPPLY_CLAIM", files: [{ versionId: "a", purpose: "DELIVERY_ORDER" }, { versionId: "b", purpose: "SUPPLY_INVOICE" }] });
+    expect(create).not.toHaveProperty("versionIds");
+    const later = versionBody({ contractId: "c1", documentId: "d1", versionIds: ["a", "b"], purposes, takesPurposes: true, note: "", mayPickKind: false, kinds: picked, kind: "", pageAsksPassword: false, password: "" });
+    expect(later).toMatchObject({ files: [{ versionId: "a", purpose: "DELIVERY_ORDER" }, { versionId: "b", purpose: "SUPPLY_INVOICE" }] });
+    expect(later).not.toHaveProperty("versionIds");
+    expect(later).not.toHaveProperty("kind");
+  });
+
+  it("reads each state in the contractor's words", () => {
+    const paid = { paidText: "3 Mar 2026", batchNo: "B-9" };
+    expect(invoiceChip({ state: "WITH_ORGANISATION", payment: null })).toEqual({ text: "Sent", tone: "info" });
+    expect(invoiceChip({ state: "RETURNED", payment: null }).text).toBe("Returned with remarks");
+    expect(invoiceChip({ state: "VERIFIED", payment: null }).text).toBe("Verified");
+    expect(invoiceChip({ state: "PAID", payment: paid }).text).toBe("Paid on 3 Mar 2026, batch B-9");
   });
 });

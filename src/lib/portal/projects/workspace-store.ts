@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal, type Sen } from "@/lib/money";
 import { PAID_FIGURE } from "@/lib/payment/finance";
 import { contractorClaimDocuments, contractorDocumentTally } from "@/lib/project-docs/portal-read";
+import { loadSupplyClaims, paymentRouteOfContract, type SupplyClaimRow } from "@/lib/project-docs/supply-read";
 import { contractEnded, inDelay, type DelayReading } from "@/lib/supervision/delay";
 import { entryState, type EntryState } from "@/lib/supervision/diary";
 import { loadPostAwardPolicy, loadSupervision, revisionsOf } from "@/lib/supervision/load";
@@ -213,6 +214,8 @@ export interface PaymentsView {
   /// Both sources (plan step 6; PW-11): the earlier claims and materials lists, with their stored figures, and those sent as documents of the two kinds, with none (their files carry
   /// them, PW-10) and a link to the document (`href`). Newest first.
   claims: { id: string; title: string; amount: string | null; upTo: string | null; sentOn: string; outcome: SubmissionOutcome | null; kind: SubmissionKind; href?: string }[];
+  /// The "Invoices" card (delivery orders with invoices, WV-9): drawn when the contract type is paid that way or an invoice was already sent; the rows are read whatever the route now says.
+  invoices: { show: boolean; rows: (SupplyClaimRow & { href: string })[] };
 }
 
 export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<PaymentsView> {
@@ -224,6 +227,8 @@ export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): 
     }),
     () => client.contractorSubmission.findMany({ where: { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId, kind: { in: ["INTERIM_CLAIM", "MATERIALS_ON_SITE"] } }, orderBy: { submittedAt: "desc" }, select: { id: true, title: true, amount: true, aboutDay: true, submittedAt: true, submittedOn: true, outcome: true, kind: true } }));
   const claimDocuments = await contractorClaimDocuments(client, actor, ctx);
+  const route = await paymentRouteOfContract(client, actor.organisationId, ctx.contract.id);
+  const supply = await loadSupplyClaims(client, { organisationId: actor.organisationId, orgName: ctx.org.name, contractId: ctx.contract.id });
   const rows = certs.map((c) => {
     const figure = figureOf(c.issueSnapshot, PAID_FIGURE[c.kind] ?? null);
     const recommended: Sen | null = figure == null ? null : senFromDecimal(figure);
@@ -232,6 +237,7 @@ export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): 
   });
   const summary = certifiedAgainstPaid(rows);
   return {
+    invoices: { show: route === "DELIVERY_ORDER_INVOICE" || supply.length > 0, rows: supply.map((r) => ({ ...r, href: `/supplier/projects/${ctx.contract.id}/documents/${r.documentId}` })) },
     rows,
     summary: { ...summary, certifiedText: formatMoney(summary.certified), paidText: formatMoney(summary.paid), outstandingText: formatMoney(summary.outstanding), paidUnfiguredText: formatMoney(summary.paidUnfigured) },
     claims: [

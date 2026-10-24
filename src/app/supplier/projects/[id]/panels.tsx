@@ -26,6 +26,7 @@ import { loadAwardCard } from "@/lib/portal/projects/award-card-store";
 import { AwardQuestionsCard, AwardReturnCard } from "./award-return-card";
 import { AttestControl, DisputeDiaryControl, SignCertificateControl } from "./controls";
 import { PortalDocumentsPanel } from "./documents-panel";
+import { InvoicesCard } from "./invoices-card";
 import { PortalKickOffCard, PortalTeamCard } from "./kick-off-portal";
 import { portalDocumentsHref } from "./portal-documents-card";
 import { WaitingList } from "./waiting-for-you";
@@ -233,6 +234,7 @@ export async function PaymentsPanel({ actor, ctx }: Omit<Props, "token">) {
           Ask the office for the figure.
         </Callout>
       )}
+      {p.invoices.show && <InvoicesCard contractId={ctx.contract.id} rows={p.invoices.rows} />}
       <Card className="overflow-hidden">
         <CardHeader icon={<WalletIcon size={17} />} title="Payment certificates" divided={p.rows.length > 0} />
         {p.rows.length === 0 ? (

@@ -51,7 +51,7 @@ export const markActionWords = (outcome: "TAKEN_UP" | "RETURNED", kind: DocKind 
 /// The label of a document's title field: a supply claim's title is its invoice number (ADR 0045 D6, WV-12).
 export const titleLabel = (kind: DocKind | null): string => (kind === "SUPPLY_CLAIM" ? "Invoice number" : "Title");
 
-/// The six kinds' names, as the legacy submissions name them.
+/// The kinds' names, as the legacy submissions name them.
 export const kindWords = (kind: DocKind): string => SUBMISSION_KIND_WORDS[kind].en;
 
 /// The kind of document whose every version is signed with the contractor's password (PW-10, AC-30).
@@ -105,7 +105,7 @@ function finalWords(state: string, kind: DocKind | null): string {
 }
 
 function notWaitingWords(state: string, kind: DocKind | null): string {
-  if (kind !== null) return "A document of one of the six kinds is never approved: its versions are taken up or returned.";
+  if (kind !== null) return "A document that has a kind is never approved: its versions are taken up or returned.";
   switch (state) {
     case "REJECTED":
       return "An approver has rejected this version. It waits for a new version.";
@@ -144,9 +144,9 @@ export function faultText(f: Finding, orgName = "the organisation"): string {
     case "TOO_MANY_FILES":
       return `A version holds at most ${str(d.limit)} files, and this one has ${str(d.files)}. Put the rest in another document.`;
     case "KIND_NOT_CONTRACTOR":
-      return "Only the contractor picks one of the six kinds, with its own document's first version.";
+      return "Only the contractor picks a kind, with its own document's first version.";
     case "KIND_WITH_APPROVERS":
-      return "A document with approvers cannot be one of the six kinds. Send it without a kind.";
+      return "A document with approvers cannot have a kind. Send it without a kind.";
     case "KIND_ALREADY_SET":
       return "A kind is picked only with the document's first version.";
     case "DECLARATION_NOT_SIGNED":
@@ -174,7 +174,7 @@ export function faultText(f: Finding, orgName = "the organisation"): string {
     case "ALREADY_APPROVER":
       return "That person is already an approver of this document.";
     case "KIND_TAKES_NO_APPROVERS":
-      return "A document of one of the six kinds takes no approvers: its versions are taken up or returned.";
+      return "A document that has a kind takes no approvers: its versions are taken up or returned.";
     case "NOT_LIVE":
       return "That approver is not on this document, or has been removed already.";
     case "DECIDED_CURRENT":
@@ -202,7 +202,7 @@ export function faultText(f: Finding, orgName = "the organisation"): string {
     case "REMARKS_TOO_LONG":
       return `The remarks are longer than ${str(d.limit)} characters. Shorten them.`;
     case "NO_KIND":
-      return "Only a document of one of the six kinds is taken up or returned.";
+      return "Only a document that has a kind is taken up or returned.";
     case "ALREADY_MARKED":
       return "This version is already marked.";
     case "TOO_MANY_FILES_IN_WINDOW":
