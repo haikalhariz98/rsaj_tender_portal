@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { commencementState } from "./commencement";
-import { indentState, expiredIfReceivedBefore } from "./indent";
+import { indentState, expiredIfReceivedBefore, indentLateWords, indentReturnLate } from "./indent";
 
 describe("the indent's validity (FR-AWD-006)", () => {
   it("received 1 September with 14 days' validity expires on 15 September: valid that day, expired the next", () => {
@@ -47,5 +47,20 @@ describe("counting expired indents", () => {
     expect(indentState("2026-09-17", 14, "2026-10-01").state).toBe("VALID");
     expect(indentState("2026-09-16", 14, "2026-10-01").state).toBe("EXPIRED");
     expect(expiredIfReceivedBefore(null, "2026-10-01")).toBeNull();
+  });
+});
+
+describe("an acceptance received after the indent expired (FR-AWD-006, product owner ruling of 2026-10-24)", () => {
+  it("Worked example: received 1 September, valid 14 days: returned on 15 September is taken, on 16 September refused", () => {
+    expect(indentReturnLate("2026-09-01", 14, "2026-09-15")).toBeNull();
+    expect(indentReturnLate("2026-09-01", 14, "2026-09-16")).toBe("2026-09-15");
+  });
+  it("is never refused where the validity is not set or the indent not received", () => {
+    expect(indentReturnLate("2026-09-01", null, "2026-12-31")).toBeNull();
+    expect(indentReturnLate(null, 14, "2026-12-31")).toBeNull();
+  });
+  it("says it in the office's words and, without the office's instruction, in the contractor's", () => {
+    expect(indentLateWords("2026-09-15", "2026-09-16", true)).toBe("The indent expired on 15 Sep 2026; an acceptance received on 16 Sep 2026 is not taken. Cancel this award and raise a fresh indent.");
+    expect(indentLateWords("2026-09-15", "2026-09-16", false)).toBe("The indent expired on 15 Sep 2026; an acceptance received on 16 Sep 2026 is not taken.");
   });
 });

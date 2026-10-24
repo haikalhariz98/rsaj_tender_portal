@@ -23,7 +23,7 @@ import {
 import { awardReturnFaultText } from "./online-return-words";
 import { EMPTY_RETURN } from "./stage-two";
 
-const LOA: OnlineReturnFacts = { awardStatus: "ISSUED", instrument: "LETTER_OF_ACCEPTANCE", today: "2026-10-24", paperStarted: false, waiting: false, classSet: true, signingFault: null };
+const LOA: OnlineReturnFacts = { awardStatus: "ISSUED", instrument: "LETTER_OF_ACCEPTANCE", today: "2026-10-24", paperStarted: false, waiting: false, classSet: true, signingFault: null, indentExpiredOn: null };
 const INDENT: OnlineReturnFacts = { ...LOA, instrument: "WORK_INDENT" };
 const LOA_SCANS = ["SIGNED_LETTER", "DECLARATION", "AUTHORISATION"];
 const PAGE: OnlineReturnPage = { signatoryName: "Ahmad bin Ali", icNumber: "800101-01-1234", occupation: "Director", address: "1 Jalan Satu", capacity: "Director", witnessName: "Siti binti Omar", contractorSigned: true, stampAffixed: true, witnessSigned: true };
@@ -33,6 +33,12 @@ describe("lodging a return online (ADR 0045 D1)", () => {
   it("takes a Letter of Acceptance's three scans, and an indent's page with its scan", () => {
     expect(lodgeFaults(LOA, { scans: LOA_SCANS, page: null })).toEqual([]);
     expect(lodgeFaults(INDENT, { scans: ["ACCEPTANCE_PAGE"], page: PAGE })).toEqual([]);
+  });
+
+  it("refuses an indent that expired before today, in the contractor's words (FR-AWD-006)", () => {
+    const f = lodgeFaults({ ...INDENT, indentExpiredOn: "2026-10-20" }, { scans: ["ACCEPTANCE_PAGE"], page: PAGE });
+    expect(f).toEqual([{ code: "INDENT_EXPIRED", level: "block", data: { expiredOn: "2026-10-20", receivedOn: "2026-10-24" } }]);
+    expect(awardReturnFaultText(f[0]!)).toBe("The indent expired on 20 Oct 2026; an acceptance received on 24 Oct 2026 is not taken.");
   });
 
   it("refuses each organisation-side and award-side reason, every one named", () => {

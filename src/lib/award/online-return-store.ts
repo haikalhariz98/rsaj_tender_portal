@@ -26,7 +26,7 @@ import { attributeSupplierAct } from "@/lib/auth/supplier-attribution-store";
 import type { StaffActor, SupplierActor } from "@/lib/auth/types";
 import { caseHref } from "@/lib/contract/links";
 import type { LoadedContract } from "@/lib/contract/repo";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayOrNull, dayToDate, storedDay } from "@/lib/dates";
 import { db, type Tx } from "@/lib/db";
 import { awardReturnClassFault } from "@/lib/documents/award-return-class";
 import { attachToLockedOwner } from "@/lib/documents/attach-store";
@@ -45,10 +45,11 @@ import { inHeldContract, supplierAuditActor } from "@/lib/portal/projects/submis
 
 import { awardAuditCreate } from "./audit-view";
 import { loadEventPlan } from "./clock-notices";
+import { indentReturnLate } from "./indent";
 import { RETURN_SLOT_LABEL } from "./labels";
 import { answerFaults, askFaults, lodgeFaults, onlineReturnState, paperStarted, refuseFaults, returnRecordFromOnline, stagedReturnFileFaults, verifyFaults, type OnlineReturnPage, type OnlineReturnPageInput, type StagedReturnFile } from "./online-return";
 import { AwardReturnRefused, awardReturnFaultsText, type AwardReturnFault } from "./online-return-words";
-import { withLockedAwardFor, type LoadedAward } from "./repo";
+import { loadAwardPolicy, withLockedAwardFor, type LoadedAward } from "./repo";
 import { onlineReturnWithheld, WITHHELD_WORDS, withheldForTrail } from "./return-withheld";
 import { acceptOnCompleteReturn, returnRecordOf } from "./return-acceptance";
 import { saveReturn } from "./return-store";
@@ -116,6 +117,8 @@ export async function lodgeOnlineReturn(actor: SupplierActor, i: LodgeInput, now
         waiting: onlineReturnState(a.onlineReturns) === "WAITING",
         classSet: !!policy.awardReturnClassId && awardReturnClassFault(cls) === null,
         signingFault: await contractorSigningFaultOf(tx, actor),
+        // FR-AWD-006 (product owner ruling, 2026-10-24): an expired indent is not accepted. Today is the day the return would be received (WV-3).
+        indentExpiredOn: kind === "WORK_INDENT" && today ? indentReturnLate(dayOrNull(a.indentReceivedOn), (await loadAwardPolicy(l.org.id, tx)).indentValidityDays, today) : null,
       },
       { scans, page: typed },
     );

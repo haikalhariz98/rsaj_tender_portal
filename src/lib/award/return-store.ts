@@ -7,6 +7,8 @@
  * - the award issued (or, correcting an accepted award's return, the correction's reason given);
  * - WV-4: no return lodged online waiting, read fresh in the transaction, so the verify act passes once it has marked its row verified;
  * - each received day not before the instrument was issued and not after today, and the person who received it on record and active;
+ * - FR-AWD-006: a work indent's acceptance received after the indent expired is not taken (`indentReturnLate`), judged on the received day; on a correction only when that
+ *   day changes, so an award accepted before the rule is not reopened;
  * - the caller's own check, before anything is written (the paper correction's scans);
  * - the update and its audit pair, the IC number masked.
  *
@@ -18,12 +20,13 @@ import type { FormState } from "@/components/record-editor";
 import { auditActorOfStaff } from "@/lib/auth/audit-actor";
 import { sulitWriteRefusal } from "@/lib/auth/sulit-store";
 import type { StaffActor } from "@/lib/auth/types";
-import { dayToDate, storedDay } from "@/lib/dates";
+import { dayOrNull, dayToDate, storedDay } from "@/lib/dates";
 import type { Tx } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 
 import { awardAuditPair } from "./audit-view";
-import type { LoadedAward } from "./repo";
+import { indentLateWords, indentReturnLate } from "./indent";
+import { loadAwardPolicy, type LoadedAward } from "./repo";
 import { audit, NO_ZONE } from "./route-write";
 import type { ReturnRecord } from "./stage-two";
 
@@ -74,6 +77,12 @@ export async function saveReturn(
     if (!receivedBy) errors.receivedByPersonId = "Choose someone on record and active.";
   }
   if (Object.keys(errors).length) return no({ ok: false, errors });
+  // FR-AWD-006 (product owner ruling, 2026-10-24): one refusal, here, for paper and online alike. Not in acceptOnCompleteReturn: a scan attached later accepts on a day judged here.
+  const receivedOn = v.signedLetterReceivedOn;
+  if (a.instrumentKind === "WORK_INDENT" && receivedOn && (!correcting || receivedOn !== dayOrNull(a.awardReturn.signedLetterReceivedOn))) {
+    const late = indentReturnLate(dayOrNull(a.indentReceivedOn), (await loadAwardPolicy(l.org.id, tx)).indentValidityDays, receivedOn);
+    if (late) return no({ ok: false, message: indentLateWords(late, receivedOn, true) });
+  }
   const rec: ReturnRecord = { ...v };
   delete (rec as Partial<ReturnWrite>).whereHeld;
   const refused = i.check ? await i.check(rec) : null;

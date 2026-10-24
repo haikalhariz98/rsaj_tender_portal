@@ -58,6 +58,7 @@ export async function loadAwardCard(client: Tx, actor: Pick<SupplierActor, "supp
   let signatories: { id: string; name: string; designation: string }[] = [];
   let address = "";
   let validUntil: string | null = null;
+  let indentExpired = false;
   if (open) {
     const policy = await loadStorePolicy(ctx.org.id, client);
     const [cls, signingFault] = await inOrder(
@@ -79,6 +80,7 @@ export async function loadAwardCard(client: Tx, actor: Pick<SupplierActor, "supp
     const policy = await loadAwardPolicy(ctx.org.id, client);
     const s = indentState(dayOrNull(a.indentReceivedOn), policy.indentValidityDays, ctx.org.today);
     validUntil = s.state === "VALID" || s.state === "EXPIRED" ? s.expiresOn : null;
+    indentExpired = s.state === "EXPIRED";
   }
 
   return awardCardView({
@@ -88,6 +90,7 @@ export async function loadAwardCard(client: Tx, actor: Pick<SupplierActor, "supp
     issuedOn: a.issuedAt ? dayOf(a.issuedAt, zone) : null,
     commitment: { kind: a.erpCommitmentKind, number: a.erpCommitmentNo },
     validUntil,
+    indentExpired,
     state,
     sentOn: latest ? storedDay(latest.submittedOn) : null,
     acceptedOn: state === "VERIFIED" && latest?.verifiedAt ? dayOf(latest.verifiedAt, zone) : null,

@@ -7,6 +7,8 @@
  *                      Backdated to the exercise's opening, as it would have stood: an awarded exercise's details are fixed.
  *   demo_law1          DEMO/AWD/0009/2026, the Results fixture's issued work indent, nothing returned on paper, names its awardee on the register: Demo Paip Services (demo_vnd2, the same
  *                      registration number), whose portal account is demo.supplier6 (active once npm run demo:accounts has run). Once the development fill has run, it may accept the award online.
+ *                      An expired indent is not accepted (FR-AWD-006, ruling of 2026-10-24), so where its indent has passed its validity on the day this runs, with nothing returned,
+ *                      its received day is moved to that day, audited as the demo loader: the rule is never loosened, the demonstration is re-dated.
  *   demo_con3          XI202600799, the supply contract of demo_aw5, names its awardee on the register (demo_ctr5, Contoh Supplies Enterprise, portal account demo.ctr5 waiting
  *                      for activation: npm run demo:accounts), and holds four supply claims sent from it: one with the organisation, one returned with remarks, one verified, and
  *                      one verified and paid by Finance. Written only where the supply type is paid by delivery order and invoice.
@@ -17,7 +19,8 @@
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { diffFields } from "../src/lib/audit/diff";
 import { contractLabel, loadContract } from "../src/lib/contract/repo";
-import { dayToDate, instantAt, todayIn } from "../src/lib/dates";
+import { indentState } from "../src/lib/award/indent";
+import { dayOrNull, dayToDate, instantAt, todayIn } from "../src/lib/dates";
 import { STAGED_FOR_PROJECT_DOCUMENT } from "../src/lib/documents/staged-for";
 import { formatDate, formatOrgDateTime } from "../src/lib/format";
 import { projectDocumentNotices } from "../src/lib/inbox/notices";
@@ -46,6 +49,7 @@ export async function loadWaveVDemo(db: Db, organisationId: string): Promise<{ n
   if (!tz) throw new Error("Demo Wave V: the organisation's time zone is not set.");
   notes.push(...(await namePersonsInCharge(db, organisationId)));
   notes.push(...(await linkAwardee(db, organisationId, { awardId: `${P}law1`, key: "ctr9", registeredOn: "2026-03-02" })));
+  notes.push(...(await indentInsideValidity(db, organisationId, `${P}law1`, todayIn(new Date(), tz)!)));
   notes.push(...(await linkAwardee(db, organisationId, { awardId: `${P}aw5`, key: "ctr5", registeredOn: "2026-03-02" })));
   notes.push(...(await loadSupplyClaimsDemo(db, organisationId, org.name, tz)));
   return { notes };
@@ -71,6 +75,33 @@ async function namePersonsInCharge(db: Db, organisationId: string): Promise<stri
     named.push(ex.reference);
   }
   return named.length ? [`a person in charge on ${named.length} exercise(s) with a demo award: ${named.join(", ")}`] : [];
+}
+
+/// FR-AWD-006 (product owner ruling, 2026-10-24): the demonstration's issued indent is re-dated inside its validity on the day the loader runs, so its online return can be shown.
+/// Only an issued work indent with nothing returned (no paper day, no return lodged online) and an indent past its validity is moved, to today. Nothing where the validity is
+/// not set, the award is not in this database, or it is still valid.
+async function indentInsideValidity(db: Db, organisationId: string, awardId: string, today: string): Promise<string[]> {
+  const award = await db.award.findFirst({
+    where: { id: awardId, organisationId, status: "ISSUED", instrumentKind: "WORK_INDENT", indentReceivedOn: { not: null }, onlineReturns: { none: {} } },
+    select: { id: true, reference: true, awardeeName: true, indentReceivedOn: true, awardReturn: { select: { signedLetterReceivedOn: true } } },
+  });
+  if (!award || award.awardReturn?.signedLetterReceivedOn) return [];
+  const validity = (await db.awardPolicy.findUnique({ where: { organisationId }, select: { indentValidityDays: true } }))?.indentValidityDays ?? null;
+  const received = dayOrNull(award.indentReceivedOn)!;
+  if (indentState(received, validity, today).state !== "EXPIRED") return [];
+  const moved = await db.award.updateMany({ where: { id: award.id, organisationId, status: "ISSUED", indentReceivedOn: award.indentReceivedOn }, data: { indentReceivedOn: dayToDate(today) } });
+  if (moved.count !== 1) return [];
+  await db.auditEntry.createMany({
+    data: [
+      {
+        id: `${award.id}_au_indent_${today}`, organisationId, entity: "Award", entityId: award.id, entityLabel: `${award.reference} · ${award.awardeeName}`, action: "UPDATE" as const, at: new Date(),
+        changes: diffFields({ indentReceivedOn: received }, { indentReceivedOn: today }),
+        reason: "Demonstration re-dated by the demo loader: the indent had passed its validity, and an expired indent is not accepted (FR-AWD-006).", ...DEMO_ACTOR,
+      },
+    ] as never,
+    skipDuplicates: true,
+  });
+  return [`${award.reference}'s indent re-dated inside its validity: received ${today} (was ${received})`];
 }
 
 /// The award names its awardee on the register, as an officer links an award with no party: the registered supplier with the awardee's registration number, or else a new

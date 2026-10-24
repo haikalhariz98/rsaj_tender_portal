@@ -58,6 +58,8 @@ export interface OnlineReturnFacts {
   classSet: boolean;
   /// `contractorSigningFaultOf`: the organisation's switch and the contact's own mark. Null: the account may sign.
   signingFault: string | null;
+  /// FR-AWD-006: a work indent's expiry day where today (the lodge day, WV-3) is past it (`indentReturnLate`), else null.
+  indentExpiredOn: string | null;
 }
 
 export type OnlineReturnFault =
@@ -75,6 +77,8 @@ export type OnlineReturnFault =
   | "PAGE_NOT_TAKEN"
   /// The signatory named is not a current contact of this supplier who signs for it (M1).
   | "SIGNATORY_UNKNOWN"
+  /// `data.expiredOn`, `data.receivedOn`: the indent expired before the day it would be received (FR-AWD-006).
+  | "INDENT_EXPIRED"
   | "IC_FORMAT"
   /// `data.field`, `data.max`.
   | "PAGE_FIELD_TOO_LONG"
@@ -105,6 +109,7 @@ export function lodgeFaults(f: OnlineReturnFacts, i: { scans: readonly string[];
   if (!f.classSet) out.push(block("CLASS_NOT_SET"));
   if (f.today == null) out.push(block("NO_ZONE"));
   if (f.signingFault) out.push(block("NOT_SIGNING_AUTHORITY", { fault: f.signingFault }));
+  if (f.indentExpiredOn && f.today) out.push(block("INDENT_EXPIRED", { expiredOn: f.indentExpiredOn, receivedOn: f.today }));
   const wanted: readonly string[] = RETURN_SCANS[f.instrument];
   for (const s of wanted) if (!i.scans.includes(s)) out.push(block("SCAN_MISSING", { scan: s }));
   for (const s of i.scans) if (!wanted.includes(s)) out.push(block("SCAN_NOT_TAKEN", { scan: s }));

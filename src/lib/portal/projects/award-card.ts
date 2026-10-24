@@ -10,11 +10,14 @@ import { INSTRUMENT_LABEL, RETURN_SLOT_LABEL } from "@/lib/award/labels";
 import type { OnlineReturnState } from "@/lib/award/online-return";
 import { RETURN_SCANS } from "@/lib/award/stage-two";
 import type { InstrumentKind } from "@/lib/award/types";
+import { formatDate } from "@/lib/format";
 
 export type AcceptGate = "OPEN" | "PAPER" | "NOT_SIGNER";
 
 export const PAPER_LINE = "Return the signed documents on paper.";
 export const NOT_SIGNER_RULE = "Only someone who may sign for your company can accept the award. The office sets who.";
+/// FR-AWD-006: an expired indent is not accepted, online or on paper. The office's next step (a fresh indent) is its own, so the contractor is told only the fact.
+export const expiredLine = (day: string): string => `The indent expired on ${formatDate(day)}.`;
 export const ACCEPT_INFO = "Your signed scans are the record. Changes go through a variation, not here.";
 
 /// Why the contractor cannot accept online, if it cannot. The switch faults are the organisation's (nobody may), the other two are this contact's own mark.
@@ -65,7 +68,7 @@ export interface AwardCardView {
   refusedReason: string | null;
   /// Whether the Accept card is drawn at all.
   showAccept: boolean;
-  action: "ACCEPT" | "PAPER" | "NOT_SIGNER" | "NONE";
+  action: "ACCEPT" | "PAPER" | "NOT_SIGNER" | "EXPIRED" | "NONE";
   form: AcceptForm | null;
   /// Asking is open only while the award is issued (WV-7); answers are read in any status.
   mayAsk: boolean;
@@ -79,6 +82,8 @@ export interface AwardCardInput {
   issuedOn: string | null;
   commitment: { kind: string | null; number: string | null };
   validUntil: string | null;
+  /// A work indent whose validity has passed today (`indentState` EXPIRED). Its expiry day is `validUntil`.
+  indentExpired: boolean;
   state: OnlineReturnState;
   sentOn: string | null;
   acceptedOn: string | null;
@@ -97,8 +102,10 @@ export function awardCardView(i: AwardCardInput): AwardCardView | null {
   const showAccept = issued || i.state === "VERIFIED";
   if (!showAccept && i.queries.length === 0) return null;
   const open = issued && (i.state === "NONE" || i.state === "REFUSED");
-  const gate = open ? acceptGate(i.gate) : null;
-  const action = gate === "OPEN" ? "ACCEPT" : gate === "PAPER" ? "PAPER" : gate === "NOT_SIGNER" ? "NOT_SIGNER" : "NONE";
+  // FR-AWD-006: an expired indent is taken neither online nor on paper, so it comes before the gate.
+  const expired = open && i.instrument === "WORK_INDENT" && i.indentExpired;
+  const gate = open && !expired ? acceptGate(i.gate) : null;
+  const action = expired ? "EXPIRED" : gate === "OPEN" ? "ACCEPT" : gate === "PAPER" ? "PAPER" : gate === "NOT_SIGNER" ? "NOT_SIGNER" : "NONE";
   const form: AcceptForm | null =
     action === "ACCEPT"
       ? {

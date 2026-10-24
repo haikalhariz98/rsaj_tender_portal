@@ -7,6 +7,7 @@ import type { StaffActor, SupplierActor } from "@/lib/auth/types";
 import { caseVisibility } from "@/lib/contract/case-visibility";
 import { dayPlus, dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { documentOrg } from "@/lib/documents/service";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
 import { loadInboxPage } from "@/lib/inbox/store";
@@ -746,24 +747,62 @@ describe("the online return through the portal routes (wave V, V10)", () => {
     expect(await db.awardQuery.count({ where: { awardId: k.awardId } })).toBe(0);
   });
 
-  it("FR-AWD-006 finding: an indent whose 14-day validity has passed is still lodged, verified and accepted (no validity rule stops it)", async () => {
+  /// FR-AWD-006 (product owner ruling, 2026-10-24): an indent valid 14 days, received `receivedDaysAgo` days ago, with its commitment number.
+  async function withValidity(fn: () => Promise<void>) {
     const policy = await db.awardPolicy.findUnique({ where: { organisationId } });
     await db.awardPolicy.upsert({ where: { organisationId }, update: { indentValidityDays: 14 }, create: { organisationId, indentValidityDays: 14 } });
     try {
-      const c = await contractor();
-      const k = await issued(c.supplierId, { kind: "WORK_INDENT" });
-      await db.award.update({ where: { id: k.awardId }, data: { indentReceivedOn: D(dayPlus(today, -40)), erpCommitmentKind: "INDENT", erpCommitmentNo: "IN/EXPIRED/1" } });
-      // The product's own reading calls it expired before the contractor starts.
-      expect(indentState(dayPlus(today, -40), 14, today)).toMatchObject({ state: "EXPIRED" });
-      const lodged = await viaSubmit(c, k, await stageViaRoute(c, k, ["ACCEPTANCE_PAGE"]), { page: pageOf(c) });
-      expect(lodged.status, JSON.stringify(lodged.body)).toBe(201);
-      expect(await verify(lodged.body.onlineReturnId as string)).toMatchObject({ ok: true });
-      const award = await db.award.findUniqueOrThrow({ where: { id: k.awardId } });
-      expect(award.status).toBe("ACCEPTED");
-      // The staff screens still raise it (expired, not commenced, not cancelled): a warning, never a refusal.
-      expect(indentExpiryRaised(indentState(dayPlus(today, -40), 14, today), null, award.status)).toBe(true);
+      await fn();
     } finally {
       await db.awardPolicy.update({ where: { organisationId }, data: { indentValidityDays: policy?.indentValidityDays ?? null } });
     }
+  }
+  async function indentReceived(c: Holder, receivedDaysAgo: number) {
+    const k = await issued(c.supplierId, { kind: "WORK_INDENT" });
+    await db.award.update({ where: { id: k.awardId }, data: { indentReceivedOn: D(dayPlus(today, -receivedDaysAgo)), erpCommitmentKind: "INDENT", erpCommitmentNo: `IN/${randomId()}` } });
+    return k;
+  }
+
+  it("FR-AWD-006: an indent whose 14-day validity has passed is not lodged online (422, in the contractor's words), and nothing is written", async () => {
+    await withValidity(async () => {
+      const c = await contractor();
+      const k = await indentReceived(c, 40);
+      const expiredOn = dayPlus(today, -26);
+      expect(indentState(dayPlus(today, -40), 14, today)).toEqual({ state: "EXPIRED", expiresOn: expiredOn });
+      const lodged = await viaSubmit(c, k, await stageViaRoute(c, k, ["ACCEPTANCE_PAGE"]), { page: pageOf(c) });
+      expect([lodged.status, lodged.body.message]).toEqual([422, `The indent expired on ${formatDate(expiredOn)}; an acceptance received on ${formatDate(today)} is not taken.`]);
+      expect(await db.awardOnlineReturn.count({ where: { awardId: k.awardId } })).toBe(0);
+      expect((await db.award.findUniqueOrThrow({ where: { id: k.awardId } })).status).toBe("ISSUED");
+      // The staff screens still raise it until the award is cancelled.
+      expect(indentExpiryRaised(indentState(dayPlus(today, -40), 14, today), null, "ISSUED")).toBe(true);
+    });
+  });
+
+  it("FR-AWD-006: a paper return received after the indent expired is refused, in the office's words; one received inside the validity is taken", async () => {
+    await withValidity(async () => {
+      const c = await contractor();
+      const k = await indentReceived(c, 20);
+      const expiredOn = dayPlus(today, -6);
+      const late = await as(p.officer, () => recordReturn({ ok: false }, form({ id: k.awardId, signedLetterReceivedOn: dayPlus(today, -5) })));
+      expect(late).toEqual({ ok: false, message: `The indent expired on ${formatDate(expiredOn)}; an acceptance received on ${formatDate(dayPlus(today, -5))} is not taken. Cancel this award and raise a fresh indent.` });
+      expect((await db.awardReturn.findUniqueOrThrow({ where: { id: k.returnId } })).signedLetterReceivedOn).toBeNull();
+      // Received on the expiry day itself: inside the validity, taken.
+      expect(await as(p.officer, () => recordReturn({ ok: false }, form({ id: k.awardId, signedLetterReceivedOn: expiredOn })))).toMatchObject({ ok: true });
+      expect(storedDay((await db.awardReturn.findUniqueOrThrow({ where: { id: k.returnId } })).signedLetterReceivedOn!)).toBe(expiredOn);
+    });
+  });
+
+  it("FR-AWD-006: lodged inside the validity and verified after it has expired, the award is accepted (judged on the day lodged, WV-3)", async () => {
+    await withValidity(async () => {
+      const c = await contractor();
+      const k = await indentReceived(c, 18);
+      // Lodged five days ago, the indent's expiry was then four days ahead; verified today, it has expired.
+      const { onlineReturnId } = await lodge(c, k, { kind: "WORK_INDENT", now: at(-5) });
+      expect(indentState(dayPlus(today, -18), 14, today).state).toBe("EXPIRED");
+      expect(await verify(onlineReturnId)).toMatchObject({ ok: true });
+      const award = await db.award.findUniqueOrThrow({ where: { id: k.awardId }, include: { awardReturn: true } });
+      expect(award.status).toBe("ACCEPTED");
+      expect(storedDay(award.awardReturn!.signedLetterReceivedOn!)).toBe(dayPlus(today, -5));
+    });
   });
 });

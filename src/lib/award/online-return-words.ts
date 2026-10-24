@@ -6,6 +6,7 @@
 import { projectFaultText } from "@/lib/portal/projects/words";
 import type { ProjectFault } from "@/lib/portal/projects/types";
 
+import { indentLateWords } from "./indent";
 import { RETURN_SLOT_LABEL } from "./labels";
 import type { DecideFault, OnlineReturnFault, QueryFault, StagedReturnFault } from "./online-return";
 import type { Finding } from "./types";
@@ -29,6 +30,7 @@ const TEXT: Readonly<Record<AwardReturnFault, (d: Data) => string>> = {
   SCAN_MISSING: (d) => `${slot(d)}: attach its signed scan.`,
   SCAN_NOT_TAKEN: () => "A file was sent that this award does not take.",
   PAGE_NOT_TAKEN: () => "A Letter of Acceptance has no acceptance page to type.",
+  INDENT_EXPIRED: (d) => indentLateWords(s(d, "expiredOn"), s(d, "receivedOn"), false),
   SIGNATORY_UNKNOWN: () => "Choose the signatory from your company's contacts who sign for it.",
   IC_FORMAT: () => "An identity card number is twelve digits, with or without the hyphens: 900101-14-5678.",
   PAGE_FIELD_TOO_LONG: (d) => `${FIELD[s(d, "field")] ?? "A field"} is longer than ${s(d, "max")} characters.`,

@@ -5,7 +5,7 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { RuleInfo } from "@/components/ui/rule-info";
 import { KeyValues } from "@/components/ui/stat";
 import { formatDate } from "@/lib/format";
-import { NOT_SIGNER_RULE, PAPER_LINE, type AwardCardView } from "@/lib/portal/projects/award-card";
+import { expiredLine, NOT_SIGNER_RULE, PAPER_LINE, type AwardCardView } from "@/lib/portal/projects/award-card";
 
 import { AcceptDrawer, AskQuestionDrawer } from "./award-return-drawer";
 import { SENDING_CLOSED } from "./document-words";
@@ -50,6 +50,7 @@ export function AwardReturnCard({ view, token }: { view: AwardCardView; token: s
           </Callout>
         )}
         {view.action === "PAPER" && <p className="text-[14px] text-ink">{PAPER_LINE}</p>}
+        {view.action === "EXPIRED" && view.validUntil && <p className="text-[14px] text-ink">{expiredLine(view.validUntil)}</p>}
       </CardBody>
     </Card>
   );

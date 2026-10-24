@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { acceptGate, awardCardView, commitmentLine, toAccept, type AwardCardInput } from "./award-card";
+import { acceptGate, awardCardView, commitmentLine, expiredLine, toAccept, type AwardCardInput } from "./award-card";
 
 const open = { classSet: true, today: "2026-10-24", paperStarted: false, signingFault: null as string | null };
 const input = (o: Partial<AwardCardInput> = {}): AwardCardInput => ({
@@ -10,6 +10,7 @@ const input = (o: Partial<AwardCardInput> = {}): AwardCardInput => ({
   issuedOn: "2026-10-20",
   commitment: { kind: null, number: null },
   validUntil: null,
+  indentExpired: false,
   state: "NONE",
   sentOn: null,
   acceptedOn: null,
@@ -78,6 +79,15 @@ describe("the card's view", () => {
   it("a waiting or accepted return offers nothing", () => {
     expect(awardCardView(input({ state: "WAITING", sentOn: "2026-10-22" }))).toMatchObject({ action: "NONE", form: null, sentOn: "2026-10-22" });
     expect(awardCardView(input({ awardStatus: "ACCEPTED", state: "VERIFIED", acceptedOn: "2026-10-23" }))).toMatchObject({ action: "NONE", showAccept: true, title: "Award accepted", mayAsk: false });
+  });
+
+  it("an expired indent offers no Accept, online or on paper, and says when it expired (FR-AWD-006)", () => {
+    const v = awardCardView(input({ validUntil: "2026-10-20", indentExpired: true }))!;
+    expect(v).toMatchObject({ action: "EXPIRED", form: null, validUntil: "2026-10-20" });
+    expect(expiredLine(v.validUntil!)).toBe("The indent expired on 20 Oct 2026.");
+    expect(awardCardView(input({ validUntil: "2026-10-20", indentExpired: true, gate: { ...open, classSet: false } }))).toMatchObject({ action: "EXPIRED" });
+    // A return already waiting or accepted is not undone by the indent's expiry.
+    expect(awardCardView(input({ indentExpired: true, state: "WAITING", sentOn: "2026-10-19" }))).toMatchObject({ action: "NONE" });
   });
 
   it("paper and not-a-signer draw no form", () => {
