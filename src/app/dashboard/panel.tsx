@@ -4,7 +4,7 @@ import { ChartIcon } from "@/components/icons";
 import { BarList, MonthColumns, TrendLine } from "@/components/ui/chart";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Option, Select } from "@/components/ui/field";
+import { Select } from "@/components/ui/field";
 import { Stat } from "@/components/ui/stat";
 import { insightsHref, type InsightsQuery } from "@/lib/insights/query";
 
@@ -77,21 +77,21 @@ export function Filters({ q, years, units, extra }: { q: InsightsQuery; years: C
       ) : (
         <Select variant="chip" searchable={false} name="year" aria-label="Financial year" defaultValue={q.year == null ? "" : String(q.year)}>
           {years.map((y) => (
-            <Option key={y.value} value={y.value}>{y.label}</Option>
+            <option key={y.value} value={y.value}>{y.label}</option>
           ))}
         </Select>
       )}
       <Select variant="chip" name="unit" aria-label="Department" defaultValue={q.unit ?? ""}>
-        <Option value="">All departments</Option>
+        <option value="">All departments</option>
         {units.map((u) => (
-          <Option key={u.value} value={u.value}>{u.label}</Option>
+          <option key={u.value} value={u.value}>{u.label}</option>
         ))}
       </Select>
       {extra && (
         <Select variant="chip" name={extra.name} aria-label={extra.label} defaultValue={extra.value ?? ""}>
-          <Option value="">{extra.all}</Option>
+          <option value="">{extra.all}</option>
           {extra.choices.map((c) => (
-            <Option key={c.value} value={c.value}>{c.label}</Option>
+            <option key={c.value} value={c.value}>{c.label}</option>
           ))}
         </Select>
       )}

@@ -64,7 +64,7 @@ export async function insightsContext(client: Tx, reader: InsightsReader, asOf: 
   const [org, periods, units, routes, methods, hidden] = await Promise.all([
     client.organisation.findUnique({ where: { id: organisationId }, select: { timeZone: true } }),
     client.budgetPeriod.findMany({ where: { organisationId }, orderBy: [{ year: "asc" }, { sortOrder: "asc" }] }),
-    client.orgUnit.findMany({ where: { organisationId }, select: { code: true, nameEn: true, kind: true } }),
+    client.orgUnit.findMany({ where: { organisationId }, select: { code: true, nameEn: true, kind: true, effectiveFrom: true }, orderBy: { effectiveFrom: "asc" } }),
     client.fundingRoute.findMany({ where: { organisationId }, select: { code: true, nameEn: true } }),
     client.sourcingMethod.findMany({ where: { organisationId }, select: { code: true, nameEn: true } }),
     hiddenExerciseIds(client, reader),

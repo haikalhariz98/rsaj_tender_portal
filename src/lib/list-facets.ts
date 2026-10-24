@@ -26,13 +26,12 @@ export interface FacetChoices {
 /// The organisation's own department units (the dashboard's list), funding routes and sourcing methods, for the dropdowns.
 export async function facetChoices(client: Tx, organisationId: string): Promise<FacetChoices> {
   const [units, routes, methods] = await Promise.all([
-    client.orgUnit.findMany({ where: { organisationId }, select: { code: true, nameEn: true, kind: true }, orderBy: { nameEn: "asc" } }),
+    client.orgUnit.findMany({ where: { organisationId }, select: { code: true, nameEn: true, kind: true, effectiveFrom: true }, orderBy: { nameEn: "asc" } }),
     client.fundingRoute.findMany({ where: { organisationId }, select: { code: true, nameEn: true }, orderBy: { nameEn: "asc" } }),
     client.sourcingMethod.findMany({ where: { organisationId }, select: { code: true, nameEn: true }, orderBy: { nameEn: "asc" } }),
   ]);
-  const seen = new Set<string>();
   return {
-    units: departmentUnits(units).flatMap((u) => (seen.has(u.code) ? [] : (seen.add(u.code), [{ code: u.code, label: u.nameEn }]))),
+    units: departmentUnits(units).map((u) => ({ code: u.code, label: u.nameEn })),
     routes: routes.map((r) => ({ code: r.code, label: r.nameEn })),
     methods: methods.map((m) => ({ code: m.code, label: m.nameEn })),
   };

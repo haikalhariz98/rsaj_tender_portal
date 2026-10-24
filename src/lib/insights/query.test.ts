@@ -42,14 +42,23 @@ describe("the Dashboard's address", () => {
 });
 
 describe("the Department filter (DB-10)", () => {
+  const from = new Date("2024-01-01");
   const units = [
-    { code: "WS", kind: "DEPARTMENT" },
-    { code: "WS-NET", kind: "SECTION" },
-    { code: "OPS", kind: "DIVISION" },
-    { code: "FIN", kind: "DEPARTMENT" },
+    { code: "WS", kind: "DEPARTMENT", effectiveFrom: from },
+    { code: "WS-NET", kind: "SECTION", effectiveFrom: from },
+    { code: "OPS", kind: "DIVISION", effectiveFrom: from },
+    { code: "FIN", kind: "DEPARTMENT", effectiveFrom: from },
   ];
   it("offers the Department units only, flat", () => {
     expect(departmentUnits(units).map((u) => u.code)).toEqual(["WS", "FIN"]);
+  });
+  it("offers a versioned unit once, as its latest version", () => {
+    const renamed = [
+      { code: "NTH", kind: "DEPARTMENT", nameEn: "Northern Region", effectiveFrom: new Date("2026-07-01") },
+      { code: "NTH", kind: "DEPARTMENT", nameEn: "North Region", effectiveFrom: new Date("2024-01-01") },
+      { code: "CP", kind: "DEPARTMENT", nameEn: "Contract & Procurement", effectiveFrom: from },
+    ];
+    expect(departmentUnits(renamed).map((u) => `${u.code} ${u.nameEn}`)).toEqual(["NTH Northern Region", "CP Contract & Procurement"]);
   });
   it("budget codes and requisitions draw from the same unit list", () => {
     const list = departmentUnits(units).map((u) => u.code);

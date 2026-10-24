@@ -75,6 +75,13 @@ for (const file of MIGRATED.flatMap(files).filter((f) => /\.tsx?$/.test(f))) {
       if (/<details\b/.test(line)) problems.push(`${file}:${i + 1}  raw <details> — use Disclosure or CardHeader collapsible (src/components/ui)`);
     });
   }
+  // The shared Select reads its options from its children on the client. A server component's <Option> reaches it as a client
+  // reference it cannot read, so the dropdown opens empty ("Nothing to choose yet"): a server component writes <option>.
+  if (/\.tsx$/.test(file) && !/^\s*["']use client["']/.test(source)) {
+    lines.forEach((line, i) => {
+      if (/<Option\b/.test(line)) problems.push(`${file}:${i + 1}  <Option> in a server component reaches Select empty — write <option>`);
+    });
+  }
   lines.forEach((line, i) => {
     for (const cls of FORBIDDEN) {
       if (new RegExp(`className=[{"'\`][^>]*\\b${cls}(__|--|\\b)`).test(line)) {

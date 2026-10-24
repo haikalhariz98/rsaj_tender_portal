@@ -79,9 +79,17 @@ export function insightsHref(q: Partial<InsightsQuery> & { tab: InsightsTab }): 
  * offers them for "Requesting department". The requisitions' filter (`requestingUnitCode`) and the budget codes' filter
  * (`owningUnitCode`) take a code from this same list. Flat, with no roll-up: a budget code owned by a section or a division is
  * reached by no Department filter (note 0007 §4, the known gap). Pass every unit, retired ones included, for a past year's records.
+ * A unit is versioned (one row per `effectiveFrom`), so a code is offered once, as its latest version: two rows of one code drew a
+ * dropdown with the department twice.
  */
-export function departmentUnits<U extends { kind: string }>(units: readonly U[]): U[] {
-  return units.filter((u) => u.kind === "DEPARTMENT");
+export function departmentUnits<U extends { kind: string; code: string; effectiveFrom: Date }>(units: readonly U[]): U[] {
+  const latest = new Map<string, U>();
+  for (const u of units) {
+    if (u.kind !== "DEPARTMENT") continue;
+    const held = latest.get(u.code);
+    if (!held || u.effectiveFrom > held.effectiveFrom) latest.set(u.code, u);
+  }
+  return units.filter((u) => latest.get(u.code) === u);
 }
 
 /**
