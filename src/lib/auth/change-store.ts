@@ -166,7 +166,8 @@ const NO_REQUEST: RequestFacts = { sourceAddress: null, userAgent: "" };
 export async function proposeChange(
   actor: StaffActor,
   act: ChangeAct,
-  input: { kind: ChangeKind; payload: unknown; reason: string },
+  /// `passwordConfirmed`: the caller has just checked the proposer's password. A save that applies at once is a decision made alone, so it carries the step-up a decision does (step 4.8 M2).
+  input: { kind: ChangeKind; payload: unknown; reason: string; passwordConfirmed?: boolean },
   now: Date = new Date(),
   request: RequestFacts = NO_REQUEST,
 ): Promise<ProposeOutcome> {
@@ -197,6 +198,7 @@ export async function proposeChange(
     // Switch off (ADR 0043 D3): the person's save applies at once, by the same function a decision uses, with no change row (that table holds only two-person decisions).
     // The audit rows say it was one person. Read under the organisation's lock, so a switch turned on in the meantime is seen.
     if (appliesAtOnce(input.kind, await twoPersonOn(tx, actor.organisationId))) {
+      if (!input.passwordConfirmed) return refuse([f("PASSWORD_REQUIRED", "Enter your password to save this change.")]);
       const lines = describeChange(input.kind, change.payload, snapshot(change, live), names).lines;
       const applied = await applyChange(tx, actor, null, change, lines, reason, target, names, request, now, true);
       if (!applied.ok) return applied;

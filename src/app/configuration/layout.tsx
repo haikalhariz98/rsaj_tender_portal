@@ -1,4 +1,5 @@
 import { requireStaff } from "@/app/_auth/actor";
+import { AtOnceProvider } from "@/components/auth/actor-context";
 import { MayDraft } from "@/components/setup/may-draft";
 import { ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,10 +23,12 @@ export default async function ConfigurationLayout({ children }: LayoutProps<"/co
   const readable = editKindsReadBy(actor.permissions);
   const waiting = readable.length > 0 ? await db.configurationChange.count({ where: { organisationId: actor.organisationId, status: "PROPOSED", kind: { in: readable } } }) : 0;
   // While the switch is off, those who may put changes in force are told, quietly (ADR 0043 D3).
-  const switchOff = actor.permissions.has("configuration.issue") && !(await twoPersonOn(db, actor.organisationId));
+  const atOnce = !(await twoPersonOn(db, actor.organisationId));
+  const switchOff = actor.permissions.has("configuration.issue") && atOnce;
   // Those who decide queued changes (configuration.issue) keep their buttons too; only a viewer who can neither draft nor decide loses Edit.
   const mayDraft = actor.isAdministrator || actor.permissions.has("configuration.draft") || actor.permissions.has("configuration.issue");
   return (
+    <AtOnceProvider atOnce={atOnce}>
     <MayDraft allowed={mayDraft}>
       <div className="min-w-0">
         {switchOff && <div className="mb-3"><Badge tone="neutral">Approval by another admin: off</Badge></div>}
@@ -40,5 +43,6 @@ export default async function ConfigurationLayout({ children }: LayoutProps<"/co
         {children}
       </div>
     </MayDraft>
+    </AtOnceProvider>
   );
 }

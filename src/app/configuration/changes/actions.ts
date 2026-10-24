@@ -4,15 +4,18 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
-import { requireStaff, staffForPermission } from "@/app/_auth/actor";
+import { requireStaff, staffForPermission, stepUp } from "@/app/_auth/actor";
 import { currentRequestFacts, refuseForeignPost } from "@/app/_auth/cookies";
 import { editRegistry } from "@/app/_auth/stage";
+import { actFieldNames } from "@/lib/auth/act-field-names";
 import { decideChange, proposeChange, type ChangeFaults } from "@/lib/auth/change-store";
 import { decisionFaults, KIND_PERMISSION, type ChangeKind } from "@/lib/auth/configuration-change";
 import { isEditKind, parseEditPayload, unresolvedEditRule } from "@/lib/auth/configuration-edit";
 import { decideEdit, editDecisionFaults } from "@/lib/auth/edit-store";
 import { permissionHeldThrough } from "@/lib/auth/permission-store";
 import { SETTING_LABELS } from "@/lib/auth/policy";
+import { twoPersonOn } from "@/lib/auth/policy-store";
+import { appliesAtOnce } from "@/lib/auth/two-person";
 import type { SecurityPolicyKey, StaffActor } from "@/lib/auth/types";
 import { AUTH_WORDS } from "@/lib/auth/words";
 import { db } from "@/lib/db";
@@ -50,8 +53,17 @@ async function propose(actor: StaffActor, data: FormData, kind: ChangeKind, payl
   const begun = await beginAct(actor, data, "ConfigurationChange.proposedBy", { personField: "personId" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
+  // A save that applies at once (the switch is off) is a decision made alone, so it asks the password a decision does, before the transaction (step 4.8 M2). The store
+  // refuses an at-once save that was not confirmed, so a switch turned off in between fails closed.
+  let passwordConfirmed = false;
+  if (appliesAtOnce(kind, await twoPersonOn(db, actor.organisationId))) {
+    const password = actFieldNames("personId").password;
+    const checked = await stepUp(actor, String(data.get(password) ?? ""));
+    if (!checked.ok) return { ok: false, errors: { [password]: checked.message } };
+    passwordConfirmed = true;
+  }
   try {
-    const outcome = await proposeChange(actor, act, { kind, payload, reason: String(data.get("reason") ?? "") }, new Date(), await currentRequestFacts());
+    const outcome = await proposeChange(actor, act, { kind, payload, reason: String(data.get("reason") ?? ""), passwordConfirmed }, new Date(), await currentRequestFacts());
     if (!outcome.ok) return stateOf(outcome, fieldMap);
     refresh();
     // A code made at once (the two-person switch is off) is said here, once, to the person who asked, and kept nowhere.

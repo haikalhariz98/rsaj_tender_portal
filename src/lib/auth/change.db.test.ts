@@ -72,8 +72,8 @@ async function actFor(who: Who, key: "ConfigurationChange.proposedBy" | "Configu
   return begun.act;
 }
 
-async function propose(who: Who, kind: ChangeKind, payload: unknown, reason = "A reason it is proposed") {
-  return proposeChange(who.actor, await actFor(who, "ConfigurationChange.proposedBy"), { kind, payload, reason });
+async function propose(who: Who, kind: ChangeKind, payload: unknown, reason = "A reason it is proposed", passwordConfirmed = true) {
+  return proposeChange(who.actor, await actFor(who, "ConfigurationChange.proposedBy"), { kind, payload, reason, passwordConfirmed });
 }
 async function decide(who: Who, changeId: string, decision: "APPLY" | "DECLINE" | "WITHDRAW", reason = "", password?: string) {
   return decideChange(who.actor, await actFor(who, "ConfigurationChange.decidedBy", changeId, password), { changeId, decision, reason }, facts());
@@ -646,6 +646,22 @@ describe("with the two-person switch off (ADR 0043 D3)", () => {
     expect(audit).toHaveLength(1);
     expect(audit[0].reason).toContain(ONE_PERSON_REASON);
     expect(audit[0].reason).toContain("A reason it is proposed");
+  });
+
+  it("refuses an at-once save whose password was not confirmed, for every covered kind, and changes nothing (step 4.8 M2)", async () => {
+    const a = await administrator();
+    const target = await signedIn();
+    const holder = await signedIn();
+    await db.roleAssignment.create({ data: { personId: holder.person.id, roleCode: "TEST_OFFICE", effectiveFrom: new Date("2020-01-01") } });
+    const attempts: [ChangeKind, unknown][] = [
+      ["SECURITY_POLICY", { changes: { staffIdleMinutes: 20 } }],
+      ["ADMINISTRATOR_GRANT", { accountId: target.account.id }],
+      ["ACCOUNT_CODE", { accountId: holder.account.id, purpose: "RESET" }],
+    ];
+    for (const [kind, payload] of attempts) expect(await propose(a, kind, payload, "A reason it is proposed", false), kind).toMatchObject({ ok: false, faults: [{ code: "PASSWORD_REQUIRED" }] });
+    expect(await idle()).toBe(30);
+    expect(await db.staffAccount.findUniqueOrThrow({ where: { id: target.account.id } })).toMatchObject({ isAdministrator: false });
+    expect(await db.oneTimeCode.count({ where: { staffAccountId: holder.account.id } })).toBe(0);
   });
 
   it("still refuses what the rules refuse, and a blank reason, and writes nothing", async () => {

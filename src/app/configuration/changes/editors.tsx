@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
+import { useAtOnce } from "@/components/auth/actor-context";
 import { ActAttributionFields } from "@/components/act-attribution-fields";
 import { CodeDialog } from "@/components/auth/code-dialog";
 import { EMPTY_FORM_STATE, RecordEditor, type Field } from "@/components/record-editor";
@@ -32,6 +33,8 @@ import {
 
 const WHY_PROPOSED: Field = { kind: "textarea", name: "reason", label: "Why is it proposed?", required: true, hint: "Kept with the change, shown to the decider." };
 const PROPOSER: Field = actorField("ConfigurationChange.proposedBy", { name: "personId" });
+/// Saved at once (the switch is off), the proposer's field asks the password a decision asks (step 4.8 M2).
+const proposerField = (atOnce: boolean): Field => (atOnce ? { ...PROPOSER, signature: true } : PROPOSER);
 const DECIDED_BY = actorField("ConfigurationChange.decidedBy", { name: "personId" });
 const DECIDER: Field = DECIDED_BY;
 
@@ -70,6 +73,7 @@ export function ProposeSetting({
   /// The organisation's two-person switch is off: the save applies at once.
   atOnce?: boolean;
 }) {
+  atOnce = useAtOnce() || atOnce;
   return (
     <RecordEditor
       title={atOnce ? `Change: ${label}` : `Propose a change to: ${label}`}
@@ -80,7 +84,7 @@ export function ProposeSetting({
           ? { kind: "select", name: "value", label: "Change it to", required: true, placeholder: "Choose", options: choices }
           : { kind: "number", name: "value", label: "Change it to", required: true, min: 0 },
         WHY_PROPOSED,
-        PROPOSER,
+        proposerField(!!atOnce),
       ]}
       values={{ setting }}
       action={proposeSecurityPolicy}
@@ -107,6 +111,7 @@ export function ProposePermission({
   current: string;
   trigger: { label: string; className?: string; ariaLabel?: string };
 }) {
+  const atOnce = useAtOnce();
   return (
     <RecordEditor
       title={`${permissionLabel}: ${roleName}`}
@@ -127,7 +132,7 @@ export function ProposePermission({
           ],
         },
         WHY_PROPOSED,
-        PROPOSER,
+        proposerField(atOnce),
       ]}
       values={{ permissionKey, roleCode }}
       action={proposePermissionGrant}
@@ -140,6 +145,7 @@ export function ProposePermission({
 
 export function ProposeAdministrator({ accountId, name, direction }: { accountId: string; name: string; direction: "GRANT" | "REVOKE" }) {
   const grant = direction === "GRANT";
+  const atOnce = useAtOnce();
   return (
     <RecordEditor
       title={grant ? `Propose making ${name} an administrator` : `Propose taking administration from ${name}`}
@@ -148,7 +154,7 @@ export function ProposeAdministrator({ accountId, name, direction }: { accountId
           ? "A second administrator decides it. Their sessions end when applied."
           : "A second administrator decides it. The only active administrator cannot be removed."
       }
-      fields={[{ kind: "hidden", name: "accountId" }, { kind: "hidden", name: "direction" }, WHY_PROPOSED, PROPOSER]}
+      fields={[{ kind: "hidden", name: "accountId" }, { kind: "hidden", name: "direction" }, WHY_PROPOSED, proposerField(atOnce)]}
       values={{ accountId, direction }}
       action={proposeAdministratorChange}
       submitLabel="Propose the change"
@@ -160,6 +166,7 @@ export function ProposeAdministrator({ accountId, name, direction }: { accountId
 
 export function ProposeAccountCode({ accountId, name, purpose, notice }: { accountId: string; name: string; purpose: "ACTIVATION" | "RESET"; notice: string | null }) {
   const activation = purpose === "ACTIVATION";
+  const atOnce = useAtOnce();
   return (
     <RecordEditor
       title={`Propose ${activation ? "an activation" : "a reset"} code for ${name}`}
@@ -168,7 +175,7 @@ export function ProposeAccountCode({ accountId, name, purpose, notice }: { accou
         { kind: "hidden", name: "accountId" },
         { kind: "hidden", name: "purpose" },
         { kind: "textarea", name: "reason", label: "How was their identity checked, and why is it needed?", required: true },
-        PROPOSER,
+        proposerField(atOnce),
       ]}
       values={{ accountId, purpose }}
       action={proposeAccountCode}
