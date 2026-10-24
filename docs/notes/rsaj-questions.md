@@ -37,6 +37,11 @@ Open questions the product cannot answer from RSAJ's documents. Each one is load
 - **15. Direct appointments.** Confirm no quotation pack is needed.
 - **17. Missing document.** Please supply "Syarat-syarat Sebutharga Untuk Kerja" (conditions of quotation; FR-DOC-013 note).
 - **18. Bank list.** The supplier bank list (conventional and Islamic) was entered without access to Bank Negara Malaysia's published list; confirm or supply the list RSAJ accepts.
-- **22. Numbering.** What JB, MR and IP stand for; what RSAJ/KP/ST numbers; the addendum or corrigendum format (FR-ADV-014).
+- **22. Numbering.** What JB, MR and IP stand for; the addendum or corrigendum format (FR-ADV-014). Is the tender number padded NN (the answer) or NNN (spec §9.5)? Is the quotation number the contract number of every quotation contract, or only Schedule of Rates ones (FR-FIN-012 says the indent number)? (RSAJ/KP/ST numbers direct appointments, FR-MTD-009.)
 - **25. Contract number restart.** Numbers restart "in the year the contract starts"; the product restarts by the calendar year the number is allocated. Acceptable?
 - **27. Committed budget and SULIT.** A budget code with a single commitment shows that requisition's estimate as its committed figure. Is a committed figure SULIT, and who may see it?
+- **28. Appointment letters.** What marks a job as IT & QA, and which methods are "One Shot"? Please supply the six letter templates.
+- **29. Consultancy.** Is consultancy its own contract type (RSAJ/KP/P series)?
+- **30. Variation Orders Committee.** Does SK006's VOC rule cover quotation contracts too?
+- **31. Schedule of Rates call-off.** How is a call-off approved?
+- **32. SK004.** Please supply SK004 (contract document parts, §7.3.1) to the developer.
