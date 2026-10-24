@@ -43,7 +43,7 @@ export function EditWindowPolicy({ values, channels, calendars, templates }: { v
         { kind: "number", name: "purchaseCutoffDays", label: RULE_LABEL.purchaseCutoff, min: 0, hint: "Exactly this many passes." },
         provenance("dateRulesProvenance", "Where the date rules come from"),
         { kind: "text", name: "dateRuleSource", label: "The source the date rules cite", hint: "Quoted in refusals. Empty cites none." },
-        { kind: "text", name: "defaultClosingTime", label: "Default closing time", placeholder: "14:30", hint: "24-hour. Another time needs a reason." },
+        { kind: "time", name: "defaultClosingTime", label: "Default closing time", hint: "Another time needs a reason." },
         provenance("closingTimeProvenance", "Where the closing time comes from"),
         { kind: "select", name: "advertisementDayRule", label: "Which publication day is the advertisement day", placeholder: "Not set", options: [{ value: "LATEST_REQUIRED_CHANNEL", label: "The latest day among the required channels" }, { value: "NAMED_CHANNEL", label: "The day of one named channel" }] },
         { kind: "select", name: "advertisementChannelId", label: "The named channel", placeholder: "None", options: channels, hint: "Only for one named, required channel." },

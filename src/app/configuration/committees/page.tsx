@@ -42,6 +42,8 @@ export default async function CommitteesPage() {
     loadRoster(actor.organisationCode),
   ]);
   const offices = roster.offices.filter((o) => !o.isCommittee).map((o) => ({ code: o.code, nameEn: o.nameEn }));
+  const taken = new Set(committees.map((c) => c.code));
+  const candidates = roster.offices.filter((o) => o.isCommittee && !taken.has(o.code)).map((o) => ({ code: o.code, nameEn: o.nameEn }));
   const now = new Date();
   const liveOutcomes = outcomes.filter((o) => o.retiredOn == null || o.retiredOn > now).length;
   const committeeOptions = committees.map((c) => ({ id: c.id, nameEn: c.nameEn }));
@@ -51,7 +53,7 @@ export default async function CommitteesPage() {
       <PageHeader
         title="Committees"
         info={{ title: "Committees", text: "Who sits, how many make a quorum, and the decisions each committee may take." }}
-        actions={<AddCommittee offices={offices} />}
+        actions={<AddCommittee offices={offices} candidates={candidates} />}
       />
 
       <Card className="mb-6 overflow-hidden">

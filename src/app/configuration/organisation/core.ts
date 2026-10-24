@@ -43,6 +43,18 @@ type Kind = (typeof KINDS)[number];
  * moment somebody edited a department — silently, because nothing on a nullable
  * column complains. Only what the form posted is written.
  */
+/// The financial year's turning day, chosen as a month and a day and kept as MM-DD. Both or neither.
+function fyStart(r: FormReader): string | null {
+  const month = r.optionalText("fyMonth");
+  const day = r.optionalText("fyDay");
+  if (!month && !day) return null;
+  if (!month || !day) {
+    r.reject("fyDay", "Choose both the month and the day.");
+    return null;
+  }
+  return `${month}-${day}`;
+}
+
 export async function saveOrgUnit(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const orgId = await organisationId(actor);
@@ -104,7 +116,7 @@ export async function saveOrgUnit(_prev: FormState, data: FormData): Promise<For
         registrationNumber: r.optionalText("registrationNumber"),
         taxReference: r.optionalText("taxReference"),
         telephone: r.optionalText("telephone"),
-        financialYearStart: r.optionalText("financialYearStart"),
+        financialYearStart: data.has("fyMonth") ? fyStart(r) : r.optionalText("financialYearStart"),
         address: r.optionalText("address") ?? "",
         operatingLicence: r.optionalText("operatingLicence"),
       }

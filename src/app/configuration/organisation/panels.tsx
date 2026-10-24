@@ -58,6 +58,8 @@ type Person = { id: string; name: string; isActive: boolean };
 
 export interface OrganisationPanelData {
   details: Details;
+  /// The names on the supplier register's state and country lists, for the address; empty where a list is not set up.
+  places: { states: string[]; countries: string[] };
   logo: LogoInfo | null;
   signInImage: SignInImageInfo | null;
   signInDarkLogo: SignInDarkLogoInfo | null;
@@ -137,7 +139,7 @@ function DetailsView(data: OrganisationPanelData) {
   return (
     <div className="flex flex-col gap-5">
       <Card>
-        <CardHeader title="Organisation details" subtitle="On reports and letters" actions={<EditDetails details={details} />} />
+        <CardHeader title="Organisation details" subtitle="On reports and letters" actions={<EditDetails details={details} places={data.places} />} />
         <CardBody>
           <KeyValues
             columns={2}

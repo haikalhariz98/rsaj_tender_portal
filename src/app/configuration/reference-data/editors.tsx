@@ -49,6 +49,10 @@ const PROVENANCE_FIELD: Field = {
   ],
 };
 
+/// The lists a method or contract type picks from: committees and numbering series, by name.
+export type Choices = { committees: { value: string; label: string }[]; series: { value: string; label: string }[] };
+const NO_CHOICES: Choices = { committees: [], series: [] };
+
 const codeField = (hint: string): Field => ({
   kind: "text",
   name: "code",
@@ -143,7 +147,7 @@ function fundingFields(editing: boolean): Field[] {
   ];
 }
 
-function methodFields(editing: boolean): Field[] {
+function methodFields(editing: boolean, choices: Choices): Field[] {
   return [
     ...(editing ? [] : [codeField("Used internally. Never shown on a screen.")]),
     { kind: "text", name: "nameEn", label: "Name", required: true },
@@ -164,13 +168,14 @@ function methodFields(editing: boolean): Field[] {
       hint: "Off where the method has no bids.",
     },
     { kind: "text", name: "awardInstrument", label: "Awarded by" },
-    { kind: "text", name: "committeeCode", label: "Committee code", mono: true },
+    { kind: "select", name: "committeeCode", label: "Committee", placeholder: "None", options: choices.committees, orphanLabel: "A committee no longer configured" },
     {
       kind: "text",
       name: "authorityMethodKey",
       label: "Approval matrix method key",
       mono: true,
-      hint: "Binds the method to approval rows by key.",
+      placeholder: "e.g. open_tender",
+      hint: "Lowercase, numbers, underscores. Approval rows match on it.",
     },
     {
       kind: "note",
@@ -185,7 +190,7 @@ function methodFields(editing: boolean): Field[] {
     { kind: "switch", name: "requiresNameApproval", label: "Needs the name approved" },
     { kind: "switch", name: "restrictedAccess", label: "Restricted to named participants", hint: "Hidden from all but the people named." },
     { kind: "switch", name: "requiresDossier", label: "Keeps a justification dossier with a reason code" },
-    { kind: "text", name: "dossierSeriesKey", label: "Dossier numbering series key", mono: true, hint: "The series dossier references use." },
+    { kind: "select", name: "dossierSeriesKey", label: "Dossier numbering series", placeholder: "Not set", options: choices.series, orphanLabel: "A series no longer configured", hint: "The series dossier references use." },
     { kind: "switch", name: "requiresCoordinationRecord", label: "Needs an emergency coordination record" },
     { kind: "text", name: "governingSource", label: "Source document" },
     PROVENANCE_FIELD,
@@ -200,7 +205,7 @@ const KIND_OPTIONS = [
   { value: "TERM_PERFORMANCE", label: "Performance over a term" },
 ];
 
-function contractFields(editing: boolean): Field[] {
+function contractFields(editing: boolean, choices: Choices): Field[] {
   return [
     ...(editing ? [] : [codeField("Used internally. Never shown on a screen.")]),
     { kind: "text", name: "nameEn", label: "Name", required: true },
@@ -214,10 +219,12 @@ function contractFields(editing: boolean): Field[] {
       hint: "Default type for this deliverable's exercises.",
     },
     {
-      kind: "text",
+      kind: "select",
       name: "contractSeriesKey",
-      label: "Contract numbering series key",
-      mono: true,
+      label: "Contract numbering series",
+      placeholder: "Not set",
+      options: choices.series,
+      orphanLabel: "A series no longer configured",
       hint: "Numbering series for this type's contracts.",
     },
     { kind: "text", name: "governingSource", label: "Source document" },
@@ -273,12 +280,12 @@ export function EditFundingRoute({ route, id }: { route: FundingRoute; id: strin
   );
 }
 
-export function AddSourcingMethod() {
+export function AddSourcingMethod({ choices = NO_CHOICES }: { choices?: Choices }) {
   return (
     <RecordEditor
       title="Add a sourcing method"
       description="How suppliers are approached, and what that decides downstream."
-      fields={methodFields(false)}
+      fields={methodFields(false, choices)}
       action={saveSourcingMethod}
       submitLabel="Add method"
       trigger={{ label: "Add method", icon: true }}
@@ -287,11 +294,11 @@ export function AddSourcingMethod() {
   );
 }
 
-export function EditSourcingMethod({ method, id }: { method: SourcingMethod & Partial<MethodBehaviour>; id: string }) {
+export function EditSourcingMethod({ method, id, choices = NO_CHOICES }: { method: SourcingMethod & Partial<MethodBehaviour>; id: string; choices?: Choices }) {
   return (
     <RecordEditor
       title={`Edit ${method.nameEn}`}
-      fields={[{ kind: "hidden", name: "id" }, ...methodFields(true)]}
+      fields={[{ kind: "hidden", name: "id" }, ...methodFields(true, choices)]}
       action={saveSourcingMethod}
       trigger={{ label: `Edit ${method.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       size="lg"
@@ -329,12 +336,12 @@ export function EditSourcingMethod({ method, id }: { method: SourcingMethod & Pa
   );
 }
 
-export function AddContractType() {
+export function AddContractType({ choices = NO_CHOICES }: { choices?: Choices }) {
   return (
     <RecordEditor
       title="Add a contract type"
       description="What is being bought."
-      fields={contractFields(false)}
+      fields={contractFields(false, choices)}
       action={saveContractType}
       submitLabel="Add type"
       trigger={{ label: "Add type", icon: true }}
@@ -343,11 +350,11 @@ export function AddContractType() {
   );
 }
 
-export function EditContractType({ type, id }: { type: ContractType & { deliverableKind?: string | null; contractSeriesKey?: string | null }; id: string }) {
+export function EditContractType({ type, id, choices = NO_CHOICES }: { type: ContractType & { deliverableKind?: string | null; contractSeriesKey?: string | null }; id: string; choices?: Choices }) {
   return (
     <RecordEditor
       title={`Edit ${type.nameEn}`}
-      fields={[{ kind: "hidden", name: "id" }, ...contractFields(true)]}
+      fields={[{ kind: "hidden", name: "id" }, ...contractFields(true, choices)]}
       action={saveContractType}
       trigger={{ label: `Edit ${type.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       size="sm"

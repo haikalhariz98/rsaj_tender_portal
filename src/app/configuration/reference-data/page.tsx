@@ -32,6 +32,7 @@ import type { DeliverableKind } from "@/lib/method/types";
 import { KeyValues } from "@/components/ui/stat";
 import { CardBody } from "@/components/ui/card";
 import { db } from "@/lib/db";
+import { listCommittees } from "@/lib/committee/repo";
 import { loadReferenceData } from "@/lib/reference/load";
 import type { ListReadiness, SourcingMethod } from "@/lib/reference/types";
 import {
@@ -90,6 +91,10 @@ export default async function ReferenceDataPage() {
   const methodRow = (code: string) => rows?.methods.find((m) => m.code === code);
   const typeRow = (code: string) => rows?.types.find((t) => t.code === code);
   const offices = org ? (await db.authorityRole.findMany({ where: { organisationId: org.id }, orderBy: { sortOrder: "asc" }, select: { code: true, nameEn: true } })).map((o) => ({ value: o.code, label: o.nameEn })) : [];
+  const choices = {
+    committees: org ? (await listCommittees(org.id)).map((c) => ({ value: c.code, label: c.nameEn })) : [],
+    series: org ? (await db.numberingSeries.findMany({ where: { organisationId: org.id }, orderBy: { key: "asc" }, select: { key: true, nameEn: true } })).map((x) => ({ value: x.key, label: x.nameEn })) : [],
+  };
   const methodOptions = methods.map((m) => ({ value: m.code, label: m.nameEn }));
   const items = (rows?.methods ?? []).flatMap((m) => live(m.checklistItems).map((i) => ({ ...i, method: m.nameEn })));
   const reasons = live(rows?.reasons ?? []);
@@ -227,7 +232,7 @@ export default async function ReferenceDataPage() {
         blurb="How suppliers are approached. Value bands are held in the approval matrix."
         empty="No sourcing method has been set. The approval matrix can still route on value, but nothing yet says how the market is approached."
         count={methods.length}
-        action={<AddSourcingMethod />}
+        action={<AddSourcingMethod choices={choices} />}
       >
         <Table minWidth={TABLE_MIN}>
           <colgroup>
@@ -275,7 +280,7 @@ export default async function ReferenceDataPage() {
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="SourcingMethod" entityId={m.id} label={m.nameEn} />
-                    <EditSourcingMethod method={{ ...m, ...(methodRow(m.code) ?? {}), provenance: m.provenance }} id={m.id} />
+                    <EditSourcingMethod method={{ ...m, ...(methodRow(m.code) ?? {}), provenance: m.provenance }} id={m.id} choices={choices} />
                     <RetireEntry entity="SourcingMethod" id={m.id} label={m.nameEn} />
                   </RowActions>
                 </Td>
@@ -290,7 +295,7 @@ export default async function ReferenceDataPage() {
         blurb="Classification of what is being bought."
         empty="No contract type has been set."
         count={types.length}
-        action={<AddContractType />}
+        action={<AddContractType choices={choices} />}
       >
         <Table minWidth={TABLE_MIN}>
           <colgroup>
@@ -336,7 +341,7 @@ export default async function ReferenceDataPage() {
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="ContractType" entityId={c.id} label={c.nameEn} />
-                    <EditContractType type={{ ...c, deliverableKind: typeRow(c.code)?.deliverableKind ?? null, contractSeriesKey: (typeRow(c.code) as { contractSeriesKey?: string | null } | undefined)?.contractSeriesKey ?? null }} id={c.id} />
+                    <EditContractType type={{ ...c, deliverableKind: typeRow(c.code)?.deliverableKind ?? null, contractSeriesKey: (typeRow(c.code) as { contractSeriesKey?: string | null } | undefined)?.contractSeriesKey ?? null }} id={c.id} choices={choices} />
                     {typeRow(c.code) && <ContractBehavioursDrawer id={c.id} name={c.nameEn} values={typeRow(c.code)!} offices={offices} />}
                     <RetireEntry entity="ContractType" id={c.id} label={c.nameEn} />
                   </RowActions>

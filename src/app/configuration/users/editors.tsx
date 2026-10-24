@@ -409,7 +409,7 @@ export function EditOffice({ office, offices }: { office: Office; offices: Offic
   );
 }
 
-function assignmentFields(people: Person[], offices: Office[]): Field[] {
+function assignmentFields(people: Person[], offices: Office[], units: { code: string; nameEn: string }[]): Field[] {
   return [
     {
       kind: "select",
@@ -428,10 +428,13 @@ function assignmentFields(people: Person[], offices: Office[]): Field[] {
       options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
     },
     {
-      kind: "text",
+      kind: "select",
       name: "scope",
-      label: "Scope",
-      hint: "Where the role is held per department.",
+      label: "Department",
+      placeholder: "Whole organisation",
+      options: units.map((u) => ({ value: u.code, label: u.nameEn })),
+      orphanLabel: "A department no longer configured",
+      hint: "Empty holds it across the organisation.",
     },
     { kind: "date", name: "effectiveFrom", label: "Held from", required: true },
     {
@@ -443,13 +446,13 @@ function assignmentFields(people: Person[], offices: Office[]): Field[] {
   ];
 }
 
-export function AddAssignment({ people, offices }: { people: Person[]; offices: Office[] }) {
+export function AddAssignment({ people, offices, units }: { people: Person[]; offices: Office[]; units: { code: string; nameEn: string }[] }) {
   return (
     <RecordEditor
       title="Assign a role"
       description="A rule routes to a role. Only an assignment turns it into a signatory."
       icon={<UserIcon size={18} />}
-      fields={assignmentFields(people, offices)}
+      fields={assignmentFields(people, offices, units)}
       columns={2}
       action={saveAssignment}
       submitLabel="Assign"
@@ -463,17 +466,19 @@ export function EditAssignment({
   assignment,
   people,
   offices,
+  units,
 }: {
   assignment: Assignment;
   people: Person[];
   offices: Office[];
+  units: { code: string; nameEn: string }[];
 }) {
   return (
     <RecordEditor
       title="Assignment"
       description="Who holds a role, and when"
       icon={<UserIcon size={18} />}
-      fields={[{ kind: "hidden", name: "id" }, ...assignmentFields(people, offices)]}
+      fields={[{ kind: "hidden", name: "id" }, ...assignmentFields(people, offices, units)]}
       columns={2}
       action={saveAssignment}
       trigger={{ label: "Edit assignment", iconOnly: <PencilIcon size={15} /> }}

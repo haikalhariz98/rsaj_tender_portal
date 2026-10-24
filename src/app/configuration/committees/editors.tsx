@@ -1,6 +1,6 @@
 import { PencilIcon } from "@/components/icons";
 import { END_DAY_LABEL } from "@/lib/effective-text";
-import { isLoopKey, LOOP_KEY_LABEL, LOOP_STAGE_KEYS } from "@/lib/evaluation/loop";
+import { LOOP_KEY_LABEL, LOOP_STAGE_KEYS } from "@/lib/evaluation/loop";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
@@ -24,18 +24,19 @@ const PROVENANCE_OPTIONS = [
   { value: "ASSUMED", label: "Assumed — a working default, needs sign-off" },
 ];
 
-function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
+function committeeFields(editing: boolean, offices: OfficeOption[], candidates: OfficeOption[] = []): Field[] {
   return [
     ...(editing
       ? []
       : ([
           {
-            kind: "text",
+            kind: "select",
             name: "code",
-            label: "Code",
+            label: "Committee office",
             required: true,
-            mono: true,
-            hint: "What an approval rule routes to.",
+            placeholder: candidates.length > 0 ? "Choose" : "No committee office is waiting",
+            options: candidates.map((o) => ({ value: o.code, label: o.nameEn })),
+            hint: "Add the office under Users & roles first.",
           },
         ] as Field[])),
     { kind: "text", name: "nameEn", label: "Name", required: true },
@@ -164,13 +165,13 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
   ];
 }
 
-export function AddCommittee({ offices }: { offices: OfficeOption[] }) {
+export function AddCommittee({ offices, candidates = [] }: { offices: OfficeOption[]; candidates?: OfficeOption[] }) {
   return (
     <RecordEditor
       title="Add a committee"
       description="A body that must sit before a procurement decision can be made."
       more="Quorum: leave empty where none is set. An unset quorum cannot certify a sitting, and is changed later on the committee's own page, by a change another admin approves. Stepping aside: where unset, an item where a member with an alternate steps aside cannot be decided; Yes is not available yet."
-      fields={committeeFields(false, offices)}
+      fields={committeeFields(false, offices, candidates)}
       action={saveCommittee}
       submitLabel="Add committee"
       trigger={{ label: "Add committee", icon: true }}
@@ -436,13 +437,10 @@ export interface OutcomeValues {
   sortOrder: number;
 }
 
-/// 6.8 (E-8): the evaluation's stages a return may name, by label; a stage typed before them is kept as it is, and opens nothing.
-function stageOptions(current: string | null) {
-  const keys = LOOP_STAGE_KEYS.map((k) => ({ value: k, label: LOOP_KEY_LABEL[k] }));
-  return current && !isLoopKey(current) ? [...keys, { value: current, label: `As typed before: ${current} (opens nothing)` }] : keys;
-}
+/// 6.8 (E-8): the evaluation's stages a return may name, by label; a stage typed before them opens nothing and reads as such.
+const STAGE_OPTIONS = LOOP_STAGE_KEYS.map((k) => ({ value: k, label: LOOP_KEY_LABEL[k] }));
 
-function outcomeFields(editing: boolean, committees: { id: string; nameEn: string }[], current: string | null = null): Field[] {
+function outcomeFields(editing: boolean, committees: { id: string; nameEn: string }[]): Field[] {
   return [
     ...(editing
       ? []
@@ -467,7 +465,8 @@ function outcomeFields(editing: boolean, committees: { id: string; nameEn: strin
       name: "returnsToStage",
       label: "Returns to stage",
       placeholder: "None",
-      options: stageOptions(current),
+      options: STAGE_OPTIONS,
+      orphanLabel: "A stage that is no longer offered (opens nothing)",
       hint: "Return only: the stage that reopens.",
     },
     {
@@ -514,7 +513,7 @@ export function EditNotApprovedOutcome({
   return (
     <RecordEditor
       title={`Edit ${outcome.nameEn}`}
-      fields={[{ kind: "hidden", name: "id" }, ...outcomeFields(true, committees, outcome.returnsToStage)]}
+      fields={[{ kind: "hidden", name: "id" }, ...outcomeFields(true, committees)]}
       action={saveNotApprovedOutcome}
       trigger={{ label: `Edit ${outcome.nameEn}`, iconOnly: <PencilIcon size={15} /> }}
       size="lg"

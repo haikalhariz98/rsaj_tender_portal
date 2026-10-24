@@ -112,6 +112,9 @@ export default async function ApprovalMatrixPage({
     ? (await db.rejectionDestination.findMany({ where: { organisationId: orgRow.id } })).map((d) => ({ ...d, kind: d.kind as RejectionKind, provenance: d.provenance as DestinationRow["provenance"] }))
     : [];
   const offices = roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }));
+  // The rule form's method list is the keys the reference data binds to a method, by the method's name.
+  const methodOptions = sourcingMethods.flatMap((m) => (m.authorityMethodKey ? [{ code: m.authorityMethodKey, nameEn: m.nameEn }] : []));
+  const committeeOptions = (await listCommittees(actor.organisationId)).map((c) => ({ code: c.code, nameEn: c.nameEn }));
 
   // Which issue to show: the one asked for, else the one in force, else a draft. A
   // funder's rule set is shown only when asked for: the defaults, "in force" and the
@@ -198,7 +201,7 @@ export default async function ApprovalMatrixPage({
 
   // A rule may route to an office or to a committee; the two are kept apart, so look
   // in both before admitting the code is unknown.
-  const committeeNames = new Map((await listCommittees(actor.organisationId)).map((c) => [c.code, c.nameEn]));
+  const committeeNames = new Map(committeeOptions.map((c) => [c.code, c.nameEn]));
   const roleName = (code: string | null) =>
     code == null
       ? null
@@ -295,7 +298,7 @@ export default async function ApprovalMatrixPage({
                   }}
                   routes={funderRoutes}
                 />
-                <AddRule matrixId={matrixId} offices={offices} contractTypes={contractTypeOptions} />
+                <AddRule matrixId={matrixId} offices={offices} contractTypes={contractTypeOptions} methods={methodOptions} committees={committeeOptions} />
                 <DiscardDraft id={matrixId} label={selected.label} />
                 {needsAdopting && <AdoptDraft id={matrixId} label={selected.label} />}
                 <IssueDraft
@@ -411,7 +414,7 @@ export default async function ApprovalMatrixPage({
                 <li key={x.key} className="flex flex-wrap items-start gap-2">
                   <span className="min-w-0 flex-1 break-words">{x.text}</span>
                   {editable && x.rule && ruleRows[x.rule.ruleKey] && (
-                    <RuleActions rule={x.rule} row={ruleRows[x.rule.ruleKey]} matrixId={matrixId} offices={offices} contractTypes={contractTypeOptions} />
+                    <RuleActions rule={x.rule} row={ruleRows[x.rule.ruleKey]} matrixId={matrixId} offices={offices} contractTypes={contractTypeOptions} methods={methodOptions} committees={committeeOptions} />
                   )}
                 </li>
               ))}
@@ -520,7 +523,7 @@ export default async function ApprovalMatrixPage({
                           </Td>
                           {editable && (
                             <Td label="Change" className="align-top">
-                              <RuleActions rule={rule} row={ruleRows[rule.ruleKey]} matrixId={matrixId} offices={offices} contractTypes={contractTypeOptions} />
+                              <RuleActions rule={rule} row={ruleRows[rule.ruleKey]} matrixId={matrixId} offices={offices} contractTypes={contractTypeOptions} methods={methodOptions} committees={committeeOptions} />
                             </Td>
                           )}
                         </Tr>
@@ -758,12 +761,16 @@ function RuleActions({
   matrixId,
   offices,
   contractTypes,
+  methods,
+  committees,
 }: {
   rule: Rule;
   row: { id: string } | undefined;
   matrixId: string;
   offices: { code: string; nameEn: string }[];
   contractTypes: { code: string; nameEn: string }[];
+  methods: { code: string; nameEn: string }[];
+  committees: { code: string; nameEn: string }[];
 }) {
   if (!row) return null;
   return (
@@ -772,6 +779,8 @@ function RuleActions({
         matrixId={matrixId}
         offices={offices}
         contractTypes={contractTypes}
+        methods={methods}
+        committees={committees}
         rule={{
           id: row.id,
           ruleKey: rule.ruleKey,

@@ -302,20 +302,21 @@ function RosterFaults({ faults, offices }: UsersData) {
   );
 }
 
-function AssignmentsList({ assignments, people, offices }: UsersData) {
+function AssignmentsList({ assignments, people, offices, units }: UsersData) {
   const on = new Date();
+  const unitName = (code: string | null) => (code == null ? undefined : (units.find((u) => u.code === code)?.nameEn ?? "A department no longer configured"));
   const rows: Row[] = assignments.map((a) => {
     const person = people.find((p) => p.id === a.personId);
     const office = offices.find((o) => o.code === a.roleCode);
     const upcoming = a.effectiveFrom > on;
     return {
       id: a.id,
-      search: [person?.name, office?.nameEn, a.scope].filter(Boolean).join(" "),
+      search: [person?.name, office?.nameEn, unitName(a.scope)].filter(Boolean).join(" "),
       cells: {
         person: person
           ? { kind: "person", name: person.name }
           : { kind: "text", text: "Somebody no longer on record", dim: true },
-        role: { kind: "stack", title: office?.nameEn ?? "Role no longer configured", sub: a.scope ?? undefined },
+        role: { kind: "stack", title: office?.nameEn ?? "Role no longer configured", sub: unitName(a.scope) },
         period: {
           kind: "text",
           text: periodText(a),
@@ -336,7 +337,7 @@ function AssignmentsList({ assignments, people, offices }: UsersData) {
         icon={<CalendarIcon size={17} />}
         title="Assignments"
         divided={false}
-        actions={<AddAssignment people={people} offices={offices} />}
+        actions={<AddAssignment people={people} offices={offices} units={units} />}
       />
       <DataList
         flat
@@ -357,7 +358,7 @@ function AssignmentsList({ assignments, people, offices }: UsersData) {
           const label = `${people.find((p) => p.id === a.personId)?.name ?? "this"}'s assignment`;
           return (
             <>
-              <EditAssignment assignment={a} people={people} offices={offices} />
+              <EditAssignment assignment={a} people={people} offices={offices} units={units} />
               <EndAssignment id={a.id} label={label} />
             </>
           );

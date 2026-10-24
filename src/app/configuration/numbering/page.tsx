@@ -74,7 +74,7 @@ export default async function NumberingPage() {
         blurb="Allocated numbers are never reused."
         empty="No series yet. Nothing can be numbered."
         count={series.length}
-        action={<AddSeries />}
+        action={<AddSeries taken={series.map((s) => s.key)} />}
       >
         <Table minWidth={920}>
           <colgroup>

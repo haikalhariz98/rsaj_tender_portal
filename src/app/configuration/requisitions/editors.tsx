@@ -135,7 +135,7 @@ export function GateRuleEditor({
         { kind: "select", name: "committeeCode", label: "Committee", required: true, placeholder: "Choose", options: committees, orphanLabel: "A committee no longer configured" },
         { kind: "text", name: "subjectEn", label: "What is put to it", required: true, placeholder: "e.g. Project proposal and technical working paper" },
         { kind: "hidden", name: "subjectMs" },
-        { kind: "select", name: "act", label: "The committee's act", required: true, placeholder: "Choose", options: Object.entries(ACT_LABEL).map(([value, label]) => ({ value, label: `${label} (${value})` })) },
+        { kind: "select", name: "act", label: "The committee's act", required: true, placeholder: "Choose", options: Object.entries(ACT_LABEL).map(([value, label]) => ({ value, label })), orphanLabel: "An act no longer offered" },
         { kind: "money", name: "aboveValue", label: "Applies to requisitions approved above", hint: "Strictly above. Empty: at any value." },
         { kind: "text", name: "governingSource", label: "Source document" },
         { kind: "select", name: "provenance", label: "Where this comes from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },

@@ -2,18 +2,13 @@ import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { StoredSeries } from "@/lib/numbering/load";
 import { serialFor } from "@/lib/numbering/series";
+import { seriesKeyOptions } from "@/lib/numbering/keys";
 
 import { saveSeries } from "./actions";
 
-/// What each series numbers. A key, never rendered — the screen shows the name.
-const SERIES_KEYS = [
-  { value: "requisition", label: "Requisitions" },
-  { value: "exercise", label: "Sourcing exercises" },
-  { value: "contract", label: "Contracts" },
-  { value: "certificate", label: "Certificates" },
-];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((label, i) => ({ value: String(i + 1), label }));
 
-function seriesFields(editing: boolean): Field[] {
+function seriesFields(editing: boolean, taken: string[] = []): Field[] {
   return [
     ...(editing
       ? []
@@ -24,7 +19,7 @@ function seriesFields(editing: boolean): Field[] {
             label: "Applies to",
             required: true,
             placeholder: "Choose",
-            options: SERIES_KEYS,
+            options: seriesKeyOptions(taken),
           },
         ] as Field[])),
     { kind: "text", name: "nameEn", label: "Name", required: true },
@@ -56,11 +51,12 @@ function seriesFields(editing: boolean): Field[] {
       ],
     },
     {
-      kind: "number",
+      kind: "select",
       name: "financialYearStartMonth",
-      label: "Financial year starts in month",
-      min: 1,
-      hint: "1 is January. For financial-year resets.",
+      label: "Financial year starts in",
+      placeholder: "Choose",
+      options: MONTHS,
+      hint: "For financial-year resets.",
     },
     {
       kind: "number",
@@ -85,12 +81,12 @@ function seriesFields(editing: boolean): Field[] {
   ];
 }
 
-export function AddSeries() {
+export function AddSeries({ taken = [] }: { taken?: string[] }) {
   return (
     <RecordEditor
       title="Add a series"
       description="How a reference is formed for one kind of record."
-      fields={seriesFields(false)}
+      fields={seriesFields(false, taken)}
       action={saveSeries}
       submitLabel="Add series"
       trigger={{ label: "Add series", icon: true }}

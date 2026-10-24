@@ -139,6 +139,13 @@ export async function saveFundingRoute(_prev: FormState, data: FormData): Promis
 
 /// `storedCode` is the code of the entry being edited. A code is set once and the edit
 /// drawer does not offer it, so an edit keeps the stored one.
+/// The key approval rows pick a method by: a slug, so a typo cannot match nothing silently.
+function methodKey(r: FormReader) {
+  const key = r.optionalText("authorityMethodKey");
+  if (key && !/^[a-z][a-z0-9_]*$/.test(key)) r.reject("authorityMethodKey", "Use lowercase letters, numbers and underscores, starting with a letter.");
+  return key;
+}
+
 function readSourcingMethod(data: FormData, taken: string[], storedCode: string | undefined) {
   const r = new FormReader(data);
   const code = storedCode ?? r.code("code", "Code", { taken });
@@ -154,7 +161,7 @@ function readSourcingMethod(data: FormData, taken: string[], storedCode: string 
     requiresFreshSourcing: r.bool("requiresFreshSourcing"),
     awardInstrument: r.text("awardInstrument", "Award instrument", { max: 120 }),
     committeeCode: r.optionalText("committeeCode"),
-    authorityMethodKey: r.optionalText("authorityMethodKey"),
+    authorityMethodKey: methodKey(r),
     // What the method asks of an exercise (6.3).
     defaultInTender: r.bool("defaultInTender"),
     defaultInQuotation: r.bool("defaultInQuotation"),

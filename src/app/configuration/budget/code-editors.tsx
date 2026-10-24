@@ -48,16 +48,19 @@ function budgetCodeFields(units: Unit[], people: Person[], accounts: Account[]):
       orphanLabel: "A department no longer configured",
     },
     { kind: "text", name: "descriptionEn", label: "Description (EN)", required: true },
-    {
-      kind: "text",
-      name: "accountCode",
-      label: "Account code",
-      required: true,
-      mono: true,
-      hint: accounts.length
-        ? "As in the finance system. Checked on save."
-        : "As it is in the finance system.",
-    },
+    // With no chart loaded there is nothing to choose from, so the code is typed, as in the finance system.
+    accounts.length > 0
+      ? {
+          kind: "select",
+          name: "accountCode",
+          label: "Account",
+          required: true,
+          placeholder: "Choose",
+          options: accounts.map((a) => ({ value: a.code, label: `${a.code} · ${a.nameEn}` })),
+          orphanLabel: "An account no longer listed",
+          hint: "From the finance system's chart.",
+        }
+      : { kind: "text", name: "accountCode", label: "Account code", required: true, mono: true, hint: "As it is in the finance system." },
     {
       kind: "select",
       name: "holderPersonId",

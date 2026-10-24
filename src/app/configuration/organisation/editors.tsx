@@ -23,6 +23,10 @@ export const KIND_LABEL: Record<OrgUnitKind, string> = {
 const personOptions = (people: Person[]) =>
   people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name }));
 
+const MONTH_OPTIONS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((label, i) => ({ value: String(i + 1).padStart(2, "0"), label }));
+const DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1).padStart(2, "0"), label: String(i + 1) }));
+const [fyMonthOf, fyDayOf] = [(v: string | null) => v?.split("-")[0] ?? null, (v: string | null) => v?.split("-")[1] ?? null];
+
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
 /**
@@ -54,13 +58,8 @@ function unitFields(kind: OrgUnitKind, people: Person[]): Field[] {
     { kind: "text", name: "registrationNumber", label: "Registration number", mono: true },
     { kind: "text", name: "taxReference", label: "Tax reference", mono: true },
     { kind: "text", name: "telephone", label: "Telephone" },
-    {
-      kind: "text",
-      name: "financialYearStart",
-      label: "Financial year starts",
-      placeholder: "MM-DD",
-      hint: "Day it turns, yearly. 01-01 for calendar year.",
-    },
+    { kind: "select", name: "fyMonth", label: "Financial year starts in", placeholder: "Not set", options: MONTH_OPTIONS },
+    { kind: "select", name: "fyDay", label: "On day", placeholder: "Not set", options: DAY_OPTIONS, hint: "1 January for a calendar year." },
     { kind: "textarea", name: "address", label: "Address" },
     { kind: "text", name: "operatingLicence", label: "Operating licence" },
   ];
@@ -141,7 +140,8 @@ export function EditOrgUnit({ unit, people }: { unit: OrgUnit; people: Person[] 
         registrationNumber: unit.registrationNumber,
         taxReference: unit.taxReference,
         telephone: unit.telephone,
-        financialYearStart: unit.financialYearStart,
+        fyMonth: fyMonthOf(unit.financialYearStart),
+        fyDay: fyDayOf(unit.financialYearStart),
         address: unit.address,
         operatingLicence: unit.operatingLicence,
       }}
@@ -374,7 +374,7 @@ export function EditTimeZone({
 
 /// The organisation's identity details. The hints are examples, never defaults: nothing
 /// is filled in for the customer, and only the legal name is required.
-export function EditDetails({ details }: { details: Details }) {
+export function EditDetails({ details, places }: { details: Details; places: { states: string[]; countries: string[] } }) {
   const text = (name: keyof Details, hint?: string, placeholder?: string): Field => ({
     kind: "text",
     name,
@@ -383,6 +383,11 @@ export function EditDetails({ details }: { details: Details }) {
     placeholder,
     required: name === "name",
   });
+  // From the supplier register's lists; where one is not set up yet the field is typed. The stored value is the name, so an unlisted one reads as itself.
+  const place = (name: "state" | "country", names: string[]): Field =>
+    names.length > 0
+      ? { kind: "select", name, label: DETAIL_LABEL[name], placeholder: "Not set", options: names.map((n) => ({ value: n, label: n })) }
+      : text(name);
   return (
     <RecordEditor
       title="Edit organisation details"
@@ -398,8 +403,8 @@ export function EditDetails({ details }: { details: Details }) {
         text("addressLine2"),
         text("postcode", "Postcode: 5 digits, e.g. 50450."),
         text("city"),
-        text("state"),
-        text("country"),
+        place("state", places.states),
+        place("country", places.countries),
         text("phone", "e.g. +60 3-1234 5678"),
         text("email", "e.g. procurement@example.com.my"),
         text("website", "e.g. https://www.example.com.my"),

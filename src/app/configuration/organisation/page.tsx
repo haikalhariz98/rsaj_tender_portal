@@ -48,6 +48,12 @@ export default async function OrganisationPage({
       portalPage: true,
     },
   });
+  const listed = await db.supplierListValue.findMany({
+    where: { organisationId: actor.organisationId, list: { in: ["STATE", "COUNTRY"] }, OR: [{ retiredOn: null }, { retiredOn: { gt: on } }] },
+    orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
+    select: { list: true, nameEn: true },
+  });
+  const places = { states: listed.filter((l) => l.list === "STATE").map((l) => l.nameEn), countries: listed.filter((l) => l.list === "COUNTRY").map((l) => l.nameEn) };
   const timeZone = org?.timeZone ?? null;
   const details = org ? normaliseDetails({ ...Object.fromEntries(DETAIL_FIELDS.map((f) => [f, org[f]])) }) : null;
   const logo: LogoInfo | null = org?.logo
@@ -127,6 +133,7 @@ export default async function OrganisationPage({
 
       <OrganisationScreen
         details={details ?? normaliseDetails({})}
+        places={places}
         logo={logo}
         signInImage={signInImage}
         signInDarkLogo={signInDarkLogo}

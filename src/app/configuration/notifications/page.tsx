@@ -19,9 +19,9 @@ export default async function NotificationsPage() {
     loadRoster(actor.organisationCode),
   ]);
 
-  const officeCodes = roster.offices.map((o) => o.code);
+  const offices = roster.offices.map((o) => ({ code: o.code, nameEn: o.nameEn }));
   const officeName = (code: string) =>
-    roster.offices.find((o) => o.code === code)?.nameEn ?? code;
+    roster.offices.find((o) => o.code === code)?.nameEn ?? "An office no longer configured";
 
   const silent = rules.filter((r) => !r.isActive);
 
@@ -42,7 +42,7 @@ export default async function NotificationsPage() {
         blurb="Who is told about each event, and who is reminded."
         empty="No notification rule yet. The portal sends nothing."
         count={rules.length}
-        action={<AddRule officeCodes={officeCodes} />}
+        action={<AddRule offices={offices} takenEvents={rules.map((r) => r.eventKey)} />}
       >
         <Table>
           <colgroup>
@@ -84,7 +84,7 @@ export default async function NotificationsPage() {
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="NotificationRule" entityId={r.id} label={r.nameEn} />
-                    <EditRule row={r} officeCodes={officeCodes} />
+                    <EditRule row={r} offices={offices} />
                   </RowActions>
                 </Td>
               </Tr>

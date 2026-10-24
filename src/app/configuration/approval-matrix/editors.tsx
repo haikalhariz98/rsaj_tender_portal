@@ -2,6 +2,8 @@ import { PencilIcon, PlusIcon, XIcon } from "@/components/icons";
 import { END_DAY_LABEL } from "@/lib/effective-text";
 import { contractTypeDomainWords } from "@/lib/authority/contract-type-domains";
 import { RecordEditor, type Field } from "@/components/record-editor";
+import matters from "@/lib/labels.json";
+import { matterLabel } from "@/lib/labels";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { CHAIN_CHOICE_LABEL } from "@/lib/authority/core-routing-labels";
 import { actorField } from "@/lib/auth/actor-field";
@@ -24,6 +26,13 @@ import {
   saveRule,
   startRevision,
 } from "./actions";
+
+type Named = { code: string; nameEn: string };
+
+/// Every matter type the product knows, by its name (the committees drawer's pattern).
+const MATTER_OPTIONS = Object.keys(matters)
+  .map((code) => ({ value: code, label: matterLabel(code) }))
+  .sort((a, b) => a.label.localeCompare(b.label));
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
@@ -98,7 +107,9 @@ function matrixFields(routes: { code: string; nameEn: string }[]): Field[] {
     hint: "The document that states it.",
   },
   { kind: "money", name: "requisitionBoundary", label: "Requisition boundary", required: true },
-  { kind: "text", name: "currency", label: "Currency", required: true },
+  // Money is ringgit throughout; the currency is carried, not chosen.
+  { kind: "hidden", name: "currency" },
+  { kind: "readonly", name: "currencyShown", label: "Currency", text: "MYR" },
   {
     kind: "select",
     name: "fundingRouteCode",
@@ -157,6 +168,7 @@ export function AddMatrix({
       description="A draft is editable and routes nothing. Add its routes, then put it in force."
       more={`${BOUNDARY_HELP} A funder's rule set routes items on that funding route alone and never replaces the organisation's own.`}
       fields={matrixFields(routes)}
+      values={{ currency: "MYR" }}
       action={saveMatrix}
       submitLabel="Create draft"
       trigger={{ label, icon: true, className: buttonClass(primary ? "primary" : "secondary", "sm") }}
@@ -216,7 +228,7 @@ export function EditMatrix({ matrix, routes }: { matrix: MatrixValues; routes: {
   );
 }
 
-function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: { code: string; nameEn: string }[] = []): Field[] {
+function ruleFields(offices: Named[], contractTypes: Named[] = [], methods: Named[] = [], committees: Named[] = []): Field[] {
   const officeOptions = offices.map((o) => ({ value: o.code, label: o.nameEn }));
   return [
     { kind: "hidden", name: "authorityMatrixId" },
@@ -231,19 +243,23 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
     { kind: "text", name: "labelEn", label: "Label", required: true },
     { kind: "hidden", name: "labelMs" },
     {
-      kind: "text",
+      kind: "select",
       name: "domain",
       label: "Item for approval",
       required: true,
-      mono: true,
+      placeholder: "Choose",
+      options: MATTER_OPTIONS,
+      orphanLabel: "A matter type no longer listed",
       hint: "What is being authorised — payment, variation, appointment.",
     },
     {
-      kind: "text",
+      kind: "select",
       name: "method",
-      label: "Sourcing method key",
-      mono: true,
-      hint: "Leave empty to apply whatever the method.",
+      label: "Sourcing method",
+      placeholder: "Any method",
+      options: methods.map((m) => ({ value: m.code, label: m.nameEn })),
+      orphanLabel: "A method no longer configured",
+      hint: "Empty applies whatever the method.",
     },
     {
       // FR-APR-002 (6.13 Part A step 1): a row may be confined to a contract type.
@@ -274,6 +290,7 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
       label: "Proposed by",
       placeholder: "Nobody",
       options: officeOptions,
+      orphanLabel: "An office no longer configured",
     },
     {
       kind: "select",
@@ -281,13 +298,15 @@ function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: 
       label: "Approved by",
       placeholder: "Nobody",
       options: officeOptions,
+      orphanLabel: "An office no longer configured",
     },
     {
       kind: "select",
       name: "committeeCode",
       label: "Committee",
       placeholder: "None",
-      options: officeOptions,
+      options: committees.map((o) => ({ value: o.code, label: o.nameEn })),
+      orphanLabel: "A committee no longer configured",
     },
     {
       kind: "select",
@@ -350,17 +369,21 @@ export function AddRule({
   matrixId,
   offices,
   contractTypes = [],
+  methods = [],
+  committees = [],
 }: {
   matrixId: string;
-  offices: { code: string; nameEn: string }[];
-  contractTypes?: { code: string; nameEn: string }[];
+  offices: Named[];
+  contractTypes?: Named[];
+  methods?: Named[];
+  committees?: Named[];
 }) {
   return (
     <RecordEditor
       title="Add a rule"
       description="Who proposes, who recommends and who approves, at one band of value."
       more={`Contract type: only for items routed with one (${contractTypeDomainWords()}); on any other the save refuses it. A rule for one type is preferred to one for any type. Chain: Generated puts the standard route first and this rule may only strengthen it; As entered makes the chain below the whole chain; Not set warns the chain was not checked.`}
-      fields={ruleFields(offices, contractTypes)}
+      fields={ruleFields(offices, contractTypes, methods, committees)}
       values={{ authorityMatrixId: matrixId }}
       action={saveRule}
       showWhen={RULE_SHOW_WHEN}
@@ -402,17 +425,21 @@ export function EditRule({
   matrixId,
   offices,
   contractTypes = [],
+  methods = [],
+  committees = [],
 }: {
   rule: RuleValues;
   matrixId: string;
-  offices: { code: string; nameEn: string }[];
-  contractTypes?: { code: string; nameEn: string }[];
+  offices: Named[];
+  contractTypes?: Named[];
+  methods?: Named[];
+  committees?: Named[];
 }) {
   return (
     <RecordEditor
       title={`Edit ${rule.labelEn}`}
       more={`Contract type: only for items routed with one (${contractTypeDomainWords()}); on any other the save refuses it. A rule for one type is preferred to one for any type. Chain: Generated puts the standard route first and this rule may only strengthen it; As entered makes the chain below the whole chain; Not set warns the chain was not checked.`}
-      fields={[{ kind: "hidden", name: "id" }, ...ruleFields(offices, contractTypes)]}
+      fields={[{ kind: "hidden", name: "id" }, ...ruleFields(offices, contractTypes, methods, committees)]}
       action={saveRule}
       showWhen={RULE_SHOW_WHEN}
       trigger={{ label: "Edit rule", iconOnly: <PencilIcon size={15} />, className: iconButtonClass("sm") }}
