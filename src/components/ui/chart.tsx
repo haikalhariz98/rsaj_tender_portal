@@ -35,7 +35,7 @@ const sum = (vs: readonly ChartValue[]): ChartValue => (vs.length && typeof vs[0
 export const monthShort = (key: string): string => MONTH[Number(key.slice(5, 7)) - 1] ?? key;
 export const monthLong = (key: string): string => `${monthShort(key)} ${key.slice(0, 4)}`;
 
-/// What a chart's `aria-label` says: its title, and its highest point (of the first series, where there are two) with the figure ("Paid by month, highest Oct 2026, RM 2.10M").
+/// What a chart's `aria-label` says: its title, and its highest point with the figure ("Paid by month, highest Oct 2026, RM 2.10M").
 /// All nought says so rather than naming a highest.
 export function summarise(title: string, points: readonly { label: string; value: ChartValue }[], format: (v: ChartValue) => string): string {
   const top = points.reduce<{ label: string; value: ChartValue } | null>((best, p) => (best == null || num(p.value) > num(best.value) ? p : best), null);
@@ -96,7 +96,7 @@ export interface BarRow {
 
 /**
  * Horizontal bars, one row per category, in the order given (rank them, or keep a funnel's order). The figure at the right is
- * the row's total; a negative segment draws nothing but its figure is shown as it is, never clamped. `threshold` draws a tick
+ * the row's net total; a negative segment draws nothing but counts in that figure, never clamped. `threshold` draws a tick
  * at that value on every row.
  */
 export function BarList({
@@ -120,7 +120,8 @@ export function BarList({
   /// The scale's top; by default the largest row total.
   max?: ChartValue;
 }) {
-  const top = Math.max(max != null ? num(max) : 0, ...rows.map((r) => num(sum(r.values))), threshold != null ? num(threshold) : 0, 1e-9);
+  // Scaled on each row's positive segments, so an overspent row (a negative available) still fits its bar; the figure stays the net total.
+  const top = Math.max(max != null ? num(max) : 0, ...rows.map((r) => r.values.reduce<number>((a, v) => a + Math.max(0, num(v)), 0)), threshold != null ? num(threshold) : 0, 1e-9);
   const pct = (v: ChartValue) => `${(Math.max(0, num(v)) / top) * 100}%`;
   return (
     <div>
@@ -212,7 +213,8 @@ export function MonthColumns({
   const { lo, hi, y } = scale(all);
   const slot = (PLOT.right - PLOT.left) / Math.max(1, months.length);
   const width = Math.max(4, (slot * 0.7) / Math.max(1, series.length));
-  const label = summarise(title, months.map((m) => ({ label: monthLong(m.month), value: m.values[0] ?? 0 })), format);
+  const peak = (j: number) => months.map((m) => ({ label: monthLong(m.month), value: m.values[j] ?? 0 }));
+  const label = series.length > 1 ? `${title}: ${series.map((s, j) => summarise(s, peak(j), format)).join("; ")}` : summarise(title, peak(0), format);
   return (
     <div>
       <svg viewBox={`0 0 ${PLOT.w} ${PLOT.h}`} role="img" aria-label={label} className="block h-auto w-full">

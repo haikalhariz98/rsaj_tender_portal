@@ -27,7 +27,7 @@ describe("MonthColumns", () => {
   });
   it("is an image with a summary for a screen reader", () => {
     expect(out).toContain('role="img"');
-    expect(out).toContain('aria-label="Money through the year, highest Dec 2026, RM 11K"');
+    expect(out).toContain('aria-label="Money through the year: Awarded, highest Dec 2026, RM 11K; Paid, highest Oct 2026, RM 2.10M"');
   });
   it("carries each column's exact figure in its title", () => {
     expect(out).toContain("<title>Oct 2026 · Paid: RM2,100,000.00</title>");
@@ -82,6 +82,13 @@ describe("BarList", () => {
     expect(s).toContain("bg-amber-500");
     expect(s).toContain("bg-emerald-500");
     expect(tableRows(s)).toEqual([["Finance", "RM100.00", "RM50.00", "RM850.00"]]);
+  });
+  it("scales on positive segments, so an overspent row fits its bar and shows its net figure", () => {
+    const s = html(createElement(BarList, { title: "By department", head: "Department", rows: [{ label: "Water", values: [900, 300, -200] }, { label: "Finance", values: [500] }], series: ["Spent", "Committed", "Available"], format: count }));
+    const widths = [...s.matchAll(/width:([\d.]+)%/g)].map((m) => Number(m[1]));
+    expect(widths).toEqual([75, 25, 0, (500 / 1200) * 100]);
+    expect(widths[0] + widths[1] + widths[2]).toBeLessThanOrEqual(100);
+    expect(s).toContain(">1000</span>");
   });
   it("draws the threshold tick only where one is set", () => {
     const at = html(createElement(BarList, { title: "Most used codes", head: "Code", rows: [{ label: "A", values: [90] }], series: ["Used"], format: count, threshold: 80, max: 100 }));
