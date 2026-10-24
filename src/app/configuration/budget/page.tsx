@@ -6,7 +6,9 @@ import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/bud
 import { UNPOSTED_TEXT, UNPOSTED_TITLE } from "@/lib/requisition/labels";
 import { loadControls } from "@/lib/requisition/repo";
 import { CalendarIcon, ChartIcon, ScaleIcon } from "@/components/icons";
+import { spendByPeriod } from "@/lib/budget/analysis";
 import { totalsAcross } from "@/lib/budget/codes";
+import { foldWithheldCommitments } from "@/lib/budget/withhold";
 import { loadBudgetCodes, loadBudgetPeriods, loadFinance } from "@/lib/budget/load";
 import { defaultYear } from "@/lib/budget/periods";
 import { activeOn } from "@/lib/effective";
@@ -19,6 +21,7 @@ import { organisationTimeZone } from "@/lib/org-time";
 import { BudgetTabs } from "./panels";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireStaff } from "@/app/_auth/actor";
+import { sulitGates } from "@/app/_auth/sulit";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Budget" };
@@ -49,6 +52,15 @@ export default async function BudgetPage({
     loadOrganisationData(actor.organisationCode),
     loadFinance(actor.organisationCode),
   ]);
+
+  // A commitment's reference, description and amount are its requisition's estimate (SULIT). Each is judged and logged as a list read; the
+  // ones this reader may not see are folded into one row per code, so no figure changes and no single estimate is sent.
+  const commitmentIds = budget.movements.filter((m) => m.kind === "COMMITMENT").map((m) => m.id);
+  const linked = commitmentIds.length ? await db.requisition.findMany({ where: { organisationId: actor.organisationId, commitmentMovementId: { in: commitmentIds } }, select: { id: true, reference: true, commitmentMovementId: true } }) : [];
+  const gates = await sulitGates(actor, linked.map((r) => ({ scope: "requisition" as const, entity: "Requisition", id: r.id, label: r.reference })), ["estimatedValue"], { list: true });
+  const readable = new Set(linked.flatMap((r) => (r.commitmentMovementId && gates.get(r.id)?.state === "GRANTED" ? [r.commitmentMovementId] : [])));
+  const shown = foldWithheldCommitments(budget.movements, readable, on);
+  const spend = spendByPeriod(periods.periods, budget.codes, budget.movements);
 
   // Ruling BD-10: received requisitions with no commitment in the portal ledger, grouped
   // by why — held in the finance system only where that is the source (round 3, h).
@@ -108,7 +120,8 @@ export default async function BudgetPage({
         initial={tab}
         initialYear={shownYear ?? undefined}
         codes={budget.codes}
-        movements={budget.movements}
+        movements={shown}
+        spend={spend}
         settings={budget.settings}
         units={activeOn(org.units, on).map((u) => ({ code: u.code, nameEn: u.nameEn }))}
         people={org.people}

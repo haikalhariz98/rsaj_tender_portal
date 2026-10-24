@@ -32,3 +32,20 @@ describe("the requisition page links to Budget only for a reader who may open it
     expect(page.match(/BUDGET_HREF/g)?.length).toBe(2);
   });
 });
+
+describe("the Budget page folds the commitments its reader may not read (gate and fold)", () => {
+  const page = read("configuration", "budget", "page.tsx");
+  it("hands BudgetTabs the folded array, never the raw ledger", () => {
+    expect(page).toContain("movements={shown}");
+    expect(page).not.toMatch(/movements=\{budget\.movements\}/);
+    expect(page).toContain("foldWithheldCommitments(budget.movements, readable, on)");
+  });
+  it("asks sulitGates for the estimate of every commitment's requisition, as a list read", () => {
+    expect(page).toContain('["estimatedValue"], { list: true }');
+    expect(page).toContain("scope: \"requisition\"");
+  });
+  it("computes the period chart on the server, over the full ledger", () => {
+    expect(page).toContain("spendByPeriod(periods.periods, budget.codes, budget.movements)");
+    expect(read("configuration", "budget", "availability-panel.tsx")).not.toContain("spendByPeriod");
+  });
+});

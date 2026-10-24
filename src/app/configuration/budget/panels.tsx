@@ -14,6 +14,7 @@ import {
   type Movement,
 } from "@/lib/budget/codes";
 import type { BudgetControls } from "@/lib/budget/load";
+import type { PeriodSpend } from "@/lib/budget/analysis";
 import type { Period } from "@/lib/budget/periods";
 import type { FinanceData } from "@/lib/budget/load";
 import { formatCompactRM } from "@/lib/format";
@@ -36,6 +37,8 @@ import { FinancePanel } from "./finance-panel";
 export interface BudgetPanelData {
   codes: BudgetCode[];
   movements: Movement[];
+  /// Spend by period over the full ledger, computed on the server so the folded movements cannot change it.
+  spend: PeriodSpend[];
   settings: BudgetControls | null;
   units: { code: string; nameEn: string }[];
   people: { id: string; name: string; isActive: boolean }[];
@@ -90,7 +93,7 @@ export function BudgetTabs({
             <AvailabilityPanel
               codes={data.codes}
               movements={data.movements}
-              periods={data.periods}
+              spend={data.spend}
               settings={data.settings}
               units={data.units}
               year={year}

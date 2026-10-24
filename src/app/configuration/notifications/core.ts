@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
 import { db } from "@/lib/db";
+import { SUPPLIER_EXPIRY_EVENT } from "@/lib/suppliers/expiry";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { OrgScope } from "@/lib/org-scope";
@@ -96,7 +97,8 @@ export async function saveNotificationRule(_prev: FormState, data: FormData): Pr
   const isActive = r.bool("isActive");
   // A rule that notifies nobody and is switched on would look like a working rule and
   // send nothing. Switching it off records the decision instead.
-  if (isActive && recipientRoleCodes.length === 0) {
+  // The supplier-expiry rule is read by suppliers in the portal, not by offices.
+  if (isActive && recipientRoleCodes.length === 0 && eventKey !== SUPPLIER_EXPIRY_EVENT) {
     r.reject(
       "recipientRoleCodes",
       "An active rule needs at least one recipient. Switch it off to record that this event notifies nobody.",

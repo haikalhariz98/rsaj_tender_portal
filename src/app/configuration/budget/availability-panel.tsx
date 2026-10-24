@@ -22,14 +22,12 @@ import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import {
   movementRows,
   movementStatus,
-  spendByPeriod,
   utilisationByUnit,
   type PeriodSpend,
   type UnitUtilisation,
 } from "@/lib/budget/analysis";
 import { figuresFor, thresholdState, type BudgetCode, type Movement } from "@/lib/budget/codes";
 import type { BudgetControls } from "@/lib/budget/load";
-import type { Period } from "@/lib/budget/periods";
 import { formatCompactRM } from "@/lib/format";
 
 import { MovementsDrawer } from "./movements-drawer";
@@ -59,7 +57,7 @@ const SERIES = {
 export interface AvailabilityData {
   codes: BudgetCode[];
   movements: Movement[];
-  periods: Period[];
+  spend: PeriodSpend[];
   settings: BudgetControls | null;
   units: { code: string; nameEn: string }[];
   year: number | null;
@@ -69,7 +67,7 @@ export interface AvailabilityData {
 export function AvailabilityPanel({
   codes,
   movements,
-  periods,
+  spend: allSpend,
   settings,
   units,
   year,
@@ -97,8 +95,7 @@ export function AvailabilityPanel({
       ? Number(((totals.committed + totals.actualSpend) * 10000n) / totals.allocated) / 100
       : null;
 
-  const yearPeriods = year == null ? [] : periods.filter((p) => p.year === year);
-  const spend = spendByPeriod(yearPeriods, codes, movements);
+  const spend = allSpend.filter((s) => s.period.year === year);
   const byUnit = utilisationByUnit(codes, movements, on);
 
   const rows: Row[] = codes.map((c) => {
