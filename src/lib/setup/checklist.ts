@@ -33,6 +33,9 @@ export interface ChecklistFacts {
   letterSlotsSet: number;
   letterSlots: number;
   budgetCheckSet: boolean;
+  saleChannelSet: boolean;
+  submissionChannelSet: boolean;
+  sulitReadersDecided: boolean; // some role has a recorded decision on reading SULIT values
 }
 
 const filled = (s: string | null) => !!s && s.trim() !== "";
@@ -58,10 +61,13 @@ export function buildChecklist(f: ChecklistFacts): ChecklistItem[] {
     { key: "organisation", section: "people", kind: "set", label: "Organisation details and logo", href: "/configuration/organisation", state: stateOf(o.name.trim() !== SETUP_PLACEHOLDER_NAME && filled(o.name) && filled(o.registrationNo) && filled(o.address) && o.hasLogo), detail: "Name, registration number, address and logo, as they appear on letters." },
     { key: "units", section: "people", kind: "set", label: "Units and cost centres", href: "/configuration/organisation", state: stateOf(f.orgUnits > 0 && f.costCentres > 0), detail: "At least one unit and one cost centre." },
     { key: "people", section: "people", kind: "set", label: "People and their roles", href: "/configuration/users", state: stateOf(!!peopleDone), detail: "Every office on the approval limits needs someone holding it today." },
+    { key: "sulit", section: "people", kind: "set", label: "Who may read SULIT values", href: "/configuration/users?tab=permissions", state: stateOf(f.sulitReadersDecided), detail: "Until roles are chosen, SULIT figures stay hidden from everyone not named on the record." },
     { key: "limits", section: "approvals", kind: "confirm", label: "Confirm approval limits", href: "/configuration/approval-matrix", state: matrix, confirmedBy: matrix === "done" ? inForce?.issuedBy ?? undefined : undefined, detail: "Limits are in place only once a named person has issued them." },
     { key: "committees", section: "approvals", kind: "set", label: "Committee members", href: "/configuration/committees", state: stateOf(f.committees.length > 0 && f.committees.every((c) => c.liveMembers >= (c.quorum ?? 1))), detail: "Each committee needs at least its quorum of members, or one where no quorum is set." },
     { key: "fees", section: "purchasing", kind: "set", label: "Document fees", href: "/configuration/invitation", state: stateOf(f.documentFeeFloors > 0), detail: "The lowest fee for tender and quotation documents." },
     { key: "holidays", section: "purchasing", kind: "set", label: "This year's public holidays", href: "/configuration/invitation", state: stateOf(f.holidays.calendarSet && f.holidays.yearRow && f.holidays.thisYear > 0), detail: "Closing dates are checked against weekends and public holidays." },
+    { key: "sale-channel", section: "purchasing", kind: "set", label: "How documents are sold", href: "/configuration/invitation", state: stateOf(f.saleChannelSet), detail: "At the counter or online. Until it is set, a tender or quotation cannot be published." },
+    { key: "submission-channel", section: "purchasing", kind: "set", label: "How bids are submitted", href: "/configuration/invitation", state: stateOf(f.submissionChannelSet), detail: "On paper or online. Until it is set, a tender or quotation cannot be published." },
     { key: "evaluation", section: "purchasing", kind: "confirm", label: "Evaluation models", href: "/configuration/evaluation", state: evaluation, confirmedBy: evaluation === "done" ? f.evaluation.issuedBy ?? undefined : undefined, detail: "A model is in use only once it is issued." },
     { key: "documents", section: "suppliers-portal", kind: "set", label: "Supplier document types", href: "/configuration/suppliers", state: stateOf(f.supplierDocumentTypes > 0), detail: "What a supplier must upload to register." },
     { key: "declarations", section: "suppliers-portal", kind: "set", label: "Declaration wording", href: "/configuration/suppliers", state: stateOf(f.declarationsFirm === 3), detail: "Terms, false-declaration and GIRO texts, written by you. Starting wording does not count." },

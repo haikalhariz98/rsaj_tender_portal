@@ -10,6 +10,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { RULE_LABEL } from "@/lib/window/labels";
+import { realSource } from "@/lib/labels";
 import { SettingValue } from "@/components/setup/setting-value";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -152,7 +153,7 @@ export default async function InvitationControlsPage() {
                 setting("Target days from advertisement to closing", <SettingValue value={days(p.targetAdvertisementDays)} unset={UNSET.target} />),
                 setting("Margin for a late newspaper", <SettingValue value={days(p.newspaperWarnDays)} unset={UNSET.margin} />),
                 setting(RULE_LABEL.purchaseCutoff, <SettingValue value={days(p.purchaseCutoffDays)} unset={UNSET.cutoff} />),
-                setting("Where the date rules are written", p.dateRuleSource || <SettingValue value={null} unset="No source is cited, so the messages that refuse a date cite none." />),
+                ...(realSource(p.dateRuleSource) ? [setting("Where the date rules are written", p.dateRuleSource)] : []),
                 setting("Default closing time", <SettingValue value={r.time.value} unset={UNSET.time} />),
                 setting("Advertisement day", <SettingValue value={r.day.value} unset={UNSET.dayRule} />),
                 setting("Holiday calendar", <SettingValue value={named(c.calendars, p.calendarId)?.name ?? "Not set"} unset={UNSET.calendar} />),
@@ -238,7 +239,7 @@ export default async function InvitationControlsPage() {
                   const raw = rawChannels.find((y) => y.id === x.id);
                   return (
                     <Tr key={x.id}>
-                      <Td label="Channel"><CellStack title={x.nameEn} sub={[x.governingSource, x.retired].filter(Boolean).join(" · ") || undefined} /></Td>
+                      <Td label="Channel"><CellStack title={x.nameEn} sub={[realSource(x.governingSource), x.retired].filter(Boolean).join(" · ") || undefined} /></Td>
                       <Td label="Required">{x.required === "Not set" ? <SettingValue value={null} unset="Publication is held back until this is set." /> : x.required}</Td>
                       <Td>
                         <RowActions>
@@ -377,7 +378,7 @@ export default async function InvitationControlsPage() {
               columns={2}
               items={[
                 setting("The tenderers invited are", <SettingValue value={op?.invitedCountReading ? INVITED_READING_LABEL[op.invitedCountReading] : "Not set"} unset={OPENING_RULE_UNSET.reading} />),
-                setting("Where it is written", op?.governingSource || <SettingValue value={null} unset="No source is cited." />),
+                ...(realSource(op?.governingSource) ? [setting("Where it is written", op?.governingSource)] : []),
                 setting("A bid that passed", <SettingValue value={word(op?.qualifiedLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.qualified}".`} />),
                 setting("A bid that did not pass", <SettingValue value={word(op?.notQualifiedLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.notQualified}".`} />),
                 setting("The lowest qualifying offer", <SettingValue value={word(op?.lowestLabelEn)} unset={`${OPENING_RULE_UNSET.labels} "${PRODUCT_SUMMARY_LABELS.lowest}".`} />),

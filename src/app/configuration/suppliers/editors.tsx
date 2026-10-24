@@ -57,7 +57,7 @@ export function ValueDrawer({ bodyId, bodyName, categories, value }: { bodyId: s
 }
 
 export function RetireValueDrawer({ id, name, retired }: { id: string; name: string; retired: boolean }) {
-  return <Retire id={id} name={name} retired={retired} action={setRegistrationValueRetired} what="value" />;
+  return <RetireOrRestore id={id} name={name} retired={retired} action={setRegistrationValueRetired} what="value" />;
 }
 
 // ------------------------------------------------------------------ document types
@@ -94,7 +94,7 @@ export function DocumentTypeDrawer({ bodies, type }: { bodies: Option[]; type?: 
 }
 
 export function RetireTypeDrawer({ id, name, retired }: { id: string; name: string; retired: boolean }) {
-  return <Retire id={id} name={name} retired={retired} action={setDocumentTypeRetired} what="document type" />;
+  return <RetireOrRestore id={id} name={name} retired={retired} action={setDocumentTypeRetired} what="document type" />;
 }
 
 // ------------------------------------------------------------------ lists
@@ -122,7 +122,7 @@ export function ListValueDrawer({ list, listName, value }: { list: string; listN
 }
 
 export function RetireListValueDrawer({ id, name, retired }: { id: string; name: string; retired: boolean }) {
-  return <Retire id={id} name={name} retired={retired} action={setListValueRetired} what="entry" />;
+  return <RetireOrRestore id={id} name={name} retired={retired} action={setListValueRetired} what="entry" />;
 }
 
 // ------------------------------------------------------------------ policy
@@ -215,7 +215,7 @@ export function DeclarationTextDrawer({ text }: { text?: { id: string; name: str
 }
 
 export function RetireDeclarationTextDrawer({ id, name, retired }: { id: string; name: string; retired: boolean }) {
-  return <Retire id={id} name={name} retired={retired} action={setDeclarationTextRetired} what="wording" />;
+  return <RetireOrRestore id={id} name={name} retired={retired} action={setDeclarationTextRetired} what="wording" />;
 }
 
 export function EditPortalIntake({ values }: { values: Record<string, string> }) {
@@ -273,7 +273,7 @@ export function StandingReasonDrawer({ reason }: { reason?: { id: string; name: 
 }
 
 export function RetireStandingReasonDrawer({ id, name, retired }: { id: string; name: string; retired: boolean }) {
-  return <Retire id={id} name={name} retired={retired} action={setStandingReasonRetired} what="reason" />;
+  return <RetireOrRestore id={id} name={name} retired={retired} action={setStandingReasonRetired} what="reason" />;
 }
 
 export function EditStandingRules({ values, suspensionReasons, documentTypes }: { values: Record<string, string>; suspensionReasons: Option[]; documentTypes: Option[] }) {
@@ -312,17 +312,17 @@ export function EditStandingRules({ values, suspensionReasons, documentTypes }: 
 
 // ------------------------------------------------------------------ retiring
 
-function Retire({ id, name, retired, action, what }: { id: string; name: string; retired: boolean; action: typeof setRegistrationValueRetired | typeof setStandingReasonRetired; what: string }) {
+function RetireOrRestore({ id, name, retired, action, what }: { id: string; name: string; retired: boolean; action: typeof setRegistrationValueRetired | typeof setStandingReasonRetired; what: string }) {
   return (
     <RecordEditor
-      title={retired ? `Bring back ${name}` : `Retire ${name}`}
+      title={retired ? `Bring back ${name}` : `Stop using ${name}`}
       description={retired ? `The ${what} can be chosen again.` : `The ${what} can no longer be chosen. It stays on the records that used it.`}
       fields={[hidden("id"), hidden("retire")]}
       values={{ id, retire: retired ? "no" : "yes" }}
       {...(retired ? { reason: { label: "Why it comes back" } } : { destructive: { reasonLabel: "Why it is retired" } })}
       action={action}
-      submitLabel={retired ? "Bring back" : "Retire"}
-      trigger={{ label: retired ? "Bring back" : "Retire", className: ghost, ariaLabel: `${retired ? "Bring back" : "Retire"} ${name}` }}
+      submitLabel={retired ? "Bring back" : "Stop using"}
+      trigger={{ label: retired ? "Bring back" : "Stop using", className: ghost, ariaLabel: `${retired ? "Bring back" : "Stop using"} ${name}` }}
     />
   );
 }

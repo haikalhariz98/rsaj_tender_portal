@@ -308,7 +308,7 @@ export default async function ApprovalMatrixPage({
               </>
             ) : draftIssue ? (
               <ButtonLink href={`?issue=${draftIssue.id}`} variant="primary" size="sm">
-                Open draft {draftIssue.label}
+                Open draft
               </ButtonLink>
             ) : (
               <StartRevision fromId={matrixId} fromLabel={selected.label} />
@@ -535,7 +535,6 @@ export default async function ApprovalMatrixPage({
 
         {gaps > 0 && (
           <Callout tone="warn" title={gapTitle(gapList)}>
-            Routes are assumed.{" "}
             <MoreText label="Items without a limit" text={gapList.map((g) => g.label).join("; ")} />
           </Callout>
         )}

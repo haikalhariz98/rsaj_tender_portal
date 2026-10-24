@@ -1,5 +1,6 @@
 import { AlertTriangle } from "@/components/icons";
 import { isSumAdjustmentTrigger, SUM_ADJUSTMENT_TRIGGER_WORDS } from "@/lib/method/behaviour-twins";
+import { realSource } from "@/lib/labels";
 import { VARIANT_WORDS } from "@/lib/supervision/labels";
 import { isDelegationVariant } from "@/lib/supervision/types";
 import {
@@ -327,7 +328,7 @@ export default async function ReferenceDataPage() {
                     const v = typeRow(c.code)?.delegationVariant;
                     return v && isDelegationVariant(v) ? `Delegation letters: ${VARIANT_WORDS[v].en.toLowerCase()}` : "Delegation letters: not set — a delegation on its contracts is refused";
                   })()}</div>
-                  {c.notes && <div className="break-words text-[12.5px] text-ink-3">{c.notes}</div>}
+                  {realSource(c.notes) && <div className="break-words text-[12.5px] text-ink-3">{c.notes}</div>}
                 </Td>
                 <Td label="Written in">
                   <ProvenanceCell source={c.governingSource} />
@@ -682,7 +683,7 @@ function ReadinessStat({ label, readiness }: { label: string; readiness: ListRea
 
 /// The document that states an entry, when one is cited. Where it came from is read in History.
 function ProvenanceCell({ source }: { source: string }) {
-  return source ? (
+  return realSource(source) ? (
     <span className="block max-w-full truncate text-[12.5px] text-ink-3" title={source}>
       {source}
     </span>

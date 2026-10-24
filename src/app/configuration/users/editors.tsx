@@ -21,6 +21,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, Chip, Dot, type Tone } from "@/components/ui/badge";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
+import { moreItemClass } from "@/components/ui/more-item-class";
 import { Switch } from "@/components/ui/field";
 import { RecordEditor, type Field, type SaveAction } from "@/components/record-editor";
 import { actorField } from "@/lib/auth/actor-field";
@@ -287,7 +288,7 @@ const DELEGATION_STATUS: Record<ReturnType<typeof statusOf>, { label: string; to
  * it stops every assignment they hold from resolving. A reason is required because
  * nobody is signed in, so it is the only account of why.
  */
-export function LeaverToggle({ person, exposure = [] }: { person: Person; exposure?: string[] }) {
+export function LeaverToggle({ person, exposure = [], menu }: { person: Person; exposure?: string[]; menu?: boolean }) {
   const leaving = person.isActive;
   return (
     <RecordEditor
@@ -309,7 +310,7 @@ export function LeaverToggle({ person, exposure = [] }: { person: Person; exposu
       // nobody is signed in, and the reason is the only account of either.
       destructive={leaving ? { reasonLabel: "Why are they leaving?" } : undefined}
       reason={leaving ? undefined : { label: "Why are they coming back?" }}
-      trigger={{
+      trigger={menu ? { label: leaving ? "Mark as left" : "Reinstate", className: moreItemClass(leaving) } : {
         label: leaving ? "Mark as left" : "Reinstate",
         iconOnly: leaving ? <XIcon size={15} /> : <CheckIcon size={15} />,
         // Marking somebody as left is the destructive one, and reads so.

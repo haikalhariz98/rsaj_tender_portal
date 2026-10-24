@@ -1,8 +1,10 @@
 import { editRegistry } from "@/app/_auth/stage";
 import type { Row } from "@/components/data-list";
+import { Badge } from "@/components/ui/badge";
 import { Callout } from "@/components/ui/feedback";
 import { Card, CardHeader } from "@/components/ui/card";
 import { loadChangesView, type ChangeRow } from "@/lib/auth/changes-view";
+import { twoPersonOn } from "@/lib/auth/policy-store";
 import { kindsReadBy } from "@/lib/auth/configuration-change";
 import { editKindsReadBy } from "@/lib/auth/configuration-edit";
 import { whatChanges } from "@/lib/auth/configuration-change-words";
@@ -66,6 +68,7 @@ export async function ChangesQueue({ actor }: { actor: StaffActor }) {
 
   return (
     <>
+      {!(await twoPersonOn(db, actor.organisationId)) && actor.permissions.has("configuration.issue") && <div className="mb-3"><Badge tone="neutral">Approval by another admin: off</Badge></div>}
       {stuck > 0 && (
         <Callout tone="warn" title={stuck === 1 ? "One change has nobody who could decide it" : `${stuck} changes have nobody who could decide them`} className="mb-5">
           Needs a second decider.

@@ -154,14 +154,14 @@ export function UnlockSupplierAccount({ supplierId, accountId, name }: { supplie
 export function RetireContact({ supplierId, contactId, name }: { supplierId: string; contactId: string; name: string }) {
   return (
     <RecordEditor
-      title={`Retire ${name}`}
+      title={`Stop using ${name}`}
       description="Removes them from contacts. Their portal account is disabled."
       fields={[{ kind: "hidden", name: "supplierId" }, { kind: "hidden", name: "contactId" }]}
       values={{ supplierId, contactId }}
       action={retireContactAction}
-      submitLabel="Retire"
+      submitLabel="Stop using"
       reason={{ label: "Why is this contact being retired?" }}
-      trigger={{ label: "Retire", className: buttonClass("ghost", "sm"), ariaLabel: `Retire ${name}` }}
+      trigger={{ label: "Stop using", className: buttonClass("ghost", "sm"), ariaLabel: `Stop using ${name}` }}
       size="sm"
     />
   );

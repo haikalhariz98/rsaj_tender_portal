@@ -20,7 +20,7 @@ export default async function SupplierBidsPage({ searchParams }: { searchParams:
   const { tab: asked } = await searchParams;
   const tab: BidsListTab = isBidsListTab(asked) ? asked : "exercises";
   const tabs = [
-    { id: "exercises", label: "Exercises", icon: <GlobeIcon size={15} />, lazy: true, panel: tab === "exercises" ? <ExercisesPanel actor={actor} /> : null },
+    { id: "exercises", label: "Tenders and quotations", icon: <GlobeIcon size={15} />, lazy: true, panel: tab === "exercises" ? <ExercisesPanel actor={actor} /> : null },
     { id: "notices", label: "Notices", icon: <InboxIcon size={15} />, lazy: true, panel: tab === "notices" ? <NoticesPanel actor={actor} /> : null },
   ];
   return (

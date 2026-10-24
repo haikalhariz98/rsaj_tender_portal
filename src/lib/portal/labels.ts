@@ -108,7 +108,7 @@ export const SIGN_IN_ITEMS: readonly { href: string; title: Words; text: Words }
 export const SIGNED_IN_TITLE = w("With sign-in");
 export const SIGNED_IN_SUBTITLE = w("Sign in with your company's account to reach these.");
 export const SIGNED_IN_LINKS: readonly { key: "bids" | "projects" | "company" | "announcements"; href: string; title: Words; text: Words }[] = [
-  { key: "bids", href: PORTAL_PATH.bids, title: w("My Bids"), text: w("Your exercises and notices.") },
+  { key: "bids", href: PORTAL_PATH.bids, title: w("My Bids"), text: w("Your tenders, quotations and notices.") },
   { key: "projects", href: PORTAL_PATH.projects, title: w("My Projects"), text: w("Your contracts: diary, claims, certificates.") },
   { key: "company", href: PORTAL_PATH.company, title: w("Company"), text: w("Your registration, documents, bank details and eligibility.") },
   { key: "announcements", href: PORTAL_PATH.announcements, title: w("Announcements"), text: w("Notices from the procurement office.") },
@@ -251,7 +251,7 @@ export const RESULTS = {
   info: w(
     "Only advertised exercises that were awarded are listed. Exercises that invited named suppliers are not shown.",
   ),
-  listTitle: w("Awarded exercises"),
+  listTitle: w("Awarded tenders and quotations"),
   listSubtitle: w("Latest first."),
   search: w("Search by title or reference"),
   columns: {
@@ -316,7 +316,6 @@ export const APPLY = {
   incorporatedHint: w("As on the certificate."),
   mobileHint: (dialCode: string | null): Words => (dialCode ? w(`Without the ${dialCode}, which is added for you.`) : w("With the country code if it is not local.")),
   reachHintBoth: w("Give both an email address and a mobile number."),
-  emailNotVerifiedHint: w("Not emailed. The address is not checked."),
   choose: w("Choose"),
   reachHint: w("Give an email or a telephone number, or both."),
   numberFormatHint: (example: string): Words => w(`For example ${example}.`),

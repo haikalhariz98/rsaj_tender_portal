@@ -66,7 +66,7 @@ export const DASHBOARD_WORDS = {
   requisitionHint: w("{approved} approved · {back} sent back"),
   contractsHint: w("{awarding} awarding · {signing} signing · {onSite} on site"),
 
-  committeeTitle: w("Committee matters waiting"),
+  committeeTitle: w("Committee items waiting"),
   committeeSubtitle: w("Oldest first"),
   viewAll: w("View all"),
   searchMatters: w("Search matters…"),
@@ -116,19 +116,19 @@ export const DASHBOARD_WORDS = {
 /** "Recent activity": the verbs that follow a subject, and the sentences with values. */
 export const ACTIVITY_WORDS = {
   // an exercise's move into each state
-  exReturned: w("Exercise {ref}: tender documents returned for amendment"),
-  exPreparation: w("Exercise {ref} moved into preparation"),
-  exSentForApproval: w("Exercise {ref}: tender documents sent for approval"),
-  exApprovedForTendering: w("Exercise {ref} approved for tendering"),
-  exAdvertised: w("Exercise {ref} advertised"),
-  exInvited: w("Exercise {ref}: letters of invitation issued"),
-  exOpeningInProgress: w("Exercise {ref}: tender box opened at its opening"),
-  exOpened: w("Exercise {ref}: opening finalised"),
-  exUnderEvaluation: w("Exercise {ref}: under evaluation"),
-  exEvaluated: w("Exercise {ref}: evaluation report issued"),
-  exCancelled: w("Exercise {ref} cancelled"),
-  exOpenedFor: w("Exercise {ref} opened for {req}"),
-  exOpenedPlain: w("Exercise {ref} opened"),
+  exReturned: w("Tender or quotation {ref}: tender documents returned for amendment"),
+  exPreparation: w("Tender or quotation {ref} moved into preparation"),
+  exSentForApproval: w("Tender or quotation {ref}: tender documents sent for approval"),
+  exApprovedForTendering: w("Tender or quotation {ref} approved for tendering"),
+  exAdvertised: w("Tender or quotation {ref} advertised"),
+  exInvited: w("Tender or quotation {ref}: letters of invitation issued"),
+  exOpeningInProgress: w("Tender or quotation {ref}: tender box opened at its opening"),
+  exOpened: w("Tender or quotation {ref}: opening finalised"),
+  exUnderEvaluation: w("Tender or quotation {ref}: under evaluation"),
+  exEvaluated: w("Tender or quotation {ref}: evaluation report issued"),
+  exCancelled: w("Tender or quotation {ref} cancelled"),
+  exOpenedFor: w("Tender or quotation {ref} opened for {req}"),
+  exOpenedPlain: w("Tender or quotation {ref} opened"),
 
   // a requisition
   reqFromFinance: w("received from the finance system"),
@@ -180,9 +180,9 @@ export const ACTIVITY_WORDS = {
   // the lines made of several acts of one moment
   foldRejectedAt: w("{subject} rejected at {office}{end}"),
   foldAnd: w("and"),
-  foldCancelledRefused: w("Exercise {subject} cancelled: {office} refused the name"),
-  foldReturnedAt: w("Exercise {subject}: tender documents returned for amendment at {office}"),
+  foldCancelledRefused: w("Tender or quotation {subject} cancelled: {office} refused the name"),
+  foldReturnedAt: w("Tender or quotation {subject}: tender documents returned for amendment at {office}"),
   foldApprovedAt: w("{subject} approved at {office}"),
-  foldTenderingAt: w("Exercise {subject} approved for tendering at {office}"),
+  foldTenderingAt: w("Tender or quotation {subject} approved for tendering at {office}"),
 } as const;
 

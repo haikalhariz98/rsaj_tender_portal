@@ -135,7 +135,7 @@ describe("a SULIT column withheld in every row collapses into one note (plan 6.1
     expect(out).toContain("Values hidden: SULIT");
     expect(out).toContain("Only the opening committee may read prices.");
     expect(out).not.toContain(">Price<");
-    expect(out).not.toContain("SULIT · withheld");
+    expect(out).not.toContain("Hidden");
     expect(out).toContain("Bidder 1");
     expect(out.match(/<col\b/g)?.length).toBe(2);
     expect(out).toContain("Download CSV (SULIT left out)");
@@ -144,7 +144,7 @@ describe("a SULIT column withheld in every row collapses into one note (plan 6.1
     const out = render([hidden("1"), row("2", { kind: "money", value: 1500 })]);
     expect(out).toContain(">Price<");
     expect(out).not.toContain("Values hidden");
-    expect(out).toContain("SULIT · withheld");
+    expect(out).toContain("Hidden");
   });
   it("an empty list, and a column that is not SULIT, never collapse", () => {
     expect(withheldColumns(cols, [])).toEqual([]);

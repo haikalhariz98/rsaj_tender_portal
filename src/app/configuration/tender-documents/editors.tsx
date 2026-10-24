@@ -100,15 +100,15 @@ export function PartDrawer({
 export function RetirePartDrawer({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
-      title={`Retire ${label}`}
+      title={`Stop using ${label}`}
       description="New packs omit the part. Started packs keep it. It can be restored."
       fields={[hidden("id"), { kind: "date", name: "retiredOn", label: "Retired from", required: true }]}
       values={{ id }}
       destructive={{ reasonLabel: "Why it is retired" }}
       cancelLabel="Keep the part"
       action={retireTenderPart}
-      submitLabel="Retire the part"
-      trigger={{ label: "Retire", className: buttonClass("destructive", "sm"), ariaLabel: `Retire ${label}` }}
+      submitLabel="Stop using the part"
+      trigger={{ label: "Stop using", className: buttonClass("destructive", "sm"), ariaLabel: `Stop using ${label}` }}
       size="sm"
     />
   );

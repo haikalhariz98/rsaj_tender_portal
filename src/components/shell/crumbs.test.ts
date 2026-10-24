@@ -118,8 +118,8 @@ describe("breadcrumbs on every page (6.14 residual)", () => {
     expect(labels(trail("/sourcing/sx1/documents/print", "EX/1"))).toEqual(["Tenders & quotations", "EX/1", "Tender documents", "Print"]);
     expect(labels(trail("/sourcing/sx1/appendix", "EX/1"))).toEqual(["Tenders & quotations", "EX/1", "Appendix"]);
     expect(labels(trail("/sourcing/sx1/edit", "EX/1"))).toEqual(["Tenders & quotations", "EX/1", "Edit"]);
-    expect(labels(trail("/sourcing/sx1", null))).toEqual(["Tenders & quotations", "Exercise"]);
-    expect(labels(trail("/sourcing/new", null))).toEqual(["Tenders & quotations", "New exercise"]);
+    expect(labels(trail("/sourcing/sx1", null))).toEqual(["Tenders & quotations", "Tender or quotation"]);
+    expect(labels(trail("/sourcing/new", null))).toEqual(["Tenders & quotations", "New tender or quotation"]);
     expect(trail("/sourcing/sx1/evaluation/report", "EX/1")[2].href).toBe("/sourcing/sx1?tab=evaluation&section=report");
     // SR-06 (ruling 9): the Invitation tab is gone; the sale register is Sales and briefing on Bids and opening.
     expect(trail("/sourcing/sx1/label/s1", "EX/1")[2].href).toBe("/sourcing/sx1?tab=bids&section=sales");

@@ -31,9 +31,9 @@ describe("how a screen reads who did an act", () => {
     expect(read).toMatchObject({ state: "ON_BEHALF", en: "Recorded by Clerk on behalf of Aini, not signed" });
   });
 
-  it("reads an act the system recorded as the system's, by its label", () => {
+  it("reads an act the system recorded as the system's, as from paper, on a working screen", () => {
     const read = buildIndex([row({ mode: "RECORDED_ON_BEHALF", recordedByPerson: null, recordedBySystemLabel: "demo loader" })], new Set()).read(ref, "Aini");
-    expect(read.en).toContain("demo loader");
+    expect(read.en).toBe("Aini · from paper");
   });
 
   it("reads the latest occurrence of a slot written again, and never an earlier one", () => {

@@ -23,16 +23,19 @@ const EMPTY: ChecklistFacts = {
   letterSlotsSet: 0,
   letterSlots: 6,
   budgetCheckSet: false,
+  saleChannelSet: false,
+  submissionChannelSet: false,
+  sulitReadersDecided: false,
 };
 const state = (f: Partial<ChecklistFacts>, key: string) => buildChecklist({ ...EMPTY, ...f }).find((i) => i.key === key)!;
 const matrix = (m: Partial<MatrixFact>): MatrixFact => ({ issued: true, effectiveFrom: "2026-01-01", effectiveTo: null, issuedBy: { name: "Aini", at: new Date("2026-02-01") }, offices: ["A"], ...m });
 
 describe("the checklist", () => {
-  it("has the sixteen items, the email sender left out until step 7", () => {
+  it("has the nineteen items, the email sender left out until step 7", () => {
     const items = buildChecklist(EMPTY);
-    expect(items).toHaveLength(16);
+    expect(items).toHaveLength(19);
     expect(items.every((i) => i.state === "todo")).toBe(true);
-    expect(progressOf(items)).toEqual({ done: 0, total: 16 });
+    expect(progressOf(items)).toEqual({ done: 0, total: 19 });
   });
 
   it("organisation: the setup name, or a missing field, is not done", () => {
@@ -91,6 +94,12 @@ describe("the checklist", () => {
     expect(state({ declarationsFirm: 3 }, "declarations").state).toBe("done");
     expect(state({ personalDataNoticeFirm: true }, "notice").state).toBe("done");
     expect(state({ helpContact: true }, "help").state).toBe("done");
+  });
+
+  it("sale channel, submission channel and SULIT readers are done once set", () => {
+    expect(state({ saleChannelSet: true }, "sale-channel").state).toBe("done");
+    expect(state({ submissionChannelSet: true }, "submission-channel").state).toBe("done");
+    expect(state({ sulitReadersDecided: true }, "sulit").state).toBe("done");
   });
 
   it("letters need every slot; budget needs its source", () => {

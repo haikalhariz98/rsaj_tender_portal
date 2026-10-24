@@ -9,7 +9,7 @@ import type { MyStep } from "@/lib/approvals/queue";
 export interface NeedsYouRow {
   key: string;
   title: string;
-  /// What kind of thing it is, as a person reads it ("Requisition", "Committee matter").
+  /// What kind of thing it is, as a person reads it ("Requisition", "Committee item").
   kind: string;
   /// Who or what it waits on: the office for an approval step, the committee for a matter.
   waitingOn: string;
@@ -33,11 +33,11 @@ export interface CommitteeMatter {
 export function needsYou(mine: readonly MyStep[], matters: readonly CommitteeMatter[], myCommittees: ReadonlySet<string>): NeedsYouRow[] {
   const steps: NeedsYouRow[] = mine
     .filter((m) => !m.barred)
-    .map((m) => ({ key: `step:${m.item.stepId}`, title: m.item.matterLabel, kind: m.item.matterKindLabel, waitingOn: m.item.officeLabel, days: m.item.waitingDays, href: m.item.href, action: "Decide" }));
+    .map((m) => ({ key: `step:${m.item.stepId}`, title: m.item.matterLabel.replace(/^[^\s·]+ · /, ""), kind: m.item.matterKindLabel, waitingOn: m.item.officeLabel, days: m.item.waitingDays, href: m.item.href, action: "Decide" }));
   const sittings: NeedsYouRow[] = matters
     .filter((q) => myCommittees.has(q.committeeCode))
     .sort((a, b) => b.waitingDays - a.waitingDays)
-    .map((q) => ({ key: `matter:${q.decisionId}`, title: q.subject, kind: "Committee matter", waitingOn: q.committeeName, days: q.waitingDays, href: `/committees/${q.meetingId}`, action: "Open" }));
+    .map((q) => ({ key: `matter:${q.decisionId}`, title: q.subject, kind: "Committee item", waitingOn: q.committeeName, days: q.waitingDays, href: `/committees/${q.meetingId}`, action: "Open" }));
   return [...steps, ...sittings];
 }
 

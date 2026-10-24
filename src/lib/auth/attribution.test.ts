@@ -272,7 +272,7 @@ describe("how an attribution reads", () => {
 
   it("an act the system recorded names the system, not a person", () => {
     const r = attributionLabel({ row: { mode: "RECORDED_ON_BEHALF", recordedBySystemLabel: "demo loader" }, subjectName: "Aminah", recorderName: null, auditAttributed: true });
-    expect(r.en).toBe("Recorded by demo loader on behalf of Aminah, not signed");
+    expect(r.en).toBe("Aminah · from paper");
   });
 
   it("no row and an unattributed audit row: before sign-in, never a defect", () => {

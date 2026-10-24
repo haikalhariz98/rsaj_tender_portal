@@ -83,7 +83,7 @@ export const COMPONENT_WORDS = {
   stepRejected: w("rejected"),
   stepParked: w("parked"),
   // The SULIT marks (SulitLock, SulitTag, SulitWithheld and a SULIT column's header). SULIT itself is the classification mark and stays.
-  sulitWithheld: w("SULIT · withheld"),
+  sulitWithheld: w("Hidden"),
   // A list column in which every row is withheld from the reader collapses into this one note (FR-EVL-014, presentation only).
   valuesHidden: w("Values hidden: SULIT"),
   valuesHiddenWhy: w("Why the values are hidden"),

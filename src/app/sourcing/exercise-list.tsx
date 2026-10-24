@@ -8,7 +8,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 
 /**
  * The exercises card: its title says which list is showing. The list owns the selected view
- * and reports it, so the heading above never reads "All exercises" over a filtered list.
+ * and reports it, so the heading above never reads "All tenders and quotations" over a filtered list.
  */
 export function ExerciseList({ footer, ...list }: { footer?: ReactNode } & ComponentProps<typeof DataList>) {
   const [view, setView] = useState(list.initialView && list.views?.some((v) => v.id === list.initialView) ? list.initialView : "");
@@ -25,7 +25,7 @@ export function ExerciseList({ footer, ...list }: { footer?: ReactNode } & Compo
     <Card className="overflow-hidden">
       <CardHeader
         icon={<GlobeIcon size={17} />}
-        title={chosen ? chosen.label : "All exercises"}
+        title={chosen ? chosen.label : "All tenders and quotations"}
         subtitle={chosen?.about}
         divided={false}
       />

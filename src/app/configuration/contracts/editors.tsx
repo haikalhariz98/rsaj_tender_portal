@@ -86,14 +86,14 @@ export function EditCopyRecipient({ id, values, name }: { id: string; values: Va
 export function RetireContractRow({ entity, id, label, today }: { entity: string; id: string; label: string; today: string | null }) {
   return (
     <RecordEditor
-      title={`Retire ${label}`}
+      title={`Stop using ${label}`}
       description="No longer offered from the day given. Contracts in preparation keep it."
       fields={[hidden("entity"), hidden("id"), { kind: "date", name: "retiredOn", label: "Retired from", required: true }]}
       values={{ entity, id, retiredOn: today }}
       action={retireContractRow}
-      submitLabel="Retire"
+      submitLabel="Stop using"
       destructive={{ reasonLabel: "Why is it being retired?" }}
-      trigger={{ label: "Retire", className: buttonClass("destructive", "sm") }}
+      trigger={{ label: "Stop using", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );

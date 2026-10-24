@@ -102,7 +102,7 @@ export function CompanyFields({
           {select("countryCode", APPLY.fields.country.en, countries, v.countryCode, (s) => company("countryCode", s), { required: true })}
           {text("incorporatedOn", APPLY.fields.incorporatedOn.en, v.incorporatedOn, (s) => company("incorporatedOn", s), { required: true, type: "date", hint: APPLY.incorporatedHint.en })}
           {bumiputeraStatuses.length > 0 && select("bumiputeraClaimCode", APPLY.fields.bumiputeraClaim.en, bumiputeraStatuses, v.bumiputeraClaimCode ?? "", (s) => onChange({ ...v, bumiputeraClaimCode: s || null }), { hint: APPLY.bumiputeraHint.en })}
-          {text("companyEmail", APPLY.fields.companyEmail.en, v.companyEmail, (s) => company("companyEmail", s), { required: true, type: "email", autoComplete: "email", hint: APPLY.emailNotVerifiedHint.en })}
+          {text("companyEmail", APPLY.fields.companyEmail.en, v.companyEmail, (s) => company("companyEmail", s), { required: true, type: "email", autoComplete: "email" })}
         </>,
         true,
       )}

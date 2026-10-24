@@ -17,10 +17,10 @@ const line = (e: ActivityEntry) => activityLine(e, {}, "Asia/Kuala_Lumpur");
 
 describe("the window's acts in Recent activity", () => {
   it("reads advertised and invited, never the state's code", () => {
-    expect(line(ex("APPROVED_FOR_TENDERING", "ADVERTISED"))!.headline).toBe("Exercise SX/1 advertised");
-    expect(line(ex("APPROVED_FOR_TENDERING", "INVITED"))!.headline).toBe("Exercise SX/1: letters of invitation issued");
+    expect(line(ex("APPROVED_FOR_TENDERING", "ADVERTISED"))!.headline).toBe("Tender or quotation SX/1 advertised");
+    expect(line(ex("APPROVED_FOR_TENDERING", "INVITED"))!.headline).toBe("Tender or quotation SX/1: letters of invitation issued");
   });
   it("reads a published exercise's cancellation with its reason", () => {
-    expect(line(ex("ADVERTISED", "CANCELLED", "Scope withdrawn."))).toMatchObject({ headline: "Exercise SX/1 cancelled", reason: "Scope withdrawn." });
+    expect(line(ex("ADVERTISED", "CANCELLED", "Scope withdrawn."))).toMatchObject({ headline: "Tender or quotation SX/1 cancelled", reason: "Scope withdrawn." });
   });
 });

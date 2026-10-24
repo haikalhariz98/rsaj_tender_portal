@@ -62,7 +62,7 @@ export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="The exercise" />
+          <CardHeader title="The tender or quotation" />
           <CardBody>
             <KeyValues
               items={[

@@ -35,13 +35,13 @@ export async function ExercisesPanel({ actor }: { actor: SupplierActor }) {
   });
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<GlobeIcon size={17} />} title="Exercises you take part in" divided={false} />
+      <CardHeader icon={<GlobeIcon size={17} />} title="Tenders and quotations you take part in" divided={false} />
       <DataList
         flat
         selectable={false}
         exportName="my-bids"
         searchPlaceholder="Search by title or reference"
-        emptyTitle="No exercises yet"
+        emptyTitle="Nothing yet"
         views={[
           { id: "open", label: "Open" },
           { id: "attention", label: "Waiting for you", emptyTitle: "Nothing waits for you" },
@@ -51,7 +51,7 @@ export async function ExercisesPanel({ actor }: { actor: SupplierActor }) {
         rowOpens
         stackBelow="xl"
         columns={[
-          { key: "exercise", label: "Exercise", sortable: true, mobile: "primary" },
+          { key: "exercise", label: "Tender or quotation", sortable: true, mobile: "primary" },
           { key: "state", label: "State", width: "130px", mobile: "meta" },
           { key: "closing", label: "Closes", width: "190px", sortable: true, nowrap: true, mobile: "meta" },
           { key: "part", label: "Your part", width: "320px", mobile: "meta" },

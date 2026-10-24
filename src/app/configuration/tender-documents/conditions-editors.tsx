@@ -81,15 +81,15 @@ export function ClauseDrawer({ clause }: { clause?: { id: string; title: string;
 export function RetireDrawer({ kind, id, label }: { kind: "body" | "clause"; id: string; label: string }) {
   return (
     <RecordEditor
-      title={`Retire ${label}`}
+      title={`Stop using ${label}`}
       description={kind === "body" ? "Exercises cannot add it from this day. Can be restored." : "Not judged against from this day. Frozen documents keep it. Can be restored."}
       fields={[hidden("id"), { kind: "date", name: "retiredOn", label: "Retired from", required: true }]}
       values={{ id }}
       destructive={{ reasonLabel: "Why it is retired" }}
       cancelLabel="Keep it"
       action={kind === "body" ? retireRegistrationBody : retireClause}
-      submitLabel={kind === "body" ? "Retire the body" : "Retire the clause"}
-      trigger={{ label: "Retire", className: buttonClass("destructive", "sm"), ariaLabel: `Retire ${label}` }}
+      submitLabel={kind === "body" ? "Stop using the body" : "Stop using the clause"}
+      trigger={{ label: "Stop using", className: buttonClass("destructive", "sm"), ariaLabel: `Stop using ${label}` }}
       size="sm"
     />
   );

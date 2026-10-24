@@ -12,6 +12,7 @@ import {
   UserIcon,
 } from "@/components/icons";
 import { ButtonLink, iconButtonClass } from "@/components/ui/button";
+import { cx } from "@/components/ui/cx";
 import { useSay } from "@/components/i18n/language-context";
 import { w, type Words } from "@/lib/contract/labels";
 import { CRUMB_WORDS, NESTED_LABEL, RECORD_LABEL, SEGMENT_LABEL, SHELL_WORDS } from "@/lib/i18n/catalogues/shell";
@@ -195,10 +196,11 @@ export function Topbar({
       <nav aria-label={say(SHELL_WORDS.breadcrumb)} className="flex min-w-0 shrink items-center gap-1.5 text-[13.5px]">
         {all.map((crumb, i) => {
           const last = i === all.length - 1;
+          // The last crumb is never cut; the ones between give way first (the first, the area, keeps its word).
           return (
-            <span key={crumb.href + i} className={last ? "flex min-w-0 items-center gap-1.5" : "hidden shrink-0 items-center gap-1.5 whitespace-nowrap sm:flex"}>
+            <span key={crumb.href + i} className={last ? "flex shrink-0 items-center gap-1.5" : cx("hidden items-center gap-1.5 whitespace-nowrap sm:flex", i === 0 ? "shrink-0" : "min-w-0 max-w-64 shrink")}>
               {last ? (
-                <span aria-current="page" className="truncate font-semibold text-ink">
+                <span aria-current="page" className="whitespace-nowrap font-semibold text-ink">
                   {say(crumb.label)}
                 </span>
               ) : (

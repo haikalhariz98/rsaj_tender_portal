@@ -379,7 +379,7 @@ export function RetireEntry({
 }) {
   return (
     <RecordEditor
-      title={`Retire ${label}`}
+      title={`Stop using ${label}`}
       description="It stops being offered from today. Matters already run under it keep showing it."
       fields={[
         { kind: "hidden", name: "entity" },
@@ -387,10 +387,10 @@ export function RetireEntry({
       ]}
       values={{ entity, id }}
       action={retireEntry}
-      submitLabel="Retire"
+      submitLabel="Stop using"
       destructive={{ reasonLabel: "Why is it being retired?" }}
       trigger={{
-        label: "Retire",
+        label: "Stop using",
         className: buttonClass("destructive", "sm"),
       }}
       size="sm"
@@ -514,14 +514,14 @@ export function ChecklistItemDrawer({ methods, item }: { methods: Option[]; item
 export function RetireChecklistItem({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
-      title={`Retire ${label}`}
+      title={`Stop using ${label}`}
       description="It is no longer asked for. Answers already given are kept."
       fields={[{ kind: "hidden", name: "id" }]}
       values={{ id }}
       action={retireChecklistItem}
-      submitLabel="Retire"
+      submitLabel="Stop using"
       destructive={{ reasonLabel: "Why is it being retired?" }}
-      trigger={{ label: "Retire", className: buttonClass("destructive", "sm") }}
+      trigger={{ label: "Stop using", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );

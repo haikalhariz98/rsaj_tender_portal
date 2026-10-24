@@ -8,6 +8,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { mediaLabel } from "@/lib/documents/labels";
+import { realSource } from "@/lib/labels";
 import { megabytesFromBytes } from "@/lib/tender-docs/bid-part-rules";
 import { SettingValue } from "@/components/setup/setting-value";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -179,7 +180,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                 setting("First interim certificate's minimum", <SettingValue value={p.firstCertificate} unset={UNSET.certificate} />),
                 setting("Insurance beyond the defects liability period", <SettingValue value={p.insuranceTail} unset={UNSET.insurance} />),
                 setting("The same, for design and build", <SettingValue value={p.designAndBuildTail} unset={UNSET.designAndBuild} />),
-                ...(p.governingSource ? [setting("Where the policy is written", p.governingSource)] : []),
+                ...(realSource(p.governingSource) ? [setting("Where the policy is written", p.governingSource)] : []),
               ]}
             />
             {policyRow?.notes && <p className="mt-4 text-[13px] break-words whitespace-pre-line text-ink-2">{policyRow.notes}</p>}
@@ -346,7 +347,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                 <tbody>
                   {k.bodies.map((b) => (
                     <Tr key={b.id}>
-                      <Td label="Body"><CellStack title={b.name} sub={[b.governingSource, b.retired ? `Retired${b.retiredOn ? ` from ${formatDate(b.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ") || undefined} /></Td>
+                      <Td label="Body"><CellStack title={b.name} sub={[realSource(b.governingSource), b.retired ? `Retired${b.retiredOn ? ` from ${formatDate(b.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ") || undefined} /></Td>
                       <Td label="Stated with it">{b.statedWithIt}</Td>
                       <Td>
                         <RowActions>
@@ -393,7 +394,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
                 <tbody>
                   {k.clauses.map((x) => (
                     <Tr key={x.id}>
-                      <Td label="Clause"><CellStack title={x.title} sub={[x.version, x.citedBy.length ? `Cited by ${x.citedBy.join(", ")}` : "Cited by no template", x.governingSource, x.retired ? `Retired${x.retiredOn ? ` from ${formatDate(x.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ")} /></Td>
+                      <Td label="Clause"><CellStack title={x.title} sub={[x.version, x.citedBy.length ? `Cited by ${x.citedBy.join(", ")}` : "Cited by no template", realSource(x.governingSource), x.retired ? `Retired${x.retiredOn ? ` from ${formatDate(x.retiredOn)}` : ""}` : null].filter(Boolean).join(" · ")} /></Td>
                       <Td label="Every agreement">{x.mandatory === NOT_SET ? <SettingValue value={null} unset="Every submission is held back until this is set." /> : x.mandatory === "Yes" ? "Carries it" : "Not required"}</Td>
                       <Td>
                         <RowActions>

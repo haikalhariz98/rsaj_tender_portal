@@ -100,7 +100,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
            not as a notice across the top. Brought up to date: bids, opening and evaluation are recorded here now. */
         info={{
           title: "What is recorded here",
-          text: "Exercises are classified here, with their tender documents, window, bids, opening and evaluation.",
+          text: "Tenders and quotations are classified here, with their tender documents, window, bids, opening and evaluation.",
         }}
         actions={
           org ? (
@@ -112,7 +112,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
       />
 
       <StatusCounts
-        label="Where the exercises stand"
+        label="Where they stand"
         className="mb-6"
         items={[
           { label: EXERCISE_STATUS_LABEL.DRAFT, count: byStatus.get("DRAFT") ?? 0, href: "/sourcing?view=drafts", active: view === "drafts" },
@@ -131,7 +131,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
         selectable={false}
         exportName="sourcing-exercises"
         searchPlaceholder="Search by title or reference"
-        emptyTitle="No sourcing exercises yet"
+        emptyTitle="No tenders or quotations yet"
         initialView={view}
         views={[
           { id: "drafts", label: EXERCISE_STATUS_LABEL.DRAFT },
@@ -154,7 +154,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
         columns={[
           // Founder, 2026-10-05: the exercise's title was squeezed to a sliver by the fixed columns. It keeps
           // at least 260px (the table scrolls in its card rather than squeeze it) and the others are narrower.
-          { key: "title", label: "Exercise", minWidth: "260px", sortable: true, mobile: "primary" },
+          { key: "title", label: "Tender or quotation", minWidth: "260px", sortable: true, mobile: "primary" },
           { key: "method", label: "Method and contract type", width: "18%", hideBelow: "2xl" },
           { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, sulit: true, sulitLabel: "SULIT. Shown to people named on the exercise and chosen roles. Not exported.", mobile: "meta" },
           { key: "window", label: "Closing", width: "168px", hideBelow: "lg", mobile: "meta" },

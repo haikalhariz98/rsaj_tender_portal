@@ -136,8 +136,10 @@ async function loadSignIn(actor: Awaited<ReturnType<typeof requireStaff>>, now: 
   const exposed = await loadHolderExposures(db, actor.organisationId, now, view.rows.filter((r) => r.status !== "DISABLED").map((r) => r.personId));
   return {
     creatable: view.people,
+    // Development only: the database login being broad does not stop anything, so it is a small note, not a warning.
+    notes: role && !role.safe && warnsOnly(role.reason) ? [`Database login is broader than it should be (runs as ${RUNTIME_ROLE_WORDS[role.reason]}). The operator reruns role setup.`] : [],
     warnings: [
-      ...(role && !role.safe ? [warnsOnly(role.reason) ? `Database login too broad. Operator reruns role setup. Runs as ${RUNTIME_ROLE_WORDS[role.reason]}.` : `${role.refuseSignIn ? "Sign-in refused: database login too broad. Contact the operator." : "Database login too broad. Production refuses sign-in. Contact the operator."} Runs as ${RUNTIME_ROLE_WORDS[role.reason]}.`] : []),
+      ...(role && !role.safe && !warnsOnly(role.reason) ? [`${role.refuseSignIn ? "Sign-in refused: database login too broad. Contact the operator." : "Database login too broad. Production refuses sign-in. Contact the operator."} Runs as ${RUNTIME_ROLE_WORDS[role.reason]}.`] : []),
       ...(view.codeSettingsUnset.length > 0 ? [`Codes cannot be issued. Not set: ${settingLabels(view.codeSettingsUnset).join("; ")}.`] : []),
     ],
     accounts: Object.fromEntries(

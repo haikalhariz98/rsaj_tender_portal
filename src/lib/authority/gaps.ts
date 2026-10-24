@@ -27,5 +27,5 @@ export function gapMatters(rules: readonly Pick<Rule, "ruleKey" | "domain" | "la
 }
 
 export function gapTitle(gaps: readonly GapMatter[]): string {
-  return `${gaps.length} ${gaps.length === 1 ? "matter has" : "matters have"} no limit set for it`;
+  return gaps.length === 1 ? "1 item has no limit; its route is a guess." : `${gaps.length} items have no limit; their routes are guesses.`;
 }

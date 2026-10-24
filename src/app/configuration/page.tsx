@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { requireSettingsReader } from "./section-route";
 import { ChecklistCard } from "@/components/setup/checklist";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardBody } from "@/components/ui/card";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Meter } from "@/components/ui/feedback";
@@ -19,7 +20,7 @@ export const metadata = { title: "Getting started" };
 
 export default async function ConfigurationPage() {
   const actor = await requireSettingsReader();
-  const { items } = await loadChecklist(db, actor.organisationId);
+  const { items, facts } = await loadChecklist(db, actor.organisationId);
   const at = (d: Date) => formatOrgDay(d, actor.organisationTimeZone);
   const { done, total } = progressOf(items);
   const complete = done === total;
@@ -31,7 +32,7 @@ export default async function ConfigurationPage() {
   );
   return (
     <>
-      <PageHeader title="Getting started" meta={[`${done} of ${total} done`]} />
+      <PageHeader title="Getting started" meta={[`${done} of ${total} done`, ...(!facts.twoPersonOn && actor.permissions.has("configuration.issue") ? [<Badge key="off" tone="neutral">Approval by another admin: off</Badge>] : [])]} />
       <Card className="mb-6">
         <CardBody>
           <Meter percent={(done / total) * 100} showValue={false} label={`${done} of ${total} done`} />

@@ -126,3 +126,6 @@ export const SIMULATOR_HINT = {
   noFundingRoute: "No funding route configured yet",
   fundingRoute: "Whether a funder overrides these limits is set per route",
 } as const;
+
+/// A cited source or note that only marks demo data ("Demo policy 6 (invented)", "Invented demo values…"): a screen shows no row for it, History holds the source.
+export const realSource = (s: string | null | undefined): string => (s && !/\(invented\)|^invented demo/i.test(s.trim()) ? s : "");

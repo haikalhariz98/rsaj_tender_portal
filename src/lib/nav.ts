@@ -154,8 +154,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     about: "Who the organisation is and who works in it: details, structure, people, roles and what each may do.",
     folders: ["organisation", "users", "accounts"],
     advanced: [
-      { label: "Organisation, sites and branding", href: "/configuration/organisation" },
-      { label: "People and roles", href: "/configuration/users?tab=people" },
+      { label: "Organisation", href: "/configuration/organisation" },
+      { label: "Users & roles", href: "/configuration/users?tab=people" },
       { label: "Permissions", href: "/configuration/users?tab=permissions" },
       { label: "Reporting lines", href: "/configuration/users?tab=lines" },
       { label: "Delegations", href: "/configuration/users?tab=delegation" },
@@ -169,7 +169,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     about: "Who approves what, by value, and the committees that recommend.",
     folders: ["approval-matrix", "committees", "routing-sheets"],
     advanced: [
-      { label: "Value bands and approval routes", href: "/configuration/approval-matrix" },
+      { label: "Approval matrix", href: "/configuration/approval-matrix" },
       { label: "Committees", href: "/configuration/committees" },
       { label: "Routing sheets", href: "/configuration/routing-sheets" },
     ],
@@ -181,11 +181,11 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     about: "How requisitions, tenders and quotations are run, from scope to evaluation.",
     folders: ["reference-data", "requisitions", "scope", "tender-documents", "invitation", "evaluation"],
     advanced: [
-      { label: "Reference lists", href: "/configuration/reference-data" },
-      { label: "Requisition checks", href: "/configuration/requisitions" },
+      { label: "Reference data", href: "/configuration/reference-data" },
+      { label: "Requisition controls", href: "/configuration/requisitions" },
       { label: "Scope and estimate", href: "/configuration/scope" },
       { label: "Tender documents", href: "/configuration/tender-documents" },
-      { label: "Invitation and opening", href: "/configuration/invitation" },
+      { label: "Invitation controls", href: "/configuration/invitation" },
       { label: "Evaluation models", href: "/configuration/evaluation" },
     ],
   },
@@ -196,9 +196,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     about: "How awards become contracts, and how contracts are supervised and paid.",
     folders: ["awards", "contracts", "post-award", "budget"],
     advanced: [
-      { label: "Awards", href: "/configuration/awards" },
-      { label: "Contracts", href: "/configuration/contracts" },
-      { label: "Supervision and payment", href: "/configuration/post-award" },
+      { label: "Award controls", href: "/configuration/awards" },
+      { label: "Contract controls", href: "/configuration/contracts" },
+      { label: "Post-award controls", href: "/configuration/post-award" },
       { label: "Budget", href: "/configuration/budget" },
     ],
   },
@@ -208,7 +208,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     icon: "globe",
     about: "What suppliers see and give when they register, and how the public portal behaves.",
     folders: ["suppliers"],
-    advanced: [{ label: "Supplier register and portal", href: "/configuration/suppliers" }],
+    advanced: [{ label: "Supplier register", href: "/configuration/suppliers" }],
   },
   {
     slug: "system",
@@ -243,34 +243,10 @@ export const FOLDER_SECTION: Readonly<Record<string, SettingsSection>> = Object.
 /// The section a path under Settings lights in the rail, or null for Getting started.
 export const sectionOfPath = (pathname: string): SettingsSection | null => FOLDER_SECTION[pathname.split("/")[2] ?? ""] ?? null;
 
-/// Each page's own name, for its breadcrumb (the section's is its rail label).
-const PAGE_LABELS: Record<string, Words> = {
-  organisation: w("Organisation"),
-  users: w("Users & roles"),
-  accounts: w("Sign-in accounts"),
-  "approval-matrix": w("Approval matrix"),
-  committees: w("Committees"),
-  "routing-sheets": w("Routing sheets"),
-  "reference-data": w("Reference data"),
-  requisitions: w("Requisition controls"),
-  scope: w("Scope and estimate"),
-  "tender-documents": w("Tender documents"),
-  invitation: w("Invitation controls"),
-  evaluation: w("Evaluation models"),
-  awards: w("Award controls"),
-  contracts: w("Contract controls"),
-  "post-award": w("Post-award controls"),
-  budget: w("Budget"),
-  suppliers: w("Supplier register"),
-  notifications: w("Notifications"),
-  numbering: w("Numbering"),
-  templates: w("Templates"),
-  documents: w("Documents"),
-  security: w("Sign-in settings"),
-  "bid-sealing": w("Bid sealing"),
-  audit: w("Audit trail"),
-  changes: w("Settings changes to approve"),
-};
+/// Each page's own name, for its breadcrumb: the first entry the sections list for it (`SETTINGS_SECTIONS` is the one place a page is named).
+const PAGE_LABELS: Record<string, Words> = Object.fromEntries(
+  SETTINGS_SECTIONS.flatMap((s) => s.folders.map((f) => [f, w(s.advanced.find((a) => a.href.split("?")[0] === `/configuration/${f}`)?.label ?? f)] as const)),
+);
 
 /// A folder's name to its label, for the breadcrumb: the pages above and the six sections.
 export const CONFIG_LABELS: Record<string, Words> = {

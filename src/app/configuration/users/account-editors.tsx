@@ -6,9 +6,11 @@ import { LockIcon } from "@/components/icons";
 import { CodeDialog } from "@/components/auth/code-dialog";
 import { EMPTY_FORM_STATE, RecordEditor } from "@/components/record-editor";
 import { Button, ButtonLink, buttonClass } from "@/components/ui/button";
+import { MoreItem } from "@/components/ui/more-actions";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
+import { moreItemClass } from "@/components/ui/more-item-class";
 
 import { createAccountAction, disableAccountAction, enableAccountAction, issueCodeAction, unlockAccountAction, type IssueCodeState } from "./account-actions";
 
@@ -17,7 +19,7 @@ import { createAccountAction, disableAccountAction, enableAccountAction, issueCo
  * something to show once afterwards and so keeps its own small dialog open to show it.
  */
 
-export function CreateAccount({ people, personId }: { people: { id: string; name: string; jobTitle: string | null }[]; personId?: string }) {
+export function CreateAccount({ people, personId, menu }: { people: { id: string; name: string; jobTitle: string | null }[]; personId?: string; menu?: boolean }) {
   return (
     <RecordEditor
       title="Create a sign-in account"
@@ -37,14 +39,14 @@ export function CreateAccount({ people, personId }: { people: { id: string; name
       values={personId ? { personId } : undefined}
       action={createAccountAction}
       submitLabel="Create account"
-      trigger={{ label: "Create sign-in", className: buttonClass("secondary", "sm"), ariaLabel: `Create a sign-in account for ${people.find((p) => p.id === personId)?.name ?? "a person"}` }}
+      trigger={{ label: "Create sign-in", className: menu ? moreItemClass() : buttonClass("secondary", "sm"), ariaLabel: `Create a sign-in account for ${people.find((p) => p.id === personId)?.name ?? "a person"}` }}
     />
   );
 }
 
-export function DisableAccount({ accountId, name, loginName, exposure = [], blocked = false }: { accountId: string; name: string; loginName: string; exposure?: string[]; blocked?: boolean }) {
+export function DisableAccount({ accountId, name, loginName, exposure = [], blocked = false, menu }: { accountId: string; name: string; loginName: string; exposure?: string[]; blocked?: boolean; menu?: boolean }) {
   // The server refuses this disable (one administrator cannot): send them to where it can be done rather than ask for a reason that will be refused.
-  if (blocked) return <ButtonLink href="/configuration/users?tab=people" variant="secondary" size="sm" title={exposure.at(-1)}>Mark as left</ButtonLink>;
+  if (blocked) return menu ? <MoreItem href="/configuration/users?tab=people">Mark as left</MoreItem> : <ButtonLink href="/configuration/users?tab=people" variant="secondary" size="sm" title={exposure.at(-1)}>Mark as left</ButtonLink>;
   return (
     <RecordEditor
       title={`Disable ${name}'s account`}
@@ -54,13 +56,13 @@ export function DisableAccount({ accountId, name, loginName, exposure = [], bloc
       action={disableAccountAction}
       submitLabel="Disable"
       destructive={{ reasonLabel: "Why is it being disabled?" }}
-      trigger={{ label: "Disable", className: buttonClass("destructive", "sm"), ariaLabel: `Disable ${name}'s account` }}
+      trigger={{ label: "Disable", className: menu ? moreItemClass(true) : buttonClass("destructive", "sm"), ariaLabel: `Disable ${name}'s account` }}
       size="sm"
     />
   );
 }
 
-export function EnableAccount({ accountId, name }: { accountId: string; name: string }) {
+export function EnableAccount({ accountId, name, menu }: { accountId: string; name: string; menu?: boolean }) {
   return (
     <RecordEditor
       title={`Put ${name}'s account back`}
@@ -70,13 +72,13 @@ export function EnableAccount({ accountId, name }: { accountId: string; name: st
       action={enableAccountAction}
       submitLabel="Put back"
       reason={{ label: "Why is it being put back?" }}
-      trigger={{ label: "Put back", className: buttonClass("secondary", "sm"), ariaLabel: `Put ${name}'s account back` }}
+      trigger={{ label: "Put back", className: menu ? moreItemClass() : buttonClass("secondary", "sm"), ariaLabel: `Put ${name}'s account back` }}
       size="sm"
     />
   );
 }
 
-export function UnlockAccount({ accountId, name }: { accountId: string; name: string }) {
+export function UnlockAccount({ accountId, name, menu }: { accountId: string; name: string; menu?: boolean }) {
   return (
     <RecordEditor
       title={`Unlock ${name}'s account`}
@@ -86,7 +88,7 @@ export function UnlockAccount({ accountId, name }: { accountId: string; name: st
       action={unlockAccountAction}
       submitLabel="Unlock"
       reason={{ label: "Why is it being unlocked?" }}
-      trigger={{ label: "Unlock", iconOnly: <LockIcon size={15} /> }}
+      trigger={menu ? { label: "Unlock", className: moreItemClass() } : { label: "Unlock", iconOnly: <LockIcon size={15} /> }}
       size="sm"
     />
   );
@@ -100,10 +102,12 @@ export function IssueCode({
   accountId,
   name,
   purpose,
+  menu,
 }: {
   accountId: string;
   name: string;
   purpose: "ACTIVATION" | "RESET";
+  menu?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<IssueCodeState>(EMPTY_FORM_STATE);
@@ -120,7 +124,7 @@ export function IssueCode({
 
   return (
     <>
-      <button type="button" ref={opener} className={buttonClass("secondary", "sm")} aria-label={`Issue ${activation ? "an activation" : "a reset"} code for ${name}`} onClick={() => setOpen(true)}>
+      <button type="button" ref={opener} className={menu ? moreItemClass() : buttonClass("secondary", "sm")} aria-label={`Issue ${activation ? "an activation" : "a reset"} code for ${name}`} onClick={() => setOpen(true)}>
         {activation ? "Activation code" : "Reset code"}
       </button>
       {open && (

@@ -103,14 +103,14 @@ export function ChannelDrawer({ channel }: { channel?: { id: string; name: strin
 export function RetireChannelDrawer({ id, name, retired }: { id: string; name: string; retired: boolean }) {
   return (
     <RecordEditor
-      title={retired ? `Bring ${name} back` : `Retire ${name}`}
+      title={retired ? `Bring ${name} back` : `Stop using ${name}`}
       description={retired ? "It is offered again on new exercises." : "Kept on past publications. No longer offered on new ones."}
       fields={[hidden("id"), hidden("retire")]}
       values={{ id, retire: retired ? "no" : "yes" }}
       {...(retired ? {} : { destructive: { reasonLabel: "Why it is retired" } })}
       action={setChannelRetired}
-      submitLabel={retired ? "Bring it back" : `Retire ${name}`}
-      trigger={{ label: retired ? "Restore" : "Retire", className: ghost, ariaLabel: `${retired ? "Restore" : "Retire"} ${name}` }}
+      submitLabel={retired ? "Bring it back" : `Stop using ${name}`}
+      trigger={{ label: retired ? "Restore" : "Stop using", className: ghost, ariaLabel: `${retired ? "Restore" : "Stop using"} ${name}` }}
       size="sm"
     />
   );
@@ -190,14 +190,14 @@ export function CalendarDrawer({ calendar }: { calendar?: { id: string; name: st
 export function RetireCalendarDrawer({ id, name, retired }: { id: string; name: string; retired: boolean }) {
   return (
     <RecordEditor
-      title={retired ? `Bring ${name} back` : `Retire ${name}`}
+      title={retired ? `Bring ${name} back` : `Stop using ${name}`}
       description={retired ? "It can be chosen again." : "The rules refuse to save while they name a retired calendar: choose another first."}
       fields={[hidden("id"), hidden("retire")]}
       values={{ id, retire: retired ? "no" : "yes" }}
       {...(retired ? {} : { destructive: { reasonLabel: "Why it is retired" } })}
       action={setCalendarRetired}
-      submitLabel={retired ? "Bring it back" : `Retire ${name}`}
-      trigger={{ label: retired ? "Restore" : "Retire", className: ghost, ariaLabel: `${retired ? "Restore" : "Retire"} ${name}` }}
+      submitLabel={retired ? "Bring it back" : `Stop using ${name}`}
+      trigger={{ label: retired ? "Restore" : "Stop using", className: ghost, ariaLabel: `${retired ? "Restore" : "Stop using"} ${name}` }}
       size="sm"
     />
   );

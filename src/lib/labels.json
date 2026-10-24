@@ -174,5 +174,29 @@
   "superintending_officer": {
     "en": "Superintending Officer",
     "ms": "Pegawai Penguasa"
+  },
+  "vo_increase": {
+    "en": "Variation order: increase",
+    "ms": "Variation order: increase"
+  },
+  "vo_agreed_rate": {
+    "en": "Variation order: agreed rate",
+    "ms": "Variation order: agreed rate"
+  },
+  "non_completion": {
+    "en": "Non-completion",
+    "ms": "Non-completion"
+  },
+  "sum_adjustment": {
+    "en": "Sum adjustment",
+    "ms": "Sum adjustment"
+  },
+  "purchase": {
+    "en": "Purchase",
+    "ms": "Purchase"
+  },
+  "variation": {
+    "en": "Variation",
+    "ms": "Variation"
   }
 }

@@ -2,7 +2,7 @@ import { requireSettingsReader, SettingsSectionRoute } from "../section-route";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Approvals settings" };
+export const metadata = { title: "Approvals" };
 
 export default async function Page() {
   const actor = await requireSettingsReader();

@@ -240,7 +240,7 @@ export function ExerciseForm({
             Cancel
           </ButtonLink>
           <Button type="submit" variant="primary" disabled={pending} icon={<SaveIcon size={15} />}>
-            {pending ? "Saving…" : mode === "new" ? "Open exercise" : "Save changes"}
+            {pending ? "Saving…" : mode === "new" ? "Start" : "Save changes"}
           </Button>
         </div>
       </div>

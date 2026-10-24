@@ -28,7 +28,7 @@ export function StaffPortalCard({ path, address, canSet }: { path: string; addre
               Set it
             </ButtonLink>
           ) : (
-            <p className="text-[13.5px] text-ink-2">An administrator sets it in Configuration.</p>
+            <p className="text-[13.5px] text-ink-2">Ask an administrator to set it.</p>
           )}
         </>
       )}

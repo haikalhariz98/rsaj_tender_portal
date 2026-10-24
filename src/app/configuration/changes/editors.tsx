@@ -8,6 +8,7 @@ import { ActAttributionFields } from "@/components/act-attribution-fields";
 import { CodeDialog } from "@/components/auth/code-dialog";
 import { EMPTY_FORM_STATE, RecordEditor, type Field } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
+import { moreItemClass } from "@/components/ui/more-item-class";
 import { Callout } from "@/components/ui/feedback";
 import { Field as FormField, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
@@ -115,7 +116,7 @@ export function ProposePermission({
   return (
     <RecordEditor
       title={`${permissionLabel}: ${roleName}`}
-      description={`Now: ${current}. Undecided is refused. A second person decides.`}
+      description={`Now: ${current}. Undecided is refused.${atOnce ? "" : " A second person decides."}`}
       fields={[
         { kind: "hidden", name: "permissionKey" },
         { kind: "hidden", name: "roleCode" },
@@ -136,41 +137,45 @@ export function ProposePermission({
       ]}
       values={{ permissionKey, roleCode }}
       action={proposePermissionGrant}
-      submitLabel="Propose the change"
+      submitLabel={atOnce ? "Save" : "Propose the change"}
       trigger={trigger}
       size="md"
     />
   );
 }
 
-export function ProposeAdministrator({ accountId, name, direction }: { accountId: string; name: string; direction: "GRANT" | "REVOKE" }) {
+export function ProposeAdministrator({ accountId, name, direction, menu }: { accountId: string; name: string; direction: "GRANT" | "REVOKE"; menu?: boolean }) {
   const grant = direction === "GRANT";
   const atOnce = useAtOnce();
   return (
     <RecordEditor
-      title={grant ? `Propose making ${name} an administrator` : `Propose taking administration from ${name}`}
+      title={atOnce ? (grant ? `Make ${name} an administrator` : `End ${name}'s administration`) : grant ? `Propose making ${name} an administrator` : `Propose taking administration from ${name}`}
       description={
-        grant
-          ? "A second administrator decides it. Their sessions end when applied."
-          : "A second administrator decides it. The only active administrator cannot be removed."
+        atOnce
+          ? grant
+            ? "Takes effect when you save."
+            : "The only active administrator cannot be removed."
+          : grant
+            ? "A second administrator decides it. Their sessions end when applied."
+            : "A second administrator decides it. The only active administrator cannot be removed."
       }
       fields={[{ kind: "hidden", name: "accountId" }, { kind: "hidden", name: "direction" }, WHY_PROPOSED, proposerField(atOnce)]}
       values={{ accountId, direction }}
       action={proposeAdministratorChange}
-      submitLabel="Propose the change"
-      trigger={{ label: grant ? "Propose administrator" : "Propose ending administration", className: buttonClass("secondary", "sm"), ariaLabel: `${grant ? "Propose making" : "Propose taking administration from"} ${name}` }}
+      submitLabel={atOnce ? "Save the change" : "Propose the change"}
+      trigger={{ label: atOnce ? (grant ? "Make administrator" : "End administration") : grant ? "Propose administrator" : "Propose ending administration", className: menu ? moreItemClass() : buttonClass("secondary", "sm"), ariaLabel: `${grant ? "Propose making" : "Propose taking administration from"} ${name}` }}
       size="md"
     />
   );
 }
 
-export function ProposeAccountCode({ accountId, name, purpose, notice }: { accountId: string; name: string; purpose: "ACTIVATION" | "RESET"; notice: string | null }) {
+export function ProposeAccountCode({ accountId, name, purpose, notice, menu }: { accountId: string; name: string; purpose: "ACTIVATION" | "RESET"; notice: string | null; menu?: boolean }) {
   const activation = purpose === "ACTIVATION";
   const atOnce = useAtOnce();
   return (
     <RecordEditor
-      title={`Propose ${activation ? "an activation" : "a reset"} code for ${name}`}
-      description={`${notice ? `${notice} ` : ""}A second administrator issues the code.`}
+      title={`${atOnce ? "Issue" : "Propose"} ${activation ? "an activation" : "a reset"} code for ${name}`}
+      description={`${notice ? `${notice} ` : ""}${atOnce ? "" : "A second administrator issues the code."}`.trim() || undefined}
       fields={[
         { kind: "hidden", name: "accountId" },
         { kind: "hidden", name: "purpose" },
@@ -179,8 +184,8 @@ export function ProposeAccountCode({ accountId, name, purpose, notice }: { accou
       ]}
       values={{ accountId, purpose }}
       action={proposeAccountCode}
-      submitLabel="Propose the code"
-      trigger={{ label: activation ? "Propose activation code" : "Propose reset code", className: buttonClass("secondary", "sm"), ariaLabel: `Propose ${activation ? "an activation" : "a reset"} code for ${name}` }}
+      submitLabel={atOnce ? "Save the request" : "Propose the code"}
+      trigger={{ label: atOnce ? (activation ? "Activation code" : "Reset code") : activation ? "Propose activation code" : "Propose reset code", className: menu ? moreItemClass() : buttonClass("secondary", "sm"), ariaLabel: `${atOnce ? "Issue" : "Propose"} ${activation ? "an activation" : "a reset"} code for ${name}` }}
       size="md"
     />
   );

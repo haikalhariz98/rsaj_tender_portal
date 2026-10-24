@@ -133,7 +133,7 @@ export function OverviewPanel(p: OverviewProps) {
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<RouteIcon size={17} />} title="Process flow" subtitle="Where this exercise stands." />
+        <CardHeader icon={<RouteIcon size={17} />} title="Process flow" subtitle="Where this tender or quotation stands." />
         <CardBody>
           <Stepper label="Process flow" steps={p.flow} />
         </CardBody>
@@ -179,7 +179,7 @@ function RequisitionSummaryCard({ p }: { p: OverviewProps }) {
           columns={2}
           items={[
             { label: "Requisition", value: <Link href={`/requisitions/${req.id}`}>{req.reference}</Link> },
-            { label: "Method", value: methodOverridden ? `${p.methodName} · overridden` : ex.proposedMethodCode ? `${p.methodName} · as proposed` : p.methodName },
+            { label: "Method", value: methodOverridden ? `${p.methodName} · changed` : ex.proposedMethodCode ? `${p.methodName} · as proposed` : p.methodName },
             { label: "Estimated value", value: <SulitValue of={p.estimate} /> },
             {
               label: "Contract type",

@@ -9,7 +9,7 @@ import { CONFIG_LABELS } from "@/lib/nav";
 
 /** The words the sidebar, top bar and user menu write themselves. */
 export const SHELL_WORDS = {
-  backToDashboard: w("Back to dashboard"),
+  backToDashboard: w("Back to Home"),
   configuration: w("Settings"),
   viewingAs: w("Viewing as"),
   switchWorkspace: w("Switch workspace"),
@@ -104,11 +104,11 @@ export const RECORD_LABEL: Readonly<Record<string, Words>> = {
   documents: w("Document"),
   templates: w("Template"),
   "routing-sheets": w("Routing sheet type"),
-  sourcing: w("Exercise"),
+  sourcing: w("Tender or quotation"),
   // The public portal: an advertised opportunity; the page names it by its reference (RecordCrumb).
   opportunities: w("Opportunity"),
   // Phase 4d: one exercise in My Bids; the page names it by its reference (RecordCrumb).
-  bids: w("Exercise"),
+  bids: w("Tender or quotation"),
   online: w("Online application"),
   // Phase 5a (ruling item 9): an item of the inbox that asks for a signature, a back-dated signature to confirm.
   inbox: w("Back-dated signature"),
@@ -129,7 +129,7 @@ export const NESTED_LABEL: Readonly<Record<string, Words>> = {
   // Online applications waiting for an officer: the list is the Online tab, one application sits under it.
   "suppliers/online": w("Online applications"),
   // 6.14 residual: every page names its crumbs (crumbs.test.ts walks every page).
-  "sourcing/new": w("New exercise"),
+  "sourcing/new": w("New tender or quotation"),
   "evaluation/report": w("Evaluation report"),
   "evaluation/proposal": w("Proposal paper"),
   // The supplier portal's own words, where a segment is also a staff section's name ("projects" is Contracts there).
@@ -154,7 +154,7 @@ export const CRUMB_WORDS = {
   print: w("Print"),
   contracts: w("Projects"),
   tenderDocuments: w("Tender documents"),
-  exercise: w("Exercise"),
+  exercise: w("Tender or quotation"),
   evaluation: w("Evaluation"),
   sales: w("Sales"),
   bidOpening: w("Bid opening"),

@@ -13,7 +13,7 @@ import { phaseSummary, statusBreakdown } from "@/lib/method/phase";
 import { loadDashboard, myCommitteeCodes, officeNames } from "@/lib/dashboard";
 import { needsYou, nonZeroParts, waitedLabel } from "@/lib/dashboard/home";
 import { requestWorklist } from "@/app/_auth/worklist";
-import { myStepsOf, waitingForCount } from "@/lib/approvals/queue";
+import { myStepsOf } from "@/lib/approvals/queue";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { greetingAt } from "@/lib/dates";
 import { organisationTimeZone } from "@/lib/org-time";
@@ -48,7 +48,7 @@ export default async function Dashboard() {
   const actor = await requireStaff();
   const lang = ENGLISH;
   const t = (words: Words) => say(words, lang);
-  // "Approvals waiting" is the My approvals badge's own reading: `requestWorklist` is request-cached, so the layout and this page share one load (GN-03, AC-11).
+  // `requestWorklist` is request-cached, so the layout and this page share one load (GN-03, AC-11).
   // Nothing here shows an amount, so nothing here is SULIT; restricted exercises are left out of every read (FR-MTD-007).
   const officeCodes = actor.offices.map((o) => o.roleCode);
   const [accountView, data, timeZone, worklist, committees, roles] = await Promise.all([
@@ -73,7 +73,6 @@ export default async function Dashboard() {
   // The role the person holds, by its name; the free-text job title only where they hold none.
   const role = roles.length ? roles.join(" · ") : actor.jobTitle;
   const mine = worklist ? myStepsOf(worklist.groups, actor.personId) : [];
-  const awaitingMe = waitingForCount(mine);
   const rows = needsYou(mine, data.queue, committees);
   const { requisitions: reqPipe, sourcing: srcPipe, contracts: conPipe } = data.pipeline;
   // A figure of nought is a quiet tile: no coloured icon.
@@ -117,10 +116,7 @@ export default async function Dashboard() {
         />
         {rows.length === 0 ? (
           <p className="px-6 pb-5 text-[14px] text-ink-2">
-            Nothing needs you right now.{" "}
-            <Link href="/approvals" className="font-semibold text-brand-700 hover:underline">
-              See all approvals
-            </Link>
+            Nothing needs you right now.
           </p>
         ) : (
           <ul className="divide-y divide-line/70">
@@ -142,7 +138,7 @@ export default async function Dashboard() {
         )}
       </Card>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Stat
           label="Requisitions"
           value={reqPipe.total}
@@ -167,7 +163,6 @@ export default async function Dashboard() {
           href="/projects"
           hint={nonZeroParts([[conPipe.awarding, "awarding"], [conPipe.signing, "signing"], [conPipe.onSite, "on site"]])}
         />
-        <Stat label="Approvals waiting" value={awaitingMe} tone={awaitingMe > 0 ? "warn" : "neutral"} icon={<ClockIcon size={17} />} href="/approvals?tab=mine" />
       </div>
 
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">

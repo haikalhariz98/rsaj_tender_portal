@@ -24,7 +24,7 @@ describe("SulitValue", () => {
   });
   it("draws a withheld value as 'SULIT · withheld' with the reason, and nothing else", () => {
     const html = renderToStaticMarkup(createElement(SulitValue, { of: sulitWithheld("NOT_NAMED_PERMISSION_UNDECIDED", "exercise") }));
-    expect(html).toContain("SULIT · withheld");
+    expect(html).toContain("Hidden");
     expect(html).toContain("not yet decided");
     expect(html).not.toMatch(/\d{1,3},\d{3}/);
   });
@@ -45,7 +45,7 @@ describe("a withheld cell in a list", () => {
   ];
   const html = renderToStaticMarkup(createElement(DataList, { columns: [{ key: "name", label: "Name", mobile: "primary" }, { key: "value", label: "Value", numeric: true, sulit: true, mobile: "meta" }], rows, selectable: false }));
   it("says withheld, with the reason, where the figure would be", () => {
-    expect(html).toContain("SULIT · withheld");
+    expect(html).toContain("Hidden");
     expect(html).toContain("You are not named on this exercise.");
   });
   it("shows the figure of the row that may be read", () => {

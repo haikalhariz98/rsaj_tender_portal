@@ -127,14 +127,14 @@ export function AdoptModelDraftDrawer({ id, label }: { id: string; label: string
 export function RetireModelDrawer({ id, label }: { id: string; label: string }) {
   return (
     <RecordEditor
-      title={`Retire ${label}`}
+      title={`Stop using ${label}`}
       description="No longer offered. Exercises that pinned it keep it."
       fields={[hidden("id")]}
       values={{ id }}
       action={retireModel}
-      submitLabel="Retire"
+      submitLabel="Stop using"
       destructive={{ reasonLabel: "Why is it being retired?" }}
-      trigger={{ label: "Retire", className: buttonClass("destructive", "sm") }}
+      trigger={{ label: "Stop using", className: buttonClass("destructive", "sm") }}
       size="sm"
     />
   );
@@ -371,7 +371,7 @@ export function AspectDrawer({ aspect }: { aspect?: { id: string; label: string;
 
 export function RetireAspectDrawer({ id, label }: { id: string; label: string }) {
   return (
-    <RecordEditor title={`Retire ${label}`} description="It is no longer frozen into a model issued from today. Issued models keep it." fields={[hidden("id")]} values={{ id }} action={retireAspect} submitLabel="Retire" destructive={{ reasonLabel: "Why is it being retired?" }} trigger={{ label: "Retire", className: buttonClass("destructive", "sm") }} size="sm" />
+    <RecordEditor title={`Stop using ${label}`} description="It is no longer frozen into a model issued from today. Issued models keep it." fields={[hidden("id")]} values={{ id }} action={retireAspect} submitLabel="Stop using" destructive={{ reasonLabel: "Why is it being retired?" }} trigger={{ label: "Stop using", className: buttonClass("destructive", "sm") }} size="sm" />
   );
 }
 

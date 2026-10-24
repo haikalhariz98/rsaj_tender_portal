@@ -10,6 +10,7 @@ import { useState, useTransition } from "react";
 import { ProposeAccountCode, ProposeAdministrator } from "../changes/editors";
 import { CreateAccount, DisableAccount, EnableAccount, IssueCode, UnlockAccount } from "./account-editors";
 import type { AccountActs, Standing } from "@/lib/auth/account-acts";
+import { MoreActions } from "@/components/ui/more-actions";
 import { Disclosure } from "@/components/ui/disclosure";
 import { MoreText } from "@/components/ui/more-text";
 
@@ -81,6 +82,7 @@ const STATUS_LABEL = {
 export interface SignInView {
   creatable: { id: string; name: string; jobTitle: string | null }[];
   warnings: string[];
+  notes: string[];
   accounts: Record<string, { id: string; loginName: string; standing: Standing; detail: string; isYou: boolean; isAdministrator: boolean; acts: AccountActs; exposure: string[]; blocked: boolean }>;
 }
 
@@ -161,8 +163,6 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
       cells: {
         name: { kind: "person", name: p.name, sub: p.email ?? undefined },
         job: { kind: "stack", title: p.jobTitle ?? "—", sub: p.department ?? undefined },
-        portalRole: p.portalRoleCode ? { kind: "badge", text: officeName(p.portalRoleCode) } : { kind: "text", text: "Not set", dim: true },
-        availability: p.isAvailable ? { kind: "badge", text: "In", tone: "ok" } : { kind: "badge", text: "Away", tone: "warn" },
         ...(signIn
           ? {
               signIn: account ? { kind: "badge", text: account.standing.text, tone: account.standing.tone } : { kind: "text", text: "No sign-in", dim: true },
@@ -180,7 +180,12 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
           {w}
         </Callout>
       ))}
-      <Card className="overflow-hidden">
+      {signIn?.notes.map((n) => (
+        <p key={n} className="text-[12.5px] text-ink-3">
+          {n}
+        </p>
+      ))}
+      <Card>
         <CardHeader icon={<UserIcon size={17} />} title="People" actions={<AddPerson offices={offices} authorityLevels={authorityLevels} units={units} />} divided={false} />
         <DataList
           flat
@@ -193,23 +198,18 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
             { id: "left", label: "Left the organisation" },
             ...(signIn ? [{ id: "pending", label: "Not activated" }, { id: "locked", label: "Locked" }] : []),
           ]}
-          filters={[
-            { key: "portalRole", label: "Portal role" },
-            ...(signIn ? [{ key: "signIn", label: "Sign-in" }] : []),
-          ]}
+          filters={signIn ? [{ key: "signIn", label: "Sign-in" }] : []}
           columns={[
-            { key: "name", label: "Name", width: signIn ? "20%" : "26%", sortable: true, mobile: "primary" },
-            { key: "job", label: "Job title", width: signIn ? "15%" : "22%", sortable: true, mobile: "meta" },
-            { key: "portalRole", label: "Portal role", width: signIn ? "12%" : "18%", mobile: "meta" },
-            { key: "availability", label: "Availability", width: signIn ? "9%" : "12%", mobile: "meta" },
+            { key: "name", label: "Name", width: signIn ? "28%" : "45%", sortable: true, mobile: "primary" },
+            { key: "job", label: "Job title", width: signIn ? "24%" : "40%", sortable: true, mobile: "meta" },
             ...(signIn
               ? [
-                  { key: "signIn", label: "Sign-in", width: "11%", sortable: true, mobile: "meta" as const },
-                  { key: "loginName", label: "Sign-in name", width: "20%", mobile: "meta" as const },
+                  { key: "signIn", label: "Sign-in", width: "14%", sortable: true, mobile: "meta" as const },
+                  { key: "loginName", label: "Sign-in name", width: "26%", mobile: "meta" as const },
                 ]
               : []),
           ]}
-          actionsWidth={signIn ? 250 : 96}
+          actionsWidth={96}
           rows={rows}
           rowOpens
           actions={(id) => {
@@ -233,9 +233,11 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
                   units={units}
                   mayMarkAway={mayMarkAway}
                 />
-                <LeaverToggle person={person} exposure={leaverExposure[person.id] ?? []} />
-                {creatable && <CreateAccount people={[creatable]} personId={id} />}
-                {account && <SignInActs name={person.name} account={account} />}
+                <MoreActions label={`More for ${person.name}`}>
+                  <LeaverToggle menu person={person} exposure={leaverExposure[person.id] ?? []} />
+                  {creatable && <CreateAccount menu people={[creatable]} personId={id} />}
+                  {account && <SignInActs menu name={person.name} account={account} />}
+                </MoreActions>
               </div>
             );
           }}
@@ -246,15 +248,15 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
 }
 
 /// The acts open on one account, as the server judged them (`accountActs`); a code for an office holder's or administrator's account is proposed to a second person, not issued.
-function SignInActs({ name, account }: { name: string; account: NonNullable<SignInView["accounts"][string]> }) {
+function SignInActs({ name, account, menu }: { name: string; account: NonNullable<SignInView["accounts"][string]>; menu?: boolean }) {
   const { acts, id } = account;
   return (
     <>
-      {acts.code && (acts.code.notice ? <ProposeAccountCode accountId={id} name={name} purpose={acts.code.purpose} notice={acts.code.notice} /> : <IssueCode accountId={id} name={name} purpose={acts.code.purpose} />)}
-      {acts.admin && <ProposeAdministrator accountId={id} name={name} direction={acts.admin} />}
-      {acts.unlock && <UnlockAccount accountId={id} name={name} />}
-      {acts.enable && <EnableAccount accountId={id} name={name} />}
-      {acts.disable && <DisableAccount accountId={id} name={name} loginName={account.loginName} exposure={account.exposure} blocked={account.blocked} />}
+      {acts.code && (acts.code.notice ? <ProposeAccountCode menu={menu} accountId={id} name={name} purpose={acts.code.purpose} notice={acts.code.notice} /> : <IssueCode menu={menu} accountId={id} name={name} purpose={acts.code.purpose} />)}
+      {acts.admin && <ProposeAdministrator menu={menu} accountId={id} name={name} direction={acts.admin} />}
+      {acts.unlock && <UnlockAccount menu={menu} accountId={id} name={name} />}
+      {acts.enable && <EnableAccount menu={menu} accountId={id} name={name} />}
+      {acts.disable && <DisableAccount menu={menu} accountId={id} name={name} loginName={account.loginName} exposure={account.exposure} blocked={account.blocked} />}
     </>
   );
 }

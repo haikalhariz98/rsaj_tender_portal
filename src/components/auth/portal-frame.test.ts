@@ -104,7 +104,7 @@ describe("the card the officers' copy shows in place of a form", () => {
 
   it("with no address, for anyone else: says who sets it, and offers no link", () => {
     const out = card({ address: null, canSet: false });
-    expect(out).toContain("An administrator sets it in Configuration.");
+    expect(out).toContain("Ask an administrator to set it.");
     expect(out).not.toContain("Set it");
     expect(out).not.toContain("<a ");
   });

@@ -26,7 +26,7 @@ import { requireStaff } from "@/app/_auth/actor";
 import { hiddenExercises, sulitGate, sulitGates } from "@/app/_auth/sulit";
 import { sulitCell } from "@/components/sulit-cell";
 
-export const metadata = { title: "New exercise" };
+export const metadata = { title: "New tender or quotation" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -40,10 +40,10 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
   const hidden = await hiddenExercises(actor);
   const header = (
     <>
-    <RecordCrumb label="New exercise" />
+    <RecordCrumb label="New tender or quotation" />
     <PageHeader
       
-      title="New sourcing exercise"
+      title="New tender or quotation"
 
     />
     </>
@@ -109,9 +109,9 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
             selectable={false}
             exportName="approved-requisitions"
             searchPlaceholder="Search by title or reference"
-            emptyTitle="No requisition is open to an exercise"
+            emptyTitle="No requisition is ready for a tender or quotation"
 
-            rowAction={{ label: "Open exercise", hrefTemplate: "/sourcing/new?requisition={id}" }}
+            rowAction={{ label: "Start", hrefTemplate: "/sourcing/new?requisition={id}" }}
             rowOpens
             columns={columns("Still to source")}
             rows={open.map(row)}
@@ -149,7 +149,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       {fault ? (
         <Callout
           tone="warn"
-          title="No exercise can be opened on this requisition"
+          title="No tender or quotation can be started on this requisition"
           action={
             fault.code === "TIME_ZONE_UNSET" ? (
               <ButtonLink href="/configuration/organisation" size="sm">Set time zone</ButtonLink>

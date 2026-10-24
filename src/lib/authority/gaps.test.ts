@@ -20,7 +20,7 @@ describe("matters with no limit set (gapMatters)", () => {
   });
 
   it("titles the count in the singular and the plural", () => {
-    expect(gapTitle(gapMatters(rules))).toBe("2 matters have no limit set for it");
-    expect(gapTitle(gapMatters([rules[1]]))).toBe("1 matter has no limit set for it");
+    expect(gapTitle(gapMatters(rules))).toBe("2 items have no limit; their routes are guesses.");
+    expect(gapTitle(gapMatters([rules[1]]))).toBe("1 item has no limit; its route is a guess.");
   });
 });

@@ -288,7 +288,9 @@ export function attributionLabel(f: AttributionFacts): AttributionRead {
       if (f.slot && !f.slot.signatureClass) return { state: "SIGNED", en: `${f.slot.label} ${f.subjectName}${back.en}` };
       return { state: "SIGNED", en: `Signed by ${f.subjectName}${back.en}` };
     }
-    const by = f.row.recordedBySystemLabel ?? f.recorderName ?? "a person no longer on record";
+    // A loader's paper history reads short on a working screen; the long form stays in the History (audit view).
+    if (f.row.recordedBySystemLabel) return { state: "ON_BEHALF", en: `${f.subjectName} · from paper` };
+    const by = f.recorderName ?? "a person no longer on record";
     return {
       state: "ON_BEHALF",
       en: `Recorded by ${by} on behalf of ${f.subjectName}, ${NOT_SIGNED_WORDS}`,

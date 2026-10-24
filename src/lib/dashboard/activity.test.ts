@@ -181,9 +181,9 @@ describe("exercises, sittings, matters and awards", () => {
   it("reads an exercise opened, prepared and cancelled", () => {
     const ex = (changes: ActivityEntry["changes"], action: ActivityEntry["action"] = "UPDATE", reason = "") =>
       entry({ entity: "SourcingExercise", entityId: "x1", entityLabel: "SX/1 · Filter works", action, changes, reason });
-    expect(line(ex([{ field: "requisition", before: null, after: "REQ/9" }], "CREATE"))!.headline).toBe("Exercise SX/1 opened for REQ/9");
-    expect(line(ex(to("DRAFT", "DOCUMENTS_IN_PREPARATION")))!.headline).toBe("Exercise SX/1 moved into preparation");
-    expect(line(ex(to("DRAFT", "CANCELLED"), "UPDATE", "Withdrawn."))).toMatchObject({ headline: "Exercise SX/1 cancelled", reason: "Withdrawn." });
+    expect(line(ex([{ field: "requisition", before: null, after: "REQ/9" }], "CREATE"))!.headline).toBe("Tender or quotation SX/1 opened for REQ/9");
+    expect(line(ex(to("DRAFT", "DOCUMENTS_IN_PREPARATION")))!.headline).toBe("Tender or quotation SX/1 moved into preparation");
+    expect(line(ex(to("DRAFT", "CANCELLED"), "UPDATE", "Withdrawn."))).toMatchObject({ headline: "Tender or quotation SX/1 cancelled", reason: "Withdrawn." });
   });
 
   it("reads a sitting scheduled, started, minuted and cancelled, naming the committee", () => {
@@ -271,20 +271,20 @@ describe("one act is one line", () => {
 
   it("a refused name", () => {
     const cancel = entry({ entity: "SourcingExercise", entityId: "x1", entityLabel: "SX/1 · Filter works", changes: to("DRAFT", "CANCELLED"), at: at(3) });
-    expect(feed([step("s2", "SX/1 · name approval · Head of Department", "REJECTED"), cancel])).toEqual(["Exercise SX/1 cancelled: Head of Department refused the name"]);
+    expect(feed([step("s2", "SX/1 · name approval · Head of Department", "REJECTED"), cancel])).toEqual(["Tender or quotation SX/1 cancelled: Head of Department refused the name"]);
   });
 
   it("6.4: the step that approves an exercise for tendering reads as the outcome, not as the office deciding", () => {
     const approved = entry({ entity: "SourcingExercise", entityId: "x1", entityLabel: "SX/1 · Filter works", changes: to("PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING"), at: at(4) });
     const lines = feed([step("s2", "SX/1 · Head of Contract & Procurement", "DONE"), approved]);
-    expect(lines).toEqual(["Exercise SX/1 approved for tendering at Head of Contract & Procurement"]);
+    expect(lines).toEqual(["Tender or quotation SX/1 approved for tendering at Head of Contract & Procurement"]);
     expect(lines.join()).not.toMatch(/decided/);
   });
 
   it("6.4: a rejection on the tendering route reads as the documents returned for amendment, with the reason", () => {
     const back = entry({ entity: "SourcingExercise", entityId: "x1", entityLabel: "SX/1 · Filter works", changes: to("PENDING_APPROVAL_FOR_TENDERING", "DOCUMENTS_IN_PREPARATION"), at: at(4), reason: "Tender documents returned for amendment: Drawings missing the valve schedule." });
     const lines = activityFeed([step("s2", "SX/1 · Head of Contract & Procurement", "REJECTED", 0, "Drawings missing the valve schedule."), back], owners, null);
-    expect(lines.map((l) => l.headline)).toEqual(["Exercise SX/1: tender documents returned for amendment at Head of Contract & Procurement"]);
+    expect(lines.map((l) => l.headline)).toEqual(["Tender or quotation SX/1: tender documents returned for amendment at Head of Contract & Procurement"]);
     expect(lines[0].reason).toBe("Drawings missing the valve schedule.");
   });
 

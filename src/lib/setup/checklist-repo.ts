@@ -15,12 +15,12 @@ export async function loadChecklist(db: Tx, organisationId: string, now = new Da
   const year = Number(today.slice(0, 4));
   const live = { OR: [{ effectiveTo: null }, { effectiveTo: { gt: day } }] };
   const register = await loadRegisterSettings(db).catch(() => null); // one reader with the public form; a failure reads as closed
-  const [matrices, assignments, committees, fees, window, evalModels, docTypes, texts, supplier, awardPolicy, budget, orgUnits, costCentres, two] = await Promise.all([
+  const [matrices, assignments, committees, fees, window, evalModels, docTypes, texts, supplier, awardPolicy, budget, orgUnits, costCentres, two, sulitDecisions] = await Promise.all([
     db.authorityMatrix.findMany({ where: { organisationId }, select: { issuedAt: true, effectiveFrom: true, effectiveTo: true, issuedByPerson: { select: { name: true } }, rules: { select: { proposerCode: true, approverCode: true } } } }),
     db.roleAssignment.findMany({ where: { person: { organisationId }, effectiveFrom: { lte: day }, ...live }, select: { roleCode: true } }),
     db.committee.findMany({ where: { organisationId, retiredOn: null }, select: { quorum: true, members: { where: { isAlternate: false, effectiveFrom: { lte: day }, ...live }, select: { id: true } } } }),
     db.documentFeeFloor.count({ where: { organisationId } }),
-    db.windowPolicy.findUnique({ where: { organisationId }, select: { calendarId: true, noticeTemplateId: true, invitationTemplateId: true, addendumTemplateId: true } }),
+    db.windowPolicy.findUnique({ where: { organisationId }, select: { calendarId: true, documentSaleMode: true, submissionChannel: true, noticeTemplateId: true, invitationTemplateId: true, addendumTemplateId: true } }),
     db.evaluationModel.findMany({ where: { organisationId, status: { in: ["ISSUED", "DRAFT"] } }, orderBy: { issuedAt: "desc" }, select: { status: true, issuedAt: true, issuedBy: { select: { name: true } } } }),
     db.supplierDocumentType.count({ where: { organisationId, retiredOn: null } }),
     db.declarationText.findMany({ where: { organisationId, retiredOn: null }, select: { kind: true, provenance: true } }),
@@ -30,6 +30,7 @@ export async function loadChecklist(db: Tx, organisationId: string, now = new Da
     db.orgUnit.count({ where: { organisationId, ...live } }),
     db.costCentre.count({ where: { organisationId, ...live } }),
     twoPersonOn(db, organisationId),
+    db.rolePermission.count({ where: { organisationId, permissionKey: "sulit.read.organisation" } }),
   ]);
   const calendar = window?.calendarId
     ? { yearRow: (await db.holidayCalendarYear.count({ where: { calendarId: window.calendarId, year } })) > 0, thisYear: await db.publicHoliday.count({ where: { calendarId: window.calendarId, day: { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) } } }) }
@@ -63,6 +64,9 @@ export async function loadChecklist(db: Tx, organisationId: string, now = new Da
     letterSlotsSet: slots.filter(Boolean).length,
     letterSlots: slots.length,
     budgetCheckSet: !!budget?.availabilityCheck?.trim(),
+    saleChannelSet: !!window?.documentSaleMode,
+    submissionChannelSet: !!window?.submissionChannel,
+    sulitReadersDecided: sulitDecisions > 0,
   };
   return { items: buildChecklist(facts), facts };
 }
