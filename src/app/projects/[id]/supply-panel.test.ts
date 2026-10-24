@@ -14,7 +14,7 @@ vi.mock("./supply-actions", () => ({}));
 import { SupplyInvoices } from "./supply-panel";
 
 const claim = (o: Partial<SupplyClaimRow>): SupplyClaimRow => ({ documentId: "d1", invoiceNo: "INV-1", sentOn: "2026-10-01", sentText: "1 Oct 2026", state: "WITH_ORGANISATION", stateLabel: "With Jabatan", payment: null, payable: false, ...o });
-const view = (rows: SupplyClaimRow[]) => renderToStaticMarkup(h(SupplyInvoices, { contractId: "c1", rows, people: [], today: "2026-10-24", blocker: null }));
+const view = (rows: SupplyClaimRow[]) => renderToStaticMarkup(h(SupplyInvoices, { contractId: "c1", status: "ACTIVE", rows, people: [], today: "2026-10-24", zoneBlocker: null }));
 
 describe("Supply invoices section", () => {
   it("counts what is waiting, hides zeros, and offers Record payment only on a verified unpaid claim", () => {
