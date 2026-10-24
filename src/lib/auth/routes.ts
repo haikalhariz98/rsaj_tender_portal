@@ -94,6 +94,15 @@ export const SUPPLIER_PROJECT_DOCUMENTS_POSTS = {
 export const SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS: readonly string[] = Object.values(SUPPLIER_PROJECT_DOCUMENTS_POSTS);
 export const SUPPLIER_PROJECT_DOCUMENT_FILE = "/supplier/projects/documents/file";
 
+/// The contractor's online award return and questions (Wave V, V3): the multipart staging of one signed scan, the JSON lodge (signed with the password, asked again) and the JSON question.
+/// A supplier must be signed in to each (a handler answers 401); the supplier is the session's, and a contract that is not its own is the one 404.
+export const SUPPLIER_AWARD_RETURN_POSTS = {
+  upload: "/supplier/projects/award-return/upload",
+  submit: "/supplier/projects/award-return/submit",
+  query: "/supplier/projects/award-query",
+} as const;
+export const SUPPLIER_AWARD_RETURN_POST_PATHS: readonly string[] = Object.values(SUPPLIER_AWARD_RETURN_POSTS);
+
 /// A signed-in supplier's export of its own data (N2, the PDPA right of access): a printable page, and the same content as one JSON file. Both are reads and write one export row each; neither reads an id.
 export const SUPPLIER_DATA_EXPORT = { page: "/supplier/account/data", file: "/supplier/account/data/file" } as const;
 

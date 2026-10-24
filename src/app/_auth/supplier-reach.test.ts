@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_BIDS_PAGE, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_BIDS_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_DATA_EXPORT, SUPPLIER_POST_PATHS, SUPPLIER_PROJECT_DOCUMENT_FILE, SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS, SUPPLIER_PROJECT_DOCUMENTS_POSTS, SUPPLIER_PROJECTS_PAGE, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_PROJECTS_POSTS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
+import { SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AWARD_RETURN_POST_PATHS, SUPPLIER_AWARD_RETURN_POSTS, SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_BIDS_PAGE, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_BIDS_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_DATA_EXPORT, SUPPLIER_POST_PATHS, SUPPLIER_PROJECT_DOCUMENT_FILE, SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS, SUPPLIER_PROJECT_DOCUMENTS_POSTS, SUPPLIER_PROJECTS_PAGE, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_PROJECTS_POSTS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
 import { lex } from "@/lib/scan/source";
 
 /**
@@ -43,7 +43,8 @@ const BIDS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && f.file.st
 // Project workspace (plan step 5): the contractor's documents have four posts (three JSON acts and one multipart staging) and one download, held by their own section below, as the bids' part
 // upload and download are. This first section keeps its three JSON posts and is not loosened: it only stops counting the routes of the section that holds the others to the same rules and more.
 const PROJECT_DOCUMENT_ROUTES = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/documents/"));
-const PROJECTS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/") && !f.file.startsWith("app/supplier/projects/documents/"));
+const AWARD_RETURN_ROUTES = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && (f.file.startsWith("app/supplier/projects/award-return/") || f.file.startsWith("app/supplier/projects/award-query/")));
+const PROJECTS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/") && !f.file.startsWith("app/supplier/projects/documents/") && !AWARD_RETURN_ROUTES.includes(f));
 const PROJECTS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && (f.file.startsWith("app/supplier/projects") || f.file.startsWith("app/supplier/announcements")));
 const COMPANY_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/company/"));
 const REGISTRATION_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/registration/"));
@@ -781,5 +782,59 @@ describe("the schedule of tenders a result publishes (go-live R4a)", () => {
   it("serves nothing that is not Public, whatever the read says, and logs no download", () => {
     expect(f.src).toMatch(/classificationSnapshot !== "PUBLIC"/);
     expect(f.src).not.toMatch(/kind: "DOWNLOADED"/);
+  });
+});
+
+describe("the online award return and questions (Wave V, V3)", () => {
+  const FILE = (f: { file: string }) => `/${f.file.replace(/^app\//, "").replace(/\/route\.ts$/, "")}`;
+  const UPLOAD = "app/supplier/projects/award-return/upload/route.ts";
+  const JSON_ROUTES = AWARD_RETURN_ROUTES.filter((f) => f.file !== UPLOAD);
+
+  it("are exactly the three literal posts the public copy lists", () => {
+    expect(AWARD_RETURN_ROUTES.map(FILE).sort()).toEqual([...SUPPLIER_AWARD_RETURN_POST_PATHS].sort());
+    expect(Object.values(SUPPLIER_AWARD_RETURN_POSTS)).toHaveLength(3);
+  });
+
+  it("each answers a POST and nothing else and asks the portal's guard before anything else is awaited, holding no server action", () => {
+    for (const f of AWARD_RETURN_ROUTES) {
+      expect([...f.src.matchAll(/export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g)].map((m) => m[1]), f.file).toEqual(["POST"]);
+      const body = postBody(f.src);
+      expect(body, f.file).toMatch(/^\{\s*const guard =/);
+      expect(body, f.file).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+      expect(f.src, f.file).not.toMatch(/^\s*["']use server["']/m);
+    }
+    for (const f of JSON_ROUTES) {
+      expect(f.src, f.file).toMatch(/await supplierPost\(request, "projects", \{ maxBytes: PROJECTS_BODY_LIMIT \}\)/);
+      const body = postBody(f.src);
+      expect(body.indexOf("post.fields"), f.file).toBeGreaterThan(body.indexOf("guard.ok"));
+      expect(body.indexOf("if (!parsed.ok) return"), f.file).toBeLessThan(body.search(/lodgeReach\(|askAwardQuery\(/));
+    }
+    expect(AWARD_RETURN_ROUTES.find((f) => f.file === UPLOAD)!.src).toMatch(/await supplierUploadPost\(request, "projects"\)/);
+  });
+
+  it("the password is asked after the body is parsed and the reach is read, and before the lodge; it is handed to confirmSupplierPassword alone", () => {
+    const src = lex(read("app/supplier/projects/award-return/submit/route.ts"));
+    const ask = src.indexOf("confirmSupplierPassword(");
+    expect(ask).toBeGreaterThan(src.indexOf("parseSubmitBody("));
+    expect(ask).toBeGreaterThan(src.indexOf("lodgeReach("));
+    expect(ask).toBeLessThan(src.indexOf("lodgeOnlineReturn("));
+    for (const file of ["lib/award/online-return-store.ts", "lib/award/online-return-reach.ts"]) expect(lex(read(file)), file).not.toMatch(/\bpassword\b/i);
+  });
+
+  it("the upload judges the address and the contract before a byte of the body is read, and takes no contract lock", () => {
+    const code = lex(read(UPLOAD));
+    for (const [a, b] of [["parseReturnUploadQuery(", "preflightReturnUpload("], ["preflightReturnUpload(", "requestLengthFault("], ["requestLengthFault(", "limitBodyPaced("], ["limitBodyPaced(", "formData()"], ["formData()", "parseReturnUploadForm("], ["parseReturnUploadForm(", "recogniseFile("], ["recogniseFile(", "mediaFault("], ["mediaFault(", "storeReturnFile("]] as const) {
+      expect(code.indexOf(a), a).toBeGreaterThan(-1);
+      expect(code.indexOf(b), b).toBeGreaterThan(code.indexOf(a));
+    }
+    expect(code).not.toMatch(/withLockedContract|inHeldContract/);
+  });
+
+  it("read no supplier, organisation, account, day or time from the request", () => {
+    for (const f of [...AWARD_RETURN_ROUTES, { file: "lib/award/online-return-api.ts", src: read("lib/award/online-return-api.ts") }]) {
+      const code = lex(f.src, { only: "comments" });
+      expect(code, f.file).not.toMatch(/\.get\(\s*["'](?:supplierId|organisationId|accountId|supplierAccountId|actorId|submittedOn|submittedAt|stepUpAt)["']\s*\)/);
+      expect(code, f.file).not.toMatch(/(?:fields|body|post\.fields|params|searchParams)\??\.\s*(?:supplierId|organisationId|accountId|supplierAccountId|submittedOn|submittedAt|stepUpAt)\b/);
+    }
   });
 });

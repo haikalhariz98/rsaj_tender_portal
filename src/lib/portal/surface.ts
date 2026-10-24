@@ -1,4 +1,4 @@
-import { isSignInPath, SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AUTH_PAGES, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_DATA_EXPORT, SUPPLIER_POST_PATHS, SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_POST_PATHS } from "@/lib/auth/routes";
+import { isSignInPath, SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AWARD_RETURN_POST_PATHS, SUPPLIER_AUTH_PAGES, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_DATA_EXPORT, SUPPLIER_POST_PATHS, SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_POST_PATHS } from "@/lib/auth/routes";
 
 /**
  * Which door a running copy of the product is the front of.
@@ -55,7 +55,7 @@ const ICON = "/favicon.ico";
 /// Every write the public copy takes, each at one literal path (Phase 4a): the registration post, and the supplier portal's sign-in, sign-out, activation, reset and account posts.
 /// A stranger can reach the sign-in ones (they are how a supplier becomes signed in); each is a route handler that passes the Origin guard and a form token, and the ones
 /// behind an account then ask who is signed in. No other path takes a write, and the public copy refuses every server action.
-const POST_PATHS: ReadonlySet<string> = new Set([SUBMIT_PATH, ...SUPPLIER_POST_PATHS, ...SUPPLIER_REGISTRATION_POST_PATHS, ...SUPPLIER_COMPANY_POST_PATHS, ...SUPPLIER_BIDS_POST_PATHS, ...SUPPLIER_PROJECTS_POST_PATHS, ...SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS]);
+const POST_PATHS: ReadonlySet<string> = new Set([SUBMIT_PATH, ...SUPPLIER_POST_PATHS, ...SUPPLIER_REGISTRATION_POST_PATHS, ...SUPPLIER_COMPANY_POST_PATHS, ...SUPPLIER_BIDS_POST_PATHS, ...SUPPLIER_PROJECTS_POST_PATHS, ...SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS, ...SUPPLIER_AWARD_RETURN_POST_PATHS]);
 
 export interface PublicRequest {
   method: string;
