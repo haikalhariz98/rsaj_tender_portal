@@ -35,6 +35,7 @@ interface Models {
   SupplierPolicy: Prisma.SupplierPolicyUncheckedCreateInput;
   StandingReason: Prisma.StandingReasonUncheckedCreateInput;
   NumberingSeries: Prisma.NumberingSeriesUncheckedCreateInput;
+  NotificationRule: Prisma.NotificationRuleUncheckedCreateInput;
 }
 export type Model = keyof Models;
 type Ref = { ref: string };

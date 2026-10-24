@@ -15,6 +15,7 @@ import { matchesFormat } from "@/lib/integration/award-commitment";
 import { ratioOfPercent } from "@/lib/percent-band";
 import { toPosix } from "@/lib/scan/files";
 import { documentTypeFaults } from "@/lib/suppliers/config";
+import { SUPPLIER_EXPIRY_EVENT } from "@/lib/suppliers/expiry";
 import { resolveSo } from "@/lib/supervision/so";
 
 import { columnsOf, planPacks } from "./plan";
@@ -274,15 +275,25 @@ describe("part 2: contracts, suppliers and system (plan step 4.6)", () => {
     expect(matchesFormat("IN2026395", String(formats[2].values.pattern))).toBe(false);
   });
 
-  it("holds no Malay text, no legal text, no notification rule, and nothing the documents leave unstated", () => {
+  it("holds no Malay text, no legal text, no office-naming notification rule, and nothing the documents leave unstated", () => {
     const part2 = [CONTRACTS, SUPPLIERS, SYSTEM];
     const set = part2.flatMap((p) => [...p.groups.map((g) => g.values), ...p.lists.flatMap((l) => l.rows.map((r) => r.values))]).flatMap((v) => Object.entries(v).filter(([, x]) => x != null));
     const columns = set.map(([c]) => c);
     expect(columns.filter((c) => /Ms$/.test(c))).toEqual([]);
     for (const c of ["personalDataNoticeEn", "helpEmail", "helpPhone", "verificationNoticeEn"]) expect(columns, c).not.toContain(c);
-    // SP-9 and SP-16; the contract document parts and the letter variants are open questions for RSAJ (contracts.ts).
+    // SP-9 and SP-16 in part (ST-13 amends it for the one reminder rule, below); the contract document parts and the letter variants are open questions for RSAJ (contracts.ts).
     const models = [...RSAJ_PACK.groups, ...RSAJ_PACK.lists].map((x) => x.model);
-    for (const m of ["DeclarationText", "NotificationRule", "ContractDocumentPart", "AppointmentLetterVariant", "DocumentTemplate"]) expect(models, m).not.toContain(m);
+    for (const m of ["DeclarationText", "ContractDocumentPart", "AppointmentLetterVariant", "DocumentTemplate"]) expect(models, m).not.toContain(m);
+    expect(listOf("NotificationRule").every((r) => (r.values.recipientRoleCodes as string[]).length === 0)).toBe(true);
+  });
+
+  // ST-13 (2026-10-24): one notification rule, the expiry reminders, STATED and naming no office; shown in the portal, sending waits for the mail integration.
+  it("loads the document expiry reminders at exactly 90, 60, 30 and 7 days, STATED, naming no office", () => {
+    expect(listOf("NotificationRule")).toEqual([
+      { code: "supplier_document_expiring", values: { eventKey: SUPPLIER_EXPIRY_EVENT, nameEn: "Supplier document expiring", recipientRoleCodes: [], reminderOffsetDays: [90, 60, 30, 7] }, requirement: "FR-VND-008", source: "Specification FR-VND-008" },
+    ]);
+    const w = planPacks([RSAJ_PACK, GENERIC_PACK], fresh).writes.filter((x) => x.kind === "ROW" && x.model === "NotificationRule");
+    expect(w.map((x) => [x.provenance, (x as { values: Record<string, unknown> }).values.provenance])).toEqual([["STATED", "STATED"]]);
   });
 
   it("loads RSAJ's contract number series beside the generic pack's, each scoped by its key", () => {

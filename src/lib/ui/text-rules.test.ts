@@ -1,6 +1,9 @@
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { scanSource } from "../../../scripts/ui-text-rules.mjs";
+import { BANNED_WORDS, scanSource } from "../../../scripts/ui-text-rules.mjs";
 
 /// The literal-text rules of the minimal-words standard (note 0005 section 4 and R2, founder 2026-10-19).
 const rules = (source: string) => scanSource("fixture.tsx", source).map((v) => v.rule);
@@ -95,5 +98,13 @@ describe("paragraph rule on Bids and opening (0005 R14, 2026-10-20)", () => {
     expect(rules(`export const a = <p>(invented)</p>;`)).toEqual(["banned-word"]);
     expect(rules(`export const a = <p>Issue a case; act on the window. A (B) option and Plan (A1).</p>;`)).toEqual([]);
     expect(rules(`export const a = <p>Where the value came from</p>;`)).toEqual([]);
+  });
+
+  // ST-12 (2026-10-24): the inbox is the channel, so no source file says "Not emailed" (the scan above covers screens; this covers src/lib too).
+  it("finds no Not emailed anywhere in src but this test", () => {
+    const re = BANNED_WORDS.find(([name]) => name === "Not emailed")![1];
+    const files = readdirSync("src", { recursive: true, encoding: "utf8" }).filter((f) => /\.tsx?$/.test(f) && path.basename(f) !== "text-rules.test.ts");
+    expect(files.length).toBeGreaterThan(100);
+    expect(files.filter((f) => re.test(readFileSync(path.join("src", f), "utf8")))).toEqual([]);
   });
 });

@@ -168,7 +168,7 @@ export function registrationSummary(record: SummaryRecord, fmt: SummaryFormat): 
       { label: "Country", value: c.countryName ?? "Not listed" },
       { label: "Registered address", value: c.addressLines.filter(Boolean).join(", ") || "Not given" },
       { label: "Date incorporated", value: c.incorporatedOn ? fmt.day(c.incorporatedOn) : "Not given" },
-      { label: "Company email", value: c.companyEmail, note: "Not verified. Nothing is e-mailed from the portal.", tone: "warn" },
+      { label: "Company email", value: c.companyEmail, note: "Not verified.", tone: "warn" },
       { label: "Bumiputera status", value: bumiputera, ...(bumiputeraNeedsAttention(c.bumiputera) ? { note: "A claim with no evidence document lodged.", tone: "warn" as const } : {}) },
     ],
   });

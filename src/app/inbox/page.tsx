@@ -22,9 +22,9 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Inbox" };
 
 /**
- * The staff inbox (FR-APR-018, Phase 3c): the notices raised for the person signed in, and nobody else's. Email is not connected (INT-09), so this is where a
+ * The staff inbox (FR-APR-018, Phase 3c): the notices raised for the person signed in, and nobody else's. Notices are delivered in the portal (INT-09 deferred: ADR 0044), so this is where a
  * step moved to your office, a recall, a delegation to you or a not-approved memo is told. AC-14 (GN-05): the page no longer carries "Open my steps" or the
- * Delivery box; the fact that notices are not emailed stays as one clause of the subtitle. A notice about a restricted exercise
+ * Delivery box. A notice about a restricted exercise
  * is left out for anyone not named on it. What is waiting for you to decide is on My approvals, not here.
  */
 export default async function InboxPage({ searchParams }: { searchParams: Promise<{ before?: string }> }) {

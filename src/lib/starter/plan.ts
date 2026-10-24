@@ -105,6 +105,7 @@ export const ALLOWED_MODELS: readonly string[] = [
   "HolidayCalendar",
   "MethodChecklistItem",
   "NotApprovedOutcome",
+  "NotificationRule",
   "NumberingSeries",
   "Organisation",
   "PostAwardPolicy",

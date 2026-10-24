@@ -1,7 +1,7 @@
 /**
  * The not-approved memo (FR-CTE-009): "a not-approved decision ... issues a memo to the Implementing Department notifying the decision."
  *
- * Email is not connected (INT-09), so the memo is issued as a notice in the portal, to the people the organisation's own notification rule names. Who is told
+ * The memo is issued as a notice in the portal, where notices are delivered (INT-09 deferred: ADR 0044), to the people the organisation's own notification rule names. Who is told
  * is the organisation's choice, never the product's: the rule for the event `NOT_CARRIED_EVENT_KEY` names the offices (a NotificationRule), and the holders of
  * those offices, for the matter's unit, are told. Four things can happen, and the panel says which, in words, as it stood when the matter was decided:
  *
@@ -41,7 +41,7 @@ export function memoPlan(rule: MemoRule | null, holdersOf: (officeCode: string) 
 export function memoWords(state: string | null, told: number): { short: string; text: string; tone: "ok" | "warn" | "neutral" } {
   switch (state) {
     case "ISSUED":
-      return { short: "Memo issued", text: `Memo issued in the portal to ${told} ${told === 1 ? "person" : "people"}. Shown in the portal; not sent — email is not connected (INT-09).`, tone: "ok" };
+      return { short: "Memo issued", text: `Memo issued in the portal to ${told} ${told === 1 ? "person" : "people"}.`, tone: "ok" };
     case "NO_RULE":
       return { short: "Memo not issued", text: "Memo not issued: no notification rule is set for a matter not carried, so nobody was picked to be told. Set one under Configuration, Notifications.", tone: "warn" };
     case "RULE_OFF":

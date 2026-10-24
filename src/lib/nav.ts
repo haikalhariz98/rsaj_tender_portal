@@ -45,7 +45,7 @@ export const STAFF_NAV: NavGroup[] = [
       { href: "/dashboard", label: w("Dashboard"), icon: "chart", built: true },
       // The steps waiting for the person signed in, and every open approval's next step by the office deciding it. The count is the steps waiting for them (FR-APR-018).
       { href: "/approvals", label: w("My approvals"), icon: "clock", built: true },
-      // The staff inbox: notices shown in the portal, since email is not connected (INT-09). The count is the unread ones.
+      // The staff inbox: notices are delivered in the portal (INT-09 deferred: ADR 0044). The count is the unread ones.
       { href: "/inbox", label: w("Inbox"), icon: "inbox", built: true },
     ],
   },

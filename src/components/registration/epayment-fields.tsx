@@ -120,7 +120,7 @@ export function EpaymentFields({
           <div className="sm:col-span-2">{text("beneficiaryAddress", { required: true, area: true })}</div>
           {text("beneficiaryContactPerson", { required: true })}
           {text("beneficiaryTelephone", { required: true, type: "tel", inputMode: "tel" })}
-          {text("beneficiaryEmail", { required: true, type: "email", inputMode: "email", hint: REGISTRATION_HINT.notEmailed })}
+          {text("beneficiaryEmail", { required: true, type: "email", inputMode: "email", hint: REGISTRATION_HINT.addressNotChecked })}
           {text("beneficiaryFax")}
           {text("beneficiaryTaxRegistrationNo")}
         </div>

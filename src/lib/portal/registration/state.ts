@@ -35,7 +35,7 @@ export interface WizardWords {
 export function wizardClosedWords(state: Exclude<WizardState, "OPEN">): WizardWords {
   switch (state) {
     case "SENT":
-      return { title: "Sent to the procurement office", body: "Not emailed. The result shows on your account page." };
+      return { title: "Sent to the procurement office", body: "The result shows on your account page." };
     case "WITH_OFFICE":
       return { title: "The procurement office has your application", body: "Nothing to fill in. The office will ask for anything it needs." };
     case "REGISTERED":

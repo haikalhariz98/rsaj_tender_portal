@@ -433,7 +433,7 @@ export const REGISTRATION_HINT = {
   expiryIfAny: "Give the date, if it has one",
   rate: "Per cent, 0 to 100",
   identityNo: "Company or identity card number",
-  notEmailed: "Nothing is e-mailed from the portal.",
+  addressNotChecked: "The address is not checked.",
   oneGrade: "A certificate carries one grade.",
   several: "You may choose several.",
   declarationTitle: "Declaration",

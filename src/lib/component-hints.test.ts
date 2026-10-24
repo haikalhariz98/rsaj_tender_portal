@@ -55,7 +55,7 @@ describe("component hints come from labels (D6)", () => {
       expiryIfAny: "Give the date, if it has one",
       rate: "Per cent, 0 to 100",
       identityNo: "Company or identity card number",
-      notEmailed: "Nothing is e-mailed from the portal.",
+      addressNotChecked: "The address is not checked.",
       oneGrade: "A certificate carries one grade.",
       several: "You may choose several.",
       // The declaration card's own words, moved here with the others (review minor), as both wizards showed them.

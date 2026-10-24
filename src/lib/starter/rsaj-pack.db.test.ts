@@ -10,6 +10,7 @@ import { hashToken } from "@/lib/auth/token";
 import type { StaffActor } from "@/lib/auth/types";
 import { loadMakers } from "@/lib/authority/maker-store";
 import { db } from "@/lib/db";
+import { reminderDue, SUPPLIER_EXPIRY_EVENT } from "@/lib/suppliers/expiry";
 import { facts, makeAccount, randomId } from "@/lib/test-db/auth-fixtures";
 
 import { loadPacks } from "./apply";
@@ -144,6 +145,12 @@ describe("loading rsaj,generic", () => {
     expect((await db.contractType.findFirstOrThrow({ where: { organisationId: orgId, code: "consultancy" } })).contractSeriesKey).toBe("contract_consultancy");
     expect((await db.supplierDocumentType.findFirstOrThrow({ where: { organisationId: orgId, code: "suruhanjaya_tenaga" }, include: { body: true } })).body).toMatchObject({ code: "st", labelEn: "Suruhanjaya Tenaga" });
     expect(series).toContainEqual({ key: "requisition", pattern: "REQ/{YEAR}/{SERIAL}" });
+    // ST-13: the expiry reminders, STATED, naming no office; a document 30 days from expiry is reminded at 30.
+    const reminders = await db.notificationRule.findUniqueOrThrow({ where: { organisationId_eventKey: { organisationId: orgId, eventKey: SUPPLIER_EXPIRY_EVENT } } });
+    expect(reminders).toMatchObject({ nameEn: "Supplier document expiring", recipientRoleCodes: [], reminderOffsetDays: [90, 60, 30, 7], isActive: true, provenance: "STATED" });
+    expect(reminderDue({ startsOn: "2025-01-01", expiresOn: "2026-12-01" }, reminders.reminderOffsetDays, "2026-11-01")).toEqual({ offset: 30, dueOn: "2026-11-01" });
+    const ruleTrail = await db.auditEntry.findFirstOrThrow({ where: { organisationId: orgId, entity: "NotificationRule", entityId: reminders.id } });
+    expect(ruleTrail.changes).toContainEqual(expect.objectContaining({ field: "governingSource", after: "Specification FR-VND-008" }));
   });
 
   it("writes nothing the second time, and says the drafts already exist", async () => {

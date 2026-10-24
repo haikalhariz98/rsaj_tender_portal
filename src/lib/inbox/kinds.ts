@@ -2,8 +2,7 @@
  * What the staff inbox can hold (Phase 3c). Product vocabulary, not policy: the closed list of events a notice is raised for. `StaffNotice.kind` is checked
  * against this list in the database (migration 20261009090000, widened by 20261017090000 for the contractor's submission by 20261018110000 for a back-dated signature to confirm, by 20261110000000 for the indent-expiry and late-commencement notices and by 20261122000100 for the Project workspace's three), and a source test holds the two together.
  *
- * Email is not connected (INT-09), so a notice is delivered in the portal and nowhere else. That is a fact about the product, not a per-notice setting, and it is
- * said where a notice is shown, in these words.
+ * Notices are delivered in the portal (INT-09 deferred: ADR 0044). That is a fact about the product, not a per-notice setting.
  */
 
 import { w, type Words } from "@/lib/contract/labels";
@@ -64,5 +63,3 @@ export const STAFF_NOTICE_KIND_LABEL: Readonly<Record<StaffNoticeKind, Words>> =
  */
 export const READ_WHEN_ACTED_ON: readonly StaffNoticeKind[] = ["BACKDATE_TO_CONFIRM"];
 export const markedReadByOpening = (kind: string): boolean => !(READ_WHEN_ACTED_ON as readonly string[]).includes(kind);
-
-export const NOTICE_DELIVERY_STATEMENT = "Shown here, not emailed";

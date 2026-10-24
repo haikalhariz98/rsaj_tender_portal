@@ -3,8 +3,8 @@
  * blacklist reasons. Transcribed from the specification; each entry cites its requirement and clause, and every one is STATED.
  *
  * Only what the documents state is set. Which document types are mandatory at registration is not stated, so that switch stays unset and the
- * applicant is told it has not been said. The reminders at 90, 60, 30 and 7 days (FR-VND-008) are notification rules, which come with email in
- * step 7 (SP-16); only the severity bands load here.
+ * applicant is told it has not been said. The reminders at 90, 60, 30 and 7 days (FR-VND-008) load as the one notification rule for an expiring
+ * document, naming no office: they show as notices in the portal, and sending waits for the mail integration. The rules that name offices wait (SP-16).
  */
 
 import { group, list, ref } from "./shape";
@@ -49,6 +49,13 @@ const SUPPLIER_GROUPS = [
   group("SupplierPolicy", "Supplier register · expiry bands", { criticalDays: 30, warningDays: 60, upcomingDays: 90 }, { requirement: "FR-VND-008", source: "Specification FR-VND-008 (net new)" }, { provenance: "bandsProvenance" }),
 ];
 
+// ------------------------------------------------------------------ document expiry reminders (FR-VND-008; ST-13, 2026-10-24)
+
+/// No office is named: who is told is not stated (SP-16). The event key is `SUPPLIER_EXPIRY_EVENT` (src/lib/suppliers/expiry.ts).
+export const EXPIRY_REMINDERS = list("NotificationRule", "Notification rule", [
+  { code: "supplier_document_expiring", values: { eventKey: "supplier.document.expiring", nameEn: "Supplier document expiring", recipientRoleCodes: [], reminderOffsetDays: [90, 60, 30, 7] }, requirement: "FR-VND-008", source: "Specification FR-VND-008" },
+]);
+
 // ------------------------------------------------------------------ suspension and blacklist reasons (FR-VND-010, FR-TRM-017)
 
 const SUSPEND = { requirement: "FR-VND-010", source: "Specification FR-VND-010 (net new); SK002 7.5.1(c)" };
@@ -61,6 +68,6 @@ export const STANDING_REASONS = list("StandingReason", "Suspension or blacklist 
 ]);
 
 export const SUPPLIERS = {
-  lists: [BODIES, DOCUMENT_TYPES, STANDING_REASONS],
+  lists: [BODIES, DOCUMENT_TYPES, EXPIRY_REMINDERS, STANDING_REASONS],
   groups: SUPPLIER_GROUPS,
 };

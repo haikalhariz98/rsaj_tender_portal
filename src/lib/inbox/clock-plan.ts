@@ -46,8 +46,6 @@ export function clockPlan(i: { requesterId: string | null; requesterActive?: boo
 }
 
 const EVENT_WORDS: Readonly<Record<ClockKind, string>> = { INDENT_EXPIRED: "an expired indent", COMMENCEMENT_LATE: "a late commencement" };
-/// Said on both callouts: the notices are portal notices only.
-export const CLOCK_NOTICE_CHANNEL = "The notices appear in the inbox only and are not emailed.";
 
 /// What the callout says about who is told. `officeName` resolves an office code to its name. `restricted` is the exercise's: its notices reach only those recipients named on it.
 export function clockPlanWords(kind: ClockKind, plan: ClockPlan, officeName: (code: string) => string, opts: { restricted?: boolean } = {}): string {
@@ -68,7 +66,7 @@ export function clockPlanWords(kind: ClockKind, plan: ClockPlan, officeName: (co
   const empty = plan.emptyOffices.length > 0 ? ` Nobody holds ${plan.emptyOffices.map(officeName).join(", ")} today, so that office is not told.` : "";
   const left = gone ? " The requester is no longer active and is not told." : "";
   const sealed = opts.restricted ? " This exercise is restricted: a notice reaches only those of them who are named on it." : "";
-  return `${lead}${empty}${left}${sealed} ${CLOCK_NOTICE_CHANNEL}`;
+  return `${lead}${empty}${left}${sealed}`;
 }
 
 export interface ClockChip {
@@ -106,7 +104,6 @@ export function clockPlanChips(kind: ClockKind, plan: ClockPlan, officeName: (co
       break;
   }
   if (plan.emptyOffices.length > 0) chips.push({ key: "unheld", label: `${plan.emptyOffices.length} unheld`, tone: "warn", detail: `Nobody holds ${plan.emptyOffices.map(officeName).join(", ")} today.` });
-  chips.push({ key: "channel", label: "Not emailed", tone: "neutral", detail: CLOCK_NOTICE_CHANNEL });
   if (opts.restricted) chips.push({ key: "restricted", label: "Restricted", tone: "neutral", detail: "Only people named on it are told." });
   return { fact, chips };
 }

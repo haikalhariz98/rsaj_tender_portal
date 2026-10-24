@@ -24,6 +24,8 @@ describe("the tables a pack may write", () => {
   it("are exactly those the three packs write", () => {
     const written = new Set([GENERIC_PACK, RSAJ_PACK, DEV_FILL_PACK].flatMap((p) => [...p.groups.map((g) => g.model), ...p.lists.map((l) => l.model)]));
     expect([...ALLOWED_MODELS].sort()).toEqual([...written].sort());
+    // ST-13: the RSAJ pack's expiry reminders.
+    expect(ALLOWED_MODELS).toContain("NotificationRule");
   });
 
   it.each(["CommitteeMember", "OpeningPanelMember", "ExerciseOpeningOfficer", "EvaluationTeamMember", "ReportingLine", "SoDelegation", "SpecialPermission", "ActAttribution", "SulitAccessEvent", "RoleCapability", "Capability", "AuditEntry", "Person"])(

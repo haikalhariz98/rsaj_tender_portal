@@ -2,12 +2,10 @@
  * The notices a supplier is shown in its portal (FR-ADV-012, 014, 015, 016 and FR-AWD-010, Phase 4d). Pure.
  *
  * The notices are the office's own records, read for the exercises where one of the supplier's linked parties bought the documents: an addendum it holds a copy of (a later purchaser gets every issued
- * addendum "with the documents"), a change of the closing that was applied, the cancellation of the exercise, and a notice of non-award. They are SHOWN in the portal and are NOT SENT: email is not connected
- * (INT-09). Seeing one here is not delivery: it sets nothing the officers record of a paper copy (`despatchedOn`, `acknowledgedOn`), and no notice here counts as delivered because it was read. A closing change or a
+ * addendum "with the documents"), a change of the closing that was applied, the cancellation of the exercise, and a notice of non-award. They are SHOWN in the portal, where
+ * notices are delivered (INT-09 deferred: ADR 0044). Seeing one here is not delivery: it sets nothing the officers record of a paper copy (`despatchedOn`, `acknowledgedOn`), and no notice here counts as delivered because it was read. A closing change or a
  * cancellation that was only requested is not a notice yet: it is shown once applied.
  */
-
-import { NOTICE_DELIVERY_STATEMENT } from "@/lib/inbox/kinds";
 
 export type PortalNoticeKind = "ADDENDUM" | "CLOSING_CHANGED" | "EXERCISE_CANCELLED" | "NON_AWARD";
 
@@ -43,5 +41,3 @@ export function sortNotices(ns: readonly PortalNotice[]): PortalNotice[] {
 
 /// How many addenda this supplier holds and still has to acknowledge: not one whose time has passed, which is no longer a thing to do.
 export const unacknowledged = (ns: readonly PortalNotice[]): number => ns.filter((n) => n.kind === "ADDENDUM" && n.addendum && n.addendum.acknowledgedOn == null && n.addendum.canAcknowledge).length;
-
-export { NOTICE_DELIVERY_STATEMENT };

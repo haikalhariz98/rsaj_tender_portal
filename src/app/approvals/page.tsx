@@ -29,8 +29,8 @@ export const metadata = { title: "My approvals" };
  * My approvals (FR-APR-010, FR-APR-018, ruling CO-7): the steps waiting for the person signed in, and every open route's next step under the office acting for it.
  *
  * Two tabs over one reading of the worklist (`loadWorklist`). My steps (`myStepsOf`) are the ones whose acting office the person holds, or holds a delegation
- * of; the shell's count is the length of the same list. By office is the whole of it, for whoever needs to see where an approval is stuck. Nobody is told by
- * email (email is not connected): what happens to a step, and what is told to whom, is in the staff inbox.
+ * of; the shell's count is the length of the same list. By office is the whole of it, for whoever needs to see where an approval is stuck. Notices are delivered
+ * in the portal (INT-09 deferred: ADR 0044): what happens to a step, and what is told to whom, is in the staff inbox.
  */
 export default async function ApprovalsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const actor = await requireStaff();

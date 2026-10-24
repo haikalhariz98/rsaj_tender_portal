@@ -28,12 +28,13 @@ describe("clockPlan", () => {
 
 describe("clockPlanWords", () => {
   const name = (c: string) => `Office ${c}`;
-  it("says each reading in words, names an empty office, and says the notices are not emailed", () => {
+  it("says each reading in words and names an empty office", () => {
     const p = clockPlan({ requesterId: "r", rule, holdersOf, dayKnown: true });
     const w = clockPlanWords("INDENT_EXPIRED", p, name);
     expect(w).toContain("“Indent expired”");
     expect(w).toContain("Nobody holds Office CLERK today");
-    expect(w).toContain("inbox only and are not emailed");
+    // ST-12 (2026-10-24): the channel sentence is gone; the inbox is the channel, so nothing is said about email.
+    expect(w).not.toMatch(/email/i);
     expect(w).not.toContain("CLERK,");
     expect(clockPlanWords("COMMENCEMENT_LATE", clockPlan({ requesterId: "r", rule: null, holdersOf, dayKnown: true }), name)).toContain("No notification rule names who is to be told of a late commencement");
     expect(clockPlanWords("INDENT_EXPIRED", clockPlan({ requesterId: "r", rule: { ...rule, isActive: false }, holdersOf, dayKnown: true }), name)).toContain("switched off");
@@ -79,10 +80,10 @@ describe("clockPlanChips", () => {
     expect(r.fact).toBe("Told: Indent expired");
     expect(r.chips.find((c) => c.key === "unheld")).toMatchObject({ label: "1 unheld", detail: "Nobody holds Office CLERK today." });
   });
-  it("always says Not emailed; Restricted only for a restricted exercise", () => {
+  it("says nothing of email (ST-12); Restricted only for a restricted exercise", () => {
     const p = clockPlan({ requesterId: "r", rule: null, holdersOf, dayKnown: true });
-    expect(labels("INDENT_EXPIRED", p)).toEqual(["No rule", "Not emailed"]);
-    expect(labels("INDENT_EXPIRED", p, { restricted: true })).toEqual(["No rule", "Not emailed", "Restricted"]);
-    expect(clockPlanChips("INDENT_EXPIRED", p, name, { restricted: true }).chips[2].detail).toBe("Only people named on it are told.");
+    expect(labels("INDENT_EXPIRED", p)).toEqual(["No rule"]);
+    expect(labels("INDENT_EXPIRED", p, { restricted: true })).toEqual(["No rule", "Restricted"]);
+    expect(clockPlanChips("INDENT_EXPIRED", p, name, { restricted: true }).chips[1].detail).toBe("Only people named on it are told.");
   });
 });

@@ -38,10 +38,10 @@ describe("the not-approved memo (FR-CTE-009): who is told is the organisation's 
     expect(memoPlan({ isActive: false, recipientRoleCodes: ["HOD"] }, holdersOf, false)).toEqual({ state: "RULE_OFF" });
   });
 
-  it("says in words what was recorded, and that nothing was sent by email", () => {
+  it("says in words what was recorded, and nothing of email (ST-12)", () => {
     expect(memoWords("ISSUED", 2).text).toContain("2 people");
     expect(memoWords("ISSUED", 1).text).toContain("1 person");
-    expect(memoWords("ISSUED", 2).text).toContain("not sent — email is not connected (INT-09)");
+    expect(memoWords("ISSUED", 2).text).toBe("Memo issued in the portal to 2 people.");
     expect(memoWords(null, 0).text).toMatch(/before memos were issued/);
   });
 });
