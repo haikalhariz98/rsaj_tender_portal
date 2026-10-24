@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { STAFF_NOTICE_KINDS, STAFF_NOTICE_KIND_LABEL } from "./kinds";
-import { caseClockNotices, delegationReceivedNotice, holderMarkedAbsentNotices, matterNotCarriedMemo, projectDocumentNotices, routeRecalledNotices, stepEscalatedNotices, stepMovedOnAbsenceNotices } from "./notices";
+import { awardReturnNotices, caseClockNotices, delegationReceivedNotice, holderMarkedAbsentNotices, matterNotCarriedMemo, projectDocumentNotices, routeRecalledNotices, stepEscalatedNotices, stepMovedOnAbsenceNotices } from "./notices";
 
 // Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
 
@@ -110,5 +110,26 @@ describe("the Project workspace's notices (ADR 0042 D6, PW-13)", () => {
       const [n] = projectDocumentNotices({ ...base, versionLabel: "Version 1", target: { kind, subjectEntity: "ProjectDocumentVersion", subjectId: "v", recipientPersonIds: ["a"] } });
       expect(`${n!.title} ${n!.body}`.replace("Version 1", "").replace("CON/1", ""), kind).not.toMatch(/\d/);
     }
+  });
+});
+
+describe("an award return sent online, and a contractor's question (ADR 0045 D3, D4; WV-8)", () => {
+  const base = { awardLabel: "AW/1 · Syarikat Maju", contractorName: "Syarikat Maju", exerciseId: "ex1", href: "/projects/aw1?stage=award&tab=return", recipients: ["b", "a", "b"] };
+
+  it("tells each recipient once, keyed on the lodged return or the question, on the exercise", () => {
+    const n = awardReturnNotices({ ...base, kind: "AWARD_RETURN_LODGED", subjectId: "r1" });
+    expect(n.map((x) => x.recipientPersonId)).toEqual(["a", "b"]);
+    expect(n[0]).toMatchObject({ kind: "AWARD_RETURN_LODGED", subjectEntity: "AwardOnlineReturn", subjectId: "r1", occurrence: "", exerciseId: "ex1", href: base.href });
+    const q = awardReturnNotices({ ...base, kind: "AWARD_QUERY_RAISED", subjectId: "q1" });
+    expect(q[0]).toMatchObject({ kind: "AWARD_QUERY_RAISED", subjectEntity: "AwardQuery", subjectId: "q1" });
+    expect(q[0]!.title).toBe("Question from Syarikat Maju: AW/1 · Syarikat Maju");
+  });
+
+  it("tells nobody when nobody resolves", () => {
+    expect(awardReturnNotices({ ...base, kind: "AWARD_RETURN_LODGED", subjectId: "r1", recipients: [] })).toEqual([]);
+  });
+
+  it("names no figure", () => {
+    for (const kind of ["AWARD_RETURN_LODGED", "AWARD_QUERY_RAISED"] as const) for (const n of awardReturnNotices({ ...base, kind, subjectId: "x" })) expect(n.title + n.body).not.toMatch(/RM\s?\d|\d[\d,]{3,}\.\d\d/);
   });
 });

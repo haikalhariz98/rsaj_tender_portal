@@ -268,6 +268,11 @@ describe("cancelling, read once", () => {
     expect(cancellable("ISSUED", { returned: false, commenced: true })).toBe(false);
     expect(cancellable("ACCEPTED", { returned: false, commenced: false })).toBe(false);
     expect(cancellable("CANCELLED", { returned: false, commenced: false })).toBe(false);
+    // WV-4: an issued award is not cancelled while a return lodged online waits; once it is refused, cancelling is open again.
+    expect(cancellable("ISSUED", { returned: false, commenced: false, onlineReturnWaiting: true })).toBe(false);
+    expect(cancellable("ISSUED", { returned: false, commenced: false, onlineReturnWaiting: false })).toBe(true);
+    expect(awardTransition("ISSUED", "CANCELLED", { today: "2026-10-24", reason: "Withdrawn", onlineReturnWaiting: true })).toBe("ONLINE_RETURN_WAITING");
+    expect(awardTransition("ISSUED", "CANCELLED", { today: "2026-10-24", reason: "", onlineReturnWaiting: true })).toBe("CANCEL_REASON_REQUIRED");
   });
   it("returned means the signed letter back, or the acceptance page's signatory recorded", () => {
     expect(instrumentReturned("LETTER_OF_ACCEPTANCE", { signedLetterReceivedOn: "2026-09-01", signatoryName: "" })).toBe(true);

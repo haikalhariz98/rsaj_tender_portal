@@ -29,3 +29,9 @@ export function templateFileRefusal(doc: { stagedFor: string | null; classificat
   if (doc.attachments > 0) return "That file is already attached to a record, so it cannot also be a template file. Upload it again from this form.";
   return null;
 }
+
+/**
+ * ADR 0045 D1: a wet-signed scan of an award return, staged by the contractor's signing-authority account in the award return class (which is SULIT), outside any lock. The
+ * lodge then pins it to the online return (`stagedReturnFileFaults`, src/lib/award/online-return.ts), and refuses a file staged for anything else, or by any other account.
+ */
+export const STAGED_FOR_AWARD_RETURN = "award-return";

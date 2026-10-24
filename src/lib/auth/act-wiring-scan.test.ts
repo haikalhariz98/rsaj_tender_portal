@@ -32,10 +32,8 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   // Wave 3b (SR-13): the two attestations of the bid sealing policy are wired since step 7 (`bid-sealing/core.ts`), so they leave this list.
   // ADR 0042 (plan step 4): the Project workspace's six staff slots are wired (`document-actions.ts`, `project-docs/store.ts`) and have left this list.
   // ADR 0042 D10 (plan step 7): the kick-off meeting's two slots are wired since the act step (`kick-off-actions.ts`, `project-docs/kick-off-store.ts`), so they leave this list.
-  // ADR 0045 (wave V step V1): the schema step registered four staff slots. Steps V2, V5 and V8 build the acts, and each leaves this list the day it is wired.
-  "AwardOnlineReturn.verifiedBy": { why: "Verifying an online award return is wave V step V2 and V5: no act decides a return yet.", writer: /\.awardOnlineReturn\.(?:update|updateMany|upsert)\(/ },
-  "AwardOnlineReturn.refusedBy": { why: "Refusing an online award return is wave V step V2 and V5: no act decides a return yet.", writer: /\.awardOnlineReturn\.(?:update|updateMany|upsert)\(/ },
-  "AwardQuery.answeredBy": { why: "Answering a contractor's question on an award is wave V step V2 and V5: no act answers one yet.", writer: /\.awardQuery\.(?:update|updateMany|upsert)\(/ },
+  // ADR 0045 (wave V step V1): the schema step registered four staff slots. Step V2 wired the three of the online return and the questions (`src/app/awards/actions.ts`,
+  // `src/lib/award/online-return-store.ts`; the verify act also writes `AwardReturn.receivedBy` from the same attribution, by `writeAlso`), so they left this list. V6 and V8 wire the last.
   "SupplyInvoicePayment.person": { why: "Recording Finance's payment of a supply claim is wave V step V6 and V8: no act writes one yet.", writer: /\.supplyInvoicePayment\.(?:create|createMany|upsert)\(/ },
 };
 
@@ -170,6 +168,9 @@ describe("a slot written beside an act can be recorded the way the act is", () =
     // Plan step 7 (PW-29): recording the kick-off meeting held makes its minutes through `createDocument` in the same act, whose "Raised by" is written beside the meeting's
     // "Recorded by" (`minutesAct`), the officer's own act (`onBehalf: false`). The version's "Sent by" is then `store.ts`'s writeAlso, forwarded unchanged.
     "src/lib/project-docs/kick-off-store.ts": [{ target: "ProjectDocument.createdByPerson", main: "KickOffMeeting.heldRecordedBy", mainFile: "src/app/projects/[id]/kick-off-actions.ts", mainFn: "recordKickOffHeld" }],
+    // ADR 0045 D1 (wave V plan §7, "two slots in one act"): verifying an online return writes the return's "Return received by" beside the row's "Verified by", from the one
+    // attribution, in the one act the officer begins (`onBehalf: false`). Neither is recorded from paper.
+    "src/lib/award/online-return-store.ts": [{ target: "AwardReturn.receivedBy", main: "AwardOnlineReturn.verifiedBy", mainFile: "src/app/awards/actions.ts", mainFn: "verifyOnlineReturn" }],
   };
   const paperCapable = (key: string) => ACT_SLOTS.find((s) => slotKey(s.entity, s.field) === key)?.onBehalf === true;
   /// The `beginAct` calls of a source text, each with the slot it is for and whether it narrows the slot to the officer's own.

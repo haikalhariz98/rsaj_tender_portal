@@ -200,7 +200,10 @@ describe("the writes that change what a reader may not read ask the write rule",
     ["src/app/sourcing/[id]/opening/actions.ts", /prices: actor/],
     ["src/app/sourcing/[id]/scope/actions.ts", /bq: actor/],
     ["src/app/requisitions/actions.ts", /sulitWriteRefusal\(tx, actor, \{ scope: "requisition"/],
-    ["src/app/awards/actions.ts", /sulitWriteRefusal\(tx, actor, \{ scope: "exercise", exerciseId: a\.exerciseId \}, \["icNumber"\]\)/],
+    // Wave V step V2: the return's write moved into the core the paper path and the online return's verify act share (`return-store.ts`); both reach it.
+    ["src/lib/award/return-store.ts", /sulitWriteRefusal\(tx, actor, \{ scope: "exercise", exerciseId: a\.exerciseId \}, \["icNumber"\]\)/],
+    ["src/app/awards/actions.ts", /await saveReturn\(tx, actor, l, \{/],
+    ["src/lib/award/online-return-store.ts", /await saveReturn\(tx, actor, l, \{/],
     ["src/app/suppliers/actions.ts", /sulitWriteRefusal\(tx, actor, \{ scope: "supplier"/],
     ["src/app/projects/[id]/actions.ts", /sulitWriteRefusal\(c\.tx, actor, \{ scope: "contract"/],
     ["src/app/projects/[id]/actions.ts", /Nothing was removed: this is SULIT and is closed to you/],
@@ -237,8 +240,10 @@ describe("the history action returns configuration only (review of Phase 3b)", (
 
 describe("a document is attached only by someone who may already open it (OD-2, review of Phase 3b)", () => {
   it("both ways a version gets a new owner by a reader's naming it ask, before anything is written, and read as a document that is not there", () => {
+    // Wave V step V2: the staff attach is a guard and a call to the core it shares with the verify act of an online return (`attach-store.ts`).
     const docs = read("src/app/documents/actions.ts");
-    const attach = docs.slice(docs.indexOf("export async function attachDocument("));
+    expect(docs.slice(docs.indexOf("export async function attachDocument("))).toMatch(/attachToLockedOwner\(tx, actor, o, \{ purpose, versionId \}\)/);
+    const attach = read("src/lib/documents/attach-store.ts");
     expect(attach.indexOf("sulitAttachRefused(tx, actor, doc.id)")).toBeGreaterThan(-1);
     expect(attach.indexOf("sulitAttachRefused(tx, actor, doc.id)")).toBeLessThan(attach.indexOf("documentAttachment.create"));
     expect(attach).toMatch(/hiddenExerciseOfDocument\(doc\.id/);
@@ -252,6 +257,11 @@ describe("a document is attached only by someone who may already open it (OD-2, 
       [
         "src/app/configuration/users/core.ts",
         "src/app/documents/actions.ts",
+        // Wave V step V2: the staff attach's core, moved out of `src/app/documents/actions.ts`, which the verify act of an online return shares (asked above).
+        "src/lib/documents/attach-store.ts",
+        // ADR 0045 D1: the contractor's lodge pins the scans its own account staged for the return (`stagedReturnFileFaults`), to the return it creates, in that act's transaction.
+        // No officer names a document: verifying puts them on the award through `attach-store.ts`, which asks.
+        "src/lib/award/online-return-store.ts",
         "src/app/sourcing/[id]/documents/actions.ts",
         "src/app/sourcing/[id]/scope/actions.ts",
         // Wave 3b step 15 (ADR 0036 D10): the mover attaches the file it has just stored, in that store's own transaction, to the online bid file it came from. No officer attaches: the owner is

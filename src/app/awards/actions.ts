@@ -40,8 +40,10 @@ import { renderedText } from "@/lib/award/merge";
 import { awardFacts, dossierEvidenceOf, frozenTenderOf, loadAwardConfig, withLockedAwardFor, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
 import { receivedOnFault } from "@/lib/award/routing";
 import { approvedOnOf, checkSignatory } from "@/lib/award/signatory";
-import { correctionScansMissing, instrumentReturned, returnReadsComplete, type ReturnRecord } from "@/lib/award/stage-two";
+import { correctionScansMissing, instrumentReturned, returnReadsComplete } from "@/lib/award/stage-two";
 import { acceptOnCompleteReturn, returnRecordOf, returnScans } from "@/lib/award/return-acceptance";
+import { saveReturn } from "@/lib/award/return-store";
+import { answerAwardQuery as answerAwardQueryAct, refuseOnlineReturn as refuseOnlineReturnAct, verifyOnlineReturn as verifyOnlineReturnAct } from "@/lib/award/online-return-store";
 import { RETURN_SCAN_LABEL } from "@/lib/award/labels";
 import { evidenceSnapshot } from "@/lib/documents/evidence";
 import { awardTransition, editable, LIVE_STATUSES } from "@/lib/award/status";
@@ -66,6 +68,7 @@ import { supplierFaultText } from "@/lib/suppliers/labels";
 import { awardeeFromRegister } from "@/lib/suppliers/award-awardee";
 import { awardVendorOnParty } from "@/lib/suppliers/link";
 import { FormReader } from "@/lib/validate";
+import { formatDate } from "@/lib/format";
 import { contractCancellable } from "@/lib/contract/status";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
@@ -981,54 +984,84 @@ export async function recordReturn(prev: FormState, data: FormData): Promise<For
     // The decision to propose was made above on an unlocked read. Under the lock the award may have been accepted meanwhile (by this officer's own completing return, or another's):
     // a correction is then never made by the one who posted it. Refused before anything is read or written; the machinery that applies a decided change runs with the ambient.
     if (a.status === "ACCEPTED" && !currentAmbient()) return { ok: false, message: "This award was accepted meanwhile, so the return is corrected by a change a second person decides. Reload the award and propose the correction." };
-    // Phase 3b (FR-AWD-008): the return holds the contractor's identity-card number, which is SULIT. Recording or correcting it writes the number, and an edit that left it out would erase
-    // it, so it is done by someone the number is open to, and the access is logged in this transaction.
-    const closed = await sulitWriteRefusal(tx, actor, { scope: "exercise", exerciseId: a.exerciseId }, ["icNumber"]);
-    if (closed) return { ok: false, message: `Nothing was saved: the identity card number is SULIT and is closed to you. ${closed}` };
-    // An accepted award's return may be corrected, with a reason, but never left incomplete.
     const correcting = a.status === "ACCEPTED";
-    if (!(a.status === "ISSUED" || correcting) || !a.awardReturn || !a.issuedAt) return { ok: false, message: "The return is recorded once the instrument is issued." };
-    if (correcting && !correction) return { ok: false, errors: { reason: "Say why the return is corrected." } };
-    const issued = storedDay(a.issuedAt);
-    const errors: Record<string, string> = {};
-    for (const k of ["signedLetterReceivedOn", "declarationReceivedOn", "authorisationReceivedOn"] as const) {
-      const x = v[k];
-      if (x && storedDay(x) > l.org.today) errors[k] = "Not after today.";
-      else if (x && storedDay(x) < issued) errors[k] = "Not before the instrument was issued.";
-    }
-    let receivedBy: { id: string; name: string } | null = null;
-    if (v.receivedByPersonId) {
-      receivedBy = await tx.person.findFirst({ where: { id: v.receivedByPersonId, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
-      if (!receivedBy) errors.receivedByPersonId = "Choose someone on record and active.";
-    }
-    if (Object.keys(errors).length) return { ok: false, errors };
-    const before = a.awardReturn;
     const kind = a.instrumentKind as InstrumentKind;
-    const rec: ReturnRecord = {
-      ...v,
-      signedLetterReceivedOn: v.signedLetterReceivedOn ? storedDay(v.signedLetterReceivedOn) : null,
-      declarationReceivedOn: v.declarationReceivedOn ? storedDay(v.declarationReceivedOn) : null,
-      authorisationReceivedOn: v.authorisationReceivedOn ? storedDay(v.authorisationReceivedOn) : null,
-    };
-    // OD-5: an item counts toward completeness only with its scan attached, for every
-    // award not accepted before scans were required; a correction (BD-24) needs a scan
-    // only for the item it corrects.
-    const { attached } = await returnScans(a.id, kind, tx);
-    if (correcting) {
-      const unscanned = correctionScansMissing(kind, returnRecordOf(before), rec, attached);
-      if (unscanned.length) return { ok: false, message: `Not corrected: attach ${unscanned.map((x) => RETURN_SCAN_LABEL[x]).join(", ")} first. A corrected item counts only with its scan.` };
-      // Accepted awards are not re-judged on their scans: the paper return must stay complete.
-      const complete = returnReadsComplete(a.status, kind, rec, attached);
-      if (!complete) return { ok: false, message: "Not corrected: the award was accepted on a complete return, and this would leave it incomplete." };
-    }
-    await tx.awardReturn.update({ where: { id: before.id, award: { organisationId: actor.organisationId } }, data: v });
-    const view = (x: Record<string, unknown>) => ({ ...x, receivedByPersonId: undefined, receivedBy: x.receivedByPersonId ? (x.receivedByPersonId === receivedBy?.id ? receivedBy?.name : before.receivedBy?.name) : null });
-    await audit(tx, toAuditActor(actor), l.org.id, "AwardReturn", before.id, `${a.reference} · return`, "UPDATE", awardAuditPair(view(before), view({ ...before, ...v })), correcting ? `Corrected: ${correction}` : "");
-    await act.write(tx, before.id);
+    // The SULIT write refusal, the issue and the days, WV-4's waiting online return, the write and its audit pair: the core the verify act of an online return shares (`return-store.ts`).
+    const saved = await saveReturn(tx, actor, l, {
+      values: {
+        ...v,
+        signedLetterReceivedOn: v.signedLetterReceivedOn ? storedDay(v.signedLetterReceivedOn) : null,
+        declarationReceivedOn: v.declarationReceivedOn ? storedDay(v.declarationReceivedOn) : null,
+        authorisationReceivedOn: v.authorisationReceivedOn ? storedDay(v.authorisationReceivedOn) : null,
+      },
+      receivedByPersonId: v.receivedByPersonId,
+      correction,
+      // OD-5: an item counts toward completeness only with its scan attached, for every award not accepted before scans were required; a correction (BD-24) needs a scan
+      // only for the item it corrects.
+      check: async (rec) => {
+        if (!correcting || !a.awardReturn) return null;
+        const { attached } = await returnScans(a.id, kind, tx);
+        const unscanned = correctionScansMissing(kind, returnRecordOf(a.awardReturn), rec, attached);
+        if (unscanned.length) return { ok: false, message: `Not corrected: attach ${unscanned.map((x) => RETURN_SCAN_LABEL[x]).join(", ")} first. A corrected item counts only with its scan.` };
+        // Accepted awards are not re-judged on their scans: the paper return must stay complete.
+        if (!returnReadsComplete(a.status, kind, rec, attached)) return { ok: false, message: "Not corrected: the award was accepted on a complete return, and this would leave it incomplete." };
+        return null;
+      },
+    });
+    if (!saved.ok) return saved.state;
+    await act.write(tx, saved.returnId);
     // The return that completes the instrument, every item with its scan, accepts it in the same act (BD-12).
-    const accepted = correcting ? null : await acceptOnCompleteReturn(tx, toAuditActor(actor), l, rec);
+    const accepted = correcting ? null : await acceptOnCompleteReturn(tx, toAuditActor(actor), l, saved.rec);
     return { ok: true, message: accepted ?? undefined };
   });
+}
+
+/**
+ * ADR 0045 D1: verify a return the contractor lodged online. One act under the award's lock: the row marked verified, the return written from it (the received days are the day
+ * it was lodged), its scans put on the award, and the award accepted; any refusal rolls all of it back (`online-return-store.ts`). The verifier is the signed-in officer, written
+ * to both the row and the return from the one attribution.
+ */
+export async function verifyOnlineReturn(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const begun = await beginAct(actor, data, "AwardOnlineReturn.verifiedBy", { personField: "verifiedByPersonId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  return settled(verifyOnlineReturnAct(actor, String(data.get("id") ?? ""), begun.act));
+}
+
+/// ADR 0045 D1: refuse a return lodged online, with the reason the contractor reads. Nothing is put on the award; the contractor may send it again.
+export async function refuseOnlineReturn(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const begun = await beginAct(actor, data, "AwardOnlineReturn.refusedBy", { personField: "refusedByPersonId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  return settled(refuseOnlineReturnAct(actor, String(data.get("id") ?? ""), String(data.get("reason") ?? ""), begun.act));
+}
+
+/// ADR 0045 D3 (WV-7): answer a contractor's question on an award, once, whatever the award's status.
+export async function answerAwardQuery(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const begun = await beginAct(actor, data, "AwardQuery.answeredBy", { personField: "answeredByPersonId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  return settled(answerAwardQueryAct(actor, String(data.get("id") ?? ""), String(data.get("answer") ?? ""), begun.act));
+}
+
+/// An act of the online return's store, done: an attribution's refusal said as the form's, and the screens drawn again where it went through.
+async function settled(act: Promise<FormState>): Promise<FormState> {
+  let r: FormState;
+  try {
+    r = await act;
+  } catch (e) {
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
+    throw e;
+  }
+  if (r.ok) refresh();
+  return r;
 }
 
 /// The day work commenced (FR-AWD-009).
@@ -1070,10 +1103,12 @@ export async function cancelAward(_prev: FormState, data: FormData): Promise<For
     const f = await awardFacts(l, tx);
     const ev = evaluateAward(f.facts);
     const returned = instrumentReturned(a.instrumentKind as InstrumentKind, a.awardReturn);
-    const t = awardTransition(a.status as AwardStatus, "CANCELLED", { today: l.org.today, reason, returned, commenced: !!a.commencedOn });
+    // WV-4: read under the award's lock, so a return lodged while this act waited is seen.
+    const waiting = await tx.awardOnlineReturn.findFirst({ where: { awardId: a.id, organisationId: l.org.id, verifiedAt: null, refusedAt: null }, select: { submittedOn: true } });
+    const t = awardTransition(a.status as AwardStatus, "CANCELLED", { today: l.org.today, reason, returned, commenced: !!a.commencedOn, onlineReturnWaiting: !!waiting });
     if (t === "CANCEL_REASON_REQUIRED") return { ok: false, errors: { reason: "A reason is required." } };
     if (t === "TIME_ZONE_UNSET") return NO_ZONE;
-    const T = { ALREADY_RETURNED: "The instrument has come back signed: it is a contract document now, and cancelling it is not an act the portal takes. Termination arrives with the post-award modules.", ALREADY_COMMENCED: "Work has commenced under this award: it is not cancelled here. Termination arrives with the post-award modules.", ACCEPTED_NOT_CANCELLED: "An accepted award is not cancelled here: termination arrives with the post-award modules.", TERMINAL: "This award is already cancelled.", NOT_ALLOWED: "This award cannot be cancelled from where it stands." } as Record<string, string>;
+    const T = { ALREADY_RETURNED: "The instrument has come back signed: it is a contract document now, and cancelling it is not an act the portal takes. Termination arrives with the post-award modules.", ALREADY_COMMENCED: "Work has commenced under this award: it is not cancelled here. Termination arrives with the post-award modules.", ONLINE_RETURN_WAITING: `The contractor sent the signed return online on ${waiting ? formatDate(waiting.submittedOn) : "—"}. Verify or refuse it first: an award is not cancelled while its return waits.`, ACCEPTED_NOT_CANCELLED: "An accepted award is not cancelled here: termination arrives with the post-award modules.", TERMINAL: "This award is already cancelled.", NOT_ALLOWED: "This award cannot be cancelled from where it stands." } as Record<string, string>;
     if (t) return { ok: false, message: T[t] ?? "Not cancelled." };
     // 6.12: an executed contract is ended by termination, never by cancelling its award (BD-17).
     if (a.contract && !contractCancellable(a.contract.status as ContractStatus)) return { ok: false, message: "The contract is executed: it is not cancelled with its award. Termination arrives with the post-award modules." };

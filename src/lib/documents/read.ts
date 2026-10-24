@@ -12,7 +12,7 @@ import { detachFault, ownerState, purposeFits, reliedOn, reliedOnAttachment, rep
 import { isLive } from "./evidence";
 import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, exitWords, FINGERPRINT_STATEMENT } from "./labels";
 import { effectiveCap } from "./limits";
-import { addendumFacts, awardFacts, CANCELLATION_OWNER_SELECT, cancellationOwnerFacts, cancellationOwnerLabel, bqVersionFacts, contractFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, PUBLICATION_FACTS_SELECT, publicationFactsOf, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, supplierApplicationFacts, supplierDocumentFacts, tenderPackPartFacts, VARIATION_INSTRUCTION_FACTS_SELECT, variationInstructionFacts, variationInstructionLabel, withdrawalFacts, DELAY_NOTICE_FACTS_SELECT, delayNoticeFacts, delayNoticeLabel, EOT_CLAIM_FACTS_SELECT, eotClaimFacts, eotClaimLabel, PROJECT_DOCUMENT_VERSION_FACTS_SELECT, projectDocumentVersionLabel } from "./owner-facts";
+import { addendumFacts, awardFacts, CANCELLATION_OWNER_SELECT, cancellationOwnerFacts, cancellationOwnerLabel, bqVersionFacts, contractFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, PUBLICATION_FACTS_SELECT, publicationFactsOf, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, supplierApplicationFacts, supplierDocumentFacts, tenderPackPartFacts, VARIATION_INSTRUCTION_FACTS_SELECT, variationInstructionFacts, variationInstructionLabel, withdrawalFacts, DELAY_NOTICE_FACTS_SELECT, delayNoticeFacts, delayNoticeLabel, EOT_CLAIM_FACTS_SELECT, eotClaimFacts, eotClaimLabel, PROJECT_DOCUMENT_VERSION_FACTS_SELECT, projectDocumentVersionLabel, WAITING_ONLINE_RETURNS } from "./owner-facts";
 import { SUPPLIER_APPLICATION_FACTS_SELECT, SUPPLIER_DOCUMENT_FACTS_SELECT, supplierApplicationLabel, supplierDocumentLabel } from "@/lib/suppliers/lock";
 import { CONTRACT_FACTS_SELECT, contractLabel } from "@/lib/contract/repo";
 import { PACK_PART_FACTS_SELECT, packPartLabel } from "@/lib/tender-docs/owner";
@@ -51,7 +51,7 @@ export async function readOwner(organisationId: string, ref: OwnerRef): Promise<
       return { facts: exerciseFacts(ex, ex.awards.map((a) => ({ status: a.status, openAppointmentRoutes: a.approvalInstances.length })), exerciseMethodFlags(ex.classificationSnapshot, configured), ex.window, publicationFactsOf(ex)), label: ex.reference };
     }
     case "award": {
-      const a = await db.award.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, instrumentKind: true, returnScanSnapshot: true, reference: true } });
+      const a = await db.award.findFirst({ where: { id: ref.id, organisationId: org.id }, select: { status: true, instrumentKind: true, returnScanSnapshot: true, reference: true, ...WAITING_ONLINE_RETURNS } });
       return a ? { facts: awardFacts(a), label: a.reference } : null;
     }
     case "delegation": {
@@ -336,7 +336,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     }
     case "award": {
       const where = { organisationId: org.id, ...(hidden.length ? { exerciseId: { notIn: [...hidden] } } : {}) };
-      const [rows, total] = await Promise.all([db.award.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, status: true, instrumentKind: true, returnScanSnapshot: true, reference: true, awardeeName: true } }), db.award.count({ where })]);
+      const [rows, total] = await Promise.all([db.award.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, status: true, instrumentKind: true, returnScanSnapshot: true, reference: true, awardeeName: true, ...WAITING_ONLINE_RETURNS } }), db.award.count({ where })]);
       return { records: attachTargets(rows.map((a) => ({ id: a.id, label: `${a.reference} · ${a.awardeeName}`, facts: awardFacts(a) }))), total };
     }
     case "delegation": {

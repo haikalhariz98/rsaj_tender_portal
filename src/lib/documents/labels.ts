@@ -192,6 +192,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   AWARD_APPROVED: "Award approved on this evidence. Cancel that award to change the dossier.",
   AWARD_NOT_ISSUED: "The awardee's returned documents are attached once the instrument is issued.",
   AWARD_CANCELLED: "The award is cancelled, so nothing more is attached to it.",
+  ONLINE_RETURN_WAITING: "The contractor sent the return online. Verify or refuse it first; paper and online are not mixed.",
   DELEGATION_ENDED: "The delegation has ended, so nothing more is attached to it.",
   DELEGATION_ZONE_UNSET: "Time zone not set, so the delegation cannot be judged. Set it under Organisation.",
   BQ_FINALISED: "Bill finalised with its imported file. Start a revision to import another.",

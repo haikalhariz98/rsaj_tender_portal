@@ -69,8 +69,8 @@ describe("the acts of the record that a second person decides", () => {
     const inside = lexed.slice(lock);
     const refusal = inside.search(/a\.status === "[^"]*" && !currentAmbient\(\)/);
     expect(refusal, "the in-lock refusal of a correction made without the machinery").toBeGreaterThan(-1);
-    // Before the first write, the access log and the correcting branch.
-    expect(refusal).toBeLessThan(inside.search(/sulitWriteRefusal|\.(?:create|update|updateMany|delete|deleteMany|upsert)\s*\(/));
+    // Before the first write, the access log and the correcting branch (wave V step V2: all three are in the shared core, `saveReturn`).
+    expect(refusal).toBeLessThan(inside.search(/saveReturn\(|sulitWriteRefusal|\.(?:create|update|updateMany|delete|deleteMany|upsert)\s*\(/));
   });
 
   it("the registry loads the module and the export where the act is", () => {

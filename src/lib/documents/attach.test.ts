@@ -391,3 +391,23 @@ describe("SR-08, SR-09: an exercise pinned not to use a panel, or not to build i
     expect(documentFaultText(attachFault({ purpose: "BQ_IMPORT_SOURCE", owner: bq(false), version: live, documentClass: internal, byOwnerAct: true })[0])).toMatch(/does not build its bill of quantities on screen/);
   });
 });
+
+describe("an award's return purposes while a return lodged online waits (ADR 0045 D1, WV-4)", () => {
+  const sulit = { classification: "SULIT" as const };
+  const at = { withdrawnAt: null };
+
+  it("freezes each return purpose: no attach, no detach, no new version, naming the waiting return", () => {
+    for (const [purpose, instrumentKind] of [["SIGNED_LETTER", "LETTER_OF_ACCEPTANCE"], ["DECLARATION", "LETTER_OF_ACCEPTANCE"], ["AUTHORISATION", "LETTER_OF_ACCEPTANCE"], ["ACCEPTANCE_PAGE", "WORK_INDENT"]] as const) {
+      const owner = award({ instrumentKind, onlineReturnWaiting: true });
+      const f = attachFault({ purpose, owner, version: at, documentClass: sulit });
+      expect(f).toEqual([{ code: "OWNER_FROZEN", level: "block", data: { exit: "ONLINE_RETURN_WAITING" } }]);
+      expect(documentFaultText(f[0]!)).toMatch(/sent the return online/);
+      expect(detachFault({ purpose, owner, reason: "Wrong file", reliedOn: null }).map((x) => x.code)).toEqual(["OWNER_FROZEN"]);
+    }
+  });
+
+  it("opens them again once it is decided, or where none waits", () => {
+    expect(attachFault({ purpose: "SIGNED_LETTER", owner: award({ onlineReturnWaiting: false }), version: at, documentClass: sulit })).toEqual([]);
+    expect(attachFault({ purpose: "SIGNED_LETTER", owner: award(), version: at, documentClass: sulit })).toEqual([]);
+  });
+});

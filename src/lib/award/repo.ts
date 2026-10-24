@@ -51,6 +51,28 @@ const senOrNull = (v: { toString(): string } | null | undefined) => (v == null ?
 
 const decisionInclude = { meeting: { include: { committee: { select: { code: true, nameEn: true } } } }, votes: { include: { person: { select: { name: true } } } } };
 
+/// An online return as every reader of an award sees it: never its identity card number.
+export const ONLINE_RETURN_SELECT = {
+  id: true,
+  submittedAt: true,
+  submittedOn: true,
+  submittedBySupplierAccount: { select: { contact: { select: { name: true } } } },
+  signatoryName: true,
+  occupation: true,
+  address: true,
+  capacity: true,
+  witnessName: true,
+  contractorSigned: true,
+  stampAffixed: true,
+  witnessSigned: true,
+  verifiedAt: true,
+  verifiedBy: { select: { name: true } },
+  refusedAt: true,
+  refusedBy: { select: { name: true } },
+  refusedReason: true,
+  files: { orderBy: { attachedAt: "asc" as const }, select: { id: true, purpose: true, versionId: true, detachedAt: true, version: { select: { originalFilename: true, byteSize: true, withdrawnAt: true, documentId: true } } } },
+} as const;
+
 export const awardInclude = {
   // 6.15a (OD-9): the register's supplier the award is linked to, and any blacklisting asked for from it.
   vendor: { select: { id: true, reference: true, registeredName: true } },
@@ -82,6 +104,10 @@ export const awardInclude = {
   attachments: { select: { id: true, purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } }, orderBy: { attachedAt: "asc" as const } },
   /// 612-C1: its recorded terms corrected after issue (on the contract's Baseline tab).
   termCorrections: { orderBy: [{ recordedAt: "asc" as const }, { id: "asc" as const }] },
+  /// ADR 0045 D1: the returns lodged online, latest first, with their scans. The identity card number is left out: it is SULIT, read only through the SULIT read (and by the verify act).
+  onlineReturns: { orderBy: [{ submittedAt: "desc" as const }, { id: "desc" as const }], select: ONLINE_RETURN_SELECT },
+  /// ADR 0045 D3: the contractor's questions, oldest first.
+  queries: { orderBy: [{ askedAt: "asc" as const }, { id: "asc" as const }], select: { id: true, body: true, askedAt: true, askedBySupplierAccount: { select: { contact: { select: { name: true } } } }, answer: true, answeredAt: true, answeredBy: { select: { name: true } } } },
 };
 
 /// A committee matter as the routing sheet may cite it: only through `decisionRecord()`,

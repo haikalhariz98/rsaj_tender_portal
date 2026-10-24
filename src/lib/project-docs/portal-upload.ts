@@ -116,7 +116,7 @@ export function windowRefusalOutcome(e: WindowRefused, orgName: string): PortalO
 }
 
 /// The account's store versions of the last hour (a coarse minute of slack; `windowFaults` filters exactly), attached or not: what PW-32's window counts.
-async function windowRows(client: Tx, actor: SupplierActor, now: Date): Promise<{ at: Date; bytes: bigint }[]> {
+export async function windowRows(client: Tx, actor: SupplierActor, now: Date): Promise<{ at: Date; bytes: bigint }[]> {
   const rows = await client.documentVersion.findMany({
     where: { organisationId: actor.organisationId, recordedBySupplierAccountId: actor.accountId, storedAt: { gte: new Date(now.getTime() - (PROJECT_UPLOAD_WINDOW_MINUTES + 1) * 60_000) } },
     select: { storedAt: true, byteSize: true },

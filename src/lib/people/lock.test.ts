@@ -112,9 +112,10 @@ describe("both delegation attach paths judge on what lockDelegation read (source
     expect(delegationCase).not.toMatch(/tx\.delegation\.|db\.delegation\.|FOR UPDATE/);
     // And attachDocument judges attachFault on those facts, inside the owner's lock.
     const attach = body(src("src/app/documents/actions.ts"), "export async function attachDocument(");
-    // Phase 1c (ADR 0034 D10): the lock is now asked for the signed-in person's organisation first; the call is otherwise as pinned.
-    expect(attach).toMatch(/return inOwner\(actor, toAuditActor\(actor\), ref, async \(tx, o\) => \{/); // Phase 1b: who acted is an argument
-    expect(attach).toMatch(/attachFault\(\{ purpose, owner: o\.facts,/);
+    // Phase 1c (ADR 0034 D10): the lock is now asked for the signed-in person's organisation first; the call is otherwise as pinned. Wave V step V2: inside it, the core the
+    // verify act of an online return shares (`attach-store.ts`) judges attachFault on the locked owner's facts.
+    expect(attach).toMatch(/return inOwner\(actor, toAuditActor\(actor\), ref, \(tx, o\) => attachToLockedOwner\(tx, actor, o, \{ purpose, versionId \}\)\);/); // Phase 1b: who acted is an argument
+    expect(src("src/lib/documents/attach-store.ts")).toMatch(/attachFault\(\{ purpose, owner: o\.facts,/);
   });
 
   it("saveDelegation: lock first, every read in the transaction, faultsIn on the locked row", () => {

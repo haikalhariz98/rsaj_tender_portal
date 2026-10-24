@@ -7,19 +7,20 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { writeAudit, type Tx } from "@/lib/audit/record";
-import { attachFault, detachFault, reliedOnAttachment, repinFault } from "@/lib/documents/attach";
-import { attached, detached, filed, holdPlaced, holdReleased, reclassified, repinAudit, replacedBecause, versionWithdrawn } from "@/lib/documents/audit-view";
+import { detachFault, reliedOnAttachment, repinFault } from "@/lib/documents/attach";
+import { attachToLockedOwner } from "@/lib/documents/attach-store";
+import { detached, holdPlaced, holdReleased, reclassified, repinAudit, replacedBecause, versionWithdrawn } from "@/lib/documents/audit-view";
 import { currentAmbient } from "@/lib/ambient/ambient-tx";
 import { isLowering, reclassifyFault, reclassifyKind } from "@/lib/documents/classification";
 import { holdFaults, releaseFaults } from "@/lib/documents/hold";
 import { documentFaultText, FINGERPRINT_STATEMENT, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { ownerOf, withLockedOwner, type LockedOwner } from "@/lib/documents/owners";
 import type { OwnerRef } from "@/lib/documents/repo";
-import { documentBytesAccess, ownerBytesEntitled, sulitAttachRefused } from "@/lib/documents/entitlement";
+import { documentBytesAccess, ownerBytesEntitled } from "@/lib/documents/entitlement";
 import { attachTargetsOf, documentDrawer, ownerPanel, TARGET_CAP, uploadContext } from "@/lib/documents/read";
-import { documentOrg, lockDocument, lockVersion, LOCKED_VERSION_SELECT, logAccess } from "@/lib/documents/service";
+import { documentOrg, lockDocument, LOCKED_VERSION_SELECT, logAccess } from "@/lib/documents/service";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
-import { ATTACHMENT_PURPOSES, blocking, OWNER_COLUMN, OWNER_KINDS, SECURITY_CLASSES, type Finding } from "@/lib/documents/types";
+import { ATTACHMENT_PURPOSES, OWNER_COLUMN, OWNER_KINDS, SECURITY_CLASSES, type Finding } from "@/lib/documents/types";
 import { withdrawFault } from "@/lib/documents/versioning";
 import { loadAttributions } from "@/lib/auth/attribution-read";
 import { drawerAttributionQueries, drawerView, panelAttributionQueries, panelView, type DrawerView, type PanelOptions, type PanelView } from "@/lib/documents/views";
@@ -121,34 +122,8 @@ export async function attachDocument(_prev: FormState, data: FormData): Promise<
   const versionId = r.text("versionId", "Document", { required: true });
   if (r.failed || !kind || !purpose) return { ok: false, errors: r.errors };
   const ref: OwnerRef = { kind, id: ownerId };
-  return inOwner(actor, toAuditActor(actor), ref, async (tx, o) => {
-    // The document is locked before the version is judged (`lockVersion`): a withdrawal
-    // committed while this act waited is seen here, never pinned.
-    const v = await lockVersion(tx, versionId, o.organisationId);
-    if (!v) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
-    const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId, organisationId: actor.organisationId }, include: { documentClass: { select: { classification: true } } } });
-    // OD-2 (review of Phase 3b): a document hanging on an exercise the actor may not see reads as unknown, and attaching a SULIT document gives its bytes to the record's people,
-    // so it is refused to someone who may not open it already. Both read as a document that is not there, and the attempt is logged.
-    const under = await hiddenExerciseOfDocument(doc.id, await restrictedExerciseIds(tx, actor.organisationId), tx);
-    if ((under && (await refuseHiddenExercise(tx, actor, under))) || (await sulitAttachRefused(tx, actor, doc.id))) return refuse([{ code: "DOCUMENT_UNKNOWN", level: "block" }]);
-    const col = OWNER_COLUMN[kind];
-    const already = await tx.documentAttachment.findFirst({ where: { [col]: ownerId, purpose, detachedAt: null, version: { documentId: doc.id } }, select: { id: true } });
-    // Under the owner's lock: how many of this purpose it holds now (the purposes that hold one document refuse a second).
-    const liveOfPurpose = await tx.documentAttachment.count({ where: { [col]: ownerId, purpose, detachedAt: null, version: { withdrawnAt: null } } });
-    const faults = attachFault({ purpose, owner: o.facts, version: v, documentClass: doc.documentClass, documentClassification: doc.classificationSnapshot, alreadyAttached: !!already, liveOfPurpose });
-    const blocks = blocking(faults);
-    if (blocks.length) return refuse(blocks);
-    const row = await tx.documentAttachment.create({ data: { organisationId: o.organisationId, purpose, versionId: v.id, [col]: ownerId } });
-    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.organisationId, entity: "DocumentAttachment", entityId: row.id, entityLabel: `${o.label} · ${PURPOSE_LABEL[purpose]}` }, "CREATE",
-      attached({ purpose, title: doc.title, versionNo: v.versionNo, sha256: v.sha256, owner: o.label }));
-    if (doc.status === "STAGED") {
-      await tx.document.update({ where: { id: doc.id, organisationId: actor.organisationId }, data: { status: "FILED", filedAt: new Date() } });
-      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.organisationId, entity: "Document", entityId: doc.id, entityLabel: docLabel(doc.title) }, "UPDATE", filed());
-    }
-    const after = o.afterChange ? await o.afterChange(tx) : null;
-    const warns = faults.filter((f) => f.level === "warn").map(documentFaultText);
-    return { ok: true, message: [after, ...warns].filter(Boolean).join(" ") || undefined };
-  });
+  // The core is shared with the verify act of an online award return (`attach-store.ts`): the same rules, under the owner's lock taken here.
+  return inOwner(actor, toAuditActor(actor), ref, (tx, o) => attachToLockedOwner(tx, actor, o, { purpose, versionId }));
 }
 
 /// Take an attachment off its owner, with the reason; never one a judged record stands on.

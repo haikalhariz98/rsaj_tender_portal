@@ -40,10 +40,10 @@ export async function documentOrg(organisationId: string, client: Tx = db): Prom
   return org ? { id: org.id, code: org.code, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) } : null;
 }
 
-export async function loadStorePolicy(organisationId: string, client: Tx = db): Promise<StorePolicy & { provenance: string | null; notes: string; id: string | null; onlineBidFileClassId: string | null; projectDocumentClassId: string | null }> {
+export async function loadStorePolicy(organisationId: string, client: Tx = db): Promise<StorePolicy & { provenance: string | null; notes: string; id: string | null; onlineBidFileClassId: string | null; projectDocumentClassId: string | null; awardReturnClassId: string | null }> {
   const p = await client.documentStorePolicy.findUnique({ where: { organisationId } });
-  if (!p) return { id: null, allowedMediaTypes: [], maxBytes: null, provenance: null, notes: "", onlineBidFileClassId: null, projectDocumentClassId: null };
-  return { id: p.id, allowedMediaTypes: p.allowedMediaTypes, maxBytes: p.maxBytes, provenance: p.provenance, notes: p.notes, onlineBidFileClassId: p.onlineBidFileClassId, projectDocumentClassId: p.projectDocumentClassId };
+  if (!p) return { id: null, allowedMediaTypes: [], maxBytes: null, provenance: null, notes: "", onlineBidFileClassId: null, projectDocumentClassId: null, awardReturnClassId: null };
+  return { id: p.id, allowedMediaTypes: p.allowedMediaTypes, maxBytes: p.maxBytes, provenance: p.provenance, notes: p.notes, onlineBidFileClassId: p.onlineBidFileClassId, projectDocumentClassId: p.projectDocumentClassId, awardReturnClassId: p.awardReturnClassId };
 }
 
 /// The classes the "Class for project files" select offers: this organisation's, classified and not SULIT (`projectClassFault`), in the screen's order, as `{ value, label }`.

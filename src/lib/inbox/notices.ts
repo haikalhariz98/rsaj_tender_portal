@@ -284,3 +284,34 @@ export function caseClockNotices(i: {
     href: i.href,
   }));
 }
+
+/**
+ * ADR 0045 D3, D4 (WV-8): the contractor lodged its award return online, or asked a question on an issued award. The offices the organisation's notification rule for the event
+ * names, and the exercise's person in charge, are told once each (`loadEventPlan`). The subject is the lodged return or the question, so a return lodged again after a refusal tells
+ * them again. No figure and no identity card number is named. The exercise is set, so a restricted exercise's notice is hidden from anyone not named on it.
+ */
+export function awardReturnNotices(i: {
+  kind: "AWARD_RETURN_LODGED" | "AWARD_QUERY_RAISED";
+  /// The `AwardOnlineReturn` or the `AwardQuery`.
+  subjectId: string;
+  awardLabel: string;
+  contractorName: string;
+  exerciseId: string;
+  href: string;
+  recipients: readonly string[];
+}): NoticeDraft[] {
+  const lodged = i.kind === "AWARD_RETURN_LODGED";
+  return recipientsOf(i.recipients, null).map((r) => ({
+    recipientPersonId: r,
+    kind: i.kind,
+    subjectEntity: lodged ? "AwardOnlineReturn" : "AwardQuery",
+    subjectId: i.subjectId,
+    occurrence: "",
+    exerciseId: i.exerciseId,
+    title: lodged ? `Award return sent online: ${i.awardLabel}` : `Question from ${i.contractorName}: ${i.awardLabel}`,
+    body: lodged
+      ? `${i.awardLabel}: ${i.contractorName} sent the signed return online. Verify or refuse it on the award's Return tab.`
+      : `${i.awardLabel}: ${i.contractorName} asked a question on the award. Answer it on the award.`,
+    href: i.href,
+  }));
+}

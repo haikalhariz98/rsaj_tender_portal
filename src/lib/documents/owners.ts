@@ -13,7 +13,7 @@
  */
 
 import type { Tx } from "@/lib/audit/record";
-import { withLockedAwardFor } from "@/lib/award/repo";
+import { withLockedAwardFor, type LoadedAward } from "@/lib/award/repo";
 import { contractLabel, withLockedContract } from "@/lib/contract/repo";
 import { acceptOnCompleteReturn } from "@/lib/award/return-acceptance";
 import { withLockedSitting } from "@/lib/committee/sittings";
@@ -52,6 +52,27 @@ export interface LockedOwner {
   /// What the owner's own module does when its attachments change, in the same act
   /// (an award whose last return scan arrives is accepted). Returns a line for the officer.
   afterChange?: (tx: Tx) => Promise<string | null>;
+}
+
+/**
+ * An award as a locked owner, from the award its caller has locked and loaded. The staff attach reaches it through `withLockedOwner`; the verify act of an online return
+ * (ADR 0045 D1) builds it under its own lock, with `onlineReturnWaiting` false once it has marked the return verified, so both judge an attach on the same facts.
+ */
+export function awardLockedOwner(l: LoadedAward, actor: AuditActor, overrides: { onlineReturnWaiting?: boolean } = {}): LockedOwner {
+  const a = l.award;
+  // OD-5: an award accepted before scans were required has no scan snapshot.
+  const facts: OwnerFacts = { ...awardFacts(a), ...overrides };
+  return {
+    ref: { kind: "award", id: a.id },
+    organisationId: l.org.id,
+    today: l.org.today,
+    label: `${a.reference}`,
+    facts,
+    paths: [`/projects/${a.id}`, "/projects"],
+    reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
+    // OD-5, BD-12: the scan that completes the return accepts the award in the same act.
+    afterChange: (tx) => acceptOnCompleteReturn(tx, actor, l),
+  };
 }
 
 /// Run `fn` with the owner locked, inside one transaction. Null when the owner does not exist.
@@ -99,22 +120,7 @@ export async function withLockedOwner<T>(scope: Reader, actor: AuditActor, ref: 
       });
     }
     case "award":
-      return withLockedAwardFor(scope, ref.id, (tx, l) => {
-        const a = l.award;
-        // OD-5: an award accepted before scans were required has no scan snapshot.
-        const facts: OwnerFacts = awardFacts(a);
-        return fn(tx, {
-          ref,
-          organisationId: l.org.id,
-          today: l.org.today,
-          label: `${a.reference}`,
-          facts,
-          paths: [`/projects/${a.id}`, "/projects"],
-          reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
-          // OD-5, BD-12: the scan that completes the return accepts the award in the same act.
-          afterChange: (tx) => acceptOnCompleteReturn(tx, actor, l),
-        });
-      });
+      return withLockedAwardFor(scope, ref.id, (tx, l) => fn(tx, awardLockedOwner(l, actor)));
     case "specificationPanel": {
       // 6.2: requisition, exercise, then the panel, as the scope actions lock it.
       const exerciseId = await exerciseOfPanel(scope.organisationId, ref.id);

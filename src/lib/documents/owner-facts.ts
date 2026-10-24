@@ -66,9 +66,14 @@ export const publicationFactsOf = (ex: { restricted: boolean; openings: readonly
 export const PUBLICATION_FACTS_SELECT = { restricted: true, openings: { where: { kind: "MAIN" as const }, select: { finalisedAt: true } } } as const;
 
 /// OD-5: an award accepted with no return-scan snapshot was accepted before scans were required.
-export function awardFacts(a: { status: AwardStatus; instrumentKind: InstrumentKind; returnScanSnapshot: unknown }): OwnerFacts {
-  return { kind: "award", status: a.status, instrumentKind: a.instrumentKind, scansRequired: !(a.status === "ACCEPTED" && a.returnScanSnapshot == null) };
+/// ADR 0045 D1 (WV-4): `onlineReturns` are the award's online returns, where read; an undecided one freezes its return purposes.
+export function awardFacts(a: { status: AwardStatus; instrumentKind: InstrumentKind; returnScanSnapshot: unknown; onlineReturns?: readonly { verifiedAt: Date | null; refusedAt: Date | null }[] }): OwnerFacts {
+  const onlineReturnWaiting = (a.onlineReturns ?? []).some((r) => r.verifiedAt == null && r.refusedAt == null);
+  return { kind: "award", status: a.status, instrumentKind: a.instrumentKind, scansRequired: !(a.status === "ACCEPTED" && a.returnScanSnapshot == null), onlineReturnWaiting };
 }
+
+/// The select that gives `awardFacts` the award's undecided online returns.
+export const WAITING_ONLINE_RETURNS = { onlineReturns: { where: { verifiedAt: null, refusedAt: null }, select: { verifiedAt: true, refusedAt: true } } } as const;
 
 /// 6.2: a specification panel, with its exercise's status, the scans its snapshot names
 /// (BD-62-26; a missing or malformed snapshot names none) and its live signed-form attachments.

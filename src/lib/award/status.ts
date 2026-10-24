@@ -19,6 +19,8 @@ export type AwardTransitionFault =
   | "CANCEL_REASON_REQUIRED"
   | "ALREADY_RETURNED"
   | "ALREADY_COMMENCED"
+  /// WV-4: a return lodged online waits for an officer. Once it is refused, cancelling is open again.
+  | "ONLINE_RETURN_WAITING"
   | "RETURN_INCOMPLETE"
   | "ACCEPTED_NOT_CANCELLED";
 
@@ -34,7 +36,7 @@ export const AWARD_TRANSITIONS: Record<AwardStatus, readonly AwardStatus[]> = {
 export function awardTransition(
   from: AwardStatus,
   to: AwardStatus,
-  ctx: { today: string | null; reason?: string; returned?: boolean; commenced?: boolean; returnComplete?: boolean },
+  ctx: { today: string | null; reason?: string; returned?: boolean; commenced?: boolean; returnComplete?: boolean; onlineReturnWaiting?: boolean },
 ): AwardTransitionFault | null {
   if (from === "CANCELLED") return "TERMINAL";
   if (from === "ACCEPTED" && to === "CANCELLED") return "ACCEPTED_NOT_CANCELLED";
@@ -44,6 +46,7 @@ export function awardTransition(
     if (!(ctx.reason ?? "").trim()) return "CANCEL_REASON_REQUIRED";
     if (from === "ISSUED" && ctx.returned) return "ALREADY_RETURNED";
     if (from === "ISSUED" && ctx.commenced) return "ALREADY_COMMENCED";
+    if (from === "ISSUED" && ctx.onlineReturnWaiting) return "ONLINE_RETURN_WAITING";
   }
   if (to === "ACCEPTED" && !ctx.returnComplete) return "RETURN_INCOMPLETE";
   return null;
@@ -60,7 +63,7 @@ export const editable = (s: AwardStatus) => ({ details: s === "DRAFT", terms: s 
 
 /// Whether the award may be cancelled from where it stands, reason and day aside: the
 /// page offers it on the same rule the action enforces.
-export function cancellable(status: AwardStatus, ctx: { returned: boolean; commenced: boolean }): boolean {
+export function cancellable(status: AwardStatus, ctx: { returned: boolean; commenced: boolean; onlineReturnWaiting?: boolean }): boolean {
   return awardTransition(status, "CANCELLED", { today: "-", reason: "-", ...ctx }) == null;
 }
 

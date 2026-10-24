@@ -17,6 +17,7 @@ import { committeeStandingOf } from "@/lib/approvals/recall-store";
 import { awardFacts, awardHistory, exerciseMatters, type LoadedAward } from "@/lib/award/repo";
 import { instrumentReturned, type ReturnRecord } from "@/lib/award/stage-two";
 import { cancellable, editable } from "@/lib/award/status";
+import { onlineReturnState } from "@/lib/award/online-return";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
@@ -261,7 +262,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
     let chromeParts: AwardFinish["chrome"] = null;
     if (chrome) {
       const canRecordCommitment = ["APPROVED", "ISSUED", "ACCEPTED"].includes(status) && !award.erpCommitmentNo;
-      const canCancel = cancellable(status, { returned: instrumentReturned(kind, award.awardReturn), commenced: !!award.commencedOn });
+      const canCancel = cancellable(status, { returned: instrumentReturned(kind, award.awardReturn), commenced: !!award.commencedOn, onlineReturnWaiting: onlineReturnState(award.onlineReturns) === "WAITING" });
       // FR-APR-017: only the originator recalls, before any decision. The action asks the same rule again, and also whether the matter is on a committee's agenda.
       const openAppointment = award.approvalInstances.find((i) => i.status === "PENDING" && i.domain === "appointment") ?? null;
       const recallStanding = openAppointment ? await committeeStandingOf(db, { exerciseId: award.exerciseId }, openAppointment.domain, openAppointment.openedAt) : null;

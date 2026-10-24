@@ -16,7 +16,7 @@ import type { ContractStatus } from "@/lib/contract/types";
 import { exerciseAllowsPanel } from "@/lib/scope/panel";
 import type { PartSource, TenderPackStatus } from "@/lib/tender-docs/types";
 
-import { OWNER_ACT_PURPOSES, PURPOSE_CLASSIFICATION, PURPOSE_OWNER, type AttachmentPurpose, type Finding, type SecurityClass } from "./types";
+import { OWNER_ACT_PURPOSES, PURPOSE_CLASSIFICATION, PURPOSE_OWNER, SECOND_OWNER_PURPOSES, type AttachmentPurpose, type Finding, type SecurityClass } from "./types";
 
 export type MeetingStatus = "SCHEDULED" | "IN_PROGRESS" | "MINUTED" | "CANCELLED";
 /// X-8: the one ExerciseStatus type, from the method module, never restated here.
@@ -53,6 +53,9 @@ export type OwnerFacts =
       instrumentKind: InstrumentKind;
       /// False only for an award accepted before return scans were required (OD-5).
       scansRequired: boolean;
+      /// ADR 0045 D1 (WV-4): a return lodged online waits for an officer. Its scans are not mixed with paper ones: a return purpose is frozen until it is decided.
+      /// Absent reads as none waiting.
+      onlineReturnWaiting?: boolean;
     }
   /// `ended` null: today cannot be told (no time zone set), so whether it has ended is not judged (66-C2).
   | { kind: "delegation"; ended: boolean | null }
@@ -183,6 +186,7 @@ export type OwnerExit =
   | "AWARD_APPROVED"
   | "AWARD_NOT_ISSUED"
   | "AWARD_CANCELLED"
+  | "ONLINE_RETURN_WAITING"
   | "DELEGATION_ENDED"
   | "DELEGATION_ZONE_UNSET"
   | "BQ_FINALISED"
@@ -266,6 +270,9 @@ export function purposeFits(purpose: AttachmentPurpose, owner: OwnerFacts): bool
  */
 export type OwnerState = { state: "OPEN" } | { state: "NOT_READY" | "FROZEN"; exit: OwnerExit; act?: ContractAct; status?: ContractStatus };
 
+/// The award's return purposes, which an online return also holds (WV-4 freezes them on the award while one waits).
+const ONLINE_RETURN_PURPOSES: readonly AttachmentPurpose[] = SECOND_OWNER_PURPOSES.awardOnlineReturn ?? [];
+
 export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): OwnerState {
   switch (owner.kind) {
     case "meeting":
@@ -292,6 +299,7 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): Owner
     case "award":
       if (owner.status === "CANCELLED") return { state: "FROZEN", exit: "AWARD_CANCELLED" };
       if (owner.status !== "ISSUED" && owner.status !== "ACCEPTED") return { state: "NOT_READY", exit: "AWARD_NOT_ISSUED" };
+      if (owner.onlineReturnWaiting && ONLINE_RETURN_PURPOSES.includes(purpose)) return { state: "FROZEN", exit: "ONLINE_RETURN_WAITING" };
       return { state: "OPEN" };
     case "delegation":
       // 66-C2: with no time zone, whether it has ended is not judged, and nothing is attached,

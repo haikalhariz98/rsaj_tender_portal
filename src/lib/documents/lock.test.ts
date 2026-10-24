@@ -110,9 +110,11 @@ describe("every attach path judges the version read after the document's lock (s
     return text.slice(at, next < 0 ? undefined : at + decl.length + next);
   };
 
+  // Wave V step V2: attachDocument is a guard and a call to the core it shares with the verify act of an online return (`attach-store.ts`); the core is held to the same.
   it("attachDocument takes its version from lockVersion and reads no version itself", () => {
-    const attach = body(src("src/app/documents/actions.ts"), "export async function attachDocument(");
-    const locked = attach.indexOf("const v = await lockVersion(tx, versionId, o.organisationId);");
+    expect(body(src("src/app/documents/actions.ts"), "export async function attachDocument(")).toMatch(/attachToLockedOwner\(tx, actor, o, \{ purpose, versionId \}\)/);
+    const attach = body(src("src/lib/documents/attach-store.ts"), "export async function attachToLockedOwner(");
+    const locked = attach.indexOf("const v = await lockVersion(tx, i.versionId, o.organisationId);");
     expect(locked).toBeGreaterThan(-1);
     expect(attach.indexOf("attachFault(")).toBeGreaterThan(locked);
     expect(attach).not.toMatch(/tx\.documentVersion\./);
