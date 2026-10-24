@@ -351,7 +351,7 @@ export function RequestChangeDrawer({ exerciseId, kind, allowed, closing, lastDa
         hidden("exerciseId"),
         hidden("kind"),
         { kind: "date", name: "closingDay", label: "New closing day", required: true },
-        { kind: "text", name: "closingTime", label: "New closing time", required: true, placeholder: "14:30", hint: "Hours and minutes, 24-hour, the organisation's clock." },
+        { kind: "time", name: "closingTime", label: "New closing time", required: true, hint: "The organisation's clock." },
         { kind: "date", name: "purchaseCloseDay", label: "New last day of sale", hint: lastDayOfSale ? `Now ${lastDayOfSale}. Leave empty to keep it.` : "Leave empty to keep it." },
         { kind: "textarea", name: "reason", label: "Why", required: true, hint: "Purchasers are told of an extension." },
       ]}
@@ -420,8 +420,6 @@ export function RecordSaleDrawer({
   restricted,
   people,
   fee,
-  suppliers = [],
-  suppliersTotal = 0,
   noteId = EXERCISE_NOTE_ID,
 }: {
   exerciseId: string;
@@ -432,10 +430,6 @@ export function RecordSaleDrawer({
   restricted: { label: string; asks: string } | null;
   people: Option[];
   fee: string;
-  /// 6.15a fix M-2: the register's registered suppliers, one of which the sale may name.
-  suppliers?: Option[];
-  /// Residual 6: how many registered suppliers there are; past the list, one is named by its reference.
-  suppliersTotal?: number;
   noteId?: string;
 }) {
   if (!allowed.allowed) return <Blocked label="Record a sale" reason={allowed.reason} primary noteId={noteId} />;
@@ -457,8 +451,7 @@ export function RecordSaleDrawer({
               { kind: "text", name: "fax", label: "Fax" },
               { kind: "text", name: "email", label: "Email" },
             ] as Field[])),
-        { kind: "select", name: "supplierId", label: "Supplier on the register", placeholder: "Not named", options: suppliers, hint: `Type to search${suppliersTotal > suppliers.length ? ` (first ${suppliers.length} of ${suppliersTotal})` : ""}. Links an unlinked contractor.` },
-        ...(suppliersTotal > suppliers.length ? [{ kind: "text", name: "supplierReference", label: "Or its register reference", mono: true, hint: "As the register shows it." } as Field] : []),
+        { kind: "select", name: "supplierId", label: "Supplier on the register", placeholder: "Not named", options: [], search: { url: "/api/lookup?kind=supplier" }, hint: "Type to search. Links an unlinked contractor." },
         { kind: "textarea", name: "linkReason", label: "Why they are the same company", hint: "Only if the registration number differs." },
         { kind: "text", name: "collectedBy", label: "Collected by", required: true, hint: "The representative who took the set." },
         { kind: "select", name: "authoritySighted", label: "Proof of the representative's authority sighted", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Not answered refuses the sale." },
@@ -549,7 +542,7 @@ export function ScheduleEventDrawer({ exerciseId, allowed, mandatoryOffered, inC
         hidden("exerciseId"),
         { kind: "select", name: "kind", label: "Event", required: true, placeholder: "Choose", options: [{ value: "BRIEFING", label: "Tender briefing" }, { value: "SITE_VISIT", label: "Site visit" }] },
         { kind: "date", name: "day", label: "Day", required: true },
-        { kind: "text", name: "time", label: "Time", required: true, placeholder: "10:00", hint: "24-hour, the organisation's clock." },
+        { kind: "time", name: "time", label: "Time", required: true, hint: "The organisation's clock." },
         { kind: "text", name: "place", label: "Place", required: true },
         ...(mandatoryOffered
           ? ([{ kind: "select", name: "mandatory", label: "Attendance mandatory", required: true, placeholder: "Choose", placeholderDisabled: true, options: THREE, hint: "Mandatory: documents sold only to attendees." }] as Field[])

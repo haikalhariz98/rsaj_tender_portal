@@ -22,7 +22,7 @@ export function saleHeader(d: Sales, c: WindowContext): { actions: ReactNode; no
   const parties: Person[] = d.parties.filter((p) => !bought.has(p.registrationNo) && (!invited || p.invited)).map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})` }));
   return {
     // SR-10 (ruling 16, G3): an exercise sold online is bought through the supplier portal, so the counter sale is not offered on it.
-    actions: d.online ? null : <RecordSaleDrawer exerciseId={c.exerciseId} allowed={d.open} parties={parties} invited={invited} restricted={d.restricted} people={c.people} fee={d.fee} suppliers={d.suppliers.options} suppliersTotal={d.suppliers.total} />,
+    actions: d.online ? null : <RecordSaleDrawer exerciseId={c.exerciseId} allowed={d.open} parties={parties} invited={invited} restricted={d.restricted} people={c.people} fee={d.fee} />,
     notes: [...(d.online || d.open.allowed ? [] : [["Record a sale", d.open.reason] as [string, string]]), ...(d.voidAll ? [["Void a sale", d.voidAll] as [string, string]] : [])],
   };
 }

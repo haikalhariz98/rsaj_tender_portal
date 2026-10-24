@@ -102,8 +102,8 @@ describe("the scan finds what it should", () => {
     // Changed for wave 3c step 4 (SR-15 online, plan section 4.2): a received part is filed once and sent on to its document version through a staff route handler (it asks who is signed in first), so 42.
     // Changed for N2 (the PDPA right of access): a supplier downloads its own data as a file through a portal route handler (it asks the portal's guard first), so 43.
     // Changed for ADR 0041 (registration step 2): the public registration's two reads, a fresh form token and the code search, are route handlers under the public `supplier/register`, so 46.
-    // Changed for the Project workspace (plan step 5): a contractor sends a document, a version and a request, stages a file and downloads one through five portal route handlers (each asks the portal's guard first), so 51.
-    expect(ROUTE_FILES.length).toBe(51);
+    // Changed for the Project workspace (plan step 5): a contractor sends a document, a version and a request, stages a file and downloads one through five portal route handlers (each asks the portal's guard first), so 51; the staff lookup route (dropdown sweep 2) makes 52.
+    expect(ROUTE_FILES.length).toBe(52);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });

@@ -301,9 +301,6 @@ export type WindowTab = NonNullable<Awaited<ReturnType<typeof windowTab>>>;
  * attested (register checks "not checked" until 6.15), the addenda acknowledged, and the printable
  * annotation; the reconciliation exceptions (no receipt); and what a new sale needs.
  */
-/// Residual 6: how many registered suppliers the sale form lists for choosing (searched in the list); any other is named by reference.
-export const SALE_SUPPLIER_CHOICES = 200;
-
 export async function saleRegister(organisationId: string, exerciseId: string) {
   const x = await load(organisationId, exerciseId);
   if (!x) return null;
@@ -362,14 +359,6 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
     // SEC-1: a simulated sale stands for no money, so it is listed apart ("Simulated, no money received") and never counted as a receipt.
     simulatedNoMoney: simulatedSales(sales).map((s) => ({ id: s.id, purchaser: s.party.name, soldOn: day(s.soldOn), amount: money(s.amount) })),
     parties: d.parties.map((p) => ({ id: p.id, name: p.name, registrationNo: p.registrationNo, cameAs: PARTY_SOURCE_LABEL[p.source], invited: p.source === "PROPOSED_INVITEE" })),
-    // 6.15a fix M-2: the register's registered suppliers a sale may name (the contractor is linked to it at the sale).
-    // Residual 6: never an unbounded list. Up to SALE_SUPPLIER_CHOICES registered suppliers by name, searched in
-    // the shared Select; past that, any other is named by its register reference (looked up by the action).
-    suppliers: await (async () => {
-      const where = { organisationId: org.id, status: "REGISTERED" as const };
-      const [rows, total] = await Promise.all([db.supplier.findMany({ where, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SALE_SUPPLIER_CHOICES, select: { id: true, reference: true, registeredName: true, registrationNo: true } }), db.supplier.count({ where })]);
-      return { options: rows.map((s) => ({ value: s.id, label: `${s.registeredName} (${s.registrationNo}) · ${s.reference}` })), total };
-    })(),
   };
 }
 

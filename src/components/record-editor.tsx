@@ -78,6 +78,8 @@ export type Field =
       orphanLabel?: string;
       /// Force the search box on or off. Unset, the shared Select shows it above SEARCH_THRESHOLD options.
       searchable?: boolean;
+      /// The choices are searched on the server as the officer types (a register of thousands): `options` stays empty, and a stored value reads as `orphanLabel`. The route answers `?q=` with `{ options, hasMore }`.
+      search?: { url: string };
       /// Options that depend on another select of the same form: `options` is ignored and the
       /// list is `optionsBy.options[<that select's value>]`. While it is unchosen, the
       /// placeholder says `optionsBy.waiting` (founder, 2026-10-05: choosing a tier should
@@ -638,7 +640,7 @@ function FieldInput({
 
     return (
       <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error}>
-        <Select id={id} name={field.name} defaultValue={current} searchable={field.searchable} aria-invalid={error ? true : undefined}>
+        <Select id={id} name={field.name} defaultValue={current} searchable={field.searchable} search={field.search ? { url: field.search.url, minChars: 0 } : undefined} aria-invalid={error ? true : undefined}>
           <option value="" disabled={field.placeholderDisabled && current !== ""}>{field.placeholder ?? say(WORDS.notSet)}</option>
           {orphaned && <option value={current}>{field.orphanLabel ?? current}</option>}
           {field.options.map((o) => (

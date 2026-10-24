@@ -74,7 +74,7 @@ export function ReceiveLaterDrawer({ exerciseId, allowed, people, bids, noteId }
       fields={[
         ...receiptFields(people, bids),
         { kind: "date", name: "statedDay", label: "Received on", required: true },
-        { kind: "text", name: "statedTime", label: "At (HH:MM)", required: true, mono: true, hint: "On the organisation's clock." },
+        { kind: "time", name: "statedTime", label: "At", required: true, hint: "On the organisation's clock." },
         { kind: "textarea", name: "entryReason", label: "Why it is recorded now", required: true },
       ]}
       values={{ exerciseId }}

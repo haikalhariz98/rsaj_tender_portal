@@ -29,7 +29,7 @@ export function KeyDatesDrawer({ exerciseId, allowed, values, usualClosingTime }
         hidden("exerciseId"),
         { kind: "date", name: "startOn", label: "Tendering starts on", required: true, hint: "Today or later." },
         { kind: "date", name: "closingDay", label: "Closing day", required: true, hint: "After the start day." },
-        { kind: "text", name: "closingTime", label: "Closing time", required: true, placeholder: usualClosingTime ?? "14:30", hint: `Hours and minutes, 24-hour, the organisation's clock.${usualClosingTime ? ` Its usual closing time is ${usualClosingTime}.` : ""}` },
+        { kind: "time", name: "closingTime", label: "Closing time", required: true, hint: usualClosingTime ? `Usually ${usualClosingTime}.` : "The organisation's clock." },
       ]}
       values={{ exerciseId, ...values }}
       action={saveKeyDates}

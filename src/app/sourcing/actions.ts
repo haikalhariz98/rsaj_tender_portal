@@ -299,6 +299,13 @@ async function writeChildren(tx: Tx, actor: AuditActor, orgId: string, ex: { id:
  * Open an exercise on an approved requisition (ruling R-6). The reference is issued
  * from the `exercise` series in the same transaction as the row and its audit.
  */
+/// The parent contract is chosen from the organisation's contracts: a number that names none is refused. A number the exercise already holds (typed before it was a list) is let through, so an old draft can still be saved.
+async function parentContractFault(tx: Prisma.TransactionClient, organisationId: string, ref: string | null, held: string | null): Promise<FormState | null> {
+  if (!ref || ref === held) return null;
+  if (await tx.contract.findFirst({ where: { organisationId, number: ref }, select: { id: true } })) return null;
+  return { ok: false, errors: { parentContractRef: "Choose a contract from the register." } };
+}
+
 export async function createExercise(_prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
   if (!txGuard.ok) return txGuard.state;
@@ -327,6 +334,8 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
       const ev = evaluateExercise(v.draft, ctx);
       const blockers = saveBlockers(ev.findings);
       if (blockers.length > 0) return faultState(actor, r, blockers, l.req.exercises);
+      const parentFault = await parentContractFault(tx, l.org.id, v.draft.parentContractRef, null);
+      if (parentFault) return parentFault;
       const on = dayToDate(l.org.today!);
       const reference = await issueReference(tx, l.org.id, "exercise", on);
       const m = ev.method!;
@@ -415,6 +424,8 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     const ev = evaluateExercise(v.draft, ctx);
     const blockers = saveBlockers(ev.findings);
     if (blockers.length > 0) return faultState(actor, r, blockers, l.req.exercises.filter((x) => x.id !== ex.id));
+    const parentFault = await parentContractFault(tx, l.org.id, v.draft.parentContractRef, ex.parentContractRef);
+    if (parentFault) return parentFault;
     // Editing a draft so that its method restricts it leaves it to the people named on it. Whoever is not among them (or cannot name themselves) would lose it,
     // or would be named by the act of restricting it: refused before anything is written (`namingRefusal`, Phase 3a review).
     if (ev.method?.restrictedAccess) {

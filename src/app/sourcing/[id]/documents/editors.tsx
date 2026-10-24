@@ -195,12 +195,12 @@ export function DecideDrawer({ exerciseId, stepId, office, done, people, today, 
                   { kind: "readonly", name: "closingShown", label: "Closing day", text: fixedWindow.closingText },
                   hidden("startOn"),
                   hidden("closingDay"),
-                  { kind: "text", name: "closingTime", label: "Closing time", required: true, hint: "24-hour, such as 14:30." },
+                  { kind: "time", name: "closingTime", label: "Closing time", required: true },
                 ] as Field[])
               : ([
                   { kind: "date", name: "startOn", label: "Tendering starts on", required: true, hint: "As proposed. Not before the day decided." },
                   { kind: "date", name: "closingDay", label: "Closing day", required: true, hint: "After the start day." },
-                  { kind: "text", name: "closingTime", label: "Closing time", required: true, hint: "Hours and minutes, 24-hour (14:30)." },
+                  { kind: "time", name: "closingTime", label: "Closing time", required: true },
                 ] as Field[]))
           : []),
       ]}

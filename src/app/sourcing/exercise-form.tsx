@@ -211,7 +211,13 @@ export function ExerciseForm({
                 {text("coordinationScopeNote", "Scope the meeting fixed", { area: true, hint: SCOPE_NOTE_HINT })}
               </>
             )}
-            {method && !method.requiresFreshSourcing && text("parentContractRef", "Parent contract", { required: true, mono: true, hint: "Capacity not tracked." })}
+            {method && !method.requiresFreshSourcing && (
+              <Field label="Parent contract" htmlFor="sx-parentContractRef" required hint="Capacity not tracked." error={e.parentContractRef}>
+                <Select id="sx-parentContractRef" name="parentContractRef" value={v.parentContractRef ?? ""} onChange={set("parentContractRef")} placeholder="Search contracts" search={{ url: "/api/lookup?kind=contract", minChars: 0, labels: initial.parentContractRef ? { [initial.parentContractRef]: initial.parentContractRef } : undefined }} aria-invalid={e.parentContractRef ? true : undefined}>
+                  <option value="">Search contracts</option>
+                </Select>
+              </Field>
+            )}
           </CardBody>
         </Card>
 

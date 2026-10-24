@@ -48,7 +48,7 @@ describe("a sale names the register's supplier (fix M-2)", () => {
 
   it("the sale form offers the register's registered suppliers", () => {
     expect(readFileSync("src/app/sourcing/[id]/window/editors.tsx", "utf8")).toMatch(/name: "supplierId", label: "Supplier on the register"/);
-    // Residual 6: bounded, never every registered supplier.
-    expect(readFileSync("src/lib/window/read.ts", "utf8")).toMatch(/db\.supplier\.findMany\(\{ where, orderBy: \[\{ registeredName: "asc" \}, \{ id: "asc" \}\], take: SALE_SUPPLIER_CHOICES,/);
+    // Searched on the server as typed (the register can run to thousands), never every registered supplier on the page.
+    expect(readFileSync("src/app/sourcing/[id]/window/editors.tsx", "utf8")).toMatch(/name: "supplierId".*search: \{ url: "\/api\/lookup\?kind=supplier" \}/);
   });
 });
