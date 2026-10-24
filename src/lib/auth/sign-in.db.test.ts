@@ -116,8 +116,11 @@ describe("session limits", () => {
     if (!outcome.ok) throw new Error("sign-in failed");
     // Review fix (Phase 1a): the read at +60s writes last-seen, and the idle verdict allows one touch interval (a minute) on top of the limit, so the session
     // is idle at the limit plus two minutes from now, where this test held "plus one" before the allowance.
-    const later = new Date(Date.now() + (SETTINGS.staffIdleMinutes! + 2) * 60_000);
-    expect(await readStaffSession(outcome.token, { sourceAddress: null }, new Date(Date.now() + 60_000))).toMatchObject({ ok: true });
+    // Both instants from one reading of the clock: `later` is exactly the limit plus the allowance after the touch, the verdict's own boundary. Read twice, a
+    // millisecond tick between the two readings put the touch after that boundary, and the session was still valid (the flaky failure).
+    const base = Date.now();
+    const later = new Date(base + (SETTINGS.staffIdleMinutes! + 2) * 60_000);
+    expect(await readStaffSession(outcome.token, { sourceAddress: null }, new Date(base + 60_000))).toMatchObject({ ok: true });
     expect(await readStaffSession(outcome.token, { sourceAddress: null }, later)).toEqual({ ok: false, reason: "IDLE" });
     // A page render cannot delete the cookie, so the next read finds the session revoked and writes nothing more.
     expect(await readStaffSession(outcome.token, { sourceAddress: null }, later)).toEqual({ ok: false, reason: "REVOKED" });
