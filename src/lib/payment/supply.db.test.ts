@@ -20,7 +20,7 @@ import type { WrittenAttribution } from "@/lib/test-support/staff";
  * - the act refuses in words, never by the trigger (PA050): another contract's or organisation's claim, a claim of another kind, one not verified, a second payment.
  */
 
-const h = vi.hoisted(() => ({ who: null as StaffActor | null, written: [] as WrittenAttribution[] }));
+const h = vi.hoisted(() => ({ who: null as StaffActor | null, supplier: null as SupplierActor | null, written: [] as WrittenAttribution[] }));
 
 vi.mock("@/app/_auth/actor", async () => {
   const { actorModule } = await import("@/lib/test-support/staff");
@@ -33,14 +33,22 @@ vi.mock("@/app/_auth/act", async () => {
   h.written = act.written;
   return act.module;
 });
+// The portal's guards are held by their own tests; the session's actor is stood in and everything behind the route is real.
+vi.mock("@/app/_auth/supplier", () => ({
+  supplierPost: async (request: Request) => ({ ok: true as const, actor: h.supplier!, post: { fields: await request.json(), facts: { sourceAddress: "203.0.113.9", userAgent: "vitest" }, token: null } }),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
+import { POST as createRoute } from "@/app/supplier/projects/documents/create/route";
+import { POST as versionRoute } from "@/app/supplier/projects/documents/version/route";
 import { saveContractBehaviours } from "@/app/configuration/reference-data/core";
 import { withdrawVersion } from "@/app/documents/actions";
 import { recordSupplyPayment } from "@/app/projects/[id]/supply-actions";
 import { markProjectVersion } from "@/app/projects/[id]/document-actions";
 import { contractorCreate, contractorVersion } from "@/lib/project-docs/portal-acts";
 import { findProjectFile } from "@/lib/project-docs/portal-file";
+import { loadProjectContext } from "@/lib/portal/projects/context-store";
+import { paymentsTab } from "@/lib/portal/projects/workspace-store";
 import { loadSupplyClaims, supplyClaimCounts } from "@/lib/project-docs/supply-read";
 
 import { recordSupplyPayment as recordSupplyPaymentCore, SupplyPaymentRefused } from "./supply-write";
@@ -341,5 +349,42 @@ describe("the contract type's route is saved by the reference-data editor, and k
     expect(await route()).toBeNull();
     const audits = await db.auditEntry.findMany({ where: { organisationId, entity: "ContractType", entityId: t.id }, orderBy: { at: "asc" } });
     expect(audits.some((a) => JSON.stringify(a).includes("paymentRoute"))).toBe(true);
+  });
+});
+
+describe("the same path through the portal routes, read back as the portal's Invoices card (wave V, V10)", () => {
+  const post = async (route: (r: Request) => Promise<Response>, c: Contractor, fields: Record<string, unknown>) => {
+    h.supplier = c.actor;
+    const res = await route(new Request("http://portal.example/x", { method: "POST", body: JSON.stringify(fields), headers: { "content-type": "application/json" } }));
+    return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+  };
+  const files = async (c: Contractor) => [{ versionId: await stage(c), purpose: "DELIVERY_ORDER" }, { versionId: await stage(c), purpose: "SUPPLY_INVOICE" }];
+  const card = async (c: Contractor, contractId: string) => (await paymentsTab(db, c.actor, (await loadProjectContext(db, c.actor, contractId))!)).invoices;
+
+  it("is created with both purposes, returned, sent as version 2, verified and paid; the card says Paid with date, batch and amount; a second payment is refused", async () => {
+    const c = await contractor();
+    const contractId = await contract(c.supplierId, SUPPLY);
+    const made = await post(createRoute, c, { contractId, title: "INV-ROUTE-1", note: "", mode: "upload", versionNote: "", kind: "SUPPLY_CLAIM", files: await files(c) });
+    const documentId = docOf(made);
+    expect(await card(c, contractId)).toMatchObject({ show: true, rows: [{ invoiceNo: "INV-ROUTE-1", state: "WITH_ORGANISATION" }] });
+
+    // A version with one purpose only is refused by the route.
+    const half = await post(versionRoute, c, { contractId, documentId, files: [{ versionId: await stage(c), purpose: "DELIVERY_ORDER" }], note: "" });
+    expect(half.status).toBe(422);
+
+    expect(await mark(contractId, documentId, "RETURNED", "Invoice not signed.")).toMatchObject({ ok: true });
+    expect((await card(c, contractId)).rows[0]).toMatchObject({ state: "RETURNED" });
+    const v2 = await post(versionRoute, c, { contractId, documentId, files: await files(c), note: "Signed." });
+    expect(v2.status, JSON.stringify(v2.body)).toBe(201);
+    expect(await db.projectDocumentVersion.count({ where: { documentId } })).toBe(2);
+
+    expect(await mark(contractId, documentId, "TAKEN_UP")).toMatchObject({ ok: true });
+    expect((await card(c, contractId)).rows[0]).toMatchObject({ state: "VERIFIED" });
+    expect(await pay(contractId, documentId)).toEqual({ ok: true });
+    const [paid] = (await card(c, contractId)).rows;
+    expect(paid).toMatchObject({ state: "PAID", payment: { batchNo: "B-0042", amountText: "RM12,500" } });
+    expect(paid!.payment!.paidText).toMatch(/\d{2} \w{3} \d{4}/);
+    expect(await pay(contractId, documentId, { batchNo: "B-0043" })).toMatchObject({ ok: false, message: expect.stringMatching(/already recorded/) });
+    expect(await db.supplyInvoicePayment.count({ where: { documentId } })).toBe(1);
   });
 });

@@ -19,6 +19,7 @@ import { ACT_LABEL } from "@/lib/labels";
 
 import { columnsOf, planPacks, type PackWrite, type PlannedPacks } from "./plan";
 import { delegateOf, readSnapshot } from "./snapshot";
+import { inWords } from "./words";
 import type { PackMatrixDraft, PackModelDraft, StarterPack } from "./types";
 
 const WORDS = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" } as const;
@@ -28,7 +29,6 @@ const UNSHOWN = ["code", "key", "list", "domain", "kind", "regime", "provenance"
 /// Also kept out: a column holding another row's code (`approverCode`, `authorityMethodKey`). A value that is one of the schema's own codes
 /// (`BILL_OF_QUANTITIES`, `ONLINE`) is written in words ("Bill of quantities"), except in a name, which is words whatever its case.
 const codeColumn = (c: string) => /(Code|Key)$/.test(c);
-const inWords = (c: string, v: unknown) => (typeof v === "string" && /^[A-Z][A-Z0-9_]+$/.test(v) && !/^(name|label)/.test(c) ? v.charAt(0) + v.slice(1).toLowerCase().replace(/_/g, " ") : v);
 
 type Writer = { create(a: unknown): Promise<{ id: string }>; update(a: unknown): Promise<{ id: string }> };
 

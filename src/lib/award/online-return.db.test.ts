@@ -22,7 +22,7 @@ import type { WrittenAttribution } from "@/lib/test-support/staff";
  * proved here, with the triggers that back them (PA048, PA049, PA051).
  */
 
-const h = vi.hoisted(() => ({ who: null as StaffActor | null, written: [] as WrittenAttribution[] }));
+const h = vi.hoisted(() => ({ who: null as StaffActor | null, supplier: null as SupplierActor | null, written: [] as WrittenAttribution[] }));
 
 vi.mock("@/app/_auth/actor", async () => {
   const { actorModule } = await import("@/lib/test-support/staff");
@@ -35,14 +35,26 @@ vi.mock("@/app/_auth/act", async () => {
   h.written = act.written;
   return act.module;
 });
+// The portal's guards (copy, Origin, token, session) are held by their own tests (handlers.test.ts); here the session's actor is stood in and everything behind the route is real, the password step-up included.
+vi.mock("@/app/_auth/supplier", async () => {
+  const { facts } = await import("@/lib/test-db/auth-fixtures");
+  return {
+    supplierPost: async (request: Request) => ({ ok: true as const, actor: h.supplier!, post: { fields: await request.json(), facts: facts(), token: null } }),
+    supplierUploadPost: async () => ({ ok: true as const, actor: h.supplier!, facts: facts() }),
+  };
+});
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
 import { answerAwardQuery, cancelAward, recordReturn, refuseOnlineReturn, verifyOnlineReturn } from "@/app/awards/actions";
 import { attachDocument } from "@/app/documents/actions";
+import { POST as queryRoute } from "@/app/supplier/projects/award-query/route";
+import { POST as submitRoute } from "@/app/supplier/projects/award-return/submit/route";
+import { POST as uploadRoute } from "@/app/supplier/projects/award-return/upload/route";
 
 import { askAwardQuery, AWARD_RETURN_EVENT_KEY, lodgeOnlineReturn } from "./online-return-store";
 import { AwardReturnRefused } from "./online-return-words";
 import { preflightReturnUpload, storeReturnFile } from "./return-upload";
+import { indentExpiryRaised, indentState } from "./indent";
 import { instrumentReturned } from "./stage-two";
 
 const run = randomId();
@@ -521,5 +533,132 @@ describe("the paper path and the staff attach, moved into their cores, behave as
     const r = await as(p.officer, () => attachDocument({ ok: false }, form({ ownerKind: "award", ownerId: k.awardId, purpose: "SIGNED_LETTER", versionId: v })));
     expect(r.ok).toBe(false);
     expect(await db.documentAttachment.count({ where: { awardId: k.awardId } })).toBe(0);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------------------- through the portal routes (wave V, V10)
+
+const jsonPost = (url: string, fields: Record<string, unknown>) => new Request(`http://portal.example${url}`, { method: "POST", body: JSON.stringify(fields), headers: { "content-type": "application/json" } });
+/// One scan staged through the upload route, as the drawer posts it.
+async function viaUpload(c: Holder, k: Case, scan: string) {
+  h.supplier = c.actor;
+  const fd = new FormData();
+  fd.set("file", new File([`%PDF-1.4 route ${run} ${++counter}`], `${scan}-${counter}.pdf`, { type: "application/pdf" }));
+  const packed = new Response(fd);
+  const body = new Uint8Array(await packed.arrayBuffer());
+  const res = await uploadRoute(new Request(`http://portal.example/supplier/projects/award-return/upload?contractId=${k.contractId}&scan=${scan}`, { method: "POST", body, headers: { "content-type": packed.headers.get("content-type")!, "content-length": String(body.length) } }));
+  return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+}
+const LETTER_SCANS = ["SIGNED_LETTER", "DECLARATION", "AUTHORISATION"];
+async function stageViaRoute(c: Holder, k: Case, scans = LETTER_SCANS) {
+  const files: Record<string, string> = {};
+  for (const scan of scans) {
+    const r = await viaUpload(c, k, scan);
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    files[scan] = r.body.versionId as string;
+  }
+  return files;
+}
+async function viaSubmit(c: Holder, k: Case, files: Record<string, string>, o: { page?: typeof PAGE | null; password?: string } = {}) {
+  h.supplier = c.actor;
+  const res = await submitRoute(jsonPost("/supplier/projects/award-return/submit", { contractId: k.contractId, files, ...(o.page ? { page: o.page } : {}), password: o.password ?? c.password }));
+  return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+}
+async function viaQuery(c: Holder, k: Case, text: string) {
+  h.supplier = c.actor;
+  const res = await queryRoute(jsonPost("/supplier/projects/award-query", { contractId: k.contractId, body: text }));
+  return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+}
+const verify = (id: string) => as(p.officer, () => verifyOnlineReturn({ ok: false }, form({ id })));
+
+describe("the online return through the portal routes (wave V, V10)", () => {
+  it("Story: stage, lodge with the password, verify, accepted on the lodge day with the scans on the award and the right people told; then a question asked and answered once", async () => {
+    await rule(AWARD_RETURN_EVENT_KEY.AWARD_RETURN_LODGED);
+    const c = await contractor();
+    const k = await issued(c.supplierId);
+    const files = await stageViaRoute(c, k);
+
+    // A wrong password writes nothing (403) and does not stop the right one.
+    expect((await viaSubmit(c, k, files, { password: "not-the-password" })).status).toBe(403);
+    expect(await db.awardOnlineReturn.count({ where: { awardId: k.awardId } })).toBe(0);
+    const lodged = await viaSubmit(c, k, files);
+    expect(lodged.status, JSON.stringify(lodged.body)).toBe(201);
+    const onlineReturnId = lodged.body.onlineReturnId as string;
+    expect((await viaSubmit(c, k, files)).status).toBe(409);
+
+    expect(await told(onlineReturnId)).toEqual([p.holder, p.pic].sort().map((recipientPersonId) => ({ recipientPersonId, kind: "AWARD_RETURN_LODGED", exerciseId: k.exerciseId, href: `/projects/${k.contractId}?stage=award&tab=return` })));
+
+    // While it waits the officer cannot cancel the award.
+    const cancel = await as(p.officer, () => cancelAward({ ok: false }, form({ id: k.awardId, reason: "Withdrawn by the department" })));
+    expect(cancel).toMatchObject({ ok: false });
+    expect((await db.award.findUniqueOrThrow({ where: { id: k.awardId } })).status).toBe("ISSUED");
+
+    // A question while it waits.
+    const asked = await viaQuery(c, k, "When will the letter be checked?");
+    expect(asked.status).toBe(201);
+
+    expect(await verify(onlineReturnId)).toMatchObject({ ok: true });
+    const award = await db.award.findUniqueOrThrow({ where: { id: k.awardId }, include: { awardReturn: true } });
+    expect(award.status).toBe("ACCEPTED");
+    const row = await db.awardOnlineReturn.findUniqueOrThrow({ where: { id: onlineReturnId } });
+    const ret = award.awardReturn!;
+    const lodgedOn = storedDay(row.submittedOn);
+    expect(lodgedOn).toBe(today);
+    expect([ret.signedLetterReceivedOn, ret.declarationReceivedOn, ret.authorisationReceivedOn].map((d) => storedDay(d!))).toEqual([lodgedOn, lodgedOn, lodgedOn]);
+    expect(await db.documentAttachment.count({ where: { awardId: k.awardId, detachedAt: null } })).toBe(3);
+
+    // Answered once, after acceptance too; a second answer is refused; a new question on an accepted award is not taken.
+    const queryId = asked.body.queryId as string;
+    expect(await as(p.officer, () => answerAwardQuery({ ok: false }, form({ id: queryId, answer: "Done." })))).toEqual({ ok: true });
+    expect(await as(p.officer, () => answerAwardQuery({ ok: false }, form({ id: queryId, answer: "Again." })))).toMatchObject({ ok: false });
+    expect((await viaQuery(c, k, "One more?")).status).toBe(422);
+  });
+
+  it("refused with a reason, the award stays issued and the contractor sends again through the same routes, then it is verified", async () => {
+    const c = await contractor();
+    const k = await issued(c.supplierId);
+    const first = await viaSubmit(c, k, await stageViaRoute(c, k));
+    expect(first.status).toBe(201);
+    const refused = await as(p.officer, () => refuseOnlineReturn({ ok: false }, form({ id: first.body.onlineReturnId as string, reason: "The declaration is not signed." })));
+    expect(refused).toEqual({ ok: true });
+    expect((await db.award.findUniqueOrThrow({ where: { id: k.awardId } })).status).toBe("ISSUED");
+    expect(await db.documentAttachment.count({ where: { awardId: k.awardId } })).toBe(0);
+
+    const again = await viaSubmit(c, k, await stageViaRoute(c, k));
+    expect(again.status, JSON.stringify(again.body)).toBe(201);
+    expect(again.body.onlineReturnId).not.toBe(first.body.onlineReturnId);
+    expect(await verify(again.body.onlineReturnId as string)).toMatchObject({ ok: true });
+    expect((await db.award.findUniqueOrThrow({ where: { id: k.awardId } })).status).toBe("ACCEPTED");
+  });
+
+  it("another contractor's award is 404 on every route, and nothing is written", async () => {
+    const c = await contractor();
+    const k = await issued(c.supplierId);
+    const other = await contractor();
+    expect((await viaUpload(other, k, "SIGNED_LETTER")).status).toBe(404);
+    expect((await viaSubmit(other, k, { SIGNED_LETTER: "x".repeat(25) })).status).toBe(404);
+    expect((await viaQuery(other, k, "Hello?")).status).toBe(404);
+    expect(await db.awardQuery.count({ where: { awardId: k.awardId } })).toBe(0);
+  });
+
+  it("FR-AWD-006 finding: an indent whose 14-day validity has passed is still lodged, verified and accepted (no validity rule stops it)", async () => {
+    const policy = await db.awardPolicy.findUnique({ where: { organisationId } });
+    await db.awardPolicy.upsert({ where: { organisationId }, update: { indentValidityDays: 14 }, create: { organisationId, indentValidityDays: 14 } });
+    try {
+      const c = await contractor();
+      const k = await issued(c.supplierId, { kind: "WORK_INDENT" });
+      await db.award.update({ where: { id: k.awardId }, data: { indentReceivedOn: D(dayPlus(today, -40)), erpCommitmentKind: "INDENT", erpCommitmentNo: "IN/EXPIRED/1" } });
+      // The product's own reading calls it expired before the contractor starts.
+      expect(indentState(dayPlus(today, -40), 14, today)).toMatchObject({ state: "EXPIRED" });
+      const lodged = await viaSubmit(c, k, await stageViaRoute(c, k, ["ACCEPTANCE_PAGE"]), { page: PAGE });
+      expect(lodged.status, JSON.stringify(lodged.body)).toBe(201);
+      expect(await verify(lodged.body.onlineReturnId as string)).toMatchObject({ ok: true });
+      const award = await db.award.findUniqueOrThrow({ where: { id: k.awardId } });
+      expect(award.status).toBe("ACCEPTED");
+      // The staff screens still raise it (expired, not commenced, not cancelled): a warning, never a refusal.
+      expect(indentExpiryRaised(indentState(dayPlus(today, -40), 14, today), null, award.status)).toBe(true);
+    } finally {
+      await db.awardPolicy.update({ where: { organisationId }, data: { indentValidityDays: policy?.indentValidityDays ?? null } });
+    }
   });
 });
