@@ -6,7 +6,7 @@
  * the list to that, so search never reads a value it could leak and writes no `SulitAccessEvent`.
  */
 
-export type SearchEntity = "requisition" | "exercise" | "project" | "supplier" | "sitting";
+export type SearchEntity = "requisition" | "exercise" | "project" | "supplier" | "sitting" | "application";
 
 export const SEARCH_FIELDS: Readonly<Record<SearchEntity, readonly string[]>> = {
   requisition: ["reference", "title", "erpRequisitionNo", "erpNoteNo"],
@@ -16,6 +16,8 @@ export const SEARCH_FIELDS: Readonly<Record<SearchEntity, readonly string[]>> = 
   supplier: ["reference", "registeredName", "registrationNo", "erpVendorCode"],
   // A committee sitting (the Meeting model), on the sittings list's own fields (ST-3).
   sitting: ["reference", "committee.nameEn"],
+  // A supplier application (the Suppliers list's Applications tab): its applicant, by name, reference and registration number. Not in global search.
+  application: ["supplier.registeredName", "supplier.reference", "supplier.registrationNo"],
 };
 
 /// The exact-key columns: a whole-value match on one of these opens the case group (ST-4, FR-REQ-002).
@@ -32,4 +34,5 @@ export const SEARCH_MODEL: Readonly<Record<SearchEntity, string>> = {
   project: "Award",
   supplier: "Supplier",
   sitting: "Meeting",
+  application: "SupplierApplication",
 };

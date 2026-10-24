@@ -22,7 +22,9 @@ import { AWARD_LIST_CONTRACT_SELECT, AWARD_LIST_INCLUDE_BASE, loadAwardPolicy } 
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { LIST_EXPORT_MAX_ROWS, listOrderBy, type SortDir } from "@/lib/list-query";
 import { exerciseOrg } from "@/lib/method/repo";
+import { wordsWhere } from "@/lib/search/words";
 import { inDelayContractIds } from "@/lib/supervision/load";
 import { commencedPendingAll } from "@/lib/variation/view";
 
@@ -62,6 +64,8 @@ export type CaseRowView = Exclude<CaseListView, "securities" | "submissions">;
 
 const ROW_VIEWS: readonly CaseRowView[] = ["awarding", "signing", "on_site", "completed", "closed", "ended", ...CASE_WORK_VIEWS, "delay", "commenced"];
 const LIST_VIEWS: readonly CaseListView[] = [...ROW_VIEWS, "securities", "submissions"];
+/// Every view key the Projects address may carry, for `parseListQuery`.
+export const CASE_LIST_VIEWS = LIST_VIEWS;
 
 /// An unknown or absent view is undefined, meaning "all".
 export function parseCaseListView(v: string | undefined): CaseListView | undefined {
@@ -98,12 +102,19 @@ export const CASE_PAGE = CONTRACT_PAGE;
 
 const EMPTY_COUNTS: CasePage["counts"] = { all: 0, awarding: 0, signing: 0, on_site: 0, completed: 0, closed: 0, ended: 0, pending: 0, approved: 0, return: 0, commitment: 0, expired: 0, delay: 0, commenced: 0 };
 
-/// The page of cases. `hidden` is `hiddenExercises(actor)`, passed by the caller as `casePipelineWhere`'s is. Ordered by the award's
-/// creation (newest first), then id. `page` is zero-based.
-export async function listCases(organisationId: string, hidden: readonly string[], q: { view?: CaseRowView; page?: number; delayIds?: readonly string[]; commencedContractIds?: readonly string[] } = {}): Promise<CasePage> {
+/// The page of cases. `hidden` is `hiddenExercises(actor)`, passed by the caller as `casePipelineWhere`'s is. Ordered by `listOrderBy`
+/// (ST-7: the chosen reference or date, else the award's creation, newest first; then id). `page` is zero-based; a page past the end is the last.
+/// `words` is the search (ADR 0044): ANDed with the visibility fragment, so a hidden exercise's own words never find its project (AC-18), and
+/// `total` is the count under the same where; `counts` stay over the whole set. With `all` (the export): no skip, and `LIST_EXPORT_MAX_ROWS + 1` rows.
+export async function listCases(
+  organisationId: string,
+  hidden: readonly string[],
+  q: { view?: CaseRowView; page?: number; size?: number; words?: readonly string[]; sort?: string | null; dir?: SortDir; all?: boolean; delayIds?: readonly string[]; commencedContractIds?: readonly string[] } = {},
+): Promise<CasePage> {
+  const size = q.size ?? CASE_PAGE;
   const page = Math.max(0, q.page ?? 0);
   const org = await exerciseOrg(organisationId);
-  if (!org) return { rows: [], total: 0, page, pageSize: CASE_PAGE, counts: { ...EMPTY_COUNTS }, indentRuleSet: false };
+  if (!org) return { rows: [], total: 0, page, pageSize: size, counts: { ...EMPTY_COUNTS }, indentRuleSet: false };
 
   // The two sets the Projects page judges over the whole organisation, then keys to awards (AC-17: re-keyed, not re-judged).
   // A caller that has already judged them (the Projects page does, for its own cards) passes them, so a load judges every possessed contract once.
@@ -126,21 +137,21 @@ export async function listCases(organisationId: string, hidden: readonly string[
     delay: byContracts(delay), commenced: byContracts(commenced),
   };
   // Fragments carry a top-level OR or AND, so they are joined by AND and never spread (case-visibility.ts).
-  const whereOf = (v: CaseRowView | "all"): Prisma.AwardWhereInput => ({ organisationId: org.id, AND: [caseVisibilityWhere(hidden), viewWhere[v]] });
+  const whereOf = (v: CaseRowView | "all", words: readonly string[] = []): Prisma.AwardWhereInput => ({ organisationId: org.id, AND: [caseVisibilityWhere(hidden), viewWhere[v], wordsWhere("project", words, hidden)] });
 
   const keys = Object.keys(EMPTY_COUNTS) as (CaseRowView | "all")[];
   const view = q.view ?? "all";
-  const [countList, found] = await Promise.all([
-    Promise.all(keys.map((k) => db.award.count({ where: whereOf(k) }))),
-    db.award.findMany({
-      where: whereOf(view),
-      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      skip: page * CASE_PAGE,
-      take: CASE_PAGE,
-      include: { ...AWARD_LIST_INCLUDE_BASE, contract: { select: { ...CONTRACT_LIST_SELECT, ...AWARD_LIST_CONTRACT_SELECT } } },
-    }),
-  ]);
+  const words = q.words ?? [];
+  const [countList, total] = await Promise.all([Promise.all(keys.map((k) => db.award.count({ where: whereOf(k) }))), words.length ? db.award.count({ where: whereOf(view, words) }) : Promise.resolve(null)]);
   const counts = Object.fromEntries(keys.map((k, i) => [k, countList[i]])) as CasePage["counts"];
+  const matching = total ?? counts[view];
+  const at = q.all ? 0 : Math.min(page, Math.max(0, Math.ceil(matching / size) - 1));
+  const found = await db.award.findMany({
+    where: whereOf(view, words),
+    orderBy: listOrderBy("project", { sort: q.sort ?? null, dir: q.dir ?? "desc" }),
+    ...(q.all ? { take: LIST_EXPORT_MAX_ROWS + 1 } : { skip: at * size, take: size }),
+    include: { ...AWARD_LIST_INCLUDE_BASE, contract: { select: { ...CONTRACT_LIST_SELECT, ...AWARD_LIST_CONTRACT_SELECT } } },
+  });
 
   const rows: CaseRow[] = found.map((a) => {
     const { contract: c, ...awardOnly } = a;
@@ -160,5 +171,5 @@ export async function listCases(organisationId: string, hidden: readonly string[
     }
     return { awardId: a.id, contractId: c?.id ?? null, standing, visibility, contract, award: visibility === "WHOLE" ? { ...awardOnly, contract: null } : null };
   });
-  return { rows, total: counts[view], page, pageSize: CASE_PAGE, counts, indentRuleSet: policy.indentValidityDays != null };
+  return { rows, total: matching, page: at, pageSize: size, counts, indentRuleSet: policy.indentValidityDays != null };
 }

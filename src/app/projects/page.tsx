@@ -1,25 +1,17 @@
 import { DataList, type Row } from "@/components/data-list";
+import { serverMode } from "@/components/server-list";
 import { FileIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusCounts } from "@/components/ui/status-counts";
-import { CASE_PAGE, listCases, parseCaseListView, type CaseRow, type CaseRowView } from "@/lib/contract/case-load";
+import { CASE_LIST_VIEWS, listCases, type CaseListView, type CaseRowView } from "@/lib/contract/case-load";
 import { CASE_WORK_VIEWS } from "@/lib/contract/case-work-views";
-import { awardChips, CASE_ENDED_TONE, CASE_ENDED_WORDS, CASE_VIEW_WORDS, standingWords } from "@/lib/contract/case-list-words";
-import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
-import { endedKind, phaseKind, primaryCaseStatus, type StatusCandidate } from "@/lib/contract/case-status";
-import { caseHref } from "@/lib/contract/links";
+import { CASE_VIEW_WORDS } from "@/lib/contract/case-list-words";
 import { DERIVE_CAP, endorsedPhases } from "@/lib/contract/load";
 import type { ContractPhase } from "@/lib/contract/status";
-import type { ContractStatus } from "@/lib/contract/types";
-import { indentExpiryRaised, indentState } from "@/lib/award/indent";
-import { AWARD_STATUS_TONE } from "@/lib/award/labels";
 import { loadAwardPolicy } from "@/lib/award/repo";
-import { returnReadsComplete } from "@/lib/award/stage-two";
-import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
-import { isLive } from "@/lib/documents/evidence";
-import { dayOf, dayOrNull as day, daysFrom, storedDay } from "@/lib/dates";
+import { dayOf, daysFrom, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal } from "@/lib/money";
 import { exerciseOrg } from "@/lib/method/repo";
@@ -27,9 +19,10 @@ import { inDelayContractIds } from "@/lib/supervision/load";
 import { commencedPendingAll } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
 import { ENGLISH } from "@/lib/i18n/language";
-import { CASES_LIST_WORDS as L, AWARD_STATUS_WORDS, INSTRUMENT_SHORT_WORDS } from "@/lib/contract/case-page-words";
+import { CASES_LIST_WORDS as L } from "@/lib/contract/case-page-words";
 import type { Words } from "@/lib/contract/labels";
 import type { Language } from "@/lib/i18n/language";
+import { LIST_EXPORT_MAX_ROWS, listHref, parseListQuery, sortKeys } from "@/lib/list-query";
 import { say, sayWith } from "@/lib/i18n/say";
 import { hiddenExercises } from "@/app/_auth/sulit";
 import { listRegister } from "@/lib/award/repo";
@@ -40,6 +33,7 @@ import { SecuritiesView } from "./securities-view";
 import { documentsWaitingCount } from "@/lib/project-docs/waiting-read";
 
 import { DocumentsWaitingView } from "./documents-waiting-view";
+import { buildCaseRows } from "./rows";
 
 export const metadata = { title: "Projects" };
 
@@ -65,13 +59,15 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   const lang = ENGLISH;
   const t = (words: Words) => say(words, lang);
   const n = (words: Words, count: number) => sayWith(words, lang, { count: String(count) });
-  const { page: p, view, sv, waiting, waitingAfter } = (await props.searchParams) as { page?: string; view?: string; sv?: string; waiting?: string; waitingAfter?: string };
+  const sp = (await props.searchParams) as Record<string, string | string[] | undefined>;
+  const { sv, waiting, waitingAfter } = sp as { sv?: string; waiting?: string; waitingAfter?: string };
+  const q = parseListQuery(sp, CASE_LIST_VIEWS, sortKeys("project"));
   // AC-15: the organisation-wide securities view (the old Securities menu) stands alone, so no other view's data is read.
-  if (view === "securities") return <SecuritiesView actor={actor} sv={sv} pageParam={p} lang={lang} />;
+  if (q.view === "securities") return <SecuritiesView actor={actor} sv={sv} query={q} lang={lang} />;
   // AC-16, PW-11: "Documents waiting" (the old Submissions waiting view; its address keeps `view=submissions`) stands alone as well: both sources, filtered and paged by the loader.
-  if (view === "submissions") return <DocumentsWaitingView actor={actor} filterParam={waiting} afterParam={waitingAfter} />;
-  const page = Math.max(0, Number.parseInt(p ?? "0", 10) || 0);
-  const parsed = parseCaseListView(view);
+  if (q.view === "submissions") return <DocumentsWaitingView actor={actor} filterParam={waiting} afterParam={waitingAfter} />;
+  const page = q.page;
+  const parsed: CaseListView | null = q.view;
   // 6.13 Part A review 14: In Delay is a view over the whole set, judged across every possessed contract, then paged.
   const org0 = await exerciseOrg(actor.organisationId);
   const today = org0?.timeZone ? dayOf(new Date(), org0.timeZone) : null;
@@ -92,26 +88,20 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
     documentsWaitingCount(db, actor.organisationId),
   ]);
   // "commenced" is the variations' exposure report above, not a view over cases; every other view is one `listCases` pages.
-  const rowView: CaseRowView | undefined = parsed && parsed !== "commenced" && parsed !== "securities" && parsed !== "submissions" ? parsed : undefined;
-  const data = await listCases(actor.organisationId, hidden, { view: rowView, page, delayIds, commencedContractIds: [...new Set(commenced.map((v) => v.contract.id))] });
+  const rowView: CaseRowView | undefined = parsed && parsed !== "commenced" ? parsed : undefined;
+  const data = await listCases(actor.organisationId, hidden, { view: rowView, page, size: q.size, words: q.words, sort: q.sort, dir: q.dir, delayIds, commencedContractIds: [...new Set(commenced.map((v) => v.contract.id))] });
   const derived: Map<string, ContractPhase> = org0 ? await endorsedPhases(org0.id, DERIVE_CAP) : new Map();
   const ready = [...derived.values()].filter((x) => x === "READY_TO_SIGN").length;
   const awaiting = [...derived.values()].filter((x) => x === "AWAITING_CONDITIONS").length;
-  const pages = Math.ceil(data.total / CASE_PAGE);
   // 6.13 Part A (FR-SUP-010): In Delay, derived, never stored. Tagged ASSUMED (the shared badge) only where the
   // reading rests on the straight-line assumption (BD-613-12, narrowed by the residual review); a lapsed date for
   // completion does not.
   const inDelay = new Set(delayIds);
   const policy = org0 ? await loadAwardPolicy(org0.id) : null;
 
-  const rows: Row[] = commencedView ? [] : data.rows.map((r) => caseRow(r, { derived, inDelay, policy, today: org0?.today ?? null, lang }));
-  const at = (v: CaseRowView | undefined, n = 0) => {
-    const q = new URLSearchParams();
-    if (v) q.set("view", v);
-    if (n > 0) q.set("page", String(n));
-    const t = q.toString();
-    return t ? `/projects?${t}` : "/projects";
-  };
+  const rows: Row[] = commencedView ? [] : buildCaseRows(data.rows, { derived, inDelay, policy, today: org0?.today ?? null, lang }, { forExport: false });
+  // A view's address keeps the search, the sort and the page size; the page starts again.
+  const at = (v: CaseRowView | undefined) => listHref("/projects", { q: q.q, view: v ?? null, sort: q.sort, dir: q.dir, size: q.size });
 
   const countLabel = (label: string, count: number) => sayWith(L.viewCount, lang, { label, count: String(count) });
   // The plain name of each view, for the card heading (the option's own label carries its count).
@@ -182,95 +172,19 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
           rowOpens
           stackBelow="xl"
           columns={[
-            { key: "contract", label: t(L.colProject), sortable: true, mobile: "primary" },
+            { key: "contract", label: t(L.colProject), mobile: "primary" },
             { key: "contractor", label: t(L.colContractor), width: "200px", hideBelow: "2xl", mobile: "meta" },
-            { key: "sum", label: t(L.colValue), width: "140px", numeric: true, sortable: true, mobile: "meta" },
+            { key: "sum", label: t(L.colValue), width: "140px", numeric: true, mobile: "meta" },
             { key: "phase", label: t(L.colStatus), width: "240px", mobile: "meta" },
             { key: "dates", label: t(L.colDates), width: "220px", mobile: "meta" },
           ]}
           rows={rows}
+          server={serverMode("/projects", q, { total: data.total, page: data.page, sortColumns: { contract: "reference" }, exportBlocked: data.total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined })}
         />
-        {pages > 1 && (
-          <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
-            <span>
-              {sayWith(L.pageRange, lang, { from: String(page * CASE_PAGE + 1), to: String(Math.min(data.total, (page + 1) * CASE_PAGE)), total: String(data.total) })}
-            </span>
-            <span className="flex gap-2">
-              {page > 0 && <ButtonLink href={at(rowView, page - 1)} size="sm" variant="ghost">{t(L.previous)}</ButtonLink>}
-              {page + 1 < pages && <ButtonLink href={at(rowView, page + 1)} size="sm" variant="ghost">{t(L.next)}</ButtonLink>}
-            </span>
-          </CardFooter>
-        )}
       </Card>
       )}
     </>
   );
-}
-
-interface RowContext {
-  derived: Map<string, ContractPhase>;
-  inDelay: Set<string>;
-  policy: Awaited<ReturnType<typeof loadAwardPolicy>> | null;
-  today: string | null;
-  lang: Language;
-}
-
-type Tone = "brand" | "info" | "ok" | "warn" | "err";
-const toneOf = (t: string): { tone?: Tone } => (t === "neutral" ? {} : { tone: t as Tone });
-
-const strip = ({ text, tone, provenance }: StatusCandidate) => ({ text, ...(tone ? { tone } : {}), ...(provenance ? { provenance } : {}) });
-
-/// One case as a row. A row held back to its contract stages (AC-18) has no `award`, so it carries the contract's columns alone.
-function caseRow(r: CaseRow, cx: RowContext): Row {
-  const lang = cx.lang;
-  const t = (words: Words) => say(words, lang);
-  const c = r.contract;
-  const a = r.award;
-  const title = a ? a.exercise.title : c!.award.exercise.title;
-  const awardee = a ? a.awardeeName : c!.award.awardeeName;
-  const reference = a ? a.reference : c!.award.reference;
-  const status = c ? (c.status as ContractStatus) : null;
-  const phase: ContractPhase | null = c && status ? (cx.derived.get(c.id) ?? (status as ContractPhase)) : null;
-  const ended = r.standing.kind === "ENDED" ? r.standing.ended : null;
-  const stageWords = t(standingWords(r.standing));
-  const kind = a ? (a.instrumentKind as InstrumentKind) : null;
-
-  // The status chips: the contract's phase (or the award's status before there is one), In Delay, then the awards list's own.
-  const chips: StatusCandidate[] = [];
-  if (ended) chips.push({ kind: endedKind(ended), text: t(CASE_ENDED_WORDS[ended]), ...toneOf(CASE_ENDED_TONE[ended]) });
-  else if (phase) chips.push({ kind: phaseKind(phase), text: t(PHASE_WORDS[phase]), ...toneOf(PHASE_TONE[phase]) });
-  else if (a) chips.push({ kind: "LIFECYCLE", text: t(AWARD_STATUS_WORDS[a.status as AwardStatus]), ...toneOf(AWARD_STATUS_TONE[a.status as AwardStatus]) });
-  if (c && cx.inDelay.has(c.id)) chips.push({ kind: "IN_DELAY", text: t(L.inDelay), tone: "err" });
-  if (a && kind && !ended) {
-    const awardStatus = a.status as AwardStatus;
-    // OD-5: before acceptance counted with its scans; an accepted award is not re-judged.
-    const scanned = new Set(a.attachments.filter(isLive).map((x) => x.purpose as string));
-    const ret = a.awardReturn;
-    const back = ret ? returnReadsComplete(a.status, kind, { ...ret, signedLetterReceivedOn: day(ret.signedLetterReceivedOn), declarationReceivedOn: day(ret.declarationReceivedOn), authorisationReceivedOn: day(ret.authorisationReceivedOn) }, scanned) : false;
-    const indent = kind === "WORK_INDENT" && cx.today ? indentState(day(a.indentReceivedOn), cx.policy?.indentValidityDays ?? null, cx.today) : null;
-    const held = [...(a.contract?.securities ?? []), ...(a.contract?.policies ?? [])];
-    chips.push(...awardChips({ status: awardStatus, returned: back, toVerify: held.filter((x) => x.status === "LODGED").length, registered: held.length, hasCommitmentNo: !!a.erpCommitmentNo, indentExpired: indentExpiryRaised(indent, day(a.commencedOn), awardStatus) }, lang));
-  }
-
-  // Founder, 2026-10-20: one status per row; the others sit behind "+N".
-  const { primary, others } = primaryCaseStatus(chips);
-  const money = c ? senFromDecimal(c.contractSum) : a ? senFromDecimal(a.awardedValue) : 0n;
-  const completion = c?.dateForCompletion ?? null;
-  return {
-    id: r.contractId ?? r.awardId,
-    search: [title, c?.number ?? "", awardee, reference, stageWords, ...chips.map((x) => x.text)].join(" "),
-    sortKeys: { contract: title },
-    cells: {
-      contract: { kind: "link", text: title, href: caseHref({ awardId: r.awardId, contractId: r.contractId }), sub: c ? sayWith(L.contractNumber, lang, { number: c.number }) : sayWith(L.noContractYet, lang, { reference }) },
-      contractor: { kind: "text", text: awardee },
-      // Money in sen, shown and sorted exactly by the list (never a float).
-      sum: { kind: "money", sen: money.toString() },
-      phase: primary ? { kind: "status", main: strip(primary), others: others.map(strip) } : { kind: "chips", items: [] },
-      dates: c
-        ? { kind: "stack", title: c.contractDate ? sayWith(L.contractDate, lang, { date: formatDate(storedDay(c.contractDate), lang) }) : t(L.notSigned), sub: completion ? sayWith(L.completion, lang, { date: formatDate(storedDay(completion), lang) }) : t(L.completionNotSet) }
-        : { kind: "stack", title: kind ? t(INSTRUMENT_SHORT_WORDS[kind]) : t(L.instrument), sub: t(L.contractNotNumbered) },
-    },
-  };
 }
 
 type Commenced = Awaited<ReturnType<typeof commencedPendingAll>>[number];

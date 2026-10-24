@@ -90,7 +90,7 @@ describe("listOrderBy (ST-7)", () => {
   it("a key outside the set, even an Object prototype name, is the default", () => {
     for (const sort of ["estimatedValue", "constructor", "toString"]) expect(listOrderBy("supplier", { sort, dir: "asc" })).toEqual([{ createdAt: "desc" }, { id: "desc" }]);
   });
-  it("every list has reference and date keys", () => {
-    for (const e of Object.keys(LIST_SORTS) as (keyof typeof LIST_SORTS)[]) expect(sortKeys(e)).toEqual(expect.arrayContaining(["reference", "date"]));
+  it("every list has reference and date keys (an application has no reference of its own: its applicant's name and its date)", () => {
+    for (const e of Object.keys(LIST_SORTS) as (keyof typeof LIST_SORTS)[]) expect(sortKeys(e)).toEqual(expect.arrayContaining([e === "application" ? "name" : "reference", "date"]));
   });
 });

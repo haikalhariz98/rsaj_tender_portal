@@ -114,3 +114,15 @@ describe("serverMode links", () => {
     expect(serverMode("/l", { ...q, q: null, view: null }, o).clearHref).toBeNull();
   });
 });
+
+describe("serverMode on a tabbed page (7.4)", () => {
+  it("every link of a tab's list carries the tab, the search and the view, whichever page it is on", () => {
+    const m = serverMode("/suppliers?tab=applications", { ...base, q: "lister", view: "lapsed", page: 1 }, { total: 100, page: 1, sortColumns: { supplier: "name" } });
+    for (const href of [m.prevHref, m.nextHref, m.sortHrefs.supplier, m.sizeHrefs[50]]) {
+      expect(href).toContain("tab=applications");
+      expect(href).toContain("q=lister");
+      expect(href).toContain("view=lapsed");
+    }
+    expect(m.keep).toEqual({ view: "lapsed" });
+  });
+});

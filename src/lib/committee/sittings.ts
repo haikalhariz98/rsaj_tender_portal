@@ -2,6 +2,8 @@ import { HIDDEN_MATTER_SUBJECT } from "./hidden";
 import type { Tx } from "@/lib/audit/record";
 import { todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { LIST_EXPORT_MAX_ROWS, listOrderBy, type ListQuery } from "@/lib/list-query";
+import { wordsWhere } from "@/lib/search/words";
 import type { OrgScope } from "@/lib/org-scope";
 import { loadRoster } from "@/lib/people/load";
 
@@ -28,27 +30,33 @@ import { inOrder } from "@/lib/series";
 
 const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
 
-export const SITTINGS_PAGE = 50;
+/// The list's views, which are the sitting's status: upcoming are scheduled, awaiting minutes are in progress.
+export const SITTING_VIEWS = ["upcoming", "awaiting"] as const;
+export type SittingView = (typeof SITTING_VIEWS)[number];
+const VIEW_STATUS = { upcoming: "SCHEDULED", awaiting: "IN_PROGRESS" } as const;
 
-/// One page of the organisation's sittings, newest first, with what the list shows.
-export async function listSittings(scope: OrgScope, page = 0) {
+/// One page of the organisation's sittings (`q.size` a page, a page past the end is the last), under the search and the view, in `listOrderBy`'s order (the chosen
+/// reference, committee or date; newest first by default), with what the list shows. `total` is the count under the same where; `counts` stay over the whole set.
+/// With `{ all: true }` (the export): no skip, and `LIST_EXPORT_MAX_ROWS + 1` rows, to tell "over".
+export async function listSittings(scope: OrgScope, q: ListQuery<SittingView>, opts: { all?: boolean } = {}) {
   const orgId = scope.organisationId;
   if (!orgId) return { sittings: [], committees: [], total: 0, page: 0, counts: { upcoming: 0, awaiting: 0, pending: 0 } };
 
   const where = { committee: { organisationId: orgId } };
-  const [meetings, total, committees, roster, byStatus, pending] = await Promise.all([
+  const listWhere = { AND: [where, wordsWhere("sitting", q.words), q.view ? { status: VIEW_STATUS[q.view] } : {}] };
+  const total = await db.meeting.count({ where: listWhere });
+  const page = opts.all ? 0 : Math.min(q.page, Math.max(0, Math.ceil(total / q.size) - 1));
+  const [meetings, committees, roster, byStatus, pending] = await Promise.all([
     db.meeting.findMany({
-      where,
-      orderBy: [{ meetingDate: "desc" }, { id: "asc" }],
-      skip: page * SITTINGS_PAGE,
-      take: SITTINGS_PAGE,
+      where: listWhere,
+      orderBy: listOrderBy("sitting", q),
+      ...(opts.all ? { take: LIST_EXPORT_MAX_ROWS + 1 } : { skip: page * q.size, take: q.size }),
       include: {
         committee: { include: { members: true } },
         attendance: true,
         decisions: { select: { outcome: true, withdrawnAt: true } },
       },
     }),
-    db.meeting.count({ where }),
     db.committee.findMany({
       where: { organisationId: orgId },
       orderBy: [{ isExternal: "asc" }, { nameEn: "asc" }],

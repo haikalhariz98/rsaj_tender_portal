@@ -32,6 +32,7 @@ import { windowGate } from "@/lib/window/gate";
 import type { ApprovalStatus, RequisitionStatus, StepDecision } from "@/lib/requisition/types";
 import type { LiabilityBand } from "@/lib/securities/liability";
 import { Prisma } from "@/generated/prisma/client";
+import { likeLiteral } from "@/lib/search/words";
 import { alertingUpTo, longExpiredBefore } from "@/lib/securities/expiry";
 import { applicableRequirements, type Requirement } from "@/lib/securities/insurance";
 
@@ -531,7 +532,7 @@ export type RegisterView = "all" | "expiring" | "unverified" | "attention";
  * first within each (`registerRank`). The views and the header's counts are the same
  * database conditions, so a view always holds what its count says.
  */
-export async function listRegister(organisationId: string, page = 0, view: RegisterView = "all", countsOnly = false) {
+export async function listRegister(organisationId: string, page = 0, view: RegisterView = "all", countsOnly = false, opts: { words?: readonly string[]; size?: number } = {}) {
   const org = await exerciseOrg(organisationId);
   const empty = { org: null, securities: [], policies: [], order: [] as { kind: "S" | "P"; id: string }[], config: null, total: 0, page: 0, counts: { all: 0, unverified: 0, expiring: 0, attention: 0 } };
   if (!org) return empty;
@@ -546,8 +547,11 @@ export async function listRegister(organisationId: string, page = 0, view: Regis
   const expPol = upTo ? Prisma.sql`(p.status <> 'REJECTED' AND p."periodEnd" <= ${upTo})` : Prisma.sql`FALSE`;
   const secOf = (v: RegisterView) => (v === "unverified" ? Prisma.sql`AND s.status = 'LODGED'` : v === "expiring" ? Prisma.sql`AND ${expSec}` : v === "attention" ? Prisma.sql`AND (s.status = 'LODGED' OR ${expSec})` : Prisma.empty);
   const polOf = (v: RegisterView) => (v === "unverified" ? Prisma.sql`AND p.status = 'LODGED'` : v === "expiring" ? Prisma.sql`AND ${expPol}` : v === "attention" ? Prisma.sql`AND (p.status = 'LODGED' OR ${expPol})` : Prisma.empty);
-  const secView = secOf(view);
-  const polView = polOf(view);
+  // The search (ADR 0044): every word in the contract's number (the instrument's project number; the award's own reference is not read, AC-45); the header counts stay over the whole register.
+  const wordSql = (opts.words ?? []).length ? Prisma.sql`AND ${Prisma.join((opts.words ?? []).map((w) => Prisma.sql`c.number ILIKE ${`%${likeLiteral(w)}%`}`), " AND ")}` : Prisma.empty;
+  const size = opts.size ?? REGISTER_PAGE;
+  const secView = Prisma.sql`${secOf(view)} ${wordSql}`;
+  const polView = Prisma.sql`${polOf(view)} ${wordSql}`;
   // AC-45 (replacing AC-15's FR-MTD-007 filter here): every instrument belongs to a contract, and a contract is visible to every reader after issue (AC-18), so none is left out of the
   // rows or the counts. What a reader not named on a restricted exercise sees of it is the contract's own register: nothing of the tender is read below (no exercise, no award reference).
   const rows = Prisma.sql`
@@ -556,22 +560,22 @@ export async function listRegister(organisationId: string, page = 0, view: Regis
     UNION ALL
     SELECT 'P' AS kind, p.id, CASE WHEN p.status = 'REJECTED' THEN 2 WHEN p."periodEnd" < ${cutoff} THEN 1 ELSE 0 END AS rank, p."periodEnd" AS ends
       FROM "InsurancePolicy" p JOIN "Contract" c ON c.id = p."contractId" JOIN "Award" a ON a.id = c."awardId" WHERE c."organisationId" = ${org.id} ${polView}`;
-  const count = async (v: RegisterView) => {
-    const sv = secOf(v);
-    const pv = polOf(v);
+  const count = async (v: RegisterView, searched = false) => {
+    const sv = searched ? secView : secOf(v);
+    const pv = searched ? polView : polOf(v);
     const r = await db.$queryRaw<{ n: bigint }[]>`
       SELECT (SELECT count(*) FROM "SecurityInstrument" s JOIN "Contract" c ON c.id = s."contractId" JOIN "Award" a ON a.id = c."awardId" WHERE c."organisationId" = ${org.id} ${sv})
            + (SELECT count(*) FROM "InsurancePolicy" p JOIN "Contract" c ON c.id = p."contractId" JOIN "Award" a ON a.id = c."awardId" WHERE c."organisationId" = ${org.id} ${pv}) AS n`;
     return Number(r[0]?.n ?? 0);
   };
   const [all, unverified, expiring, attention] = await Promise.all([count("all"), count("unverified"), count("expiring"), count("attention")]);
-  const total = { all, unverified, expiring, attention }[view];
+  const total = (opts.words ?? []).length ? await count(view, true) : { all, unverified, expiring, attention }[view];
   // The Contracts list's buttons want the counts alone (AC-15): no page is drawn.
   if (countsOnly) return { ...empty, org, config, total, counts: { all, unverified, expiring, attention } };
-  const last = Math.max(0, Math.ceil(total / REGISTER_PAGE) - 1);
+  const last = Math.max(0, Math.ceil(total / size) - 1);
   const p = Math.min(Math.max(0, page), last);
   const order = await db.$queryRaw<{ kind: "S" | "P"; id: string }[]>`
-    SELECT kind, id FROM (${rows}) r ORDER BY rank, ends ASC NULLS FIRST, id LIMIT ${REGISTER_PAGE} OFFSET ${p * REGISTER_PAGE}`;
+    SELECT kind, id FROM (${rows}) r ORDER BY rank, ends ASC NULLS FIRST, id LIMIT ${size} OFFSET ${p * size}`;
   const include = { issuer: { select: { name: true, retiredOn: true } }, contract: { select: { id: true, number: true, status: true, award: { select: { awardeeName: true } } } } } as const;
   const [securities, policies] = await Promise.all([
     db.securityInstrument.findMany({ where: { id: { in: order.filter((o) => o.kind === "S").map((o) => o.id) } }, include }),

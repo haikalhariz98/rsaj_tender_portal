@@ -1,13 +1,15 @@
 import { DataList, type Row } from "@/components/data-list";
 import { ShieldIcon } from "@/components/icons";
-import { Card, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { REGISTER_STATUS_TONE } from "@/lib/award/labels";
 import { INSURANCE_KIND_WORDS, REGISTER_STATUS_WORDS, CASES_LIST_WORDS, SECURITIES_VIEW_WORDS as V, SECURITY_KIND_WORDS } from "@/lib/contract/case-page-words";
 import type { Words } from "@/lib/contract/labels";
 import type { Language } from "@/lib/i18n/language";
 import { say, sayWith } from "@/lib/i18n/say";
-import { listRegister, REGISTER_PAGE, type RegisterView } from "@/lib/award/repo";
+import { listRegister, type RegisterView } from "@/lib/award/repo";
+import { serverMode } from "@/components/server-list";
+import { LIST_EXPORT_MAX_ROWS, listHref, type ListQuery } from "@/lib/list-query";
 import { ButtonLink } from "@/components/ui/button";
 import { issuerStanding } from "@/lib/securities/bond";
 import { storedDay } from "@/lib/dates";
@@ -27,13 +29,13 @@ const VIEWS: { id: RegisterView; label: Words }[] = [
   { id: "all", label: V.viewAll },
 ];
 
-export async function SecuritiesView({ actor, sv, pageParam, lang = "en" }: { actor: StaffActor; sv: string | undefined; pageParam: string | undefined; lang?: Language }) {
+export async function SecuritiesView({ actor, sv, query, lang = "en" }: { actor: StaffActor; sv: string | undefined; query: ListQuery; lang?: Language }) {
   const t = (words: Words) => say(words, lang);
   const view = (VIEWS.find((v) => v.id === sv)?.id ?? "attention") as RegisterView;
-  const requested = Math.max(0, Number.parseInt(pageParam ?? "0", 10) || 0);
-  const { org, securities, policies, order, config, total, page, counts } = await listRegister(actor.organisationId, requested, view);
-  const pages = Math.max(1, Math.ceil(total / REGISTER_PAGE));
-  const href = (v: RegisterView, p = 0) => `/projects?${new URLSearchParams({ view: "securities", ...(v !== "attention" ? { sv: v } : {}), ...(p ? { page: String(p) } : {}) }).toString()}`;
+  const { org, securities, policies, order, config, total, page, counts } = await listRegister(actor.organisationId, query.page, view, false, { words: query.words, size: query.size });
+  // The securities views are `sv`, not `view`: the address keeps both, and the list's own links add the search, the size and the page to it.
+  const base = (v: RegisterView) => `/projects?${new URLSearchParams({ view: "securities", ...(v !== "attention" ? { sv: v } : {}) }).toString()}`;
+  const href = (v: RegisterView) => listHref(base(v), { q: query.q, size: query.size });
   const today = org?.today ?? null;
   const offsets = config?.expiryOffsets ?? [];
   const alertOf = (d: Date | null) => (today ? expiryAlert(d ? storedDay(d) : null, offsets, today) : null);
@@ -112,20 +114,8 @@ export async function SecuritiesView({ actor, sv, pageParam, lang = "en" }: { ac
             { key: "status", label: t(V.colStatus), width: "200px", mobile: "meta" },
           ]}
           rows={rows}
+          server={{ ...serverMode(base(view), { ...query, view: null, sort: null }, { total, page, sortColumns: {}, exportBlocked: total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined }), action: "/projects", keep: { view: "securities", ...(view !== "attention" ? { sv: view } : {}), ...(query.size !== 25 ? { size: String(query.size) } : {}) } }}
         />
-        {total > 0 && (
-          <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
-            <span>
-              {sayWith(V.showing, lang, { from: String(page * REGISTER_PAGE + 1), to: String(page * REGISTER_PAGE + rows.length), total: String(total) })}
-            </span>
-            {pages > 1 && (
-              <span className="flex gap-2">
-                {page > 0 && <ButtonLink href={href(view, page - 1)} size="sm" variant="ghost">{t(CASES_LIST_WORDS.previous)}</ButtonLink>}
-                {page + 1 < pages && <ButtonLink href={href(view, page + 1)} size="sm" variant="ghost">{t(CASES_LIST_WORDS.next)}</ButtonLink>}
-              </span>
-            )}
-          </CardFooter>
-        )}
       </Card>
     </>
   );

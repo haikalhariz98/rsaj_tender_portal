@@ -1,4 +1,5 @@
-import { DataList, type Row } from "@/components/data-list";
+import { DataList, type Row, type ServerMode } from "@/components/data-list";
+import { serverMode } from "@/components/server-list";
 import { BellIcon, BuildingIcon, ClipboardIcon, ClockIcon, GlobeIcon, ShieldIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/feedback";
@@ -11,24 +12,25 @@ import { StatusCounts } from "@/components/ui/status-counts";
 import { loadRegisterSettings } from "@/lib/portal/apply-repo";
 import { flagWords } from "@/lib/portal/queue";
 import { loadPortalQueue } from "@/lib/portal/queue-repo";
-import { daysFrom, storedDay, dayOrNull as day } from "@/lib/dates";
+import { daysFrom, dayOrNull as day } from "@/lib/dates";
 import { addDays } from "@/lib/securities/period";
 import { formatDate } from "@/lib/format";
 import { routeState } from "@/lib/suppliers/blacklist";
-import { documentStates, stateCounts } from "@/lib/suppliers/documents";
+import { documentStates } from "@/lib/suppliers/documents";
 import { expiryBand, reminderDue, startsOn, worstBand, type ExpiryBand } from "@/lib/suppliers/expiry";
-import { APPLICATION_KIND_LABEL, blacklistEndWords, CHANNEL_LABEL, eventReasonWords, renewalUpcomingWords, DOCUMENT_STATE_LABEL, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, QUEUE_STATE_LABEL, QUEUE_STATE_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords, SUPPLIER_STATUS_LABEL, SUPPLIER_STATUS_TONE } from "@/lib/suppliers/labels";
+import { blacklistEndWords, eventReasonWords, renewalUpcomingWords, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords } from "@/lib/suppliers/labels";
 import { db } from "@/lib/db";
-import { answeredOnTimeIds, documentFacts, listSuppliers, loadSupplierConfig, supplierOrg, SUPPLIERS_PAGE } from "@/lib/suppliers/repo";
-import { queueState, type QueueState } from "@/lib/suppliers/review";
+import { APPLICATION_VIEWS, answeredOnTimeIds, documentFacts, documentsToSeeToIds, listSuppliers, loadSupplierConfig, supplierOrg, SUPPLIER_VIEWS, SUPPLIERS_PAGE } from "@/lib/suppliers/repo";
+import { LIST_EXPORT_MAX_ROWS, listHref, parseListQuery, sortKeys, type ListQuery } from "@/lib/list-query";
 import { standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
-import type { ApplicationKind, SupplierStatus } from "@/lib/suppliers/types";
+import type { SupplierStatus } from "@/lib/suppliers/types";
 import { permissionGate, requireStaff } from "@/app/_auth/actor";
 import { BOARD_PAGE, loadBoard } from "@/lib/portal/projects/announcement-store";
 import { CATEGORY_TONE, CATEGORY_WORDS } from "@/lib/portal/projects/announcements";
 
 import { PinDrawer, PublishDrawer, WithdrawDrawer } from "./announcement-editors";
+import { buildApplicationRows, buildRegisterRows } from "./rows";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Suppliers" };
@@ -42,10 +44,13 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * waits for sign-in (6.15b); performance waits for 6.16 — each said in its own words, never shown as
  * if it were here (condition 3).
  */
-export default async function SuppliersPage(props: { searchParams: Promise<{ tab?: string; page?: string; apage?: string }> }) {
+export default async function SuppliersPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const actor = await requireStaff();
-  const { tab, page: raw, apage } = await props.searchParams;
-  const requested = Math.max(0, Number.parseInt(raw ?? "0", 10) || 0);
+  const sp = await props.searchParams;
+  const { tab, apage } = sp as { tab?: string; apage?: string };
+  // The address holds one list's query at a time: the one for the tab showing. The other tab starts from its own default.
+  const registerQ = parseListQuery((tab ?? "register") === "register" ? sp : {}, SUPPLIER_VIEWS, sortKeys("supplier"));
+  const applicationsQ = parseListQuery(tab === "applications" ? sp : {}, APPLICATION_VIEWS, sortKeys("application"));
   const org0 = await supplierOrg(actor.organisationId);
   if (!org0) {
     return <PageHeader title="Suppliers" />;
@@ -56,7 +61,9 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   const bands = { criticalDays: p?.criticalDays ?? null, warningDays: p?.warningDays ?? null, upcomingDays: p?.upcomingDays ?? null };
   const bandsSet = bands.criticalDays != null && bands.warningDays != null && bands.upcomingDays != null;
   // fix R-10: each list loads only what it shows; the Expiring list reaches no further than the furthest band.
-  const data = await listSuppliers(actor.organisationId, requested, today, today && bandsSet ? addDays(today, bands.upcomingDays!) : null, p?.autoSuspendOnLapse ?? null);
+  // "Documents to see to" is judged over the whole register, then paged.
+  const attentionIds = today ? await documentsToSeeToIds(org0.id, cfg.typeFacts, today) : undefined;
+  const data = await listSuppliers(actor.organisationId, registerQ, today, today && bandsSet ? addDays(today, bands.upcomingDays!) : null, p?.autoSuspendOnLapse ?? null, { applications: applicationsQ, attentionIds });
   if (!data) {
     return <PageHeader title="Suppliers" />;
   }
@@ -69,7 +76,6 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   const mayPublish = tab === "announcements" ? await permissionGate(actor, "announcements.publish") : null;
   // Phase 4c: which requests the supplier answered online in time, so a passed deadline reads "answered online" and not "lapsed".
   const answered = await answeredOnTimeIds(db, org0.id, [...openApplications.map((a) => a.id), ...suppliers.flatMap((s) => s.applications.map((a) => a.id))]);
-  const pages = Math.max(1, Math.ceil(data.total / SUPPLIERS_PAGE));
   const typeExpires = new Map(cfg.types.map((t) => [t.id, t.expires]));
 
   // a2: each supplier's standing (derived, OD-7 A) and its documents' expiry bands (FR-VND-008).
@@ -85,62 +91,8 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   );
 
   // ------------------------------------------------------------------ the register
-  const register: Row[] = suppliers.map((s) => {
-    const status = s.status as SupplierStatus;
-    const rd = readings.get(s.id)!;
-    const states = rd.states;
-    const counts = stateCounts(states);
-    const issues = (["MISSING", "EXPIRED", "NOT_IN_ORDER", "NOT_CHECKED", "NOT_YET_VALID"] as const).filter((k) => counts[k]);
-    const open = s.applications[0];
-    return {
-      id: s.id,
-      views: [...(status === "REGISTERED" ? ["registered"] : []), ...(status === "APPLICANT" ? ["applicants"] : []), ...(rd.standing && rd.standing.standing !== "ACTIVE" && rd.standing.standing !== "NOT_REGISTERED" ? ["barred"] : []), ...(status === "REGISTERED" && !s.erpVendorCode ? ["unsynced"] : []), ...(issues.length ? ["attention"] : [])],
-      search: [s.registeredName, s.reference, s.registrationNo, SUPPLIER_STATUS_LABEL[status].en].join(" "),
-      sortKeys: { supplier: s.registeredName },
-      cells: {
-        supplier: { kind: "link", text: s.registeredName, href: `/suppliers/${s.id}`, sub: `${s.reference} · ${s.registrationNo}` },
-        status: rd.standing && status === "REGISTERED" ? { kind: "chips", items: [{ text: standingWords(rd.standing).en, tone: TONE[standingTone(rd.standing)] }] } : { kind: "badge", text: SUPPLIER_STATUS_LABEL[status].en, tone: TONE[SUPPLIER_STATUS_TONE[status]] },
-        documents: {
-          kind: "chips",
-          items: !today
-            ? [{ text: "Not judged: the organisation's time zone is not set", tone: "warn" as const }]
-            : [
-                ...(issues.length
-                  ? issues.map((k) => ({ text: `${counts[k]} ${DOCUMENT_STATE_LABEL[k].en.toLowerCase()}`, tone: k === "NOT_CHECKED" || k === "NOT_YET_VALID" ? ("warn" as const) : ("err" as const) }))
-                  : [{ text: states.length ? "In order" : "None lodged", tone: states.length ? ("ok" as const) : ("warn" as const) }]),
-                ...(rd.worst && rd.worst !== "EXPIRED" && rd.worst !== "NO_EXPIRY" ? [{ text: `Expiry: ${EXPIRY_BAND_LABEL[rd.worst].en.toLowerCase()}`, tone: TONE[EXPIRY_BAND_TONE[rd.worst]] }] : []),
-              ],
-        },
-        where: {
-          kind: "chips",
-          items: [
-            ...(open ? [{ text: `${APPLICATION_KIND_LABEL[open.kind as ApplicationKind].en}: ${QUEUE_STATE_LABEL[queueState({ ...open, resubmitBy: day(open.resubmitBy), answeredOnTime: answered.has(open.id) }, today)].en.toLowerCase()}`, tone: "brand" as const }] : []),
-            ...(status === "REGISTERED" ? [s.erpVendorCode ? { text: `Vendor code ${s.erpVendorCode}`, tone: "ok" as const } : { text: ERP_NOT_SYNCED.en, tone: "warn" as const }] : []),
-          ],
-        },
-      },
-    };
-  });
-
-  // ------------------------------------------------------------------ the applications queue
-  const queue: Row[] = openApplications.map((a) => {
-    const s = a.supplier;
-    const st: QueueState = queueState({ ...a, resubmitBy: day(a.resubmitBy), answeredOnTime: answered.has(a.id) }, today);
-    const received = storedDay(a.receivedOn);
-    const age = today ? daysFrom(received, today) : null;
-    return {
-      id: a.id,
-      views: [st === "WITH_APPROVAL" ? "approval" : st === "LAPSED" ? "lapsed" : st === "RESUBMISSION_REQUESTED" ? "resubmission" : "received"],
-      search: [s.registeredName, s.reference, APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en, CHANNEL_LABEL[a.channel].en, QUEUE_STATE_LABEL[st].en].join(" "),
-      sortKeys: { received },
-      cells: {
-        supplier: { kind: "link", text: s.registeredName, href: `/suppliers/${s.id}?tab=applications`, sub: `${s.reference} · ${APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en} · ${CHANNEL_LABEL[a.channel].en}` },
-        received: { kind: "stack", title: formatDate(received), sub: age == null ? "Days not counted: no time zone" : age === 0 ? "Today" : `${plural(age, "day", "days")} ago` },
-        state: { kind: "badge", text: QUEUE_STATE_LABEL[st].en, tone: TONE[QUEUE_STATE_TONE[st]] },
-        deadline: { kind: "text", text: a.resubmitBy && a.status === "RESUBMISSION_REQUESTED" ? `Resubmit by ${formatDate(day(a.resubmitBy))}` : "—", dim: !a.resubmitBy },
-      },
-    };
-  });
+  const register = buildRegisterRows(suppliers, { readings, answered, today }, { forExport: false });
+  const queue = buildApplicationRows(openApplications, { answered, today }, { forExport: false });
   // ------------------------------------------------------------------ online applications, staged until an officer records them
   const onlineRows: Row[] = online.rows.map((a) => {
     const clash = a.flags.some((f) => f.code === "NUMBER_ON_REGISTER");
@@ -164,8 +116,6 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     };
   });
 
-  // Oldest first: the order a queue is worked in.
-  queue.sort((a, b) => String(a.sortKeys?.received ?? "").localeCompare(String(b.sortKeys?.received ?? "")));
   // ------------------------------------------------------------------ a2: expiring (FR-VND-008), shown and never sent
   const SHOWN: readonly ExpiryBand[] = ["EXPIRED", "CRITICAL", "WARNING", "UPCOMING", "BANDS_NOT_SET"];
   const expiringRows: Row[] = expiring.flatMap((s) =>
@@ -211,55 +161,66 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   });
 
   const { registered, unsynced } = data;
-  const paged = data.total > SUPPLIERS_PAGE;
-  // Derived from the documents, so counted on the page shown; barred is counted in the database from the whole register (residual 1).
-  const attention = register.filter((r) => r.views?.includes("attention")).length;
+  // Derived from the documents and judged over the whole register; barred is counted in the database from the whole register (residual 1).
+  const attention = attentionIds?.length ?? 0;
   const barredCount = data.barredCount;
+  // A tab's own list: its search is a GET form to /suppliers that keeps the tab, and its links carry the tab.
+  const tabMode = (id: string, q: ListQuery, o: { total: number; page: number; sortColumns: Record<string, string> }): ServerMode => {
+    const m = serverMode(`/suppliers?tab=${id}`, q, { ...o, exportBlocked: o.total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined });
+    return { ...m, action: "/suppliers", keep: { tab: id, ...m.keep } };
+  };
+  const registerAt = (v: (typeof SUPPLIER_VIEWS)[number] | null) => listHref("/suppliers?tab=register", { q: registerQ.q, view: v, sort: registerQ.sort, dir: registerQ.dir, size: registerQ.size });
+  const applicationsAt = (v: (typeof APPLICATION_VIEWS)[number] | null) => listHref("/suppliers?tab=applications", { q: applicationsQ.q, view: v, sort: applicationsQ.sort, dir: applicationsQ.dir, size: applicationsQ.size });
+  const registerViews = [
+    { id: null, label: "All" },
+    { id: "registered", label: `Registered (${registered})` },
+    { id: "applicants", label: `Applicants (${data.applicants})` },
+    { id: "attention", label: `Documents to see to${today ? ` (${attention})` : ""}` },
+    { id: "barred", label: `Suspended or blacklisted${barredCount == null ? "" : ` (${barredCount})`}` },
+    { id: "unsynced", label: `${ERP_NOT_SYNCED.en} (${unsynced})` },
+  ] as const;
+  const applicationViews = [
+    { id: null, label: "All" },
+    { id: "received", label: `Received (${data.applicationCounts.received})` },
+    { id: "approval", label: `With approval (${data.applicationCounts.approval})` },
+    { id: "resubmission", label: `Resubmission requested (${data.applicationCounts.resubmission})` },
+    { id: "lapsed", label: `Lapsed: record the lapse (${data.applicationCounts.lapsed})` },
+  ] as const;
 
   const tabs = [
     {
       id: "register",
       label: "Register",
       icon: <BuildingIcon size={15} />,
-      count: data.total,
+      count: registerQ.q || registerQ.view ? undefined : data.total,
       panel: (
         <Card className="overflow-hidden">
-          <CardHeader icon={<BuildingIcon size={17} />} title="The register" subtitle="By name" divided={false} />
+          <CardHeader icon={<BuildingIcon size={17} />} title="The register" subtitle="Newest first" divided={false} />
+          <div className="flex flex-wrap gap-1.5 px-5 pb-3 sm:px-6">
+            {registerViews.map((v) => (
+              <ButtonLink key={v.id ?? "all"} href={registerAt(v.id)} size="sm" variant={(registerQ.view ?? null) === v.id ? "secondary" : "ghost"} aria-current={(registerQ.view ?? null) === v.id ? "page" : undefined}>
+                {v.label}
+              </ButtonLink>
+            ))}
+          </div>
           <DataList
             flat
             selectable={false}
             exportName="suppliers"
             searchPlaceholder="Search by name, reference or registration number"
             emptyTitle="No supplier is recorded yet. Record a paper application to start."
-            views={[
-              { id: "registered", label: "Registered" },
-              { id: "applicants", label: "Applicants" },
-              { id: "attention", label: "Documents to see to" },
-              { id: "barred", label: "Suspended or blacklisted" },
-              { id: "unsynced", label: ERP_NOT_SYNCED.en },
-            ]}
             rowAction={{ label: "Open", hrefTemplate: "/suppliers/{id}" }}
             rowOpens
             stackBelow="xl"
             columns={[
-              { key: "supplier", label: "Supplier", sortable: true, mobile: "primary" },
+              { key: "supplier", label: "Supplier", mobile: "primary" },
               { key: "status", label: "Standing", width: "220px", mobile: "meta" },
               { key: "documents", label: "Documents", width: "200px", mobile: "meta" },
               { key: "where", label: "Status", width: "250px", mobile: "meta" },
             ]}
             rows={register}
+            server={tabMode("register", registerQ, { total: data.total, page: data.page, sortColumns: { supplier: "name" } })}
           />
-          {pages > 1 && (
-            <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
-              <span>
-                Suppliers {data.page * SUPPLIERS_PAGE + 1}–{Math.min(data.total, (data.page + 1) * SUPPLIERS_PAGE)} of {data.total}, by name. Search and the views look within this page.
-              </span>
-              <span className="flex gap-2">
-                {data.page > 0 && <ButtonLink href={`/suppliers?tab=register&page=${data.page - 1}`} size="sm" variant="ghost">Previous</ButtonLink>}
-                {data.page + 1 < pages && <ButtonLink href={`/suppliers?tab=register&page=${data.page + 1}`} size="sm" variant="ghost">Next</ButtonLink>}
-              </span>
-            </CardFooter>
-          )}
         </Card>
       ),
     },
@@ -270,28 +231,29 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       count: data.queueTotal,
       panel: (
         <Card className="overflow-hidden">
-          <CardHeader icon={<ClipboardIcon size={17} />} title="Applications awaiting a decision" subtitle="Oldest first" divided={false} />
+          <CardHeader icon={<ClipboardIcon size={17} />} title="Applications awaiting a decision" subtitle="Newest first" divided={false} />
+          <div className="flex flex-wrap gap-1.5 px-5 pb-3 sm:px-6">
+            {applicationViews.map((v) => (
+              <ButtonLink key={v.id ?? "all"} href={applicationsAt(v.id)} size="sm" variant={(applicationsQ.view ?? null) === v.id ? "secondary" : "ghost"} aria-current={(applicationsQ.view ?? null) === v.id ? "page" : undefined}>
+                {v.label}
+              </ButtonLink>
+            ))}
+          </div>
           <DataList
             flat
             selectable={false}
             exportName="supplier-applications"
             searchPlaceholder="Search by supplier"
             emptyTitle="Nothing awaiting a decision"
-            views={[
-              { id: "received", label: "Received" },
-              { id: "approval", label: "With approval" },
-              { id: "resubmission", label: "Resubmission requested" },
-              { id: "lapsed", label: "Lapsed: record the lapse" },
-            ]}
             columns={[
               { key: "supplier", label: "Supplier", mobile: "primary" },
-              { key: "received", label: "Received", width: "170px", sortable: true, mobile: "meta" },
+              { key: "received", label: "Received", width: "170px", mobile: "meta" },
               { key: "state", label: "Status", width: "220px", mobile: "meta" },
               { key: "deadline", label: "Deadline", width: "190px", hideBelow: "md", mobile: "meta" },
             ]}
             rows={queue}
+            server={tabMode("applications", applicationsQ, { total: data.applicationsTotal, page: data.applicationsPage, sortColumns: { supplier: "name", received: "date" } })}
           />
-          {data.queueTotal > queue.length && <CardFooter className="text-[12.5px] text-ink-3">Showing the oldest {queue.length} of {data.queueTotal}.</CardFooter>}
         </Card>
       ),
     },
@@ -476,11 +438,11 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
         label="Where the register stands"
         className="mb-6"
         items={[
-          { label: "Registered", count: registered, href: "/suppliers?tab=register" },
+          { label: "Registered", count: registered, href: "/suppliers?tab=register&view=registered" },
           { label: "Awaiting a decision", count: data.queueTotal, href: "/suppliers?tab=applications", tone: "info" },
-          { label: paged ? "With documents to see to on this page" : "With documents to see to", count: attention, href: "/suppliers?tab=expiring", tone: "warn" },
+          { label: "With documents to see to", count: attention, href: "/suppliers?tab=register&view=attention", tone: "warn" },
           { label: "Suspended or blacklisted", count: barredCount ?? 0, href: "/suppliers?tab=standing", tone: "err" },
-          { label: ERP_NOT_SYNCED.en, count: unsynced, href: "/suppliers?tab=register", tone: "warn" },
+          { label: ERP_NOT_SYNCED.en, count: unsynced, href: "/suppliers?tab=register&view=unsynced", tone: "warn" },
         ]}
       />
       {barredCount == null && <Callout tone="warn" className="mb-6" title="Suspended and blacklisted suppliers are not judged." />}

@@ -82,6 +82,8 @@ export const LIST_SORTS = {
   project: { keys: { reference: "reference", date: "createdAt" }, date: "createdAt" },
   supplier: { keys: { reference: "reference", name: "registeredName", date: "createdAt" }, date: "createdAt" },
   sitting: { keys: { reference: "reference", name: "committee.nameEn", date: "meetingDate" }, date: "meetingDate" },
+  // The open applications: by the applicant's name and the day the paper arrived.
+  application: { keys: { name: "supplier.registeredName", date: "receivedOn" }, date: "receivedOn" },
 } as const satisfies Record<SearchEntity, { keys: Record<string, string>; date: string }>;
 
 export type SortKey<E extends SearchEntity> = keyof (typeof LIST_SORTS)[E]["keys"] & string;
@@ -98,6 +100,7 @@ export interface ListOrderBy {
   project: Prisma.AwardOrderByWithRelationInput[];
   supplier: Prisma.SupplierOrderByWithRelationInput[];
   sitting: Prisma.MeetingOrderByWithRelationInput[];
+  application: Prisma.SupplierApplicationOrderByWithRelationInput[];
 }
 
 /// The Prisma orderBy for a query: the chosen column, then id, both in `dir`; or the main date and id, newest first. The id makes

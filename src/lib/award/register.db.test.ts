@@ -66,3 +66,26 @@ describe("listRegister: the securities view (AC-15)", () => {
     expect(r.securities.map((s) => s.id)).toContain(ids.restricted);
   });
 });
+
+describe("listRegister: the search and the page size (7.4)", () => {
+  it("finds an instrument by its contract number, counts the matches as the total, and leaves the header counts over the whole register", async () => {
+    const contract = await db.securityInstrument.findUniqueOrThrow({ where: { id: ids.restricted! }, select: { contract: { select: { number: true } } } });
+    const r = await listRegister(organisationId, 0, "all", false, { words: [contract.contract.number.toLowerCase()] });
+    expect(r.securities.map((s) => s.id)).toEqual([ids.restricted]);
+    expect(r.total).toBe(1);
+    expect(r.counts).toEqual({ all: 3, unverified: 2, expiring: 0, attention: 2 });
+    // A wildcard is literal; the award's own reference is not searched (AC-45).
+    expect((await listRegister(organisationId, 0, "all", false, { words: ["%"] })).total).toBe(0);
+    const award = await db.award.findFirstOrThrow({ where: { organisationId }, select: { reference: true } });
+    expect((await listRegister(organisationId, 0, "all", false, { words: [award.reference] })).total).toBe(0);
+  });
+
+  it("pages by the size asked for, and a page past the end is the last", async () => {
+    const first = await listRegister(organisationId, 0, "all", false, { size: 2 });
+    expect(first.order).toHaveLength(2);
+    expect(first.total).toBe(3);
+    const past = await listRegister(organisationId, 9, "all", false, { size: 2 });
+    expect(past.page).toBe(1);
+    expect(past.order).toHaveLength(1);
+  });
+});

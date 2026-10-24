@@ -6,6 +6,7 @@ import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { loadCase, oldAwardTarget } from "@/app/_auth/case";
 import { pipelineCounts } from "@/lib/dashboard";
 import { db } from "@/lib/db";
+import { LIST_EXPORT_MAX_ROWS } from "@/lib/list-query";
 import { inDelayContractIds } from "@/lib/supervision/load";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
@@ -209,7 +210,7 @@ describe("oldAwardTarget: /awards/{id}?tab= (C9 done-when 2 and 3; AC-23)", () =
 });
 
 describe("listCases (C-1, AC-17, AC-18)", () => {
-  it("pages stably across pre- and post-contract rows: ordered by award createdAt desc then id, no row twice, none missing", async () => {
+  it("pages stably across pre- and post-contract rows: ordered by award createdAt desc then id desc (ST-7), no row twice, none missing", async () => {
     const hidden = await hiddenFor(outsider);
     const first = await listCases(organisationId, hidden, { page: 0 });
     const second = await listCases(organisationId, hidden, { page: 1 });
@@ -220,7 +221,7 @@ describe("listCases (C-1, AC-17, AC-18)", () => {
     expect(seen).toHaveLength(first.total);
     const expected = await db.award.findMany({
       where: { organisationId, OR: [{ exerciseId: { notIn: hidden } }, { contract: { isNot: null } }] },
-      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: { id: true },
     });
     expect(seen).toEqual(expected.map((x) => x.id));
@@ -325,5 +326,91 @@ describe("parseCaseListView", () => {
     const views: CaseRowView[] = ["awarding", "signing", "on_site", "completed", "closed", "ended", "delay", "commenced"];
     for (const v of [...views, "securities", "submissions"]) expect(parseCaseListView(v)).toBe(v);
     for (const v of [undefined, "", "all", "AWARDING", "nope"]) expect(parseCaseListView(v)).toBeUndefined();
+  });
+});
+
+// 7.4: the Projects list is searched, sorted and paged by the server over the whole set; `total` is the count under the same where as the rows.
+describe("listCases, server mode (7.4)", () => {
+  const numberOf = async (key: string) => (await db.contract.findUniqueOrThrow({ where: { id: ids[key].contractId! }, select: { number: true } })).number;
+  const awardIds = (p: Awaited<ReturnType<typeof listCases>>) => p.rows.map((r) => r.awardId);
+
+  it("finds a case that sits on a later page from the first, by its contract number", async () => {
+    const hidden = await hiddenFor(named);
+    const second = await listCases(organisationId, hidden, { page: 1 });
+    const far = second.rows.find((r) => r.contractId)!;
+    const number = (await db.contract.findUniqueOrThrow({ where: { id: far.contractId! }, select: { number: true } })).number;
+    expect(awardIds(await listCases(organisationId, hidden, { page: 0 }))).not.toContain(far.awardId);
+    const found = await listCases(organisationId, hidden, { words: [number] });
+    expect(awardIds(found)).toEqual([far.awardId]);
+    expect(found.total).toBe(1);
+    // The header counts stay over the whole set, whatever is searched.
+    expect(found.counts).toEqual((await listCases(organisationId, hidden)).counts);
+  });
+
+  it("finds a case by its commitment number, and by the requisition's finance number through its exercise", async () => {
+    await db.award.update({ where: { id: ids["active"].awardId }, data: { erpCommitmentNo: "CMT-7-4-0001" } });
+    await db.requisition.update({ where: { id: requisitionId }, data: { erpRequisitionNo: "PROC-7-4-0001" } });
+    const hidden = await hiddenFor(named);
+    expect(awardIds(await listCases(organisationId, hidden, { words: ["cmt-7-4-0001"] }))).toEqual([ids["active"].awardId]);
+    // Every case here is under the one requisition; the search narrows to those whose requisition number matches, and total is the count of that set.
+    const byProc = await listCases(organisationId, hidden, { words: ["PROC-7-4-0001"], size: 10 });
+    expect(byProc.total).toBe((await listCases(organisationId, hidden, { words: ["PROC-7-4-0001"], all: true })).rows.length);
+    expect(byProc.rows).toHaveLength(10);
+    expect((await listCases(organisationId, hidden, { words: ["PROC-7-4-0001", "CMT-7-4-0001"] })).total).toBe(1);
+  });
+
+  it("AC-18: a restricted case an unnamed reader sees as contract stages is found by its contract number, never through its exercise's words, and stays out of the award-work views", async () => {
+    const outsiderHidden = await hiddenFor(outsider);
+    const restricted = ids["restricted active"];
+    const viaNumber = await listCases(organisationId, outsiderHidden, { words: [await numberOf("restricted active")] });
+    expect(awardIds(viaNumber)).toEqual([restricted.awardId]);
+    expect(viaNumber.rows[0].award).toBeNull();
+    // The exercise's title and the requisition's number both belong to the hidden exercise: they do not find it, though they find the visible cases.
+    for (const word of ["Case test exercise", "PROC-7-4-0001"]) {
+      const all = await listCases(organisationId, outsiderHidden, { words: [word], all: true });
+      expect(awardIds(all), word).not.toContain(restricted.awardId);
+      expect(all.rows.length, word).toBeGreaterThan(0);
+    }
+    // It is a stage case (on site) for the unnamed reader, and in no award-work view.
+    expect(awardIds(await listCases(organisationId, outsiderHidden, { view: "on_site", words: [await numberOf("restricted active")] }))).toEqual([restricted.awardId]);
+    for (const v of ["pending", "approved", "return", "commitment", "expired"] as const) {
+      expect(awardIds(await listCases(organisationId, outsiderHidden, { view: v, words: [await numberOf("restricted active")] })), v).toEqual([]);
+    }
+    // A named reader is not hidden from it: the exercise's words find the restricted draft.
+    expect(awardIds(await listCases(organisationId, await hiddenFor(named), { words: ["PROC-7-4-0001"], all: true }))).toContain(ids["restricted draft"].awardId);
+  });
+
+  it("total is the count of the rows that match, in a view too; a search that matches nothing is zero", async () => {
+    const hidden = await hiddenFor(named);
+    const awarding = await listCases(organisationId, hidden, { view: "awarding", words: ["PROC-7-4-0001"], all: true });
+    expect((await listCases(organisationId, hidden, { view: "awarding", words: ["PROC-7-4-0001"], size: 10 })).total).toBe(awarding.rows.length);
+    expect((await listCases(organisationId, hidden, { words: ["no-such-project-word"] })).total).toBe(0);
+  });
+
+  it("is the organisation's own: another organisation does not find these cases", async () => {
+    const other = (await db.organisation.create({ data: { code: `CASE_${randomId()}`, name: "Other", timeZone: "Asia/Kuala_Lumpur" } })).id;
+    const page = await listCases(other, [], { words: [await numberOf("active")] });
+    expect(page.total).toBe(0);
+    expect(page.rows).toEqual([]);
+  });
+
+  it("sorts on reference, and a column outside the set is the default order; the page boundary neither repeats nor drops a case", async () => {
+    const hidden = await hiddenFor(named);
+    const asc = await listCases(organisationId, hidden, { sort: "reference", dir: "asc", size: 10 });
+    const refs = (await db.award.findMany({ where: { id: { in: awardIds(asc) } }, select: { id: true, reference: true } })).sort((a, b) => awardIds(asc).indexOf(a.id) - awardIds(asc).indexOf(b.id)).map((a) => a.reference);
+    expect([...refs].sort()).toEqual(refs);
+    const byValue = await listCases(organisationId, hidden, { sort: "awardedValue", dir: "asc", size: 10 });
+    expect(awardIds(byValue)).toEqual(awardIds(await listCases(organisationId, hidden, { size: 10 })));
+    const seen = new Set<string>();
+    const total = (await listCases(organisationId, hidden)).total;
+    for (let page = 0; page * 10 < total; page++) for (const r of (await listCases(organisationId, hidden, { sort: "reference", page, size: 10 })).rows) seen.add(r.awardId);
+    expect(seen.size).toBe(total);
+  });
+
+  it("{ all: true } reads from the first row, up to the cap and one more, under the same where", async () => {
+    const hidden = await hiddenFor(named);
+    const all = await listCases(organisationId, hidden, { view: "awarding", all: true });
+    expect(all.rows.length).toBe(all.total);
+    expect(all.rows.length).toBeLessThanOrEqual(LIST_EXPORT_MAX_ROWS + 1);
   });
 });

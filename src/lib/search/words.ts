@@ -14,6 +14,7 @@ export interface SearchWhere {
   project: Prisma.AwardWhereInput;
   supplier: Prisma.SupplierWhereInput;
   sitting: Prisma.MeetingWhereInput;
+  application: Prisma.SupplierApplicationWhereInput;
 }
 
 /// A filter at the end of a dotted path, through to-one relations: "contract.number" → { contract: { number: filter } }.

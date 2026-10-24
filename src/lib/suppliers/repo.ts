@@ -5,6 +5,8 @@
  */
 
 import type { Prisma } from "@/generated/prisma/client";
+import { LIST_EXPORT_MAX_ROWS, listOrderBy, parseListQuery, sortKeys, type ListQuery } from "@/lib/list-query";
+import { wordsWhere } from "@/lib/search/words";
 import type { Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay, dayOrNull as day } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -13,9 +15,9 @@ import { exerciseOrg } from "@/lib/method/repo";
 import type { DocumentFacts, DocumentTypeFacts, Provenance, RegistrationValueKind, SupplierListKind, VerificationState } from "./types";
 import { SUPPLIER_EXPIRY_EVENT } from "./expiry";
 import { REGISTRATION_NO_FORMAT_KEY } from "./types";
-import { isAnsweredOnTime } from "./review";
+import { isAnsweredOnTime, queueState, type QueueState } from "./review";
 import { cancellationEnded } from "./standing";
-import { deeperDisplaced } from "./documents";
+import { deeperDisplaced, documentStates, stateCounts } from "./documents";
 import { inOrder } from "@/lib/series";
 
 export const supplierOrg = exerciseOrg;
@@ -162,6 +164,26 @@ export type LoadedSupplier = NonNullable<Awaited<ReturnType<typeof loadSupplier>
 /// How many suppliers the register shows on a page, and how many the queue and the watched lists show at most (fix R-10).
 export const SUPPLIERS_PAGE = 100;
 
+/// The register's views (the Register tab) and the open applications' (the Applications tab): the keys of the address.
+export const SUPPLIER_VIEWS = ["registered", "applicants", "attention", "barred", "unsynced"] as const;
+export type SupplierView = (typeof SUPPLIER_VIEWS)[number];
+export const APPLICATION_VIEWS = ["received", "approval", "resubmission", "lapsed"] as const;
+export type ApplicationView = (typeof APPLICATION_VIEWS)[number];
+
+/**
+ * "Documents to see to" (FR-VND-008), judged over the whole register and never a page: the suppliers with a mandatory type missing, or a document expired, not in order,
+ * not yet checked or not yet valid. The states are `documentStates`' own, derived from the documents, never stored. Ids only, so the page can page the judged set.
+ */
+export async function documentsToSeeToIds(organisationId: string, types: readonly DocumentTypeFacts[], today: string, client: Tx = db): Promise<string[]> {
+  const rows = await client.supplier.findMany({ where: { organisationId }, select: { id: true, documents: { select: { id: true, typeId: true, typeLabelSnapshot: true, lodgedOn: true, issuedOn: true, validFrom: true, expiresOn: true, notApplicable: true, verification: true, verifiedOn: true, supersedesId: true } } } });
+  return rows
+    .filter((r) => {
+      const c = stateCounts(documentStates(types, r.documents.map(documentFacts), today));
+      return !!(c.MISSING || c.EXPIRED || c.NOT_IN_ORDER || c.NOT_CHECKED || c.NOT_YET_VALID);
+    })
+    .map((r) => r.id);
+}
+
 /// What every list row derives its standing and document states from, and nothing more.
 const listedSupplier = {
   id: true,
@@ -278,14 +300,20 @@ export const lapsedMandatoryWhere = (today: string, displaced: readonly string[]
  * count is null. Counts that are columns are counted in the database; what is derived (standing, document
  * states, bands) is derived from the rows read, never stored.
  */
-export async function listSuppliers(organisationId: string, page = 0, today: string | null = null, horizon: string | null = null, autoSuspendOnLapse: boolean | null = null, client: Tx = db) {
+export async function listSuppliers(
+  organisationId: string,
+  register: ListQuery<SupplierView>,
+  today: string | null = null,
+  horizon: string | null = null,
+  autoSuspendOnLapse: boolean | null = null,
+  opts: { applications?: ListQuery<ApplicationView>; attentionIds?: readonly string[]; all?: "register" | "applications" } = {},
+  client: Tx = db,
+) {
   const org = await supplierOrg(organisationId, client);
   if (!org) return null;
   const where = { organisationId: org.id };
+  const apps = opts.applications ?? parseListQuery({}, APPLICATION_VIEWS, sortKeys("application"));
   const watchedSelect = { ...listedSupplier, standingRequests: { select: { id: true, kind: true, withdrawnAt: true, event: { select: { id: true } }, routes: { select: { status: true, createdAt: true } } } } } satisfies Prisma.SupplierSelect;
-  // A page past the end shows the last page.
-  const total = await client.supplier.count({ where });
-  const at = Math.min(Math.max(0, page), Math.max(0, Math.ceil(total / SUPPLIERS_PAGE) - 1));
   // 615-C7: the documents a deeper link of a chain displaces, named once and used by every list below.
   const displaced = today ? await displacedDocumentIds(org.id, today, client) : [];
   const expiringDoc: Prisma.SupplierDocumentWhereInput | null = today ? { ...inForceDocumentWhere(today, displaced), organisationId: org.id, expiresOn: horizon ? { not: null, lte: dayToDate(horizon) } : { not: null } } : null;
@@ -293,20 +321,46 @@ export async function listSuppliers(organisationId: string, page = 0, today: str
   const openRequest: Prisma.SupplierWhereInput = { organisationId: org.id, standingRequests: { some: { event: { is: null }, withdrawnAt: null } } };
   const lapseUnset: Prisma.SupplierWhereInput | null = today && autoSuspendOnLapse !== true ? { organisationId: org.id, status: "REGISTERED", documents: { some: lapsedMandatoryWhere(today, displaced) } } : null;
   const standingWhere: Prisma.SupplierWhereInput | null = barredWhere ? { organisationId: org.id, OR: [barredWhere, openRequest, ...(lapseUnset ? [lapseUnset] : [])] } : null;
-  const [suppliers, registered, unsynced, queue, queueTotal, soonest, expiringTotal, barred, requested, lapsed, standingTotal, barredCount] = await inOrder(
+  // The register's views, in the database: status and the finance-system code are columns; barred is the standing rule's own where; "documents to see to" is judged by the caller over the whole register.
+  const viewWhere: Record<SupplierView, Prisma.SupplierWhereInput> = {
+    registered: { status: "REGISTERED" },
+    applicants: { status: "APPLICANT" },
+    unsynced: { status: "REGISTERED", erpVendorCode: null },
+    barred: barredWhere ?? { id: { in: [] } },
+    attention: { id: { in: [...(opts.attentionIds ?? [])] } },
+  };
+  const registerWhere: Prisma.SupplierWhereInput = { AND: [where, wordsWhere("supplier", register.words), register.view ? viewWhere[register.view] : {}] };
+  // A page past the end shows the last page.
+  const total = await client.supplier.count({ where: registerWhere });
+  const at = opts.all === "register" ? 0 : Math.min(Math.max(0, register.page), Math.max(0, Math.ceil(total / register.size) - 1));
+  // The open applications' views are judged on the organisation's day (a lapsed deadline reads "lapsed" before the lapse is recorded), over the whole open set, then paged.
+  const open = await client.supplierApplication.findMany({ where: { ...where, ...OPEN_APPLICATION }, select: { id: true, status: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } } } });
+  const answered = await answeredOnTimeIds(client, org.id, open.map((a) => a.id));
+  const applicationCounts: Record<ApplicationView, number> = { received: 0, approval: 0, resubmission: 0, lapsed: 0 };
+  const applicationIds: Record<ApplicationView, string[]> = { received: [], approval: [], resubmission: [], lapsed: [] };
+  for (const a of open) {
+    const st: QueueState = queueState({ ...a, resubmitBy: day(a.resubmitBy), answeredOnTime: answered.has(a.id) }, today);
+    const v: ApplicationView = st === "WITH_APPROVAL" ? "approval" : st === "LAPSED" ? "lapsed" : st === "RESUBMISSION_REQUESTED" ? "resubmission" : "received";
+    applicationCounts[v]++;
+    applicationIds[v].push(a.id);
+  }
+  const queueWhere: Prisma.SupplierApplicationWhereInput = { AND: [where, OPEN_APPLICATION, wordsWhere("application", apps.words), apps.view ? { id: { in: applicationIds[apps.view] } } : {}] };
+  const applicationsTotal = await client.supplierApplication.count({ where: queueWhere });
+  const queueAt = opts.all === "applications" ? 0 : Math.min(Math.max(0, apps.page), Math.max(0, Math.ceil(applicationsTotal / apps.size) - 1));
+  const [suppliers, registered, unsynced, applicants, queue, queueTotal, soonest, expiringTotal, barred, requested, lapsed, standingTotal, barredCount] = await inOrder(
     () => client.supplier.findMany({
-      where,
-      orderBy: [{ registeredName: "asc" }, { id: "asc" }],
-      skip: at * SUPPLIERS_PAGE,
-      take: SUPPLIERS_PAGE,
+      where: registerWhere,
+      orderBy: listOrderBy("supplier", register),
+      ...(opts.all === "register" ? { take: LIST_EXPORT_MAX_ROWS + 1 } : { skip: at * register.size, take: register.size }),
       select: { ...listedSupplier, applications: { where: OPEN_APPLICATION, orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }], take: 1, select: { id: true, kind: true, status: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } } } } },
     }),
     () => client.supplier.count({ where: { ...where, status: "REGISTERED" } }),
     () => client.supplier.count({ where: { ...where, status: "REGISTERED", erpVendorCode: null } }),
+    () => client.supplier.count({ where: { ...where, status: "APPLICANT" } }),
     () => client.supplierApplication.findMany({
-      where: { ...where, ...OPEN_APPLICATION },
-      orderBy: [{ receivedOn: "asc" }, { createdAt: "asc" }],
-      take: SUPPLIERS_PAGE,
+      where: queueWhere,
+      orderBy: listOrderBy("application", apps),
+      ...(opts.all === "applications" ? { take: LIST_EXPORT_MAX_ROWS + 1 } : { skip: queueAt * apps.size, take: apps.size }),
       select: { id: true, kind: true, status: true, channel: true, receivedOn: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } }, supplier: { select: { id: true, reference: true, registeredName: true } } },
     }),
     () => client.supplierApplication.count({ where: { ...where, ...OPEN_APPLICATION } }),
@@ -321,7 +375,7 @@ export async function listSuppliers(organisationId: string, page = 0, today: str
   const expiringRows = soonest.length ? await client.supplier.findMany({ where: { id: { in: soonest.map((g) => g.supplierId) } }, select: watchedSelect }) : [];
   const expiring = soonest.map((g) => expiringRows.find((x) => x.id === g.supplierId)!).filter(Boolean);
   const standing = [...new Map([...barred, ...requested, ...lapsed].map((x) => [x.id, x])).values()].sort((a, b) => a.registeredName.localeCompare(b.registeredName) || a.id.localeCompare(b.id));
-  return { org, page: at, suppliers, total, registered, unsynced, queue, queueTotal, expiring, expiringTotal, standing, standingTotal, barredCount };
+  return { org, page: at, suppliers, total, registered, unsynced, applicants, queue, queueTotal, applicationsTotal, applicationsPage: queueAt, applicationCounts, expiring, expiringTotal, standing, standingTotal, barredCount };
 }
 
 /**
