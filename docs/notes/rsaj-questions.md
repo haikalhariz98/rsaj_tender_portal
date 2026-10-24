@@ -49,3 +49,5 @@ Open questions the product cannot answer from RSAJ's documents. Each one is load
 - **34. Supply contracts.** Does a supply contract ever take an interim payment certificate, or only the delivery order and invoice?
 - **35. Consultancy and service payment.** Is consultancy paid on certified claims, and which certificate does a service contract's monthly payment use (KP003 names none)?
 - **36. Award originals.** After an online award return is verified, must the wet-signed originals still be posted?
+- **37. Restricted exercises after award (R-2, AC-18).** Is a contract formed from a restricted (selected) tender itself restricted to the named people, including its title, variations, certificates and payments? Until RSAJ answers, the contract stages stay open to staff and the exercise's title and reference stay withheld.
+- **38. Records retention (NFR-RET-001).** How long are award-return records kept, including the scans of a refused online return (which carry the signatory's IC number and address), and who authorises disposal?
