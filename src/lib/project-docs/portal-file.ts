@@ -2,7 +2,8 @@
  * Which file of a Project workspace document a contractor may download (plan step 5, §6; PW-8, PW-14, PW-28; ADR 0042 D3, D7). One reader, which the file route
  * (`src/app/supplier/projects/documents/file/[attachmentId]/route.ts`) asks before it reads a byte.
  *
- * The attachment is reached through the chain, all in the supplier's own organisation: the attachment (purpose PROJECT_DOCUMENT_FILE, still attached) → its version → its
+ * The attachment is reached through the chain, all in the supplier's own organisation: the attachment (a project version's file, of any of its purposes: PROJECT_DOCUMENT_FILE, or a
+ * supply claim's delivery order or invoice (ADR 0045 D6); still attached) → its version → its
  * document → its contract → `supplierHoldsContract`. Every way of failing the chain answers the same 404: another contractor's file, one that is not there, another
  * organisation's, and one on a contract the supplier does not hold. Then the version must be one the contractor may see (`contractorSeesVersion`: an organisation version
  * still with its approvers is 404 as well), and the classification is judged NOW, on the document's and its class's current values (`contractorMayDownload`): a class raised to
@@ -17,6 +18,7 @@ import type { SupplierActor } from "@/lib/auth/types";
 import { supplierHoldsContract } from "@/lib/portal/projects/visibility";
 
 import { loadDocumentFactsMany } from "./facts";
+import { VERSION_FILE_PURPOSES } from "./kinds-offered";
 import { contractorMayDownload, contractorSeesVersion } from "./visibility";
 
 export interface ProjectFile {
@@ -36,7 +38,7 @@ const ID = /^[A-Za-z0-9_-]{8,40}$/;
 export async function findProjectFile(client: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, attachmentId: string): Promise<FileLookup> {
   if (!ID.test(attachmentId)) return { ok: false, status: 404, log: null };
   const a = await client.documentAttachment.findFirst({
-    where: { id: attachmentId, organisationId: actor.organisationId, purpose: "PROJECT_DOCUMENT_FILE", detachedAt: null, projectDocumentVersionId: { not: null } },
+    where: { id: attachmentId, organisationId: actor.organisationId, purpose: { in: [...VERSION_FILE_PURPOSES] }, detachedAt: null, projectDocumentVersionId: { not: null } },
     select: {
       versionId: true,
       projectDocumentVersionId: true,

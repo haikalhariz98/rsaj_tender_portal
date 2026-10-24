@@ -306,6 +306,7 @@ export const SPEC_TYPES: ContractTypeRow[] = [
     makingGoodCertificate: true,
     nominationAllowed: true,
     interimPaymentRule: "Monthly, work executed plus materials on site",
+    paymentRoute: "CERTIFIED_CLAIM",
     sumAdjustmentDrivers: ["Variations", "Re-measurement"],
     claimsApprovalCommitteeCode: "TBC",
   }),
@@ -321,6 +322,7 @@ export const SPEC_TYPES: ContractTypeRow[] = [
     defectsLiabilityApplies: null,
     nominationAllowed: false,
     interimPaymentRule: "Monthly, work executed only",
+    paymentRoute: "CERTIFIED_CLAIM",
   }),
   type({
     code: "SUPPLY",
@@ -334,6 +336,7 @@ export const SPEC_TYPES: ContractTypeRow[] = [
     makingGoodCertificate: false,
     nominationAllowed: false,
     interimPaymentRule: "Local order, invoice and delivery order",
+    paymentRoute: "DELIVERY_ORDER_INVOICE",
   }),
 ];
 

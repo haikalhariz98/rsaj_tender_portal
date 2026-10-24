@@ -3,7 +3,7 @@
  * recorded once, with a reason; the bytes are never deleted.
  */
 
-import type { Finding, VersionFact } from "./types";
+import { PURPOSE_OWNER, type AttachmentPurpose, type Finding, type VersionFact } from "./types";
 
 export type VersionFault = "IDENTICAL_TO_VERSION_N" | "DOCUMENT_WITHDRAWN";
 
@@ -43,5 +43,6 @@ export function withdrawFault(version: Pick<VersionFact, "withdrawnAt">, reason:
   return null;
 }
 
-/// Whether a version is held by a live project file: an attachment of purpose PROJECT_DOCUMENT_FILE that is not detached. A detached pin holds nothing.
-export const heldByProjectFile = (attachments: readonly { purpose: string; detachedAt: Date | null }[]): boolean => attachments.some((a) => a.purpose === "PROJECT_DOCUMENT_FILE" && a.detachedAt == null);
+/// Whether a version is held by a live project file: an attachment of a project version's purpose (PROJECT_DOCUMENT_FILE, or a supply claim's delivery order or invoice,
+/// ADR 0045 D6) that is not detached. A detached pin holds nothing. Keyed on the owner, as trigger PA047 is.
+export const heldByProjectFile = (attachments: readonly { purpose: string; detachedAt: Date | null }[]): boolean => attachments.some((a) => PURPOSE_OWNER[a.purpose as AttachmentPurpose] === "projectDocumentVersion" && a.detachedAt == null);

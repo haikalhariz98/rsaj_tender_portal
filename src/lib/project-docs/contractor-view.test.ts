@@ -212,6 +212,15 @@ describe("the kind and the declaration's refusals reach the contractor in its wo
     }
     expect(contractorFaultText({ code: "DECLARATION_NOT_SIGNED", level: "block" }, ORG)).toMatch(/password/);
   });
+
+  it("a kind the contract does not offer, and a supply claim's files, in the staff's own words (ADR 0045 D6)", () => {
+    const supplyFaults: Finding[] = [{ code: "KIND_NOT_OFFERED", level: "block", data: { kind: "INTERIM_CLAIM" } }, { code: "SUPPLY_FILE_MISSING", level: "block", data: { purpose: "SUPPLY_INVOICE" } }, { code: "FILE_PURPOSE_NOT_TAKEN", level: "block", data: { file: 1, purpose: "PROJECT_DOCUMENT_FILE", kind: "SUPPLY_CLAIM" } }];
+    for (const x of supplyFaults) {
+      expect(contractorFaultText(x, ORG), x.code).toBe(faultText(x, ORG));
+      expect(contractorFaultText(x, ORG), x.code).not.toBe("That cannot be done on this document now.");
+    }
+    expect(contractorFaultText({ code: "SUPPLY_FILE_MISSING", level: "block", data: { purpose: "SUPPLY_INVOICE" } }, ORG)).toBe("Add the invoice.");
+  });
 });
 
 describe("PW-35 and PW-46: every contractor reading and gate is computed on the contractor's projection, never on the organisation's working", () => {

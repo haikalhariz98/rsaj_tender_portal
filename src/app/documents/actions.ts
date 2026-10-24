@@ -211,7 +211,8 @@ export async function withdrawVersion(_prev: FormState, data: FormData): Promise
   return inDocument(actor, v0.documentId, async (tx, orgId) => {
     const v = await tx.documentVersion.findFirstOrThrow({ where: { id: versionId, organisationId: orgId }, include: { document: { select: { title: true } } } });
     // Read under the document's lock (`inDocument`): a project pin committed while this act waited is seen (trigger PA047 is the backstop).
-    const heldByProjectFile = (await tx.documentAttachment.count({ where: { versionId: v.id, organisationId: orgId, purpose: "PROJECT_DOCUMENT_FILE", detachedAt: null } })) > 0;
+    // Keyed on the project version owner, as PA047 is: a supply claim's delivery order and invoice are project files too (ADR 0045 D6).
+    const heldByProjectFile = (await tx.documentAttachment.count({ where: { versionId: v.id, organisationId: orgId, projectDocumentVersionId: { not: null }, detachedAt: null } })) > 0;
     const f = withdrawFault(v, reason, { heldByProjectFile });
     if (f) return f.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: documentFaultText(f) } } : refuse([f]);
     await tx.documentVersion.update({ where: { id: v.id, organisationId: actor.organisationId }, data: { withdrawnAt: new Date(), withdrawnReason: reason } });

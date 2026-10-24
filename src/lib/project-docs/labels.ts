@@ -9,12 +9,13 @@
 
 import { CASE_SECTION_WORDS, CASE_TAB_WORDS } from "@/lib/contract/case-page-words";
 import { SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
-import { SUBMISSION_KINDS } from "@/lib/portal/projects/types";
+import { PURPOSE_LABEL } from "@/lib/documents/labels";
 import { projectFaultText } from "@/lib/portal/projects/words";
 
+import { kindsOffered, type VersionFilePurpose } from "./kinds-offered";
 import type { DocumentReading, DocumentState } from "./state";
 import { takenUpWhere, type TakenUpWhere } from "./taken-up";
-import type { DocKind, Finding, Outcome, Side } from "./types";
+import type { DocKind, Finding, Outcome, PaymentRoute, Side } from "./types";
 
 export const STATE_WORDS: Readonly<Record<DocumentState, string>> = {
   REQUESTED: "Asked for",
@@ -31,16 +32,24 @@ export const STATE_WORDS: Readonly<Record<DocumentState, string>> = {
 const NOTED_KINDS: readonly DocKind[] = ["DEFECTS_RECTIFIED"];
 const noted = (kind: DocKind | null) => kind !== null && NOTED_KINDS.includes(kind);
 
+/// ADR 0045 D6: a supply claim's mark reads "Verified": the claim is checked, never approved (AC-33).
+const verified = (kind: DocKind | null) => kind === "SUPPLY_CLAIM";
+/// The mark TAKEN_UP in words, on a document of the kind: "Noted", "Verified", or the base.
+const takenUpWord = (kind: DocKind | null, base: string) => (noted(kind) ? "Noted" : verified(kind) ? "Verified" : base);
+
 /// A document's state in words, its kind taken into account (PW-24).
-export const stateWords = (state: DocumentState, kind: DocKind | null): string => (state === "TAKEN_UP" && noted(kind) ? "Noted" : STATE_WORDS[state]);
+export const stateWords = (state: DocumentState, kind: DocKind | null): string => (state === "TAKEN_UP" ? takenUpWord(kind, STATE_WORDS.TAKEN_UP) : STATE_WORDS[state]);
 
 const OUTCOME_BASE: Readonly<Record<Outcome, string>> = { APPROVED: "Approved", REJECTED: "Rejected", TAKEN_UP: "Taken up", RETURNED: "Returned" };
 
 /// A decision on a version in words, its document's kind taken into account (PW-24).
-export const outcomeWords = (outcome: Outcome, kind: DocKind | null): string => (outcome === "TAKEN_UP" && noted(kind) ? "Noted" : OUTCOME_BASE[outcome]);
+export const outcomeWords = (outcome: Outcome, kind: DocKind | null): string => (outcome === "TAKEN_UP" ? takenUpWord(kind, OUTCOME_BASE.TAKEN_UP) : OUTCOME_BASE[outcome]);
 
 /// The button that records a mark on a version of a kind (step 6).
-export const markActionWords = (outcome: "TAKEN_UP" | "RETURNED", kind: DocKind | null): string => (outcome === "RETURNED" ? "Return" : noted(kind) ? "Mark noted" : "Mark taken up");
+export const markActionWords = (outcome: "TAKEN_UP" | "RETURNED", kind: DocKind | null): string => (outcome === "RETURNED" ? "Return" : `Mark ${takenUpWord(kind, "Taken up").toLowerCase()}`);
+
+/// The label of a document's title field: a supply claim's title is its invoice number (ADR 0045 D6, WV-12).
+export const titleLabel = (kind: DocKind | null): string => (kind === "SUPPLY_CLAIM" ? "Invoice number" : "Title");
 
 /// The six kinds' names, as the legacy submissions name them.
 export const kindWords = (kind: DocKind): string => SUBMISSION_KIND_WORDS[kind].en;
@@ -49,11 +58,11 @@ export const kindWords = (kind: DocKind): string => SUBMISSION_KIND_WORDS[kind].
 export const SIGNED_KIND: DocKind = "STATUTORY_DECLARATION";
 
 /**
- * The contractor's kind picker (plan step 6): each of the six kinds by its name, and whether sending it asks the password again. The value is a form's, never shown. No hint
- * about amounts or days goes with them: a kind carries no figure (PW-10), and the earlier form's hints (`SUBMISSION_KIND_HINT`) describe the figures it took.
+ * The contractor's kind picker (plan step 6): each kind the contract's payment route offers (`kindsOffered`, ADR 0045 D6) by its name, and whether sending it asks the
+ * password again. The value is a form's, never shown. No hint about amounts or days goes with them: a kind carries no figure (PW-10), and the earlier form's hints
+ * (`SUBMISSION_KIND_HINT`) describe the figures it took. With no route given, today's six.
  */
-// shortcut: SUPPLY_CLAIM is left out until wave V step V6 offers it by the contract type's payment route (ADR 0045 D6, WV-10).
-export const kindChoices = (): { value: DocKind; label: string; asksPassword: boolean }[] => SUBMISSION_KINDS.filter((k) => k !== "SUPPLY_CLAIM").map((k) => ({ value: k, label: kindWords(k), asksPassword: k === SIGNED_KIND }));
+export const kindChoices = (route: PaymentRoute | null = null): { value: DocKind; label: string; asksPassword: boolean }[] => kindsOffered(route).map((k) => ({ value: k, label: kindWords(k), asksPassword: k === SIGNED_KIND }));
 
 /**
  * The words beside "Taken up", with the tab they link to (PW-24). Null where no screen records the kind: then nothing is said, and no button is shown.
@@ -108,6 +117,8 @@ function notWaitingWords(state: string, kind: DocKind | null): string {
       return "It is not waiting for approval.";
   }
 }
+
+const purposeWords = (p: unknown): string => PURPOSE_LABEL[p as VersionFilePurpose] ?? "file";
 
 const isKind = (v: unknown): v is DocKind => typeof v === "string" && v in SUBMISSION_KIND_WORDS;
 
@@ -214,6 +225,13 @@ export function faultText(f: Finding, orgName = "the organisation"): string {
       return `${file} is named twice.`;
     case "NOT_FOUND":
       return "That document is not on this contract.";
+    // ADR 0045 D6 (WV-10, WV-11): the kind the contract's route offers, and a supply claim's two files.
+    case "KIND_NOT_OFFERED":
+      return `${isKind(d.kind) ? kindWords(d.kind) : "That kind"} is not sent on this contract.`;
+    case "SUPPLY_FILE_MISSING":
+      return `Add the ${purposeWords(d.purpose).toLowerCase()}.`;
+    case "FILE_PURPOSE_NOT_TAKEN":
+      return kind === "SUPPLY_CLAIM" ? `${file} is not marked as the delivery order or the invoice.` : `${file} is marked as a ${purposeWords(d.purpose).toLowerCase()}, which goes only with a delivery order and invoice.`;
     case "ZONE_NOT_SET":
       return "Time zone not set. An administrator sets it under Configuration › Organisation.";
     case "FILE_UNKNOWN":

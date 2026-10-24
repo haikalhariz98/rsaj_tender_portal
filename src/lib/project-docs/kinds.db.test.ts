@@ -127,12 +127,12 @@ async function contractor(): Promise<Contractor> {
   return { actor, supplierId: s.supplier.id, accountId: s.account!.id };
 }
 
-async function contract(vendorId: string | null, status: ContractStatus = "ACTIVE") {
+async function contract(vendorId: string | null, status: ContractStatus = "ACTIVE", contractTypeCode: string | null = null) {
   const r = randomId();
   const requisition = await db.requisition.create({
     data: { organisationId, reference: `PWK/RQ/${r}`, requestingUnitCode: "PWK_DEPT", requestingPersonId: p.so, title: "Kinds requisition", justification: "Tests.", needStatement: "None.", costCentreCode: "PWK_CC", accountCode: "PWK_AC", placeOfDelivery: "Nowhere", dateRequired: D(at(100)), estimatedValue: "100000.00", raisedOn: D(at(-30)) },
   });
-  const exercise = await db.sourcingExercise.create({ data: { organisationId, reference: `PWK/EX/${r}`, requisitionId: requisition.id, title: `Culverts ${r}`, estimatedValue: "100000.00", sourcingMethodCode: "PWK_METHOD", status: "EVALUATED" } });
+  const exercise = await db.sourcingExercise.create({ data: { organisationId, reference: `PWK/EX/${r}`, requisitionId: requisition.id, title: `Culverts ${r}`, estimatedValue: "100000.00", sourcingMethodCode: "PWK_METHOD", status: "EVALUATED", contractTypeCode } });
   const award = await db.award.create({ data: { organisationId, reference: `PWK/AW/${r}`, exerciseId: exercise.id, instrumentKind: "WORK_INDENT", awardeeName: "A Contractor", awardedValue: "100000.00", completionPeriod: 90, completionUnit: "DAYS", status: "ISSUED", vendorId } });
   const c = await db.contract.create({ data: { organisationId, number: `PWK/CON/${r}`, numberSource: "SERIES", numberedOn: D(at(-20)), awardId: award.id, contractSum: "100000.00", status } });
   await db.contractSoAssignment.create({ data: { organisationId, contractId: c.id, roleCode: soRole, roleLabel: "Superintending Officer (test)", reason: "EXECUTION", matrixLabel: "Test matrix", ruleKey: "so_test", ruleLabel: "S.O. test rule", clause: "7.1", contractValue: "100000.00", warnings: [], effectiveOn: D(at(-20)), recordedAt: at(-20) } });
@@ -193,7 +193,20 @@ beforeAll(async () => {
   for (const id of [p.so, p.so2]) await db.roleAssignment.create({ data: { personId: id, roleCode: soRole, effectiveFrom: D(new Date("2020-01-01")) } });
   projectClassId = (await db.documentClass.create({ data: { organisationId, code: "pwk_project", nameEn: "Project files", classification: "INTERNAL" } })).id;
   await db.documentStorePolicy.upsert({ where: { organisationId }, update: { projectDocumentClassId: projectClassId }, create: { organisationId, allowedMediaTypes: ["application/pdf"], maxBytes: BigInt(10_000_000), projectDocumentClassId: projectClassId } });
+  // ADR 0045 D5: a supply type, paid on delivery orders and invoices.
+  await db.contractType.create({ data: { organisationId, code: SUPPLY_TYPE, nameEn: "Supply", paymentRoute: "DELIVERY_ORDER_INVOICE" } });
 });
+
+const SUPPLY_TYPE = "PWK_SUPPLY";
+
+function sqlState(error: unknown): string {
+  const e = error as { code?: string; meta?: { driverAdapterError?: { cause?: { originalCode?: string; code?: string; kind?: string } } } };
+  const cause = e.meta?.driverAdapterError?.cause;
+  if (cause?.originalCode) return cause.originalCode;
+  if (e.code === "P2002") return "23505";
+  return cause?.code ?? cause?.kind ?? `not a database refusal: ${String(error).slice(0, 300)}`;
+}
+const dbRefusal = (work: Promise<unknown>): Promise<string | null> => work.then(() => null, sqlState);
 
 describe("a kind is the contractor's, picked once, never with an approver, and never approved (PW-9; AC-59)", () => {
   it("staff cannot make a document of a kind, nor give one to a version (so a statutory declaration is never recorded from paper)", async () => {
@@ -319,6 +332,29 @@ describe("the organisation marks a version: Taken up (Noted on defects rectified
     expect(pageP.markWords).toBeNull();
     expect(pageP.actions.markTakenUp.allowed).toBe(false);
     expect(pageP.actions.markTakenUp.reasons.join(" ")).toMatch(/six kinds/);
+  });
+});
+
+describe("the seventh kind, a supply claim, is marked as the six are: Verified or Returned, never approved (ADR 0045 D6)", () => {
+  it("takes no approver and is never approved; its mark reads Verified and links to Payments › Supply invoices", async () => {
+    const c = await contractor();
+    const contractId = await contract(c.supplierId, "ACTIVE", SUPPLY_TYPE);
+    const made = await asContractor(c, contractId, async (ctx) =>
+      createDocument(ctx, { kind: "SUPPLIER", actor: c.actor }, { title: "INV-0042", note: "", first: { upload: { stagedVersionIds: [await stage({ account: c.accountId }), await stage({ account: c.accountId })], filePurposes: ["DELIVERY_ORDER", "SUPPLY_INVOICE"], note: "" } }, approverPersonIds: [], kind: "SUPPLY_CLAIM" }, null),
+    );
+    const added = await as(p.so, () => addProjectApprover({ ok: false }, form({ contractId, documentId: made.documentId, approverPersonId: p.so2 })));
+    expect(added.message).toMatch(/takes no approvers/);
+    const v1 = await latestVersionOf(made.documentId);
+    expect((await as(p.so2, () => decideProjectVersion({ ok: false }, form({ contractId, documentId: made.documentId, versionId: v1, outcome: "APPROVED", remarks: "" })))).ok).toBe(false);
+    const page = await pageOf(p.so, contractId, made.documentId);
+    expect(page.markWords).toEqual({ takenUp: "Mark verified", returned: "Return" });
+    expect(page.takenUpLink).toEqual({ words: "Recorded under Payments › Supply invoices", href: `/projects/${contractId}?stage=project&tab=payments&section=supply` });
+    // The ADR 0042 decision trigger keys on the kind: it refuses an approval on a supply claim, and takes the mark (checked, not assumed: wave V plan §2.1).
+    expect(await dbRefusal(db.projectDocumentDecision.create({ data: { organisationId, versionId: v1, approverId: null, outcome: "APPROVED", remarks: "", decidedByPersonId: p.so, decidedAt: new Date(), decidedOn: D(new Date()) } }))).toBe("PA044");
+    expect(await mark(p.so, contractId, made.documentId, v1, "RETURNED", "The invoice is unsigned.")).toMatchObject({ ok: true });
+    await asContractor(c, contractId, async (ctx) => addVersion(ctx, { kind: "SUPPLIER", actor: c.actor }, { documentId: made.documentId, stagedVersionIds: [await stage({ account: c.accountId }), await stage({ account: c.accountId })], filePurposes: ["SUPPLY_INVOICE", "DELIVERY_ORDER"], note: "Signed." }, null));
+    expect(await mark(p.so, contractId, made.documentId, await latestVersionOf(made.documentId), "TAKEN_UP")).toMatchObject({ ok: true, message: "Verified." });
+    expect((await pageOf(p.so, contractId, made.documentId)).stateLabel).toBe("Verified");
   });
 });
 

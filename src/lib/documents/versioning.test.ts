@@ -46,6 +46,10 @@ describe("versions are immutable: a correction is a new version", () => {
   it("only a live project pin holds a version: a detached one, or another purpose, holds nothing", () => {
     expect(heldByProjectFile([{ purpose: "PROJECT_DOCUMENT_FILE", detachedAt: null }])).toBe(true);
     expect(heldByProjectFile([{ purpose: "PROJECT_DOCUMENT_FILE", detachedAt: when }])).toBe(false);
+    // ADR 0045 D6: a supply claim's delivery order and invoice are project files too.
+    expect(heldByProjectFile([{ purpose: "DELIVERY_ORDER", detachedAt: null }])).toBe(true);
+    expect(heldByProjectFile([{ purpose: "SUPPLY_INVOICE", detachedAt: null }])).toBe(true);
+    expect(heldByProjectFile([{ purpose: "SUPPLY_INVOICE", detachedAt: when }])).toBe(false);
     expect(heldByProjectFile([{ purpose: "PROGRAMME", detachedAt: null }, { purpose: "AS_BUILT", detachedAt: null }])).toBe(false);
     expect(heldByProjectFile([])).toBe(false);
   });

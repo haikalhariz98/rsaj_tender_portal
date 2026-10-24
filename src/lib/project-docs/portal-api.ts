@@ -13,11 +13,16 @@
  * - No supplier, organisation, account, day or time is read from a body: the supplier is the session's and the day is the server's. No approver is accepted from a
  *   contractor: it names none (PW-6 is the organisation's).
  * - The ids named are a contract's, a document's and staged store versions', which the stores read only as the session's supplier may hold them.
+ * - A supply claim's files (ADR 0045 D6, WV-11) are posted as `files: {versionId, purpose}[]`, each purpose "DELIVERY_ORDER" or "SUPPLY_INVOICE", in place of `versionIds`
+ *   (both together is a field error). On create, `files` go only with the kind SUPPLY_CLAIM (422 otherwise). On a new version the document's kind is the store's to read:
+ *   `versionFileFaults` refuses them (422) on any other kind, and refuses a supply claim's version sent with `versionIds`.
  *
  * The exact bounds of a title, note or file count are the pure faults' (`faults.ts`); here a value is only kept from being absurdly large, so a refusal can say the real bound.
  */
 
 import { isSubmissionKind } from "@/lib/portal/projects/types";
+
+import { isSupplyFilePurpose, type SupplyFilePurpose } from "./kinds-offered";
 
 import { PROJECT_FILES_PER_VERSION } from "./bounds";
 import { NOTE_MAX, TITLE_MAX } from "./faults";
@@ -25,6 +30,12 @@ import { SIGNED_KIND } from "./labels";
 import type { DocKind } from "./types";
 
 export type PortalParsed<T> = { ok: true; value: T } | { ok: false; status: 400 | 422; code: "VALIDATION" | "KIND_NOT_AVAILABLE"; message: string; errors: Record<string, string> };
+
+/// The staged files of an upload, and their purposes where they were posted as a supply claim's `files` (absent: each is a plain project file).
+interface Staged {
+  stagedVersionIds: string[];
+  filePurposes?: SupplyFilePurpose[];
+}
 
 const invalid = (errors: Record<string, string>): PortalParsed<never> => ({ ok: false, status: 400, code: "VALIDATION", message: "Check the fields marked below.", errors });
 /// A kind posted where none is taken: to the request route, or to the staging upload. A kind is picked when the document's first version is sent (plan step 6).
@@ -67,6 +78,40 @@ function idList(v: unknown, errors: Record<string, string>, field: string): stri
   return out;
 }
 
+/// `versionIds` or `files`, never both: the staged ids, with the purposes where `files` was posted.
+function stagedOf(b: Readonly<Record<string, unknown>>, errors: Record<string, string>): Staged {
+  const versionIds = idList(b.versionIds, errors, "versionIds");
+  if (b.files == null) return { stagedVersionIds: versionIds };
+  if (b.versionIds != null) {
+    errors.files = "Send the files as a list of files or as a delivery order and invoice, not both.";
+    return { stagedVersionIds: versionIds };
+  }
+  const v = b.files;
+  if (!Array.isArray(v) || v.length > PROJECT_FILES_PER_VERSION * 2) {
+    errors.files = Array.isArray(v) ? "Far too many files in one request." : "The files are not a list.";
+    return { stagedVersionIds: [] };
+  }
+  const ids: string[] = [];
+  const purposes: SupplyFilePurpose[] = [];
+  for (const x of v) {
+    const f = x as Record<string, unknown> | null;
+    if (typeof f !== "object" || f === null || Array.isArray(f) || Object.keys(f).some((k) => k !== "versionId" && k !== "purpose") || !isId(f.versionId)) {
+      errors.files = "A file is not one that was uploaded.";
+      return { stagedVersionIds: [] };
+    }
+    if (!isSupplyFilePurpose(f.purpose)) {
+      errors.files = "Say whether each file is the delivery order or the invoice.";
+      return { stagedVersionIds: [] };
+    }
+    ids.push(f.versionId);
+    purposes.push(f.purpose);
+  }
+  return { stagedVersionIds: ids, filePurposes: purposes };
+}
+
+/// A supply claim's files posted on create with another kind, or none (WV-11): judged before anything else, as a misplaced kind is.
+const FILES_NOT_TAKEN: PortalParsed<never> = { ok: false, status: 422, code: "KIND_NOT_AVAILABLE", message: "A delivery order and invoice go only with that kind.", errors: { files: "Not taken with this kind." } };
+
 // ------------------------------------------------------------------ create
 
 export interface CreateBody {
@@ -74,7 +119,7 @@ export interface CreateBody {
   title: string;
   /// The document's own note.
   note: string;
-  first: { upload: { stagedVersionIds: string[]; note: string } } | { request: { note: string } };
+  first: { upload: Staged & { note: string } } | { request: { note: string } };
   /// One of the six kinds, picked with the first version; null for an ordinary document.
   kind: DocKind | null;
 }
@@ -93,14 +138,13 @@ export const PASSWORD_ONLY_DECLARATION = "Only a statutory declaration is signed
 /// organisation asked for, with no kind yet) the kind picked with it. A later version of a declaration still needs it (PW-10).
 export const versionTakesPassword = (documentKind: DocKind | null, postedKind: DocKind | null): boolean => (documentKind ?? postedKind) === SIGNED_KIND;
 
-const CREATE_FIELDS = ["contractId", "title", "note", "mode", "versionIds", "versionNote", "requestNote", "kind", "password"] as const;
+const CREATE_FIELDS = ["contractId", "title", "note", "mode", "versionIds", "files", "versionNote", "requestNote", "kind", "password"] as const;
 
 /// A posted kind: absent, null or empty is none; one of the six is that kind; anything else is a field error.
 function kindOf(b: Readonly<Record<string, unknown>>, errors: Record<string, string>): DocKind | null {
   const v = b.kind;
   if (v == null || v === "") return null;
-  // shortcut: SUPPLY_CLAIM is refused until wave V step V6 builds its files and which contracts are offered it (ADR 0045 D6).
-  if (isSubmissionKind(v) && v !== "SUPPLY_CLAIM") return v;
+  if (isSubmissionKind(v)) return v;
   errors.kind = "Not one of the six kinds.";
   return null;
 }
@@ -116,11 +160,12 @@ function passwordOf(b: Readonly<Record<string, unknown>>, errors: Record<string,
 
 /**
  * `POST /supplier/projects/documents/create`: a document with its first version (`mode: "upload"`, `versionIds`, `versionNote`, and optionally `kind`) or its first request
- * (`mode: "request"`, `requestNote`). A statutory declaration needs `password`; no other kind takes one.
+ * (`mode: "request"`, `requestNote`). A statutory declaration needs `password`; no other kind takes one. A supply claim posts `files` in place of `versionIds`.
  */
 export function parseCreateBody(b: Readonly<Record<string, unknown>>): PortalParsed<Signed<CreateBody>> {
   const errors: Record<string, string> = unknownFields(b, CREATE_FIELDS);
   const kind = kindOf(b, errors);
+  if (b.files != null && kind !== "SUPPLY_CLAIM" && !errors.kind) return FILES_NOT_TAKEN;
   const password = passwordOf(b, errors);
   if (kind !== null && b.mode === "request") errors.kind = "A kind goes with a file sent, not with a request.";
   if (password !== null && kind !== SIGNED_KIND) errors.password = PASSWORD_ONLY_DECLARATION;
@@ -134,11 +179,11 @@ export function parseCreateBody(b: Readonly<Record<string, unknown>>): PortalPar
   const requestNote = text(b.requestNote, NOTE_MAX);
   if (versionNote == null) errors.versionNote = "The note is not text.";
   if (requestNote == null) errors.requestNote = "The note is not text.";
-  const versionIds = idList(b.versionIds, errors, "versionIds");
+  const staged = stagedOf(b, errors);
   if (b.mode === "upload" && requestNote) errors.requestNote = "A request note goes with a request, not with a file.";
-  if (b.mode === "request" && (versionIds.length > 0 || versionNote)) errors.versionIds = "Files go with a version, not with a request.";
+  if (b.mode === "request" && (staged.stagedVersionIds.length > 0 || versionNote)) errors.versionIds = "Files go with a version, not with a request.";
   if (Object.keys(errors).length > 0) return invalid(errors);
-  const first = b.mode === "upload" ? { upload: { stagedVersionIds: versionIds, note: versionNote! } } : { request: { note: requestNote! } };
+  const first = b.mode === "upload" ? { upload: { ...staged, note: versionNote! } } : { request: { note: requestNote! } };
   return { ok: true, value: { body: { contractId: b.contractId as string, title: title!, note: note!, first, kind }, password } };
 }
 
@@ -148,12 +193,14 @@ export interface VersionBody {
   contractId: string;
   documentId: string;
   stagedVersionIds: string[];
+  /// A supply claim's purposes, one per staged file; absent where `versionIds` was posted.
+  filePurposes?: SupplyFilePurpose[];
   note: string;
   /// One of the six kinds, for the first version of a document the organisation asked for; null otherwise. The store refuses it on any later version (KIND_ALREADY_SET).
   kind: DocKind | null;
 }
 
-const VERSION_FIELDS = ["contractId", "documentId", "versionIds", "note", "kind", "password"] as const;
+const VERSION_FIELDS = ["contractId", "documentId", "versionIds", "files", "note", "kind", "password"] as const;
 
 /// `POST /supplier/projects/documents/version`. `password` is parsed when posted; the route then takes it only for a declaration's version (`versionTakesPassword`).
 export function parseVersionBody(b: Readonly<Record<string, unknown>>): PortalParsed<Signed<VersionBody>> {
@@ -162,11 +209,11 @@ export function parseVersionBody(b: Readonly<Record<string, unknown>>): PortalPa
   if (!isId(b.documentId)) errors.documentId = "Say which document this is for.";
   const note = text(b.note, NOTE_MAX);
   if (note == null) errors.note = "The note is not text.";
-  const versionIds = idList(b.versionIds, errors, "versionIds");
+  const staged = stagedOf(b, errors);
   const kind = kindOf(b, errors);
   const password = passwordOf(b, errors);
   if (Object.keys(errors).length > 0) return invalid(errors);
-  return { ok: true, value: { body: { contractId: b.contractId as string, documentId: b.documentId as string, stagedVersionIds: versionIds, note: note!, kind }, password } };
+  return { ok: true, value: { body: { contractId: b.contractId as string, documentId: b.documentId as string, ...staged, note: note!, kind }, password } };
 }
 
 // ------------------------------------------------------------------ a request

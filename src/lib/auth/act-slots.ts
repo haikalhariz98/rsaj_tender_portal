@@ -337,7 +337,7 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   gated("RetentionRelease", "person", "Released by"),
   gated("AdvancePayment", "person", "Recorded by"),
   gated("FinancePayment", "person", "Recorded by"),
-  // ADR 0045 D7: Finance's payment of a supply claim, recorded as a certificate's is (wave V step V8 wires the act).
+  // ADR 0045 D7: Finance's payment of a supply claim, recorded as a certificate's is (wave V step V6: `recordSupplyPayment`, `src/app/projects/[id]/supply-actions.ts`).
   gated("SupplyInvoicePayment", "person", "Recorded by"),
   gated("LadWarning", "person", "Warned by"),
   signed("NonCompletion", "person", "Decided by", "HOLDER_CHECKED", ["src/app/projects/[id]/payment-actions.ts#recordNonCompletion"]),

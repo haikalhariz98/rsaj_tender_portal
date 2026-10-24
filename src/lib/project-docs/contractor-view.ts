@@ -123,6 +123,10 @@ const SAFE_CODES: ReadonlySet<string> = new Set([
   "PORTAL_SIGNING_OFF",
   "SIGNER_NOT_AUTHORISED_NOT_SET",
   "SIGNER_NOT_AUTHORISED",
+  // ADR 0045 D6: the kind the contract's route offers, and a supply claim's two files: what the contractor sent, never the organisation's working.
+  "KIND_NOT_OFFERED",
+  "SUPPLY_FILE_MISSING",
+  "FILE_PURPOSE_NOT_TAKEN",
 ]);
 
 /**

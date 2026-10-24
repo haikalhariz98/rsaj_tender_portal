@@ -127,3 +127,44 @@ describe("PW-41: the version route takes a password only for a statutory declara
     expect(PASSWORD_ONLY_DECLARATION).toMatch(/statutory declaration/);
   });
 });
+
+describe("a supply claim's files (ADR 0045 D6, WV-11)", () => {
+  const V2 = "version_00002";
+  const files = [{ versionId: V1, purpose: "DELIVERY_ORDER" }, { versionId: V2, purpose: "SUPPLY_INVOICE" }];
+
+  it("create: the kind is taken now, and its files carry their purposes in order", () => {
+    expect(parseCreateBody({ contractId: CON, title: "INV-2026-0042", mode: "upload", files, kind: "SUPPLY_CLAIM" })).toEqual({
+      ok: true,
+      value: { body: { contractId: CON, title: "INV-2026-0042", note: "", first: { upload: { stagedVersionIds: [V1, V2], filePurposes: ["DELIVERY_ORDER", "SUPPLY_INVOICE"], note: "" } }, kind: "SUPPLY_CLAIM" }, password: null },
+    });
+  });
+
+  it("create: files with any other kind, or none, are 422, judged first", () => {
+    for (const kind of [undefined, "INTERIM_CLAIM", "WORK_PROGRAMME"]) {
+      expect(parseCreateBody({ contractId: CON, title: "x", mode: "upload", files, kind }), String(kind)).toMatchObject({ ok: false, status: 422, errors: { files: expect.any(String) } });
+    }
+  });
+
+  it("files and versionIds together are 400, on create and on a version", () => {
+    expect(parseCreateBody({ contractId: CON, title: "x", mode: "upload", versionIds: [V1], files, kind: "SUPPLY_CLAIM" })).toMatchObject({ ok: false, status: 400, errors: { files: expect.any(String) } });
+    expect(parseVersionBody({ contractId: CON, documentId: DOC, versionIds: [V1], files })).toMatchObject({ ok: false, status: 400, errors: { files: expect.any(String) } });
+  });
+
+  it("a version: files parse whatever the posted kind; the store judges them against the document's kind", () => {
+    expect(parseVersionBody({ contractId: CON, documentId: DOC, files })).toEqual({ ok: true, value: { body: { contractId: CON, documentId: DOC, stagedVersionIds: [V1, V2], filePurposes: ["DELIVERY_ORDER", "SUPPLY_INVOICE"], note: "", kind: null }, password: null } });
+  });
+
+  it("a bad purpose, a bad id, an extra key, a list that is not one, or far too many are 400", () => {
+    const bad: unknown[] = [
+      [{ versionId: V1, purpose: "PROJECT_DOCUMENT_FILE" }],
+      [{ versionId: V1, purpose: "delivery_order" }],
+      [{ versionId: "no", purpose: "DELIVERY_ORDER" }],
+      [{ versionId: V1, purpose: "DELIVERY_ORDER", amount: "1" }],
+      [V1],
+      [null],
+      "DELIVERY_ORDER",
+      Array.from({ length: 41 }, () => ({ versionId: V1, purpose: "DELIVERY_ORDER" })),
+    ];
+    for (const f of bad) expect(parseCreateBody({ contractId: CON, title: "x", mode: "upload", files: f, kind: "SUPPLY_CLAIM" }), JSON.stringify(f).slice(0, 60)).toMatchObject({ ok: false, status: 400, errors: { files: expect.any(String) } });
+  });
+});

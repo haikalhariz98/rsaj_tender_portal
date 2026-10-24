@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { VERSION_FILE_PURPOSES } from "@/lib/project-docs/kinds-offered";
 import { SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AWARD_RETURN_POST_PATHS, SUPPLIER_AWARD_RETURN_POSTS, SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_BIDS_PAGE, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_BIDS_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_DATA_EXPORT, SUPPLIER_POST_PATHS, SUPPLIER_PROJECT_DOCUMENT_FILE, SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS, SUPPLIER_PROJECT_DOCUMENTS_POSTS, SUPPLIER_PROJECTS_PAGE, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_PROJECTS_POSTS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
 import { lex } from "@/lib/scan/source";
 
@@ -630,7 +631,10 @@ describe("the contractor's Project workspace documents (plan step 5)", () => {
     expect(reach).toMatch(/supplierHoldsContract\(\{ awardVendorId: award\.vendorId, awardStatus: award\.status, supplierId: actor\.supplierId \}\)/);
     expect(reach).toMatch(/contractorSeesVersion\(/);
     expect(reach).toMatch(/contractorMayDownload\(/);
-    expect(reach).toMatch(/purpose: "PROJECT_DOCUMENT_FILE"/);
+    // ADR 0045 D6: a project version's files, of any of its three purposes (a supply claim's delivery order and invoice too); never another owner's.
+    expect(reach).toMatch(/purpose: \{ in: \[\.\.\.VERSION_FILE_PURPOSES\] \}/);
+    expect(reach).toMatch(/projectDocumentVersionId: \{ not: null \}/);
+    expect([...VERSION_FILE_PURPOSES]).toEqual(["PROJECT_DOCUMENT_FILE", "DELIVERY_ORDER", "SUPPLY_INVOICE"]);
   });
 
   it("no handler or loader reads a supplier, an organisation, an account, a day or a time from the request", () => {

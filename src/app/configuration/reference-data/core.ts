@@ -9,6 +9,7 @@ import { FormReader } from "@/lib/validate";
 import { writeAudit } from "@/lib/audit/record";
 import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { DELIVERABLE_KINDS } from "@/lib/method/types";
+import { PAYMENT_ROUTES } from "@/lib/project-docs/types";
 import { contractTypeConfigFaults, dominanceShareFault, methodConfigFaults } from "@/lib/method/config";
 import { PERMIT_LIST_MAPPING_FAULT_TEXT, permitListMappingFaults } from "@/lib/method/taxonomy";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
@@ -382,6 +383,8 @@ export async function saveContractBehaviours(_prev: FormState, data: FormData): 
     sumAdjustmentTriggers: data.has("sumAdjustmentTriggers") ? list(String(data.get("sumAdjustmentTriggers") ?? "")).filter(isSumAdjustmentTrigger) : before.sumAdjustmentTriggers,
     // 6.13 Part A step 2 (FR-SUP-003): the delegation letters; a field the form never sent is kept as stored.
     delegationVariant: data.has("delegationVariant") ? r.choice("delegationVariant", "Delegation letters", DELEGATION_VARIANTS) : before.delegationVariant,
+    // ADR 0045 D5 (WV-9): how the type is paid; empty is not set; a field the form never sent is kept as stored.
+    paymentRoute: data.has("paymentRoute") ? r.choice("paymentRoute", "How it is paid", PAYMENT_ROUTES) : before.paymentRoute,
   };
   const known = new Set((await db.authorityRole.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((x) => x.code));
   const unknown = v.administratorRoleCodes.filter((c) => !known.has(c));

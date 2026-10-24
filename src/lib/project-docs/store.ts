@@ -48,6 +48,8 @@ import { signatoryDesignation, supplierAuditActor } from "@/lib/portal/projects/
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
 import { stagedFileFaults, type StagedFile } from "./bounds";
+import { kindOfferedFault, versionFileFaults, type VersionFilePurpose } from "./kinds-offered";
+import { paymentRouteOf } from "./supply-read";
 import { addApproverFaults, createFaults, decideFaults, markFaults, removeApproverFaults, requestFaults, uploadFaults } from "./faults";
 import { loadDocumentFacts } from "./facts";
 import { kindWords, outcomeWords, refusalText, SIGNED_KIND, stateWords, versionLabel } from "./labels";
@@ -125,6 +127,13 @@ async function sideOn(c: WorkspaceCtx) {
 }
 type Side5 = Awaited<ReturnType<typeof sideOn>>;
 
+/// The purpose each staged file is pinned with: as posted (a supply claim's delivery order and invoice, ADR 0045 D6), else a plain project file.
+function purposesOf(ids: readonly string[], posted: readonly VersionFilePurpose[] | null | undefined): VersionFilePurpose[] {
+  if (posted == null) return ids.map(() => "PROJECT_DOCUMENT_FILE");
+  if (posted.length !== ids.length) throw new Error("Each staged file needs its purpose.");
+  return [...posted];
+}
+
 /// The actor as the rules read them: a staff person with their PW-5 authority today, or the contractor's account.
 const ruleActor = (a: WorkspaceActor, side: Side5): Actor => (a.kind === "STAFF" ? { side: "ORGANISATION", personId: a.actor.personId, authorityToday: side.mayAct(a.actor.personId) } : { side: "CONTRACTOR", accountId: a.actor.accountId });
 
@@ -173,6 +182,7 @@ async function lockedDocument(c: WorkspaceCtx, documentId: string) {
 }
 
 interface PinnableFile {
+  purpose: VersionFilePurpose;
   version: { id: string; documentId: string; versionNo: number; sha256: string; withdrawnAt: Date | null; originalFilename: string; byteSize: bigint };
   document: { id: string; title: string; status: "STAGED" | "FILED" | "WITHDRAWN" | string };
 }
@@ -186,7 +196,7 @@ interface PinnableFile {
  * document. Every other id, whoever's it is and whatever it is, reads one FILE_UNKNOWN, and no foreign row is locked, so the faults are no oracle on the store.
  * NOT_YOURS and NOT_STAGED_FOR_PROJECT (`stagedFileFaults`) stay as an internal backstop only.
  */
-async function stagedFiles(c: WorkspaceCtx, a: WorkspaceActor, ids: readonly string[], projectClassId: string | null): Promise<{ files: PinnableFile[]; faults: Finding[] }> {
+async function stagedFiles(c: WorkspaceCtx, a: WorkspaceActor, ids: readonly string[], purposes: readonly VersionFilePurpose[], projectClassId: string | null): Promise<{ files: PinnableFile[]; faults: Finding[] }> {
   if (ids.length === 0) return { files: [], faults: [] };
   const faults: Finding[] = [];
   const org = c.l.org.id;
@@ -220,11 +230,11 @@ async function stagedFiles(c: WorkspaceCtx, a: WorkspaceActor, ids: readonly str
     }
     known.push({ versionId: r.id, stagedFor: r.document.stagedFor, recordedByPersonId: r.recordedByPersonId, recordedBySupplierAccountId: r.recordedBySupplierAccountId, attachments: r._count.attachments, withdrawn: r.withdrawnAt !== null, documentClassId: r.document.documentClassId });
     // The document store's own judgement of the pin (a withdrawn version, an owner that is frozen), as the generic attach makes it; the staged-file rules are `stagedFileFaults`.
-    const own = blocking(attachFault({ purpose: "PROJECT_DOCUMENT_FILE", owner: { kind: "projectDocumentVersion", contractStatus: c.l.contract.status as ContractStatus }, version: { withdrawnAt: r.withdrawnAt }, documentClass: r.document.documentClass, documentClassification: r.document.classificationSnapshot, alreadyAttached: false, byOwnerAct: true }));
+    const own = blocking(attachFault({ purpose: purposes[n]!, owner: { kind: "projectDocumentVersion", contractStatus: c.l.contract.status as ContractStatus }, version: { withdrawnAt: r.withdrawnAt }, documentClass: r.document.documentClass, documentClassification: r.document.classificationSnapshot, alreadyAttached: false, byOwnerAct: true }));
     for (const f of own) if (f.code !== "VERSION_WITHDRAWN") faults.push({ code: "FILE_REFUSED", level: "block", data: { file: n + 1, words: documentFaultText(f) } });
     // The contractor downloads a project file, so it is never SULIT or unclassified, now (the class may have been raised since it was staged).
     if (!contractorMayDownload({ versionVisible: true, documentClassification: r.document.classificationSnapshot, classClassification: r.document.documentClass.classification })) faults.push({ code: "FILE_NOT_FOR_CONTRACTOR", level: "block", data: { file: n + 1 } });
-    files.push({ version: { id: r.id, documentId: r.documentId, versionNo: r.versionNo, sha256: r.sha256, withdrawnAt: r.withdrawnAt, originalFilename: r.originalFilename, byteSize: r.byteSize }, document: { id: r.document.id, title: r.document.title, status: r.document.status } });
+    files.push({ purpose: purposes[n]!, version: { id: r.id, documentId: r.documentId, versionNo: r.versionNo, sha256: r.sha256, withdrawnAt: r.withdrawnAt, originalFilename: r.originalFilename, byteSize: r.byteSize }, document: { id: r.document.id, title: r.document.title, status: r.document.status } });
   });
   if (projectClassId !== null) faults.push(...stagedFileFaults(known, a.kind === "STAFF" ? { side: "ORGANISATION", personId: a.actor.personId, authorityToday: true } : { side: "CONTRACTOR", accountId: a.actor.accountId }, projectClassId));
   return { files, faults };
@@ -233,15 +243,15 @@ async function stagedFiles(c: WorkspaceCtx, a: WorkspaceActor, ids: readonly str
 /// The files an actor recorded itself: its own portal account's, or the staff person's (never both).
 const recordedBy = (a: WorkspaceActor) => (a.kind === "STAFF" ? { recordedByPersonId: a.actor.personId, recordedBySupplierAccountId: null } : { recordedBySupplierAccountId: a.actor.accountId, recordedByPersonId: null });
 
-/// Pin each staged file to the version (a `DocumentAttachment`, purpose PROJECT_DOCUMENT_FILE), file its store document, and audit both, as the generic attach act does.
+/// Pin each staged file to the version (a `DocumentAttachment` of its purpose: PROJECT_DOCUMENT_FILE, or a supply claim's two), file its store document, and audit both, as the generic attach act does.
 async function pinFiles(c: WorkspaceCtx, a: WorkspaceActor, labels: Labels, files: readonly PinnableFile[], projectDocumentVersionId: string, versionNumber: number): Promise<void> {
   for (const f of files) {
-    const row = await c.tx.documentAttachment.create({ data: { organisationId: c.l.org.id, purpose: "PROJECT_DOCUMENT_FILE", versionId: f.version.id, projectDocumentVersionId } });
+    const row = await c.tx.documentAttachment.create({ data: { organisationId: c.l.org.id, purpose: f.purpose, versionId: f.version.id, projectDocumentVersionId } });
     await writeAudit(
       c.tx,
-      { actor: auditActorOf(a), organisationId: c.l.org.id, entity: "DocumentAttachment", entityId: row.id, entityLabel: `${labels.contract} · ${labels.document}, ${versionLabel(versionNumber)} · ${PURPOSE_LABEL.PROJECT_DOCUMENT_FILE}` },
+      { actor: auditActorOf(a), organisationId: c.l.org.id, entity: "DocumentAttachment", entityId: row.id, entityLabel: `${labels.contract} · ${labels.document}, ${versionLabel(versionNumber)} · ${PURPOSE_LABEL[f.purpose]}` },
       "CREATE",
-      attached({ purpose: "PROJECT_DOCUMENT_FILE", title: f.document.title, versionNo: f.version.versionNo, sha256: f.version.sha256, owner: `${labels.contract} · ${labels.document}, ${versionLabel(versionNumber)}` }),
+      attached({ purpose: f.purpose, title: f.document.title, versionNo: f.version.versionNo, sha256: f.version.sha256, owner: `${labels.contract} · ${labels.document}, ${versionLabel(versionNumber)}` }),
     );
     if (f.document.status === "STAGED") {
       await c.tx.document.update({ where: { id: f.document.id, organisationId: c.l.org.id }, data: { status: "FILED", filedAt: c.now } });
@@ -290,7 +300,8 @@ export async function createDocument(
   i: {
     title: string;
     note: string;
-    first: { upload: { stagedVersionIds: readonly string[]; note: string } } | { request: { note: string } };
+    /// `filePurposes`, one per staged file in order: a supply claim's delivery order and invoice (ADR 0045 D6). Absent: each is a plain project file.
+    first: { upload: { stagedVersionIds: readonly string[]; note: string; filePurposes?: readonly VersionFilePurpose[] | null } } | { request: { note: string } };
     approverPersonIds: readonly string[];
     /// One of the six kinds, with an upload (plan step 6). Only the contractor picks one; the staff acts never pass it.
     kind?: DocKind | null;
@@ -305,12 +316,15 @@ export async function createDocument(
   const policy = await loadStorePolicy(c.l.org.id, tx);
   const actor = ruleActor(a, side);
   const upload = "upload" in i.first ? i.first.upload : null;
-  const staged = upload ? await stagedFiles(c, a, upload.stagedVersionIds, policy.projectDocumentClassId) : { files: [], faults: [] };
+  const purposes = upload ? purposesOf(upload.stagedVersionIds, upload.filePurposes) : [];
+  const staged = upload ? await stagedFiles(c, a, upload.stagedVersionIds, purposes, policy.projectDocumentClassId) : { files: [], faults: [] };
   const names = [...new Set(i.approverPersonIds)];
   const approvers = i.approverPersonIds.map((personId) => ({ personId, authorityToday: side.mayAct(personId) }));
   const kind = i.kind ?? null;
   const stepUpAt = i.stepUpAt ?? null;
   const signing = upload ? await signingFault(c, a, kind) : null;
+  // WV-9, WV-10: a kind picked must be one the contract's route offers today; the route is read only when one is picked.
+  const offered = kindOfferedFault(kind, kind === null ? null : await paymentRouteOf(tx, c.l));
   const faults = [
     ...createFaults({
       actor,
@@ -322,6 +336,8 @@ export async function createDocument(
       approvers,
     }),
     ...(!upload && kind !== null ? [{ code: "KIND_ALREADY_SET", level: "block" as const }] : []),
+    ...(offered ? [offered] : []),
+    ...(upload ? versionFileFaults(kind, purposes) : []),
     ...(signing ? [signing] : []),
     ...staged.faults,
   ];
@@ -425,6 +441,8 @@ export async function addVersion(
     kind?: DocKind | null;
     /// When the contractor's password was asked again, for a statutory declaration's version; or null.
     stepUpAt?: Date | null;
+    /// One per staged file in order: a supply claim's delivery order and invoice (ADR 0045 D6). Absent: each is a plain project file.
+    filePurposes?: readonly VersionFilePurpose[] | null;
   },
   act: PreparedAct | null,
 ): Promise<{ versionId: string; number: number }> {
@@ -432,13 +450,16 @@ export async function addVersion(
   const side = await sideOn(c);
   const { doc, facts } = await lockedDocument(c, i.documentId);
   const policy = await loadStorePolicy(c.l.org.id, c.tx);
-  const staged = await stagedFiles(c, a, i.stagedVersionIds, policy.projectDocumentClassId);
+  const purposes = purposesOf(i.stagedVersionIds, i.filePurposes);
+  const staged = await stagedFiles(c, a, i.stagedVersionIds, purposes, policy.projectDocumentClassId);
   const kind = i.kind ?? null;
   const stepUpAt = i.stepUpAt ?? null;
   // The kind the version is of: the document's own, or the one picked with this first version.
   const ofKind = facts.kind ?? kind;
   const signing = await signingFault(c, a, ofKind);
-  const faults = [...uploadFaults({ actor: ruleActor(a, side), classSet: policy.projectDocumentClassId !== null, doc: facts, files: i.stagedVersionIds.length, note: i.note, kind, signed: stepUpAt !== null }), ...(signing ? [signing] : []), ...staged.faults];
+  // WV-9: only a kind picked now is judged against the route; a document's own kind keeps taking versions whatever the route later says.
+  const offered = kindOfferedFault(kind, kind === null ? null : await paymentRouteOf(c.tx, c.l));
+  const faults = [...uploadFaults({ actor: ruleActor(a, side), classSet: policy.projectDocumentClassId !== null, doc: facts, files: i.stagedVersionIds.length, note: i.note, kind, signed: stepUpAt !== null }), ...(offered ? [offered] : []), ...versionFileFaults(ofKind, purposes), ...(signing ? [signing] : []), ...staged.faults];
   if (blocking(faults).length) refuse(faults);
 
   const labels: Labels = { contract: contractText(c.l), document: doc.title };

@@ -5,6 +5,8 @@
 
 import { formatMoney, parseSen } from "@/lib/money";
 
+import type { PaymentRoute } from "@/lib/project-docs/types";
+
 import type { BehaviourKey } from "./profile";
 import type { DerivationState } from "./contract-type";
 import type { TaxonomyState } from "./taxonomy";
@@ -75,6 +77,12 @@ export const DELIVERABLE_LABEL: Record<DeliverableKind, string> = {
   GOODS_DELIVERED: "Goods delivered",
   MEASURED_CONSTRUCTION: "Measured construction or installation",
   TERM_PERFORMANCE: "Performance over a term",
+};
+
+/// ADR 0045 D5: how a contract type is paid, in words ("Not set" where it is null: `NOT_SET`).
+export const PAYMENT_ROUTE_LABEL: Record<PaymentRoute, string> = {
+  CERTIFIED_CLAIM: "Certified claim",
+  DELIVERY_ORDER_INVOICE: "Delivery order and invoice",
 };
 
 export const PROPOSAL_STATE_LABEL: Record<ProposalState, string> = {

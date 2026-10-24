@@ -8,6 +8,7 @@
  */
 
 import type { Regime } from "@/lib/authority/types";
+import type { PaymentRoute } from "@/lib/project-docs/types";
 import type { FundingPosture, Provenance, SourcingMethod } from "@/lib/reference/types";
 
 export type { Provenance, Regime, FundingPosture };
@@ -116,6 +117,9 @@ export interface ContractBehaviours {
   /// 6.13 Part A step 2 (FR-SUP-003): which delegation letters the type's contracts use. Null: not set, and a
   /// delegation is refused naming it. Absent on rows built before it.
   delegationVariant?: string | null;
+  /// ADR 0045 D5 (FR-MTD-012, BD-613-128): the typed twin of `interimPaymentRule`: how a contract of the type is paid, which decides the kinds its contractor is
+  /// offered (WV-10). Not one of the twelve, and no provenance of its own. Null: not set (today's six kinds). Absent on rows built before it.
+  paymentRoute?: PaymentRoute | null;
 }
 
 export interface ContractTypeRow extends ContractBehaviours {

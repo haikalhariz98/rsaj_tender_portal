@@ -33,8 +33,8 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   // ADR 0042 (plan step 4): the Project workspace's six staff slots are wired (`document-actions.ts`, `project-docs/store.ts`) and have left this list.
   // ADR 0042 D10 (plan step 7): the kick-off meeting's two slots are wired since the act step (`kick-off-actions.ts`, `project-docs/kick-off-store.ts`), so they leave this list.
   // ADR 0045 (wave V step V1): the schema step registered four staff slots. Step V2 wired the three of the online return and the questions (`src/app/awards/actions.ts`,
-  // `src/lib/award/online-return-store.ts`; the verify act also writes `AwardReturn.receivedBy` from the same attribution, by `writeAlso`), so they left this list. V6 and V8 wire the last.
-  "SupplyInvoicePayment.person": { why: "Recording Finance's payment of a supply claim is wave V step V6 and V8: no act writes one yet.", writer: /\.supplyInvoicePayment\.(?:create|createMany|upsert)\(/ },
+  // `src/lib/award/online-return-store.ts`; the verify act also writes `AwardReturn.receivedBy` from the same attribution, by `writeAlso`), so they left this list. Step V6 wired
+  // the last, Finance's payment of a supply claim (`src/app/projects/[id]/supply-actions.ts`, `src/lib/payment/supply-write.ts`), so it left this list too.
 };
 
 function walk(dir: string, out: string[] = []): string[] {

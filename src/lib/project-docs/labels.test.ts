@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { SUBMISSION_KINDS } from "@/lib/portal/projects/types";
 
-import { BEING_PREPARED, STATE_WORDS, faultText, kindChoices, kindWords, markActionWords, outcomeWords, refusalText, sideWords, stateWords, takenUpLink, versionLabel, waitsOnWords } from "./labels";
+import { BEING_PREPARED, STATE_WORDS, faultText, kindChoices, kindWords, markActionWords, outcomeWords, refusalText, sideWords, stateWords, takenUpLink, titleLabel, versionLabel, waitsOnWords } from "./labels";
 import { DOCUMENT_STATES } from "./state";
 import { takenUpWhere } from "./taken-up";
 import { OUTCOMES, type Finding } from "./types";
@@ -21,11 +21,16 @@ describe("states and outcomes", () => {
     expect(Object.keys(STATE_WORDS).sort()).toEqual([...DOCUMENT_STATES].sort());
   });
 
-  it("on defects rectified the mark reads Noted, as state, outcome and button; every other kind reads Taken up (PW-24)", () => {
+  it("on defects rectified the mark reads Noted, on a supply claim Verified, as state, outcome and button; every other kind reads Taken up (PW-24; ADR 0045 D6)", () => {
     expect(stateWords("TAKEN_UP", "DEFECTS_RECTIFIED")).toBe("Noted");
     expect(outcomeWords("TAKEN_UP", "DEFECTS_RECTIFIED")).toBe("Noted");
     expect(markActionWords("TAKEN_UP", "DEFECTS_RECTIFIED")).toBe("Mark noted");
-    for (const k of SUBMISSION_KINDS.filter((k) => k !== "DEFECTS_RECTIFIED")) {
+    expect(stateWords("TAKEN_UP", "SUPPLY_CLAIM")).toBe("Verified");
+    expect(outcomeWords("TAKEN_UP", "SUPPLY_CLAIM")).toBe("Verified");
+    expect(markActionWords("TAKEN_UP", "SUPPLY_CLAIM")).toBe("Mark verified");
+    expect(markActionWords("RETURNED", "SUPPLY_CLAIM")).toBe("Return");
+    expect(faultText({ code: "FINAL", level: "block", data: { state: "TAKEN_UP", kind: "SUPPLY_CLAIM" } })).toBe("This document is verified, so it is closed. A later change is a new document.");
+    for (const k of SUBMISSION_KINDS.filter((k) => k !== "DEFECTS_RECTIFIED" && k !== "SUPPLY_CLAIM")) {
       expect(stateWords("TAKEN_UP", k), k).toBe("Taken up");
       expect(outcomeWords("TAKEN_UP", k), k).toBe("Taken up");
       expect(markActionWords("TAKEN_UP", k), k).toBe("Mark taken up");
@@ -41,6 +46,12 @@ describe("states and outcomes", () => {
 
   it("every kind has a name, with no code in it", () => {
     for (const k of SUBMISSION_KINDS) expect(kindWords(k)).not.toMatch(CODE);
+    expect(kindWords("SUPPLY_CLAIM")).toBe("Delivery order and invoice");
+  });
+
+  it("a supply claim's title is its invoice number; every other document's is its title (ADR 0045 D6, WV-12)", () => {
+    expect(titleLabel("SUPPLY_CLAIM")).toBe("Invoice number");
+    for (const k of [null, ...SUBMISSION_KINDS.filter((k) => k !== "SUPPLY_CLAIM")]) expect(titleLabel(k)).toBe("Title");
   });
 });
 
@@ -48,6 +59,7 @@ describe("Taken up and where it is recorded (PW-24)", () => {
   it("words only with a link, and none where no screen records the kind", () => {
     expect(takenUpLink("WORK_PROGRAMME")).toEqual({ words: "Recorded under Site › Possession and progress", where: { stage: "project", tab: "site", section: "start" } });
     expect(takenUpLink("INTERIM_CLAIM")?.words).toBe("Recorded under Payments › Valuations");
+    expect(takenUpLink("SUPPLY_CLAIM")?.words).toBe("Recorded under Payments › Supply invoices");
     for (const k of SUBMISSION_KINDS) {
       const link = takenUpLink(k);
       expect(link === null, k).toBe(takenUpWhere(k) === null);
@@ -77,7 +89,7 @@ describe("who it waits on, the sides, and the fixed phrases", () => {
 });
 
 describe("every refusal is worded", () => {
-  const sources = ["faults.ts", "bounds.ts"].map((f) => readFileSync(path.join(__dirname, f), "utf8")).join("\n");
+  const sources = ["faults.ts", "bounds.ts", "kinds-offered.ts"].map((f) => readFileSync(path.join(__dirname, f), "utf8")).join("\n");
   const codes = new Set<string>();
   for (const m of sources.matchAll(/export type \w+Fault =([^;]+);/g)) for (const c of m[1]!.matchAll(/"([A-Z][A-Z_]+)"/g)) codes.add(c[1]!);
 
@@ -108,6 +120,9 @@ describe("every refusal is worded", () => {
     FILE_REFUSED: [{ file: 2, words: "That version is withdrawn, so it is not attached." }],
     FILE_NOT_FOR_CONTRACTOR: [{ file: 2 }],
     ALREADY_MARKED: [{ kind: "DEFECTS_RECTIFIED" }],
+    KIND_NOT_OFFERED: [{ kind: "SUPPLY_CLAIM" }, { kind: "INTERIM_CLAIM" }],
+    SUPPLY_FILE_MISSING: [{ purpose: "DELIVERY_ORDER" }, { purpose: "SUPPLY_INVOICE" }],
+    FILE_PURPOSE_NOT_TAKEN: [{ file: 3, purpose: "PROJECT_DOCUMENT_FILE", kind: "SUPPLY_CLAIM" }, { file: 1, purpose: "DELIVERY_ORDER", kind: null }],
   };
 
   it("the scan finds the faults of every act", () => {
@@ -135,6 +150,11 @@ describe("every refusal is worded", () => {
     expect(faultText({ code: "TOO_MANY_BYTES_IN_WINDOW", level: "block", data: { limitMiB: 256, minutes: 60, retryInMinutes: 55 } })).toBe("This file would take this account past 256 MiB uploaded in the last 60 minutes, the most allowed. Try again in 55 minutes.");
     expect(faultText({ code: "LAST_APPROVER", level: "block" })).toMatch(/add the new approver first, then remove this one/);
     expect(faultText({ code: "NOTE_TOO_LONG", level: "block", data: { field: "request", limit: 2000 } })).toBe("The request's note is longer than 2000 characters. Shorten it.");
+    expect(faultText({ code: "KIND_NOT_OFFERED", level: "block", data: { kind: "INTERIM_CLAIM" } })).toBe("Interim claim is not sent on this contract.");
+    expect(faultText({ code: "SUPPLY_FILE_MISSING", level: "block", data: { purpose: "SUPPLY_INVOICE" } })).toBe("Add the invoice.");
+    expect(faultText({ code: "SUPPLY_FILE_MISSING", level: "block", data: { purpose: "DELIVERY_ORDER" } })).toBe("Add the delivery order.");
+    expect(faultText({ code: "FILE_PURPOSE_NOT_TAKEN", level: "block", data: { file: 3, purpose: "PROJECT_DOCUMENT_FILE", kind: "SUPPLY_CLAIM" } })).toBe("File 3 is not marked as the delivery order or the invoice.");
+    expect(faultText({ code: "FILE_PURPOSE_NOT_TAKEN", level: "block", data: { file: 1, purpose: "DELIVERY_ORDER", kind: null } })).toBe("File 1 is marked as a delivery order, which goes only with a delivery order and invoice.");
   });
 
   it("an unknown code fails closed; a refusal reads the lead and each fault", () => {
@@ -152,8 +172,11 @@ describe("every refusal is worded", () => {
 describe("the kind picker and the declaration's signing refusals (plan step 6)", () => {
   it("offers the six kinds by name, the declaration alone asking the password, with no hint of a figure (PW-10)", () => {
     const choices = kindChoices();
-    // Wave V step V1: the seventh kind (SUPPLY_CLAIM, ADR 0045 D6) is not offered until step V6 offers it by the contract type's payment route.
+    // ADR 0045 D6 (WV-10): with no route, and on a certified-claim contract, the six; the seventh kind is offered only on a delivery-order contract.
     expect(choices.map((c) => c.value)).toEqual(SUBMISSION_KINDS.filter((k) => k !== "SUPPLY_CLAIM"));
+    expect(kindChoices("CERTIFIED_CLAIM")).toEqual(choices);
+    expect(kindChoices("DELIVERY_ORDER_INVOICE").map((c) => c.value)).toEqual(["WORK_PROGRAMME", "DELAY_NOTICE", "DEFECTS_RECTIFIED", "STATUTORY_DECLARATION", "SUPPLY_CLAIM"]);
+    expect(kindChoices("DELIVERY_ORDER_INVOICE").find((c) => c.value === "SUPPLY_CLAIM")).toEqual({ value: "SUPPLY_CLAIM", label: "Delivery order and invoice", asksPassword: false });
     for (const c of choices) {
       expect(c.label, c.value).toBe(kindWords(c.value));
       expect(c.label, c.value).not.toMatch(CODE);

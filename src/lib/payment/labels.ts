@@ -5,6 +5,7 @@
  * under and what can still be done, never "set it" (the setting no longer moves it). Exhaustive maps.
  */
 
+import { supplyFaultText } from "./supply";
 import { formatDate } from "@/lib/format";
 import { templateNotSetWords } from "@/lib/certificate/form-needs";
 import { ladFaultWords } from "@/lib/lad/labels";
@@ -458,6 +459,16 @@ export function paymentFaultWords(f: Finding): Words {
       return w(`"${(PACK_WORDS[String(d.item) as PackItem] ?? PACK_WORDS.STUDY).en}" is marked not required: say why.`, "Nyatakan sebab item itu tidak diperlukan.");
     case "FUTURE_DATE":
       return w(`${day(d.day)} is after today: nothing is recorded ahead of its day.`, `${day(d.day)} selepas hari ini.`);
+    // ------------------------------------------------ a supply claim's payment (ADR 0045 D7): its own words, in `supply.ts`
+    case "NOT_A_SUPPLY_CLAIM":
+    case "NOT_VERIFIED":
+    case "PAID_BEFORE_VERIFIED":
+    case "AMOUNT_REQUIRED":
+    case "AMOUNT_NOT_POSITIVE":
+    case "AMOUNT_TOO_LARGE": {
+      const t = supplyFaultText(f);
+      return w(t, t);
+    }
     case "PERSON_REQUIRED":
       return w("Name who it is recorded for: someone on record and active.", "Namakan pegawai yang direkodkan.");
     default:

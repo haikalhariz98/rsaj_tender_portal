@@ -3,6 +3,7 @@
 import { CORE_ROUTING_ENTITIES, CORE_ROUTING_ENTITY_NAME, coreRoutingEntryName, coreRoutingTrailPrefix } from "@/lib/audit/core-routing-trail";
 import { isSumAdjustmentTrigger, SUM_ADJUSTMENT_TRIGGER_WORDS } from "@/lib/method/behaviour-twins";
 import { VARIANT_WORDS } from "@/lib/supervision/labels";
+import { PAYMENT_ROUTE_LABEL } from "@/lib/method/labels";
 import { loadAudit } from "@/lib/audit/record";
 import {
   MATTER_KIND_LABEL,
@@ -141,6 +142,8 @@ const VALUE_LABEL: Record<string, Record<string, string>> = {
   action: { APPROVES: "Approves", RECOMMENDS: "Recommends", CONSENTS: "Consents", DECIDES: "Decides" },
   // 6.13 Part A: a contract type's delegation letters.
   delegationVariant: Object.fromEntries(Object.entries(VARIANT_WORDS).map(([k, v]) => [k, v.en])),
+  // ADR 0045 D5: how a contract type is paid.
+  paymentRoute: PAYMENT_ROUTE_LABEL,
 };
 /// History's words for a source (plan 5.1): working screens show none, so this is where a reader finds it. Some rows store the code, some the word.
 const SOURCE_WORDS: Record<string, string> = { STATED: "From a written rule", Stated: "From a written rule", OBSERVED: "Usual practice", Observed: "Usual practice", ASSUMED: "Assumed", Assumed: "Assumed" };

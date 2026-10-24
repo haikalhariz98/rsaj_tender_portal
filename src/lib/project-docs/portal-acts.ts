@@ -96,7 +96,7 @@ export function contractorCreate(actor: SupplierActor, i: CreateBody, stepUpAt: 
 /// when the password was asked again (a statutory declaration's every version is signed); null where none was posted.
 export function contractorVersion(actor: SupplierActor, i: VersionBody, stepUpAt: Date | null = null): Promise<PortalOutcome> {
   return asContractor(actor, i.contractId, i.documentId, async (ctx) => {
-    const made = await addVersion(ctx, { kind: "SUPPLIER", actor }, { documentId: i.documentId, stagedVersionIds: i.stagedVersionIds, note: i.note, kind: i.kind, stepUpAt }, null);
+    const made = await addVersion(ctx, { kind: "SUPPLIER", actor }, { documentId: i.documentId, stagedVersionIds: i.stagedVersionIds, filePurposes: i.filePurposes, note: i.note, kind: i.kind, stepUpAt }, null);
     return { documentId: i.documentId, versionId: made.versionId, number: made.number };
   });
 }
