@@ -964,6 +964,13 @@ model AuthorityRule {
   generateCoreChain Boolean?
   coreChainReason   String?
 
+  /// A route choice (decision D2): rows of one matter (`domain`) that carry an option are alternative readings of
+  /// the governing documents, and the customer picks one. The option in words; null on a row that is no option.
+  choiceOptionEn String?
+  /// Whether this row's option is the one chosen. Null: the choice is not made, and a matter it would route says so
+  /// rather than pick one. False rows are never routed. Set by the "Choose" act on a draft only.
+  chosen         Boolean?
+
   recommenders AuthorityRuleStep[]
 
   @@unique([authorityMatrixId, ruleKey])
