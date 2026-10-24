@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { newAmbient, attempt } from "@/lib/ambient/ambient-tx";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { db, savepointSql } from "@/lib/db";
@@ -207,10 +209,21 @@ export async function proposeEdit(
     // only two-person decisions), and every audit row the editor writes carries the one-person reason. Read without a lock: an editor takes its own locks in its own order, and
     // a switch turned on in the meantime only makes this save one the person was entitled to a moment ago.
     // shortcut: no organisation lock around the read, upgrade if editors are made to lock the organisation first.
-    if (appliesAtOnce(op.kind, await twoPersonOn(tx, actor.organisationId))) {
+    // Only a holder of the permission that decides it saves alone (step 4.8 M1): a drafter without it falls through to the queue, as with the switch on.
+    if (appliesAtOnce(op.kind, await twoPersonOn(tx, actor.organisationId)) && actor.permissions.has(op.decidePermission)) {
       const real = newAmbient(tx, savepointSql(tx), "IMMEDIATE");
-      const applied = await attempt(real, () => registry.run(op.key, withReason(rehearsed, withOnePersonReason(reason))), (r) => r.ok);
-      return applied.result.ok ? { ok: true, applied: true } : { ok: false, kind: "EDITOR", result: applied.result };
+      const oneReason = withOnePersonReason(reason);
+      const applied = await attempt(real, () => registry.run(op.key, withReason(rehearsed, oneReason)), (r) => r.ok);
+      if (!applied.result.ok) return { ok: false, kind: "EDITOR", result: applied.result };
+      // One summary row whatever the editor audits itself, so the list of one-person changes holds every one (step 4.8 M3).
+      const summary = describeEdit(op.kind, op.label, rehearsalOf(run.captured));
+      await writeAudit(
+        tx,
+        { organisationId: actor.organisationId, entity: "ConfigurationChange", entityId: randomUUID(), entityLabel: op.label, reason: oneReason, actor: auditActorOfStaff(actor) },
+        "CREATE",
+        [{ field: "Change", before: null, after: summary.title }, ...summary.lines.map((l) => ({ field: l.label, before: l.before, after: l.after }))],
+      );
+      return { ok: true, applied: true };
     }
 
     // Nobody else could decide it: refused here, with the reason said, rather than left in a queue that no one can clear.

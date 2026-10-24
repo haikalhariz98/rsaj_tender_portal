@@ -735,11 +735,23 @@ describe("with the two-person switch off (ADR 0043 D3)", () => {
     expect(await db.configurationChange.count({ where: { organisationId, kind: "BASELINE_CORRECTION", status: "PROPOSED" } })).toBeGreaterThan(0);
   });
 
-  it("applies a holder of the drafting permission's save at once, who could not decide it themselves", async () => {
+  it("queues a drafter's save when they do not hold the permission that decides it (step 4.8 M1), and applies a holder's at once", async () => {
     const maker = await officer("configuration.draft");
     const k = key();
-    expect(await propose(maker, "test.saveSeries", fields(k))).toEqual({ ok: true, applied: true });
-    expect(await series(k)).not.toBeNull();
+    const queued = await propose(maker, "test.saveSeries", fields(k));
+    expect(queued.ok && queued.applied).toBeFalsy();
+    expect(queued.ok).toBe(true);
+    expect(await series(k)).toBeNull();
+    const holder = await officer("configuration.draft", "configuration.issue");
+    expect(await propose(holder, "test.saveSeries", fields(key()))).toEqual({ ok: true, applied: true });
+  });
+
+  it("writes one summary audit row of the one-person change (step 4.8 M3)", async () => {
+    const a = await administrator();
+    const k = key();
+    expect(await propose(a, "test.saveSeries", fields(k))).toEqual({ ok: true, applied: true });
+    const row = await db.auditEntry.findFirstOrThrow({ where: { organisationId, entity: "ConfigurationChange", entityLabel: "Test: test.saveSeries", actorPersonId: a.person.id, reason: { contains: ONE_PERSON_REASON } } });
+    expect(row).toMatchObject({ action: "CREATE", actorKind: "STAFF" });
   });
 
   it("proposes again once the switch is back on", async () => {
