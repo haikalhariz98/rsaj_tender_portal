@@ -43,8 +43,7 @@
     "demo:contractor": "tsx prisma/demo.ts contractor",
     "demo:wave-v": "tsx prisma/demo.ts wave-v",
     "demo:switches": "tsx prisma/demo.ts switches",
-    "compare": "node scripts/compare-screen.mjs",
-    "compare:drawer": "node scripts/compare-drawer.mjs"
+    "compare": "node scripts/compare-screen.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
