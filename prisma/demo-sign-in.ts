@@ -15,9 +15,10 @@ export const DEMO_PREFIX = "demo_";
 
 type Db = Pick<PrismaClient, "orgUnit" | "staffAccount" | "auditEntry" | "oneTimeCode" | "person">;
 
-/// Whether the demo has been loaded: any organisation unit it made.
-export async function demoIsLoaded(db: Pick<PrismaClient, "orgUnit">): Promise<boolean> {
-  return (await db.orgUnit.count({ where: { id: { startsWith: DEMO_PREFIX } } })) > 0;
+/// Whether the demo has been loaded: any organisation unit it made, in `organisationId` where given. The starter packs always give it (step 4.8 M4): a second organisation
+/// added to a demonstration database is not a demonstration, so the development fill must not treat it as one.
+export async function demoIsLoaded(db: Pick<PrismaClient, "orgUnit">, organisationId?: string): Promise<boolean> {
+  return (await db.orgUnit.count({ where: { ...(organisationId ? { organisationId } : {}), id: { startsWith: DEMO_PREFIX } } })) > 0;
 }
 
 /// Whether a demo load has written anything at all, finished or not: its people come first, its organisation units soon after. A load that finds either

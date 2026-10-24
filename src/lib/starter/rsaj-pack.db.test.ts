@@ -161,3 +161,34 @@ describe("putting the DAL in force", () => {
     expect(await db.authorityMatrix.findUniqueOrThrow({ where: { id: draft.id } })).toMatchObject({ issuedAt: expect.any(Date), issuedByPersonId: person.person.id });
   });
 });
+
+describe("a pack's nested draft rows (step 4.8 L2)", () => {
+  it("are keyed by the loader: an id or organisation a pack row carries is dropped", async () => {
+    const other = await db.organisation.create({ data: { code: `RSAJ_${randomId()}`, name: "Another organisation" }, select: { id: true } });
+    const mine = await db.organisation.create({ data: { code: `RSAJ_${randomId()}`, name: "Keyed by the loader" }, select: { id: true } });
+    const tamper = <T extends object>(x: T): T => ({ ...x, id: `inj_${randomId()}`, organisationId: other.id });
+    const [model] = structuredClone(RSAJ_PACK.drafts!.evaluationModels!);
+    const tampered = {
+      ...model,
+      content: {
+        ...model.content,
+        bandSets: model.content.bandSets.map((b) => ({ ...b, bands: b.bands.map(tamper) })),
+        stages: model.content.stages.map((s) => ({ ...tamper(s), factors: s.factors.map(tamper), criteria: s.criteria.map(tamper) })),
+      },
+    };
+    const r = await loadPacks(db, mine.id, [{ ...RSAJ_PACK, drafts: { evaluationModels: [tampered] } }, GENERIC_PACK], { apply: true });
+    expect(r.faults).toEqual([]);
+
+    const sets = await db.evaluationBandSet.findMany({ where: { organisationId: mine.id }, include: { bands: true } });
+    const stages = await db.evaluationStage.findMany({ where: { organisationId: mine.id }, include: { factorOptions: true, criteria: true } });
+    const rows = [...sets.flatMap((x) => x.bands), ...stages, ...stages.flatMap((x) => [...x.factorOptions, ...x.criteria])];
+    expect(rows.length).toBeGreaterThan(10);
+    for (const row of rows) {
+      expect(row.organisationId).toBe(mine.id);
+      expect(row.id.startsWith("inj_")).toBe(false);
+    }
+    for (const t of ["evaluationBand", "evaluationStage", "evaluationFactorOption", "evaluationCriterion"] as const) {
+      expect(await (db[t] as unknown as { count(a: unknown): Promise<number> }).count({ where: { organisationId: other.id } }), t).toBe(0);
+    }
+  });
+});

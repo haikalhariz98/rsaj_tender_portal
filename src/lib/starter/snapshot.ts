@@ -6,7 +6,7 @@
 
 import type { Tx } from "@/lib/audit/record";
 
-import { columnsOf, listKey, type PackSnapshot } from "./plan";
+import { columnsOf, listKey, LITERAL_CLASS_COLUMNS, type PackSnapshot } from "./plan";
 import type { StarterPack } from "./types";
 
 type Reader = { findUnique(a: unknown): Promise<Record<string, unknown> | null>; count(a: unknown): Promise<number> };
@@ -34,5 +34,8 @@ export async function readSnapshot(tx: Tx, organisationId: string, packs: readon
   const drafts = packs.some((p) => p.drafts)
     ? { matrices: await tx.authorityMatrix.count({ where: { organisationId, fundingRouteCode: null } }), evaluationModels: await tx.evaluationModel.count({ where: { organisationId } }) }
     : undefined;
-  return { now: facts.now, rows, listSizes, demoIsLoaded: facts.demoIsLoaded, drafts };
+  // A pack that names a document class by its literal id (the development fill's demo ids) is judged against that row, in whichever organisation it is (step 4.8 M4).
+  const literal = [...new Set(packs.flatMap((p) => p.groups.flatMap((g) => LITERAL_CLASS_COLUMNS.map((c) => g.values[c]))).filter((v): v is string => typeof v === "string"))];
+  const classes = Object.fromEntries((await tx.documentClass.findMany({ where: { id: { in: literal } }, select: { id: true, organisationId: true, classification: true } })).map((c) => [c.id, { organisationId: c.organisationId, classification: c.classification }]));
+  return { now: facts.now, rows, listSizes, demoIsLoaded: facts.demoIsLoaded, drafts, classes };
 }

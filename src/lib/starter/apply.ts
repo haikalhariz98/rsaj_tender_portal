@@ -36,7 +36,7 @@ export interface LoadOptions {
   apply: boolean;
   now?: Date;
   /// Whether the database holds the demonstration (`demoIsLoaded` in prisma/demo-sign-in.ts). Absent: it does not, so the development fill refuses.
-  demoIsLoaded?: (tx: Tx) => Promise<boolean>;
+  demoIsLoaded?: (tx: Tx, organisationId: string) => Promise<boolean>;
 }
 export type LoadResult = PlannedPacks & { applied: boolean };
 
@@ -44,7 +44,7 @@ export async function loadPacks(client: typeof Db, organisationId: string, packs
   return client.$transaction(
     async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${organisationId} FOR UPDATE`;
-      const demo = opts.demoIsLoaded ? await opts.demoIsLoaded(tx) : false;
+      const demo = opts.demoIsLoaded ? await opts.demoIsLoaded(tx, organisationId) : false;
       const plan = planPacks(packs, await readSnapshot(tx, organisationId, packs, { now: opts.now ?? new Date(), demoIsLoaded: demo }));
       if (!opts.apply || plan.faults.length > 0) return { ...plan, applied: false };
       await runWrites(tx, organisationId, plan.writes);
@@ -107,6 +107,8 @@ async function runWrites(tx: Tx, organisationId: string, writes: readonly PackWr
 }
 
 type DraftAudit = { actor: AuditActor; reason: string };
+/// A nested draft child is the loader's own to key: whatever `id` or `organisationId` a pack row carries is dropped, and the loader's keys come last (step 4.8 L2).
+const own = <T extends object>(x: T): T => Object.fromEntries(Object.entries(x).filter(([k]) => k !== "id" && k !== "organisationId")) as T;
 const money = (n: number | null) => (n == null ? null : String(n));
 const draftOrigin = (provenance: keyof typeof WORDS, source: string) => ({ whereItComesFrom: WORDS[provenance], governingSource: source });
 
@@ -197,17 +199,17 @@ async function writeModelDraft(tx: Tx, organisationId: string, d: PackModelDraft
   await audit("EvaluationModel", model.id, label, { nameEn: c.nameEn, version: 1, status: "Draft", stages: c.stages.length, bandSets: c.bandSets.length, notes: d.notes ?? null, ...draftOrigin(c.provenance, c.governingSource) });
   for (const set of c.bandSets) {
     const row = await tx.evaluationBandSet.create({
-      data: { organisationId, modelId: model.id, code: set.code, nameEn: set.nameEn, provenance: set.provenance, governingSource: set.governingSource, bands: { create: set.bands.map((b) => ({ organisationId, ...b })) } },
+      data: { organisationId, modelId: model.id, code: set.code, nameEn: set.nameEn, provenance: set.provenance, governingSource: set.governingSource, bands: { create: set.bands.map((b) => ({ ...own(b), organisationId })) } },
       select: { id: true },
     });
     await audit("EvaluationBandSet", row.id, `${label} · ${set.nameEn}`, { nameEn: set.nameEn, bands: set.bands.map((b) => b.labelEn).join(", "), ...draftOrigin(set.provenance, set.governingSource) });
   }
   for (const s of c.stages) {
     const { criteria, factors, ...fields } = s;
-    const stage = await tx.evaluationStage.create({ data: { ...fields, organisationId, modelId: model.id, factorOptions: { create: factors.map((f) => ({ organisationId, ...f, governingSource: s.governingSource })) } }, select: { id: true } });
+    const stage = await tx.evaluationStage.create({ data: { ...own(fields), organisationId, modelId: model.id, factorOptions: { create: factors.map((f) => ({ ...own(f), organisationId, governingSource: s.governingSource })) } }, select: { id: true } });
     const ids = new Map<string, string>();
     for (const { parentCode, ...x } of criteria) {
-      const row = await tx.evaluationCriterion.create({ data: { ...x, organisationId, stageId: stage.id, parentId: parentCode ? ids.get(parentCode)! : null, governingSource: s.governingSource }, select: { id: true } });
+      const row = await tx.evaluationCriterion.create({ data: { ...own(x), organisationId, stageId: stage.id, parentId: parentCode ? ids.get(parentCode)! : null, governingSource: s.governingSource }, select: { id: true } });
       ids.set(x.code, row.id);
     }
     await audit("EvaluationStage", stage.id, `${label} · ${s.labelEn}`, {

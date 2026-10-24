@@ -22,7 +22,7 @@ async function main() {
   if (names.length === 0) throw new Error("Name the packs: npm run pack -- <pack>[,<pack>...] [--apply]. The packs are generic, rsaj and dev-fill.");
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, name: true } });
   if (!org) throw new Error(`There is no organisation with the code ${ORGANISATION_CODE}. Run npm run setup first.`);
-  const result = await loadPacks(db, org.id, await packsNamed(names), { apply, demoIsLoaded: (tx) => demoIsLoaded(tx as never) });
+  const result = await loadPacks(db, org.id, await packsNamed(names), { apply, demoIsLoaded: (tx, organisationId) => demoIsLoaded(tx as never, organisationId) });
   console.log(`${org.name} (${ORGANISATION_CODE}), packs ${names.join(", ")}:`);
   for (const line of describeRun(result, apply)) console.log(line);
   if (result.faults.length > 0) process.exitCode = 1;

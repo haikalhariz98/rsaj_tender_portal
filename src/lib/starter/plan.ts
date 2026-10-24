@@ -59,6 +59,8 @@ export interface PackSnapshot {
   demoIsLoaded: boolean;
   /// How many approval matrices of its own (not a funder's) and evaluation models the organisation has, draft or in force. Absent: none.
   drafts?: { matrices: number; evaluationModels: number };
+  /// The document classes a pack names by literal id (`LITERAL_CLASS_COLUMNS`), by id; a missing id is no such class. Absent: none are named.
+  classes?: Record<string, { organisationId: string; classification: string | null }>;
 }
 
 interface WriteBase {
@@ -82,28 +84,47 @@ export interface PlannedPacks extends PackPlan {
   skips: PlannedSkip[];
 }
 
-/// Tables no pack writes: the audit trail, the two-person records, the issue-guarded tables (a pack's matrix or model is a draft, D2),
-/// and people, their accounts and their grants (a script is not a person).
-export const FORBIDDEN_MODELS: readonly string[] = [
-  "AuditEntry",
-  "ConfigurationChange",
-  "ConfigurationDraftMaker",
-  "AuthorityMatrix",
-  "AuthorityMatrixMaker",
-  "AuthorityRule",
-  "EvaluationModel",
-  "RateSchedule",
-  "RolePermission",
-  "RoleAssignment",
-  "Delegation",
-  "Person",
-  "StaffAccount",
-  "StaffSession",
-  "SupplierAccount",
-  "SupplierSession",
-  "OneTimeCode",
-  "SignInEvent",
+/// The tables a pack's groups and lists write: an allow-list, derived from the three packs (a test holds it to them). Anything else, the trail, people, grants,
+/// the two-person records, the committee and panel members and the issue-guarded tables, is refused; a matrix or model is a draft written by the loader itself (D2).
+export const ALLOWED_MODELS: readonly string[] = [
+  "AuthorityRole",
+  "AwardPolicy",
+  "CodeFormat",
+  "Committee",
+  "ContractBasis",
+  "ContractPolicy",
+  "ContractType",
+  "ControlledCopyRecipient",
+  "DeclarationText",
+  "DistributionRecipient",
+  "DocumentClass",
+  "DocumentStorePolicy",
+  "EvaluationAspect",
+  "FundingRoute",
+  "HolidayCalendar",
+  "MethodChecklistItem",
+  "NotApprovedOutcome",
+  "NumberingSeries",
+  "Organisation",
+  "PostAwardPolicy",
+  "PublicationChannel",
+  "RegistrationBody",
+  "RejectionDestination",
+  "RoutingSheetType",
+  "RoutingTarget",
+  "ScopePolicy",
+  "SecurityPolicy",
+  "SourcingMethod",
+  "StandingReason",
+  "SupplierDocumentType",
+  "SupplierListValue",
+  "SupplierPolicy",
+  "TenderDocumentPart",
+  "WindowPolicy",
 ];
+/// The columns that name a document class. A pack names one by reference to a row it writes, or by the literal id of an existing row (the development fill): the latter is
+/// judged to be a class of this organisation, and a bank statement's to be SULIT (step 4.8 M4).
+export const LITERAL_CLASS_COLUMNS = ["projectDocumentClassId", "supplierUploadClassId", "supplierBankStatementClassId"] as const;
 /// Columns no pack value names: the keys the loader writes itself, and the switch, which moves only by `setsTwoPersonOff`.
 const FORBIDDEN_COLUMNS = ["id", "organisationId", "twoPersonChanges"];
 
@@ -134,7 +155,7 @@ function shapeFaults(pack: StarterPack): string[] {
   const check = (model: string, cols: string[], where: string) => {
     const known = columnsOf(model);
     if (!known) return out.push(`${where}: there is no table ${model}.`);
-    if (FORBIDDEN_MODELS.includes(model)) return out.push(`${where}: a pack never writes ${model}.`);
+    if (!ALLOWED_MODELS.includes(model)) return out.push(`${where}: a pack never writes ${model}.`);
     for (const c of cols) {
       if (FORBIDDEN_COLUMNS.includes(c)) out.push(`${where}: a pack never sets ${model}.${c}.`);
       else if (!known.includes(c)) out.push(`${where}: ${model} has no column ${c}.`);
@@ -215,6 +236,7 @@ function windowFaults(window: Record<string, unknown>): string[] {
 /// The supplier register's rules (`registrationSettingErrors`) on a supplier policy row. A class named by reference is the run's own; a class id
 /// already set was judged when it was saved.
 function supplierFaults(supplier: Record<string, unknown>, classes: { id: string; classification: string | null }[]): string[] {
+  const named = (c: string) => refOf(supplier[c]) ?? (typeof supplier[c] === "string" ? (supplier[c] as string) : null);
   const str = (c: string) => (supplier[c] == null ? null : String(supplier[c]));
   const bytes = supplier.uploadMaxBytesPerApplication as bigint | number | null | undefined;
   const input = {
@@ -224,8 +246,8 @@ function supplierFaults(supplier: Record<string, unknown>, classes: { id: string
     maxFiles: supplier.uploadMaxFilesPerApplication == null ? null : Number(supplier.uploadMaxFilesPerApplication),
     maxMegabytes: bytes == null ? null : megabytesOfBytes(bytes),
     uploadLimitProvenance: str("uploadLimitProvenance"),
-    uploadClassId: refOf(supplier.supplierUploadClassId),
-    statementClassId: refOf(supplier.supplierBankStatementClassId),
+    uploadClassId: named("supplierUploadClassId"),
+    statementClassId: named("supplierBankStatementClassId"),
     uploadClassProvenance: str("uploadClassProvenance"),
     onlineDeclarationReplacesPaper: (supplier.onlineDeclarationReplacesPaper as boolean | null | undefined) ?? null,
     onlineDeclarationProvenance: str("onlineDeclarationProvenance"),
@@ -234,7 +256,7 @@ function supplierFaults(supplier: Record<string, unknown>, classes: { id: string
 }
 
 /// The faults of the values as they would stand after the run, judged by the product's own validators.
-function valueFaults(writes: PackWrite[], rows: PackSnapshot["rows"], before: PackSnapshot["rows"]): string[] {
+function valueFaults(writes: PackWrite[], rows: PackSnapshot["rows"], before: PackSnapshot["rows"], literal: NonNullable<PackSnapshot["classes"]>): string[] {
   const out: string[] = [];
   const sp = rows.SecurityPolicy;
   if (writes.some((w) => w.kind === "GROUP" && w.model === "SecurityPolicy") && sp) {
@@ -266,6 +288,15 @@ function valueFaults(writes: PackWrite[], rows: PackSnapshot["rows"], before: Pa
   };
   out.push(...fresh(windowFaults, "WindowPolicy"));
   const classes = writes.filter((w): w is Extract<PackWrite, { kind: "ROW" }> => w.kind === "ROW" && w.model === "DocumentClass").map((w) => ({ id: `DocumentClass:${w.code}`, classification: (w.values.classification as string | null) ?? null }));
+  classes.push(...Object.entries(literal).map(([id, c]) => ({ id, classification: c.classification })));
+  // A class named by literal id is a class of this organisation: another's is no class of ours, whatever its id (step 4.8 M4).
+  for (const w of writes) {
+    if (w.kind !== "GROUP") continue;
+    for (const c of LITERAL_CLASS_COLUMNS) {
+      const id = w.values[c];
+      if (typeof id === "string" && literal[id]?.organisationId !== rows.Organisation?.id) out.push(`${w.label}: ${c} names a document class that is not this organisation's.`);
+    }
+  }
   out.push(...fresh((row) => supplierFaults(row, classes), "SupplierPolicy"));
   const parts = writes.filter((w): w is Extract<PackWrite, { kind: "ROW" }> => w.kind === "ROW" && w.model === "TenderDocumentPart");
   const bases = writes.filter((w): w is Extract<PackWrite, { kind: "ROW" }> => w.kind === "ROW" && w.model === "ContractBasis").map((w) => w.code);
@@ -438,6 +469,6 @@ export function planPacks(packs: readonly StarterPack[], snap: PackSnapshot): Pl
       else (w.values as Record<string, unknown>)[c] = dayToDate(today);
     }
   }
-  if (faults.length === 0) faults.push(...valueFaults(writes, rows, snap.rows));
+  if (faults.length === 0) faults.push(...valueFaults(writes, rows, snap.rows, snap.classes ?? {}));
   return faults.length > 0 ? { writes: [], skips, faults } : { writes, skips, faults };
 }

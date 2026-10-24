@@ -14,9 +14,10 @@ import { loadPacks } from "./apply";
  * actor, fills the project document class, the register's classes and the three demo declarations, and a second run writes nothing.
  */
 const plain = db as unknown as PrismaClient;
-const opts = (apply: boolean) => ({ apply, demoIsLoaded: (tx: unknown) => demoIsLoaded(tx as PrismaClient) });
+const opts = (apply: boolean) => ({ apply, demoIsLoaded: (tx: unknown, organisationId: string) => demoIsLoaded(tx as PrismaClient, organisationId) });
 const ACTOR = "Development fill (founder's instruction 2026-10-23)";
 let unitId: string | null = null;
+const extraUnits: string[] = [];
 
 const organisation = (twoPersonChanges: boolean) =>
   db.organisation.create({ data: { code: `DEVFILL_${randomId()}`, name: "Dev fill test", timeZone: "Asia/Kuala_Lumpur", securityPolicy: { create: { twoPersonChanges } } }, select: { id: true } });
@@ -24,6 +25,7 @@ const organisation = (twoPersonChanges: boolean) =>
 afterAll(async () => {
   // The marker is any demo_ unit in the database: take it away so later files in this run read no demonstration.
   if (unitId) await db.orgUnit.delete({ where: { id: unitId } });
+  if (extraUnits.length > 0) await db.orgUnit.deleteMany({ where: { id: { in: extraUnits } } });
 });
 
 describe("the development fill without the demonstration", () => {
@@ -79,6 +81,27 @@ describe("the development fill on a demonstration database", () => {
     const texts = await db.declarationText.findMany({ where: { organisationId: orgId }, select: { kind: true, version: true, provenance: true, bodyEn: true } });
     expect(texts.map((t) => t.kind).sort()).toEqual(["FALSE_DECLARATION", "GIRO_AUTHORISATION", "TERMS_AND_CONDITIONS"]);
     for (const t of texts) expect(t).toMatchObject({ version: 1, provenance: "ASSUMED", bodyEn: expect.stringContaining("demo text, replace before go-live") });
+  });
+
+  it("refuses another organisation on the same database, which holds no demonstration of its own (step 4.8 M4)", async () => {
+    const other = await organisation(true);
+    expect(await demoIsLoaded(plain)).toBe(true);
+    const r = await loadPacks(db, other.id, [DEV_FILL_PACK], opts(true));
+    expect(r.faults).toEqual(["The development fill loads only into a database that holds the demonstration."]);
+    expect((await db.securityPolicy.findUniqueOrThrow({ where: { organisationId: other.id } })).twoPersonChanges).toBe(true);
+    expect(await db.auditEntry.count({ where: { organisationId: other.id } })).toBe(0);
+  });
+
+  it("faults a literal class id that is another organisation's, writing nothing (step 4.8 M4)", async () => {
+    const other = await organisation(true);
+    const id = `demo_ou${randomId()}`;
+    extraUnits.push(id);
+    await db.orgUnit.create({ data: { id, organisationId: other.id, code: "DU", nameEn: "Demo unit", kind: "SECTION", effectiveFrom: new Date("2026-01-01") } });
+    const r = await loadPacks(db, other.id, [DEV_FILL_PACK], opts(true));
+    expect(r.applied).toBe(false);
+    expect(r.faults).toContain("Upload rules · project documents: projectDocumentClassId names a document class that is not this organisation's.");
+    expect((await db.securityPolicy.findUniqueOrThrow({ where: { organisationId: other.id } })).twoPersonChanges).toBe(true);
+    expect(await db.auditEntry.count({ where: { organisationId: other.id } })).toBe(0);
   });
 
   it("writes nothing the second time", async () => {

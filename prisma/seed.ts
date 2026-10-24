@@ -29,7 +29,7 @@ async function main() {
 
   const names = (process.env.STARTER_PACKS ?? "generic").split(",").map((n) => n.trim()).filter(Boolean);
   if (names.length === 0) return;
-  const result = await loadPacks(db, organisation.id, await packsNamed(names), { apply: true, demoIsLoaded: (tx) => demoIsLoaded(tx as never) });
+  const result = await loadPacks(db, organisation.id, await packsNamed(names), { apply: true, demoIsLoaded: (tx, organisationId) => demoIsLoaded(tx as never, organisationId) });
   console.log(`Starter packs ${names.join(", ")}:`);
   for (const line of describeRun(result, true)) console.log(line);
   if (result.faults.length > 0) process.exitCode = 1;
