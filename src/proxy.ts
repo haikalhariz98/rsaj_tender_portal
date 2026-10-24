@@ -53,5 +53,5 @@ export function proxy(request: NextRequest) {
  * `proxy.test.ts` pins that every route that takes a multipart upload is on it, and that nothing else is.
  */
 export const config = {
-  matcher: ["/((?!supplier/bids/part$|supplier/company/bank$|supplier/company/document$|supplier/registration/upload$|supplier/projects/documents/upload$|supplier/register/submit$).*)"],
+  matcher: ["/((?!supplier/bids/part$|supplier/company/bank$|supplier/company/document$|supplier/registration/upload$|supplier/projects/documents/upload$|supplier/projects/award-return/upload$|supplier/register/submit$).*)"],
 };
