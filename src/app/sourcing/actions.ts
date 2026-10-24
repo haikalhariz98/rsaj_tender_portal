@@ -24,7 +24,7 @@ import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { auditCreate, auditPair } from "@/lib/method/audit-view";
 import { determinationDrift } from "@/lib/method/drift";
 import { DETAILS_FAULT_TEXT, detailsFault, personInChargeTrail, WORK_CODE_MAX, workCodeOf } from "@/lib/method/details";
-import { keptForMethod, nameRoutesToWithdraw } from "@/lib/method/config";
+import { exerciseSeriesOf, keptForMethod, nameRoutesToWithdraw } from "@/lib/method/config";
 import { remainingOf } from "@/lib/method/value";
 import { evaluateExercise, saveBlockers, type Evaluation, type ExerciseDraft } from "@/lib/method/evaluate";
 import { transitionFault, openFault } from "@/lib/method/exercise";
@@ -297,7 +297,7 @@ async function writeChildren(tx: Tx, actor: AuditActor, orgId: string, ex: { id:
 
 /**
  * Open an exercise on an approved requisition (ruling R-6). The reference is issued
- * from the `exercise` series in the same transaction as the row and its audit.
+ * from the method's series, or the `exercise` series, in the same transaction as the row and its audit.
  */
 /// The parent contract is chosen from the organisation's contracts: a number that names none is refused. A number the exercise already holds (typed before it was a list) is let through, so an old draft can still be saved.
 async function parentContractFault(tx: Tx, organisationId: string, ref: string | null, held: string | null): Promise<FormState | null> {
@@ -337,8 +337,9 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
       const parentFault = await parentContractFault(tx, l.org.id, v.draft.parentContractRef, null);
       if (parentFault) return parentFault;
       const on = dayToDate(l.org.today!);
-      const reference = await issueReference(tx, l.org.id, "exercise", on);
       const m = ev.method!;
+      // RSAJ answer 22: from the method's own series where it names one, issued once, here; a later change of method keeps it.
+      const reference = await issueReference(tx, l.org.id, exerciseSeriesOf(m), on);
       // SR-08, SR-09 (rulings 12 and 13, G1): the exercise takes the organisation's two scope switches as they stand, set or not. Creating is never refused for an unset one:
       // the pin reads "not set" and submission says so, in words, until the officer takes the setting.
       const pin = pinFrom(await loadScopePolicy(l.org.id, tx));

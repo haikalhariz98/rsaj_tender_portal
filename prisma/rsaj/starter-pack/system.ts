@@ -3,8 +3,8 @@
  * its own list, scoped by its key, so it loads beside the generic pack's series rather than in place of them.
  *
  * Placed: the contract numbers (FR-CON-002), which the contract types reach through `ContractType.contractSeriesKey` (purchasing.ts: work,
- * service and supply RSAJ/KP/T, consultancy services RSAJ/KP/P, RSAJ answer 21); the tender number (RSAJ answer 22), which a sourcing method
- * will name once methods carry an exercise series; and the direct-appointment dossier's number (FR-MTD-009), which the direct appointment names
+ * service and supply RSAJ/KP/T, consultancy services RSAJ/KP/P, RSAJ answer 21); the tender number (RSAJ answer 22), which the two tender methods
+ * name through `SourcingMethod.exerciseSeriesKey`; and the direct-appointment dossier's number (FR-MTD-009), which the direct appointment names
  * through `SourcingMethod.dossierSeriesKey`. Not loaded: the quotation number RSAJ/KP/Q(JB|MR|IP)/NNN/YY (what JB, MR and IP stand for is open)
  * and an addendum pattern (FR-ADV-014 states none).
  */

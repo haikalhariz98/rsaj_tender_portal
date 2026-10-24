@@ -56,6 +56,8 @@ const MTD = "FR-MTD-004";
 const ANY_VALUE = { availableBelow: true, availableInQuotation: true, availableInTender: true } as const;
 /// FR-DOC-001 and 013: a tender assembles the tender pack, a quotation the nine-part quotation pack.
 const TENDER_PACK = { documentPackKind: "TENDER", documentPackKindProvenance: "STATED" } as const;
+/// RSAJ answer 22: a tender exercise is numbered RSAJ/TA/NN/YYYY (system.ts); the quotation number is not loaded, so the other methods keep "exercise".
+const TENDER_NUMBERING = { exerciseSeriesKey: "exercise_tender" } as const;
 const QUOTATION_PACK = { documentPackKind: "QUOTATION", documentPackKindProvenance: "STATED" } as const;
 /// FR-EST-006 (SK003 7.2.2(b)): a tender or quotation is judged against the company estimate.
 const ESTIMATE = { requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: "STATED" } as const;
@@ -66,7 +68,7 @@ const NO_PACK = { documentPackKind: "NONE", documentPackKindProvenance: "ASSUMED
 export const SOURCING_METHODS = list("SourcingMethod", "Sourcing method", [
   {
     code: "open_tender",
-    values: { nameEn: "Open tender", availableInTender: true, defaultInTender: true, requiresAdvertisement: true, committeeCode: "TBC", authorityMethodKey: "open_selective", ...TENDER_PACK, ...ESTIMATE, ...opening("TOC") },
+    values: { nameEn: "Open tender", availableInTender: true, defaultInTender: true, requiresAdvertisement: true, committeeCode: "TBC", authorityMethodKey: "open_selective", ...TENDER_PACK, ...TENDER_NUMBERING, ...ESTIMATE, ...opening("TOC") },
     requirement: `${MTD}, FR-MTD-005, FR-ADV-001, FR-DOC-001, FR-EST-006, FR-OPN-001`,
     source: "DAL §3.1.4.2 item 2, §3.1.4.4 item 2; SK002 7.3.1, 7.4.1; SK001 7.3.1; SK003 7.2.2(b)",
   },
@@ -84,6 +86,7 @@ export const SOURCING_METHODS = list("SourcingMethod", "Sourcing method", [
       committeeCode: "TBC",
       authorityMethodKey: "open_selective",
       ...TENDER_PACK,
+      ...TENDER_NUMBERING,
       ...ESTIMATE,
       ...opening("TOC"),
     },

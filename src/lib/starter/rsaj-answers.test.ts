@@ -274,5 +274,10 @@ describe("A11 and A12: methods, contract types and series", () => {
     const series = Object.fromEntries(listOf("NumberingSeries").map((s) => [s.code, s.values]));
     for (const key of ["contract_tender", "contract_consultancy", "exercise_tender", "direct_appointment"]) expect(series[key], key).toMatchObject({ padding: 2, resetOn: "CALENDAR_YEAR" });
     expect([series.exercise_tender.pattern, series.direct_appointment.pattern]).toEqual(["RSAJ/TA/{SERIAL}/{YEAR}", "RSAJ/KP/ST/{SERIAL}/{SHORTYEAR}"]);
+    // B4: the two tender methods number their exercises RSAJ/TA; every other method keeps the standard exercise series.
+    expect(listOf("SourcingMethod").filter((m) => m.values.exerciseSeriesKey).map((m) => [m.code, m.values.exerciseSeriesKey])).toEqual([
+      ["open_tender", "exercise_tender"],
+      ["selected_tender", "exercise_tender"],
+    ]);
   });
 });

@@ -10,6 +10,9 @@ import { hashToken } from "@/lib/auth/token";
 import type { StaffActor } from "@/lib/auth/types";
 import { loadMakers } from "@/lib/authority/maker-store";
 import { db } from "@/lib/db";
+import { exerciseSeriesOf } from "@/lib/method/config";
+import { loadMethodConfig } from "@/lib/method/repo";
+import { issueReference } from "@/lib/numbering/issue";
 import { reminderDue, SUPPLIER_EXPIRY_EVENT } from "@/lib/suppliers/expiry";
 import { facts, makeAccount, randomId } from "@/lib/test-db/auth-fixtures";
 
@@ -162,6 +165,19 @@ describe("loading rsaj,generic", () => {
     expect(r.writes).toEqual([]);
     expect(r.skips.filter((s) => s.reason === "DRAFT_EXISTS").map((s) => s.target)).toHaveLength(3);
     expect(await audits()).toBe(before);
+  });
+});
+
+describe("numbering an exercise by its method (B4, RSAJ answer 22)", () => {
+  // Stops short of createExercise (which needs an approved requisition): the method's series as loaded, issued as createExercise issues it.
+  it("opens a tender-method exercise as RSAJ/TA/01/2026, and a quotation-method one from the standard series", async () => {
+    const { config } = await loadMethodConfig(orgId);
+    const method = (code: string) => config.methods.find((m) => m.code === code)!;
+    const on = new Date("2026-11-02T00:00:00Z");
+    const [tender, quotation] = await db.$transaction(async (tx) => [await issueReference(tx, orgId, exerciseSeriesOf(method("open_tender")), on), await issueReference(tx, orgId, exerciseSeriesOf(method("open_quotation")), on)]);
+    expect(tender).toBe("RSAJ/TA/01/2026");
+    expect(exerciseSeriesOf(method("open_quotation"))).toBe("exercise");
+    expect(quotation).not.toMatch(/^RSAJ\/TA/);
   });
 });
 

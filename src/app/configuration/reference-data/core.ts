@@ -174,6 +174,7 @@ function readSourcingMethod(data: FormData, taken: string[], storedCode: string 
     requiresDossier: r.bool("requiresDossier"),
     requiresCoordinationRecord: r.bool("requiresCoordinationRecord"),
     dossierSeriesKey: r.optionalText("dossierSeriesKey"),
+    exerciseSeriesKey: r.optionalText("exerciseSeriesKey"),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),

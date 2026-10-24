@@ -24,6 +24,7 @@ type MethodFlags = Pick<
   | "requiresNameApproval"
   | "requiresDossier"
   | "dossierSeriesKey"
+  | "exerciseSeriesKey"
 >;
 
 const BANDS = [
@@ -32,13 +33,16 @@ const BANDS = [
   ["defaultBelow", "availableBelow", "below the quotation floor"],
 ] as const;
 
+/// The series an exercise of a method is numbered from when it is opened (RSAJ answer 22): its own, or the organisation's "exercise" series.
+export const exerciseSeriesOf = (m: Pick<Method, "exerciseSeriesKey">): string => m.exerciseSeriesKey ?? "exercise";
+
 /**
  * Why a sourcing method cannot be saved. `others` are the organisation's other methods
  * in force; `seriesKeys` the numbering series configured.
  *
  * - It must be usable in some band, and proposed only where it is usable.
  * - One method proposed per band, or the regime proposes nothing (ruling R-12).
- * - A dossier is numbered from a configured series.
+ * - A dossier, and an exercise where the method names its own series, is numbered from a configured series.
  * - A proposal is reviewed on its way to name approval.
  */
 export function methodConfigFaults(m: MethodFlags, others: readonly MethodFlags[], seriesKeys: readonly string[]): Fault[] {
@@ -51,6 +55,7 @@ export function methodConfigFaults(m: MethodFlags, others: readonly MethodFlags[
   }
   if (m.requiresDossier && !m.dossierSeriesKey) out.push({ field: "dossierSeriesKey", message: "A method that keeps a justification dossier needs the numbering series its references are issued from." });
   if (m.dossierSeriesKey && !seriesKeys.includes(m.dossierSeriesKey)) out.push({ field: "dossierSeriesKey", message: "No numbering series has that key. Add it under Configuration, Numbering first." });
+  if (m.exerciseSeriesKey && !seriesKeys.includes(m.exerciseSeriesKey)) out.push({ field: "exerciseSeriesKey", message: "No numbering series has that key. Add it under Configuration, Numbering first." });
   if (m.requiresProposal && !m.requiresNameApproval) out.push({ field: "requiresNameApproval", message: "A proposal is reviewed on its way to name approval. Tick that the method needs the name approved, or untick the proposal." });
   return out;
 }

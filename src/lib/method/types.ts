@@ -53,6 +53,8 @@ export interface MethodBehaviour {
   requiresDossier: boolean;
   requiresCoordinationRecord: boolean;
   dossierSeriesKey: string | null;
+  /// RSAJ answer 22: the series an exercise of this method takes its reference from when it is opened. Null or absent: "exercise".
+  exerciseSeriesKey?: string | null;
   /// 6.4: the tender pack the method assembles. Null or absent: not set, and the move into
   /// preparation blocks naming it (never read as "no pack").
   documentPackKind?: PackKind | null;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { contractTypeConfigFaults, dominanceShareFault, keptForMethod, methodConfigFaults, nameRoutesToWithdraw } from "./config";
+import { contractTypeConfigFaults, dominanceShareFault, exerciseSeriesOf, keptForMethod, methodConfigFaults, nameRoutesToWithdraw } from "./config";
 import { SPEC_METHODS } from "./fixture";
 
 const m = (code: string) => SPEC_METHODS.find((x) => x.code === code)!;
@@ -20,6 +20,12 @@ describe("a method's configuration", () => {
     expect(fields(methodConfigFaults({ ...m("selective_direct"), dossierSeriesKey: null }, [], []))).toEqual(["dossierSeriesKey"]);
     expect(fields(methodConfigFaults(m("selective_direct"), [], []))).toEqual(["dossierSeriesKey"]);
     expect(methodConfigFaults(m("selective_direct"), [], ["direct_appointment"])).toEqual([]);
+  });
+  it("numbers an exercise from the method's own series, refusing one not configured, or from the standard series (RSAJ answer 22)", () => {
+    expect(fields(methodConfigFaults({ ...m("open_tender"), exerciseSeriesKey: "exercise_tender" }, [], ["exercise"]))).toEqual(["exerciseSeriesKey"]);
+    expect(methodConfigFaults({ ...m("open_tender"), exerciseSeriesKey: "exercise_tender" }, [], ["exercise_tender"])).toEqual([]);
+    expect(methodConfigFaults({ ...m("open_tender"), exerciseSeriesKey: null }, [], [])).toEqual([]);
+    expect([exerciseSeriesOf({ exerciseSeriesKey: "exercise_tender" }), exerciseSeriesOf({ exerciseSeriesKey: null }), exerciseSeriesOf({})]).toEqual(["exercise_tender", "exercise", "exercise"]);
   });
   it("reviews a proposal on its way to approval of the name", () => {
     expect(fields(methodConfigFaults({ ...m("selected_tender"), requiresNameApproval: false }, [], []))).toEqual(["requiresNameApproval"]);
