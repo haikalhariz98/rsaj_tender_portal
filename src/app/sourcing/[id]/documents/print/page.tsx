@@ -73,7 +73,7 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Link href={`/sourcing/${id}?tab=documents`}>Back to the tender documents</Link>
         <span className="flex flex-wrap items-center gap-3">
-          <Link href={table ? `/sourcing/${id}/documents/print` : `/sourcing/${id}/documents/print?set=table`}>{table ? "The whole pack" : "The Tender Table Document"}</Link>
+          {(table || v.hasTable) && <Link href={table ? `/sourcing/${id}/documents/print` : `/sourcing/${id}/documents/print?set=table`}>{table ? "The whole pack" : "The Tender Table Document"}</Link>}
           <PrintButton icon={<PrinterIcon size={15} />} />
         </span>
       </div>

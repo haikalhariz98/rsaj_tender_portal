@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { fieldsNamed } from "@/lib/templates/merge";
 
-import { conditionFieldValues, conditionsFaults, conditionsSnapshot, conditionStamp, readConditionsSnapshot, statesWindow, tableDocumentFaults, type ConditionsInput } from "./conditions";
+import { conditionFieldValues, conditionsFaults, conditionsSnapshot, conditionStamp, hasTableDocument, readConditionsSnapshot, statesWindow, tableDocumentFaults, type ConditionsInput } from "./conditions";
 import { freezePack, tableDocumentManifest } from "./freeze";
 import { frozenWindowFault } from "./tendering";
 import type { PackPartFacts, TemplateFacts } from "./types";
@@ -33,7 +33,7 @@ const INPUT: ConditionsInput = {
 
 describe("the tender's conditions, judged together at submission", () => {
   it("a pack meeting every condition has nothing blocking (one warning: the uploaded drawings are not read)", () => {
-    expect(conditionsFaults(PARTS, INPUT).filter((f) => f.level === "block")).toEqual([]);
+    expect(conditionsFaults(PARTS, INPUT, "TENDER").filter((f) => f.level === "block")).toEqual([]);
   });
   it("each condition left unset blocks in its own words: eligibility, restriction, permit, clause, assurance", () => {
     const unset: ConditionsInput = {
@@ -44,16 +44,25 @@ describe("the tender's conditions, judged together at submission", () => {
       clauses: { ...INPUT.clauses, clauses: [{ ...INPUT.clauses.clauses[0], mandatoryInAgreements: null }] },
       assurance: { required: null, confirmations: [] },
     };
-    expect(codes(conditionsFaults(PARTS, unset).filter((f) => f.level === "block"))).toEqual(["ELIGIBILITY_NOT_SET", "RESTRICTION_NOT_ANSWERED", "REGULATED_NOT_ANSWERED", "CLAUSE_MANDATORY_UNSET", "ASSURANCE_POLICY_NOT_SET"]);
+    expect(codes(conditionsFaults(PARTS, unset, "TENDER").filter((f) => f.level === "block"))).toEqual(["ELIGIBILITY_NOT_SET", "RESTRICTION_NOT_ANSWERED", "REGULATED_NOT_ANSWERED", "CLAUSE_MANDATORY_UNSET", "ASSURANCE_POLICY_NOT_SET"]);
   });
 });
 
 describe("FR-DOC-010 (the part built here): the Tender Table Document's parts", () => {
   it("every part not omitted says whether it is in it; unset is not 'no'", () => {
-    expect(tableDocumentFaults(PARTS)).toEqual([]);
-    expect(tableDocumentFaults([...PARTS, part({ partCode: "x", printedNumber: "8", label: "Form", inTableDocument: null })])).toEqual([{ code: "TABLE_DOCUMENT_UNSET", level: "block", data: { part: "8. Form" } }]);
-    expect(tableDocumentFaults([part({ inTableDocument: null, state: "OMITTED", mandatory: false, omittedReason: "x" }), CONDITIONS])).toEqual([]);
-    expect(codes(tableDocumentFaults([NOTICE, INSTRUCTIONS]))).toEqual(["TABLE_DOCUMENT_EMPTY"]);
+    expect(tableDocumentFaults(PARTS, "TENDER")).toEqual([]);
+    expect(tableDocumentFaults([...PARTS, part({ partCode: "x", printedNumber: "8", label: "Form", inTableDocument: null })], "TENDER")).toEqual([{ code: "TABLE_DOCUMENT_UNSET", level: "block", data: { part: "8. Form" } }]);
+    expect(tableDocumentFaults([part({ inTableDocument: null, state: "OMITTED", mandatory: false, omittedReason: "x" }), CONDITIONS], "TENDER")).toEqual([]);
+    expect(codes(tableDocumentFaults([NOTICE, INSTRUCTIONS], "TENDER"))).toEqual(["TABLE_DOCUMENT_EMPTY"]);
+  });
+  it("only a tender pack must hold one: a quotation answered 'no' on every part has none, but an unset part still blocks (RSAJ answer 9)", () => {
+    const no = PARTS.map((p) => ({ ...p, inTableDocument: false }));
+    expect(tableDocumentFaults(no, "QUOTATION")).toEqual([]);
+    expect(hasTableDocument(no)).toBe(false);
+    expect(codes(tableDocumentFaults(no, "TENDER"))).toEqual(["TABLE_DOCUMENT_EMPTY"]);
+    expect(tableDocumentFaults([...no, part({ partCode: "x", printedNumber: "8", label: "Form", inTableDocument: null })], "QUOTATION")).toEqual([{ code: "TABLE_DOCUMENT_UNSET", level: "block", data: { part: "8. Form" } }]);
+    expect(hasTableDocument(PARTS)).toBe(true);
+    expect(hasTableDocument([part({ inTableDocument: true, state: "OMITTED", mandatory: false, omittedReason: "x" })])).toBe(false);
   });
   it("the table document's manifest is the frozen parts in it, ready, in print order", () => {
     const { manifest } = freezePack({ parts: PARTS.map((p) => ({ ...p, files: [] })), fields: {}, bill: null, appendix: null });

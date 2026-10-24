@@ -16,7 +16,7 @@ import { bodiesOf, eligibilityFaults, eligibilityFieldValues, noticeFaults, regi
 import { PERMIT_FIELD, WINDOW_FIELD } from "./fields";
 import { permitFaults, permitLabel, type PermitFault, type PermitList } from "./permit";
 import { restrictionFaults, stampFor, type RestrictionFault, type StampWords } from "./stamp";
-import type { DocumentLanguage, Finding, PackPartFacts } from "./types";
+import type { DocumentLanguage, Finding, PackKind, PackPartFacts } from "./types";
 
 export interface ConditionsInput {
   /// The organisation's day the pack is judged on.
@@ -30,18 +30,22 @@ export interface ConditionsInput {
 
 export type TableDocumentFault = "TABLE_DOCUMENT_UNSET" | "TABLE_DOCUMENT_EMPTY";
 
-/// Every part not omitted says whether it is in the Tender Table Document (unset is not "no"), and the table document holds at least one.
-export function tableDocumentFaults(parts: readonly PackPartFacts[]): Finding<TableDocumentFault>[] {
+/// Every part not omitted says whether it is in the Tender Table Document (unset is not "no"), on any pack. Only a tender pack must hold at
+/// least one: FR-DOC-010 is the Tender Table Document, and a quotation may have none (every part answered "no").
+export function tableDocumentFaults(parts: readonly PackPartFacts[], packKind: PackKind): Finding<TableDocumentFault>[] {
   const live = parts.filter((p) => p.state !== "OMITTED");
   const out: Finding<TableDocumentFault>[] = live.filter((p) => p.inTableDocument == null).map((p) => ({ code: "TABLE_DOCUMENT_UNSET" as const, level: "block" as const, data: { part: `${p.printedNumber}. ${p.label}` } }));
-  if (live.length && !live.some((p) => p.inTableDocument === true)) out.push({ code: "TABLE_DOCUMENT_EMPTY", level: "block" });
+  if (packKind === "TENDER" && live.length && !live.some((p) => p.inTableDocument === true)) out.push({ code: "TABLE_DOCUMENT_EMPTY", level: "block" });
   return out;
 }
+
+/// Whether the pack has a Table Document to offer: a live part in it. A quotation whose parts all say "no" has none to print or inspect.
+export const hasTableDocument = (parts: readonly { state: string; inTableDocument: boolean | null }[]) => parts.some((p) => p.state !== "OMITTED" && p.inTableDocument === true);
 
 export type ConditionsFault = EligibilityFault | NoticeFault | RestrictionFault | PermitFault | ClauseFault | AssuranceFault | TableDocumentFault;
 
 /// Every condition the pack is judged by, in the order the card lists them.
-export function conditionsFaults(parts: readonly PackPartFacts[], c: ConditionsInput): Finding<ConditionsFault>[] {
+export function conditionsFaults(parts: readonly PackPartFacts[], c: ConditionsInput, packKind: PackKind): Finding<ConditionsFault>[] {
   return [
     ...eligibilityFaults(c.eligibility.requirements, c.eligibility.bodies, c.today),
     ...noticeFaults(parts),
@@ -49,7 +53,7 @@ export function conditionsFaults(parts: readonly PackPartFacts[], c: ConditionsI
     ...permitFaults({ ...c.permit, parts }),
     ...clauseFaults(parts, c.clauses.clauses, c.clauses.overrides, c.today),
     ...assuranceFaults(c.assurance.required, parts, c.assurance.confirmations),
-    ...tableDocumentFaults(parts),
+    ...tableDocumentFaults(parts, packKind),
   ];
 }
 

@@ -52,7 +52,9 @@ describe("print and route polish (source scan)", () => {
     // eslint-disable-next-line no-template-curly-in-string
     expect(read("src/components/tender-document.tsx")).toContain("Tender Table Document: ${v.exercise.title}");
     expect(read("src/app/sourcing/[id]/documents/print/page.tsx")).toContain("TenderDocumentArticle");
-    expect(read("src/app/sourcing/[id]/documents/workspace.tsx")).toContain("?set=table");
+    // FR-DOC-010: the link is offered only where a part is in it (a quotation answered "no" throughout has none), so the read builds it.
+    expect(read("src/app/sourcing/[id]/documents/workspace.tsx")).toContain("d.tableHref");
+    expect(readSrc).toMatch(/tableHref: shown && hasTableDocument\(shown\.parts\) \? `\/sourcing\/\$\{ex\.id\}\/documents\/print\?set=table`/);
   });
   it("the route card's subtitle names the version, and the crumb is 'Tender documents'", () => {
     expect(read("src/app/sourcing/[id]/documents/workspace.tsx")).toMatch(/versionLabel \? `\$\{versionLabel\}, submitted`/);

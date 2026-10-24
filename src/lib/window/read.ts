@@ -22,7 +22,7 @@ import { formatMoney, parseSen } from "@/lib/money";
 import { acknowledgementsByAddendum, requestsOfWindow, signUpsByEvent } from "@/lib/portal/bids/staff-read";
 import { leadTimeText } from "@/lib/scope/labels";
 import { loadScopePolicy } from "@/lib/scope/repo";
-import { scopeReadiness } from "@/lib/tender-docs/repo";
+import { packHasTableDocument, scopeReadiness } from "@/lib/tender-docs/repo";
 import { estimateLeadWarning } from "@/lib/tender-docs/tendering";
 
 import { addendumWindowFault, issueFaults, nextAddendumNumber, notified, recipientsFor } from "./addendum";
@@ -142,7 +142,7 @@ export async function windowTab(organisationId: string, exerciseId: string, hidd
     pathKey: path,
     pathChanged: !!(w && methodPath && w.path !== methodPath),
     phase: { key: phase.phase, label: PHASE_LABEL[phase.phase], tone: PHASE_TONE[phase.phase], submissionOpen: phase.submissionOpen },
-    tableDocument: tableAvailabilityText(tableDocumentAvailability(phase.phase), cancelledOn),
+    tableDocument: (await packHasTableDocument(org.id, ex.id)) ? tableAvailabilityText(tableDocumentAvailability(phase.phase), cancelledOn) : null,
     dates: {
       start: day(ex.tenderingStartOn),
       closing: ex.closingAt ? formatOrgDateTime(ex.closingAt, tz) : NOT_SET,

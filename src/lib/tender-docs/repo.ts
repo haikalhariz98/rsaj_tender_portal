@@ -297,6 +297,12 @@ export async function billFileOf(exerciseId: string, client: Tx = db): Promise<B
 
 // ------------------------------------------------------------------ increment 2: the tender's conditions
 
+/// FR-DOC-010: whether the exercise's pack, in preparation or approved, has a Tender Table Document to offer: a live part in it. A quotation whose
+/// parts all answer "no" has none, so none is offered to print or inspect.
+export async function packHasTableDocument(organisationId: string, exerciseId: string, client: Tx = db): Promise<boolean> {
+  return (await client.tenderPackPart.count({ where: { organisationId, inTableDocument: true, state: { not: "OMITTED" }, pack: { exerciseId, status: { in: ["DRAFT", "SUBMITTED", "APPROVED"] } } } })) > 0;
+}
+
 export async function loadRegistrationBodies(organisationId: string, client: Tx = db): Promise<(RegistrationBodyFacts & { id: string; governingSource: string; provenance: Provenance; notes: string; sortOrder: number })[]> {
   const rows = await client.registrationBody.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }] });
   return rows.map((r) => ({ ...r, provenance: r.provenance as Provenance, retiredOn: r.retiredOn ? storedDay(r.retiredOn) : null }));

@@ -268,21 +268,23 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader
-          icon={<EyeIcon size={17} />}
-          title="Inspect the Tender Table Document"
-          subtitle="Each opening is logged"
-          actions={d.table.open ? <ButtonLink href={`${base}/table-document`} variant="secondary" size="sm" prefetch={false}>Open it</ButtonLink> : undefined}
-        />
-        <CardBody>
-          {d.table.open ? (
-            <p className="text-[13.5px] text-ink-2">{d.online ? "Drawings and other files come with the documents you buy." : "Drawings and other files are inspected at the counter."}</p>
-          ) : (
-            <StandingLine tone="neutral" headline={d.table.headline} detail={d.table.detail} />
-          )}
-        </CardBody>
-      </Card>
+      {d.table && (
+        <Card>
+          <CardHeader
+            icon={<EyeIcon size={17} />}
+            title="Inspect the Tender Table Document"
+            subtitle="Each opening is logged"
+            actions={d.table.open ? <ButtonLink href={`${base}/table-document`} variant="secondary" size="sm" prefetch={false}>Open it</ButtonLink> : undefined}
+          />
+          <CardBody>
+            {d.table.open ? (
+              <p className="text-[13.5px] text-ink-2">{d.online ? "Drawings and other files come with the documents you buy." : "Drawings and other files are inspected at the counter."}</p>
+            ) : (
+              <StandingLine tone="neutral" headline={d.table.headline} detail={d.table.detail} />
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       <Card>
         <CardHeader

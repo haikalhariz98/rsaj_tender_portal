@@ -210,6 +210,7 @@ const submit = (x: Partial<SubmitInput> = {}): SubmitInput => ({
   route: { issue: true, state: "RESOLVED", refusal: null, errors: [] },
   routeOpen: false,
   conditions: CLEAR_CONDITIONS,
+  packKind: "TENDER",
   ...x,
 });
 

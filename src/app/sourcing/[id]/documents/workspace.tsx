@@ -122,7 +122,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
     { label: "Contract basis", value: d.facts.contractBasis },
     { label: "Standard form", value: d.facts.standardForm },
     ...(d.pack ? [] : [{ label: "Version", value: d.facts.version }]),
-    ...(d.pack ? [{ label: "Tender Table Document", value: tableNote?.text ?? "Not known" }] : []),
+    ...(d.tableHref ? [{ label: "Tender Table Document", value: tableNote?.text ?? "Not known" }] : []),
     ...(d.pack || d.exercise.status !== "Draft" ? [{ label: "Restricted", value: d.facts.restricted }] : []),
     ...(d.dates && "approvedOn" in d.dates
       ? [
@@ -150,7 +150,7 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
               {d.pack && <Badge tone={PACK_TONE[d.pack.status] ?? "neutral"} dot>{d.pack.status}</Badge>}
               {d.appendixHref && <ButtonLink href={d.appendixHref} variant="secondary" size="sm">{draft ? "Enter the Appendix" : "Open the Appendix"}</ButtonLink>}
               {d.printHref && <ButtonLink href={d.printHref} variant="secondary" size="sm">Print</ButtonLink>}
-              {d.printHref && <ButtonLink href={`${d.printHref}?set=table`} variant="secondary" size="sm">Tender Table Document</ButtonLink>}
+              {d.tableHref && <ButtonLink href={d.tableHref} variant="secondary" size="sm">Tender Table Document</ButtonLink>}
               {draft ? <span id="submit" className="scroll-mt-24">{primary}</span> : primary}
             </>
           }

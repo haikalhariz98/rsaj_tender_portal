@@ -41,9 +41,9 @@ describe("the dead end is gone: the findings name the way out and the way out ex
     const tableDocumentFaultText = conditionsFaultText;
     const mandatoryUnsetText = () => partFaultText({ code: "MANDATORY_UNSET", level: "block", data: { part: "1. A" } });
     const parts = [{ partCode: "a", printedNumber: "1", sortOrder: 1, label: "A", role: "OTHER", content: "STANDARD", source: "UPLOAD", mandatory: null, inTableDocument: null, templateCode: null, template: null, state: "NOT_STARTED", omittedReason: "", liveUploads: 0 }] as never;
-    const [unset] = tableDocumentFaults(parts);
+    const [unset] = tableDocumentFaults(parts, "TENDER");
     expect(tableDocumentFaultText(unset)).toMatch(/Refresh from configuration/);
-    expect(tableDocumentFaultText(tableDocumentFaults([{ inTableDocument: false, state: "NOT_STARTED", printedNumber: "1", label: "A" }] as never)[0])).toMatch(/Refresh from configuration/);
+    expect(tableDocumentFaultText(tableDocumentFaults([{ inTableDocument: false, state: "NOT_STARTED", printedNumber: "1", label: "A" }] as never, "TENDER")[0])).toMatch(/Refresh from configuration/);
     expect(mandatoryUnsetText()).toMatch(/Refresh from configuration/);
   });
   it("an act exists that writes the refresh, on a draft, from the configuration, with an audit row (source scan)", () => {

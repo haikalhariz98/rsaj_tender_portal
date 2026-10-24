@@ -87,6 +87,8 @@ export async function openForInspection(actor: SupplierActor, i: { exerciseId: s
   // Read what would be shown, so a version that may not be shown is refused before anything is logged.
   const view = await printView(actor.organisationId, i.exerciseId, i.kind === "PACK" ? "pack" : "table");
   if (!view || "none" in view) return { open: false, ctx, headline: "Not available", detail: "The procurement office has no documents for this exercise to show." };
+  // FR-DOC-010: a quotation answered "no" on every part has no Tender Table Document; nothing is opened, so nothing is logged.
+  if (i.kind === "TABLE_DOCUMENT" && view.parts.length === 0) return { open: false, ctx, headline: "Not available", detail: "This exercise has no Tender Table Document." };
   if (view.watermark != null) {
     const reading = inspectionReading("AVAILABLE", { approved: false });
     return { open: false, ctx, headline: reading.open ? "Not available" : reading.headline, detail: reading.open ? "" : reading.detail };

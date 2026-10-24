@@ -271,6 +271,8 @@ export interface SubmitInput {
   routeOpen: boolean;
   /// Increment 2: eligibility, restriction, permit, clauses, assurance (`conditionsFaults`).
   conditions: ConditionsInput;
+  /// The pack's kind: only a tender pack must have a Table Document (FR-DOC-010).
+  packKind: PackKind;
 }
 
 export interface SubmitFindings {
@@ -317,7 +319,7 @@ export function submitFaults(i: SubmitInput): SubmitFindings {
     scope: packFaults(i.scope),
     appendix: hasAppendixPart ? (i.appendix ? appendixFaults(i.appendix) : [{ code: "APPENDIX_NOT_STARTED", level: "block" }]) : [],
     behaviour: behaviourFaults(i.profile, { appendix: hasAppendixPart ? i.appendix : null, primeCostSums: i.primeCostSums, billOnScreen: ctx.billOnScreen, parts: issued }),
-    conditions: conditionsFaults(issued, i.conditions),
+    conditions: conditionsFaults(issued, i.conditions, i.packKind),
     dates: [...i.dates],
     officers: [...i.officers],
     notice: [...i.notice],

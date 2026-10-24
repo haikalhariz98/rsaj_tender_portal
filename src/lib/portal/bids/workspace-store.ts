@@ -25,6 +25,7 @@ import { signUpFaults, signUpState, windowFault, withdrawFaults, type SignUpStat
 import { bidStanding, type BidStanding } from "./standing";
 import { bidFaultText } from "./words";
 import { inOrder } from "@/lib/series";
+import { packHasTableDocument } from "@/lib/tender-docs/repo";
 
 /**
  * What each tab of one exercise's My Bids workspace reads (Phase 4d). One loader per tab, so a tab loads only its own slice and never a sibling's. Reads only, in the caller's client. Each takes the
@@ -156,7 +157,8 @@ export interface DocumentsView {
   bought: { on: string; receiptRecorded: boolean } | null;
   /// Whether the request is offered now, and the reasons it is not.
   canRequest: boolean;
-  table: InspectionReading;
+  /// Null: the exercise has no Tender Table Document (a quotation whose parts all answer "no", FR-DOC-010), so none is offered.
+  table: InspectionReading | null;
   release: { state: ReleaseState; short: string; detail: string };
   /// SR-10: buying the documents online, on an exercise sold that way; null at the counter.
   online: OnlineView | null;
@@ -184,7 +186,7 @@ export async function documentsTab(client: Tx, actor: Who & Pick<SupplierActor, 
     refused: facts.refused && !facts.standing && bought == null ? { on: formatDate(dayIn(facts.refused.requestedAt, ctx.org.timeZone)), reasons: facts.refused.checks.filter((c) => c.state === "BLOCK").map((c) => c.detail) } : null,
     bought,
     canRequest: blocks.length === 0 && facts.standing == null && facts.sale == null && facts.checks.length > 0,
-    table: inspectionReading(tableDocumentAvailability(ctx.phase), { approved: true }),
+    table: (await packHasTableDocument(actor.organisationId, ctx.ex.id, client)) ? inspectionReading(tableDocumentAvailability(ctx.phase), { approved: true }) : null,
     release: { state: release.state, short: release.words.short, detail: release.words.detail },
     online: await loadOnlineView(client, actor, ctx),
   };

@@ -66,7 +66,7 @@ import { appendixFactsOf, contentContextOf, loadConfiguredParts, loadPacks, load
 import { decisionWindow, tenderingRouteForRequester, timeIn } from "./tendering";
 import { loadSubmitExtras } from "./submit-extras";
 import { liveClauses } from "./clauses";
-import { conditionFieldValues, conditionStamp, readConditionsSnapshot } from "./conditions";
+import { conditionFieldValues, conditionStamp, hasTableDocument, readConditionsSnapshot } from "./conditions";
 import { packWhitelist } from "./fields";
 import { tableDocumentManifest } from "./freeze";
 import { loadConditions } from "./repo";
@@ -165,6 +165,7 @@ export async function documentsTab(organisationId: string, exerciseId: string) {
           route: { issue: issueInForce, state: route?.tenderingState ?? (issueInForce ? "NO_METHOD_KEY" : null), refusal: route?.refusal ?? null, errors: (route?.warnings ?? []).filter((w) => w.level === "err").map((w) => w.messageEn) },
           routeOpen: tenderingRoutesOf(ex.approvalInstances).some((i) => i.status === "PENDING"),
           conditions,
+          packKind: shown.packKind,
         })
       : null;
   const profile = profileOf(ex.classificationSnapshot);
@@ -222,6 +223,8 @@ export async function documentsTab(organisationId: string, exerciseId: string) {
         ? { startOn: storedDay(shown.proposedStartOn), closingDay: storedDayIn(shown.proposedClosingAt, org.timeZone), closingTime: timeIn(shown.proposedClosingAt, org.timeZone) }
         : null,
     printHref: shown ? `/sourcing/${ex.id}/documents/print` : null,
+    /// FR-DOC-010: offered only where a part is in it (a quotation answered "no" throughout has none).
+    tableHref: shown && hasTableDocument(shown.parts) ? `/sourcing/${ex.id}/documents/print?set=table` : null,
     appendixHref: shown?.appendix ? `/sourcing/${ex.id}/appendix` : null,
   };
 }
@@ -489,6 +492,7 @@ export async function printView(organisationId: string, exerciseId: string, set:
   const manifest = packManifest(pack.manifest);
   // FR-DOC-010 (the part built here): the Tender Table Document is the parts flagged for it, ready.
   const document = set === "table" ? "Tender Table Document" : PACK_KIND_LABEL[pack.packKind];
+  const hasTable = hasTableDocument(pack.parts);
   if (pack.frozenAt && manifest) {
     const snapshot = readConditionsSnapshot(pack.conditionsSnapshot);
     const restrictedFrozen = snapshot?.restriction.restricted ?? null;
@@ -497,6 +501,7 @@ export async function printView(organisationId: string, exerciseId: string, set:
       title,
       version: pack.versionNo,
       document,
+      hasTable,
       form: pack.formLabelSnapshot ?? NOT_SET,
       watermark,
       /// An approved pack's header states when it was approved and the window tendering runs over.
@@ -533,6 +538,7 @@ export async function printView(organisationId: string, exerciseId: string, set:
     title,
     version: pack.versionNo,
     document,
+    hasTable,
     form: pack.formLabelSnapshot ?? NOT_SET,
     watermark,
     stamp: stamp ? (stamp.EN ?? stamp.MS) : null,

@@ -616,6 +616,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
       route: { issue: !!issue && !!ctx, state: method ? (route?.tenderingState ?? null) : "NO_METHOD_KEY", refusal: route?.refusal ?? null, errors: (route?.warnings ?? []).filter((w) => w.level === "err").map((w) => w.messageEn) },
       routeOpen: tenderingRoutesOf(l.ex.approvalInstances).some((i) => i.status === "PENDING"),
       conditions,
+      packKind: pack.packKind,
     });
     const blocks = blockingOf(findings);
     if (blocks.length) {
