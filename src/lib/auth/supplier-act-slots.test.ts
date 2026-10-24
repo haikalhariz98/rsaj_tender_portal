@@ -62,6 +62,8 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "ProjectDocument.createdBySupplierAccount": "Who made a Project workspace document from the portal (ADR 0042 D1): the column is the record, with exactly one creator by CHECK, and the act is audited with the account. It signs nothing.",
   "ProjectDocumentRequest.requestedBySupplierAccount": "Who asked the organisation for a document from the portal (ADR 0042 D1): the column is the record, with exactly one requester by CHECK, append-only, and audited with the account. It signs nothing.",
   // ADR 0042 D10 (plan step 7): the kick-off meeting's attendance names the contractor's accounts that were there. Staff record it; the account did nothing by being ticked.
+  // ADR 0045 D3 (wave V): a contractor's question on an award signs nothing. The column is the record, the row is kept as asked (trigger PA049), and the act is audited with the account.
+  "AwardQuery.askedBySupplierAccount": "Who asked a question on an issued award from the portal (ADR 0045 D3): the column is the record, kept as asked by trigger, and audited with the account. It signs nothing.",
   "KickOffAttendance.supplierAccount": "An attendee ticked on the contractor's side of a kick-off meeting (ADR 0042 D10): who was there, not who acted. Staff record the meeting held (`KickOffMeeting.heldRecordedBy`); the row is append-only and the account signs nothing.",
 };
 
@@ -109,7 +111,8 @@ describe("every SupplierAccount relation is a supplier act slot or is accounted 
     // Changed again for ruling 20ak: a withdrawal of an online submission is a signed act too.
     // Changed for plan step 6 (PW-10, AC-30): the statutory declaration moved into the Project workspace keeps its password, so a declaration's version is a signed act on its own slot.
     // `ContractorSubmission.submittedBy` stays: the earlier records' attributions still resolve (PW-11).
-    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount", "CreditorProfile.enteredBy", "ContractorSubmission.submittedBy", "SiteDiaryEntry.agentAttestedBy", "CertificateSignature.signedBySupplierAccount", "OnlineBid.submittedBy", "OnlineBid.withdrawnBy", "ProjectDocumentVersion.uploadedBySupplierAccount"]);
+    // Changed for wave V (ADR 0045 D1): the contractor lodges its award return online with the password asked again, a signed act of its own.
+    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount", "CreditorProfile.enteredBy", "ContractorSubmission.submittedBy", "SiteDiaryEntry.agentAttestedBy", "CertificateSignature.signedBySupplierAccount", "OnlineBid.submittedBy", "OnlineBid.withdrawnBy", "ProjectDocumentVersion.uploadedBySupplierAccount", "AwardOnlineReturn.submittedBySupplierAccount"]);
     expect(slotOf("RegistrationDeclaration", "signedBy")!.signatureClass).toBe(false);
   });
 

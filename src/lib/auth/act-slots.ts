@@ -183,6 +183,10 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   // ---- awards, securities, insurance
   signed("Award", "signatoryPerson", "Signed by", "SIGNATURE", ["src/app/awards/actions.ts#issueAward"]),
   slot("AwardReturn", "receivedBy", "Return received by"),
+  // ADR 0045 D1, D3 (wave V): an online return verified or refused, and a contractor's question answered, each by the signed-in officer. Wave V step V2 wires the acts.
+  slot("AwardOnlineReturn", "verifiedBy", "Verified by"),
+  slot("AwardOnlineReturn", "refusedBy", "Decided by"),
+  slot("AwardQuery", "answeredBy", "Answered by"),
   slot("SecurityInstrument", "verifiedBy", "Verified by"),
   slot("InsurancePolicy", "verifiedBy", "Verified by"),
   slot("InsurancePolicy", "wcCheckedBy", "Wages check recorded by"),
@@ -333,6 +337,8 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   gated("RetentionRelease", "person", "Released by"),
   gated("AdvancePayment", "person", "Recorded by"),
   gated("FinancePayment", "person", "Recorded by"),
+  // ADR 0045 D7: Finance's payment of a supply claim, recorded as a certificate's is (wave V step V8 wires the act).
+  gated("SupplyInvoicePayment", "person", "Recorded by"),
   gated("LadWarning", "person", "Warned by"),
   signed("NonCompletion", "person", "Decided by", "HOLDER_CHECKED", ["src/app/projects/[id]/payment-actions.ts#recordNonCompletion"]),
   paper("ContractMatter", "person", "Recorded by"),
@@ -501,6 +507,8 @@ export const SUPPLIER_ACT_SLOTS: readonly ActSlot[] = [
   // with the password asked again, and the store attributes it on this slot naming the version as the exact document signed, as it did `ContractorSubmission.submittedBy`. Any
   // other version is an upload, which signs nothing: the column is its record, and no attribution is written for it (so a screen reads "Signed by" only on a declaration's).
   slot("ProjectDocumentVersion", "uploadedBySupplierAccount", "Signed by", { signatureClass: true }),
+  // ADR 0045 D1: the contractor lodges its award return online with the password asked again, a signed act naming the return as the exact document signed (wave V steps V2 and V3 wire it).
+  slot("AwardOnlineReturn", "submittedBySupplierAccount", "Signed by", { signatureClass: true }),
 ];
 
 export const slotOf = (entity: string, field: string): ActSlot | undefined =>

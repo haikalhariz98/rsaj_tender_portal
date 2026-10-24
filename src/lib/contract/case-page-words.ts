@@ -59,6 +59,8 @@ export const CASE_SECTION_WORDS: Readonly<Record<string, Words>> = {
   "payments.retention": w("Retention"),
   "payments.advance": w("Advance payment"),
   "payments.damages": w("Liquidated damages"),
+  // ADR 0045 D6: a supply claim, verified, is paid here (wave V step V8 builds the section).
+  "payments.supply": w("Supply invoices"),
   "site.start": w("Possession and progress"),
   "site.diary": w("Site diary"),
   "site.oversight": w("Oversight"),

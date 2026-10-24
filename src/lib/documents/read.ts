@@ -135,6 +135,8 @@ export async function readOwner(organisationId: string, ref: OwnerRef): Promise<
     case "portalApplicationCreditor":
     // ADR 0042 D8: a project document's files are pinned by the workspace act that makes the version.
     case "projectDocumentVersion":
+    // ADR 0045 D1: an online return's scans are pinned by the contractor's submit act only.
+    case "awardOnlineReturn":
       return null;
   }
 }
@@ -497,6 +499,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     case "portalApplicationDocument":
     case "portalApplicationCreditor":
     case "projectDocumentVersion":
+    case "awardOnlineReturn":
       return { records: [], total: 0 };
   }
 }

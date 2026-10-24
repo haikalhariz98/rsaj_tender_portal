@@ -69,6 +69,7 @@ const ENTITY_OF: Readonly<Record<OwnerKind, string>> = {
   portalApplicationDocument: "PortalApplicationDocument",
   portalApplicationCreditor: "PortalApplicationCreditor",
   projectDocumentVersion: "ProjectDocumentVersion",
+  awardOnlineReturn: "AwardOnlineReturn",
 };
 
 /// The record an owner of documents is judged as (read without a lock).

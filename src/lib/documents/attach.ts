@@ -413,6 +413,9 @@ export const CONTRACT_PURPOSE_FAMILY = {
   EOT_CALCULATION: "EOT",
   // ADR 0042 D11: a Project workspace version's files read the workspace's row.
   PROJECT_DOCUMENT_FILE: "PROJECT_WORKSPACE",
+  // ADR 0045 D6: so do a supply claim's delivery order and invoice.
+  DELIVERY_ORDER: "PROJECT_WORKSPACE",
+  SUPPLY_INVOICE: "PROJECT_WORKSPACE",
 } as const satisfies Partial<Record<AttachmentPurpose, ContractAct>>;
 
 /**

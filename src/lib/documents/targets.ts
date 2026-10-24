@@ -47,6 +47,7 @@ export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   portalApplicationDocument: "Certificate in an online application",
   portalApplicationCreditor: "Bank details in an online application",
   projectDocumentVersion: "Version of a project document",
+  awardOnlineReturn: "Award return sent online",
 };
 
 /// Where an owner's own screen is, for a link from a document to the record it is on.
@@ -116,6 +117,9 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
     // (the tab id stays "submissions") is the nearest place, and without a contract, the projects.
     case "projectDocumentVersion":
       return exerciseId ? (exerciseId.includes("/") ? `/projects/${exerciseId}` : `/projects/${exerciseId}?tab=submissions`) : "/projects";
+    // ADR 0045 D1: an online return is read on its award's case; the third argument is the award's id.
+    case "awardOnlineReturn":
+      return exerciseId ? caseHref({ awardId: exerciseId, contractId: null }) : "/projects";
   }
 }
 

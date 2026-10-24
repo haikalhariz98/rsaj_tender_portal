@@ -25,6 +25,8 @@ export const SUBMISSION_KIND_WORDS: Readonly<Record<SubmissionKind, Words>> = {
   // Decisions log, 2026-10-09, ruling on 1924(K): what the contractor sends from the portal is its NOTICE that the statutory declaration is lodged. The declaration itself is made on paper before a Commissioner for Oaths
   // (Statutory Declarations Act 1960) and recorded by an officer; this notice never stands in for it.
   STATUTORY_DECLARATION: w("Notice that the statutory declaration is lodged"),
+  // ADR 0045 D6: a supply contract's claim. Project workspace only.
+  SUPPLY_CLAIM: w("Delivery order and invoice"),
 };
 
 /// What sending each kind means, said on the form.
@@ -35,6 +37,7 @@ export const SUBMISSION_KIND_HINT: Readonly<Record<SubmissionKind, Words>> = {
   DELAY_NOTICE: w("The cause of delay and the day it arose."),
   DEFECTS_RECTIFIED: w("The listed defects have been made good."),
   STATUTORY_DECLARATION: w("Tell the office that the statutory declaration the contract requires before the final account has been lodged. This notice is signed with your password. It is not the declaration: that is made on paper before a Commissioner for Oaths and recorded by an officer, and only that lifts the block on final payment."),
+  SUPPLY_CLAIM: w("The delivery order and its invoice."),
 };
 
 export const OUTCOME_WORDS: Readonly<Record<SubmissionOutcome, Words>> = {

@@ -97,6 +97,9 @@ export async function exerciseOfOwner(kind: string, id: string, client: Tx | typ
       return (await client.evaluationBidder.findUnique({ where: { id }, select: { evaluation: { select: { exerciseId: true } } } }))?.evaluation.exerciseId ?? null;
     case "onlineBidFile":
       return (await client.onlineBidFile.findUnique({ where: { id }, select: { exerciseId: true } }))?.exerciseId ?? null;
+    // ADR 0045 D1: an online return's scans are judged as its award's, by the award's exercise.
+    case "awardOnlineReturn":
+      return (await client.awardOnlineReturn.findUnique({ where: { id }, select: { award: { select: { exerciseId: true } } } }))?.award.exerciseId ?? null;
     default:
       return null;
   }

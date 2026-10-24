@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { SUBMISSION_KINDS } from "@/lib/portal/projects/types";
 
-import { OUTCOMES, SIDES, otherSide } from "./types";
+import { OUTCOMES, PAYMENT_ROUTES, SIDES, otherSide } from "./types";
 
 /** The workspace's vocabulary equals the schema's enums (step 1), in order, so the rules and the database never drift apart. */
 
@@ -19,7 +19,11 @@ const values = (name: string) => {
 describe("the vocabulary matches the schema", () => {
   it("ProjectSide", () => expect([...SIDES]).toEqual(values("ProjectSide")));
   it("ProjectDocumentOutcome", () => expect([...OUTCOMES]).toEqual(values("ProjectDocumentOutcome")));
-  it("the six kinds are ContractorSubmissionKind's (ProjectDocument.kind reuses it)", () => expect([...SUBMISSION_KINDS]).toEqual(values("ContractorSubmissionKind")));
+  it("the kinds are ContractorSubmissionKind's (ProjectDocument.kind reuses it), the seventh (ADR 0045 D6) last", () => {
+    expect([...SUBMISSION_KINDS]).toEqual(values("ContractorSubmissionKind"));
+    expect(SUBMISSION_KINDS.at(-1)).toBe("SUPPLY_CLAIM");
+  });
+  it("PaymentRoute (ADR 0045 D5)", () => expect([...PAYMENT_ROUTES]).toEqual(values("PaymentRoute")));
   it("the other side of each side", () => {
     expect(otherSide("CONTRACTOR")).toBe("ORGANISATION");
     expect(otherSide("ORGANISATION")).toBe("CONTRACTOR");

@@ -6,6 +6,9 @@ export const NOTIFICATION_EVENTS: readonly { key: string; label: string }[] = [
   { key: "security.expiring", label: "A security or policy is about to expire" },
   { key: "award.indent.expired", label: "An award's indent has lapsed" },
   { key: "award.commencement.late", label: "A contract has not commenced on time" },
+  // ADR 0045 D4: read from wave V step V2 on.
+  { key: "award.return.lodged", label: "A contractor sends its award return online" },
+  { key: "award.query.raised", label: "A contractor asks a question on an award" },
   { key: "bid.validity.expiring", label: "A bid's validity is about to end" },
   { key: "committee_matter_not_carried", label: "A committee did not carry a matter" },
   { key: "supplier.document.expiring", label: "A supplier's document is about to expire" },

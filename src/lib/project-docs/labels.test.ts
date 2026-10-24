@@ -152,7 +152,8 @@ describe("every refusal is worded", () => {
 describe("the kind picker and the declaration's signing refusals (plan step 6)", () => {
   it("offers the six kinds by name, the declaration alone asking the password, with no hint of a figure (PW-10)", () => {
     const choices = kindChoices();
-    expect(choices.map((c) => c.value)).toEqual([...SUBMISSION_KINDS]);
+    // Wave V step V1: the seventh kind (SUPPLY_CLAIM, ADR 0045 D6) is not offered until step V6 offers it by the contract type's payment route.
+    expect(choices.map((c) => c.value)).toEqual(SUBMISSION_KINDS.filter((k) => k !== "SUPPLY_CLAIM"));
     for (const c of choices) {
       expect(c.label, c.value).toBe(kindWords(c.value));
       expect(c.label, c.value).not.toMatch(CODE);

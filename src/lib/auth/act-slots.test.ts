@@ -130,6 +130,7 @@ describe("the acts that move money, time or authority are recorded from paper on
         "EarlyActionDecision.person",
         "ExtensionOfTime.person",
         "FinancePayment.person",
+        "SupplyInvoicePayment.person",
         "InterimValuation.person",
         "LadWaiver.person",
         "LadWarning.person",

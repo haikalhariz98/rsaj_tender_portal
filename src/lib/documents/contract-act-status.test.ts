@@ -43,6 +43,8 @@ describe("BD-613-115: a contract's attachments read the act x status table first
     expect(CONTRACT_PURPOSE_FAMILY.INSTRUCTION_SKETCH).toBe("VARIATION");
     for (const p of ["DELAY_NOTICE", "METEOROLOGICAL_RECORD", "EOT_CALCULATION"] as const) expect(CONTRACT_PURPOSE_FAMILY[p], p).toBe("EOT");
     expect(CONTRACT_PURPOSE_FAMILY.PROJECT_DOCUMENT_FILE).toBe("PROJECT_WORKSPACE");
+    // ADR 0045 D6: a supply claim's two purposes are a project version's files too.
+    for (const p of ["DELIVERY_ORDER", "SUPPLY_INVOICE"] as const) expect(CONTRACT_PURPOSE_FAMILY[p], p).toBe("PROJECT_WORKSPACE");
   });
 
   it("ADR 0042 D11: a Project workspace version's files are open wherever the workspace is, and not before execution or once closed", () => {

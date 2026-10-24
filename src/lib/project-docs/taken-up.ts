@@ -21,6 +21,8 @@ const WHERE: Readonly<Record<DocKind, TakenUpWhere | null>> = {
   DELAY_NOTICE: null,
   DEFECTS_RECTIFIED: null,
   STATUTORY_DECLARATION: null,
+  // ADR 0045 D6: Payments › Supply invoices, where Finance's payment of a verified claim is recorded.
+  SUPPLY_CLAIM: { stage: "project", tab: "payments", section: "supply" },
 };
 
 export const takenUpWhere = (kind: DocKind): TakenUpWhere | null => WHERE[kind];

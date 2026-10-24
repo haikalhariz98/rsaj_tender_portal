@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ATTACHMENT_PURPOSES, OWNER_COLUMN, OWNER_KINDS, PURPOSE_OWNER } from "./types";
+import { ATTACHMENT_PURPOSES, OWNER_COLUMN, OWNER_KINDS, PURPOSE_OWNER, purposeOwners } from "./types";
 
 /**
  * X-6: every migration that adds an attachment owner rebuilds the owner CHECKs from the
@@ -80,14 +80,18 @@ describe("attachment owners: schema, CHECK and lib agree (X-6)", () => {
     expect(cols).toEqual(schemaOwners);
   });
 
-  it("purpose_owner pairs every purpose with its owner's key, as PURPOSE_OWNER does", () => {
+  // Changed for ADR 0045 D1 (wave V step V1): a purpose may pair with a second owner (the online return takes the award's four return purposes), so each
+  // purpose's owner keys are compared as a set: its own owner (PURPOSE_OWNER) and every owner that also takes it (SECOND_OWNER_PURPOSES), exactly.
+  it("purpose_owner pairs every purpose with its owners' keys, as PURPOSE_OWNER and SECOND_OWNER_PURPOSES do", () => {
     const def = latestCheck("DocumentAttachment_purpose_owner");
-    const pairs = new Map<string, string>();
+    const pairs = new Map<string, Set<string>>();
     for (const arm of def.matchAll(/\("purpose"\s*(=|IN)\s*(\([^)]*\)|'[A-Z_]+')\s*AND\s*"(\w+)"\s+IS NOT NULL\)/g)) {
-      for (const p of arm[2].matchAll(/'([A-Z_]+)'/g)) pairs.set(p[1], arm[3]);
+      for (const p of arm[2].matchAll(/'([A-Z_]+)'/g)) pairs.set(p[1], new Set([...(pairs.get(p[1]) ?? []), arm[3]]));
     }
     expect([...pairs.keys()].sort()).toEqual([...ATTACHMENT_PURPOSES].sort());
-    for (const p of ATTACHMENT_PURPOSES) expect(pairs.get(p), p).toBe(OWNER_COLUMN[PURPOSE_OWNER[p]]);
+    for (const p of ATTACHMENT_PURPOSES) expect([...pairs.get(p)!].sort(), p).toEqual(purposeOwners(p).map((k) => OWNER_COLUMN[k]).sort());
+    expect(purposeOwners("SIGNED_LETTER")).toEqual(["award", "awardOnlineReturn"]);
+    expect(purposeOwners("PROJECT_DOCUMENT_FILE")).toEqual(["projectDocumentVersion"]);
   });
 
   it("the schema's AttachmentPurpose enum is the lib's list", () => {
@@ -412,5 +416,46 @@ describe("ADR 0042 D1: the Project workspace version is an owner, everywhere at 
     expect(sql).toHaveLength(1);
     // No semicolon inside a comment (the WASM engine splits on every one).
     for (const f of [OWN, REBUILD, FIX_ROUND]) for (const line of readFileSync(join(migrationsDir, f, "migration.sql"), "utf8").split("\n").filter((l) => l.trim().startsWith("--"))) expect(line, f).not.toContain(";");
+  });
+});
+
+describe("ADR 0045 D1, D6: the online award return is an owner, and a supply claim's two purposes are a project version's, everywhere at once (X-6)", () => {
+  const BEFORE = "20261130000000_sourcing_method_exercise_series";
+  const ENUMS = "20261201000000_wave_v_enums";
+  const REBUILD = "20261201000100_wave_v_tables";
+  const NEW_ARMS = [
+    `("purpose" IN ('SIGNED_LETTER', 'DECLARATION', 'AUTHORISATION', 'ACCEPTANCE_PAGE') AND "awardOnlineReturnId" IS NOT NULL)`,
+    `("purpose" IN ('DELIVERY_ORDER', 'SUPPLY_INVOICE') AND "projectDocumentVersionId" IS NOT NULL)`,
+  ];
+
+  it("its key is counted by one_owner, last, with every owner before it kept in the same order", () => {
+    const before = ownerList(checkAsOf("DocumentAttachment_one_owner", BEFORE));
+    const after = ownerList(checkAsOf("DocumentAttachment_one_owner", REBUILD));
+    expect(after).toEqual([...before, "awardOnlineReturnId"]);
+    expect(OWNER_COLUMN.awardOnlineReturn).toBe("awardOnlineReturnId");
+    expect(OWNER_KINDS.at(-1)).toBe("awardOnlineReturn");
+  });
+
+  it("every purpose arm before it is still there, word for word, with exactly the two new arms added", () => {
+    const before = purposeArms(checkAsOf("DocumentAttachment_purpose_owner", BEFORE));
+    const after = purposeArms(checkAsOf("DocumentAttachment_purpose_owner", REBUILD));
+    expect(after.filter((a) => !before.includes(a))).toEqual(NEW_ARMS);
+    expect(before.filter((a) => !after.includes(a))).toEqual([]);
+    expect(PURPOSE_OWNER.DELIVERY_ORDER).toBe("projectDocumentVersion");
+    expect(PURPOSE_OWNER.SUPPLY_INVOICE).toBe("projectDocumentVersion");
+  });
+
+  it("the new values arrived in their own folder, before the folder that names them, which names the old purposes only inside the CHECK", () => {
+    const enums = readFileSync(join(migrationsDir, ENUMS, "migration.sql"), "utf8");
+    for (const v of ["AttachmentPurpose\" ADD VALUE 'DELIVERY_ORDER'", "AttachmentPurpose\" ADD VALUE 'SUPPLY_INVOICE'", "ContractorSubmissionKind\" ADD VALUE 'SUPPLY_CLAIM'"]) expect(enums).toContain(v);
+    expect(ENUMS < REBUILD).toBe(true);
+    // The values folder adds values and the one new type, and nothing else.
+    const statements = enums.split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    expect(statements.every((l) => /^(ALTER TYPE "\w+" ADD VALUE '[A-Z_]+';|CREATE TYPE "PaymentRoute" AS ENUM \('CERTIFIED_CLAIM', 'DELIVERY_ORDER_INVOICE'\);)$/.test(l)), statements.join("\n")).toBe(true);
+    const sql = readFileSync(join(migrationsDir, REBUILD, "migration.sql"), "utf8");
+    for (const p of ["'PROJECT_DOCUMENT_FILE'", "'INSTRUCTION_SKETCH'", "'REGISTRATION_CANCELLATION_NOTICE'"]) expect(mentionsOutsidePurposeCheck(sql, p), p).toEqual([]);
+    expect(sql).not.toMatch(/^\s*(INSERT|UPDATE|DELETE)\b/m);
+    // No semicolon inside a comment (the WASM engine splits on every one).
+    for (const f of [ENUMS, REBUILD]) for (const line of readFileSync(join(migrationsDir, f, "migration.sql"), "utf8").split("\n").filter((l) => l.trim().startsWith("--"))) expect(line, f).not.toContain(";");
   });
 });

@@ -13,6 +13,10 @@ export const SIDES = ["CONTRACTOR", "ORGANISATION"] as const;
 export type Side = (typeof SIDES)[number];
 export const otherSide = (s: Side): Side => (s === "CONTRACTOR" ? "ORGANISATION" : "CONTRACTOR");
 
+/// ADR 0045 D5: the schema's `PaymentRoute`, mirrored so the rules stay free of the client (`types.test.ts` holds the two equal): how a contract type is paid. Null is not set.
+export const PAYMENT_ROUTES = ["CERTIFIED_CLAIM", "DELIVERY_ORDER_INVOICE"] as const;
+export type PaymentRoute = (typeof PAYMENT_ROUTES)[number];
+
 /// The six kinds (PW-9): the legacy submission's kinds, reused, as the schema reuses `ContractorSubmissionKind`.
 export type DocKind = SubmissionKind;
 

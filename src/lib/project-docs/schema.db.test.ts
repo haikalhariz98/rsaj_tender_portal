@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
-import { ATTACHMENT_PURPOSES, OWNER_COLUMN, OWNER_KINDS, PURPOSE_OWNER } from "@/lib/documents/types";
+import { ATTACHMENT_PURPOSES, OWNER_COLUMN, OWNER_KINDS, PURPOSE_OWNER, purposeOwners } from "@/lib/documents/types";
 import { STAFF_NOTICE_KINDS } from "@/lib/inbox/kinds";
 import { makePerson, makeSupplierAccount, randomId, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
@@ -268,7 +268,10 @@ describe("the attachment owners, replaced whole (owner-check.test.ts holds the l
 
   it("every purpose still inserts on its own owner, the new one included", async () => {
     for (const p of ATTACHMENT_PURPOSES) expect(await inRolledBack((tx) => attach(tx, p, { [OWNER_COLUMN[PURPOSE_OWNER[p]]]: `pws_owner_${randomId()}` })), p).toBeNull();
-    expect(new Set(ATTACHMENT_PURPOSES.map((p) => PURPOSE_OWNER[p]))).toEqual(new Set(OWNER_KINDS));
+    // Changed for ADR 0045 D1 (wave V step V1): an owner may take another owner's purposes (the online return takes the award's four), so every owner a purpose
+    // has inserts, and between them the owners cover every owner kind.
+    for (const p of ATTACHMENT_PURPOSES) for (const k of purposeOwners(p)) expect(await inRolledBack((tx) => attach(tx, p, { [OWNER_COLUMN[k]]: `pws_owner_${randomId()}` })), `${p} on ${k}`).toBeNull();
+    expect(new Set(ATTACHMENT_PURPOSES.flatMap((p) => purposeOwners(p)))).toEqual(new Set(OWNER_KINDS));
     expect(OWNER_COLUMN.projectDocumentVersion).toBe("projectDocumentVersionId");
     expect(PURPOSE_OWNER.PROJECT_DOCUMENT_FILE).toBe("projectDocumentVersion");
   });

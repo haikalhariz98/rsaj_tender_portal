@@ -99,7 +99,8 @@ const CREATE_FIELDS = ["contractId", "title", "note", "mode", "versionIds", "ver
 function kindOf(b: Readonly<Record<string, unknown>>, errors: Record<string, string>): DocKind | null {
   const v = b.kind;
   if (v == null || v === "") return null;
-  if (isSubmissionKind(v)) return v;
+  // shortcut: SUPPLY_CLAIM is refused until wave V step V6 builds its files and which contracts are offered it (ADR 0045 D6).
+  if (isSubmissionKind(v) && v !== "SUPPLY_CLAIM") return v;
   errors.kind = "Not one of the six kinds.";
   return null;
 }

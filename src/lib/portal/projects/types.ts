@@ -11,7 +11,7 @@ export type ProjectTab = (typeof PROJECT_TABS)[number];
 export const isProjectTab = (s: string | undefined): s is ProjectTab => (PROJECT_TABS as readonly string[]).includes(s ?? "");
 
 /// The kinds of submission (the schema's enum, mirrored so the rules stay free of the client; `projects.test.ts` holds the two equal).
-export const SUBMISSION_KINDS = ["WORK_PROGRAMME", "INTERIM_CLAIM", "MATERIALS_ON_SITE", "DELAY_NOTICE", "DEFECTS_RECTIFIED", "STATUTORY_DECLARATION"] as const;
+export const SUBMISSION_KINDS = ["WORK_PROGRAMME", "INTERIM_CLAIM", "MATERIALS_ON_SITE", "DELAY_NOTICE", "DEFECTS_RECTIFIED", "STATUTORY_DECLARATION", "SUPPLY_CLAIM"] as const;
 export type SubmissionKind = (typeof SUBMISSION_KINDS)[number];
 export const isSubmissionKind = (s: unknown): s is SubmissionKind => typeof s === "string" && (SUBMISSION_KINDS as readonly string[]).includes(s);
 

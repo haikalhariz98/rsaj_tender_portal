@@ -70,7 +70,9 @@ export type AttachmentPurpose =
   | "PUBLISHED_SCHEDULE"
   | "PORTAL_APPLICATION_DOCUMENT"
   | "PORTAL_APPLICATION_BANK_STATEMENT"
-  | "PROJECT_DOCUMENT_FILE";
+  | "PROJECT_DOCUMENT_FILE"
+  | "DELIVERY_ORDER"
+  | "SUPPLY_INVOICE";
 
 export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "SIGNED_MINUTES",
@@ -123,12 +125,14 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "PORTAL_APPLICATION_DOCUMENT",
   "PORTAL_APPLICATION_BANK_STATEMENT",
   "PROJECT_DOCUMENT_FILE",
+  "DELIVERY_ORDER",
+  "SUPPLY_INVOICE",
 ];
 
 /// The owners a document can be attached to. New owners arrive by migration with their
 /// module (MatterKind precedent); each is a typed key on DocumentAttachment.
-export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening" | "evaluation" | "evaluationMeeting" | "evaluationBidder" | "supplierDocument" | "supplierApplication" | "contract" | "variationInstruction" | "standingEvent" | "delayNotice" | "eotClaim" | "registrationDraftDocument" | "creditorProfile" | "onlineBidFile" | "portalApplicationDocument" | "portalApplicationCreditor" | "projectDocumentVersion";
-export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction", "standingEvent", "delayNotice", "eotClaim", "registrationDraftDocument", "creditorProfile", "onlineBidFile", "portalApplicationDocument", "portalApplicationCreditor", "projectDocumentVersion"];
+export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening" | "evaluation" | "evaluationMeeting" | "evaluationBidder" | "supplierDocument" | "supplierApplication" | "contract" | "variationInstruction" | "standingEvent" | "delayNotice" | "eotClaim" | "registrationDraftDocument" | "creditorProfile" | "onlineBidFile" | "portalApplicationDocument" | "portalApplicationCreditor" | "projectDocumentVersion" | "awardOnlineReturn";
+export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction", "standingEvent", "delayNotice", "eotClaim", "registrationDraftDocument", "creditorProfile", "onlineBidFile", "portalApplicationDocument", "portalApplicationCreditor", "projectDocumentVersion", "awardOnlineReturn"];
 
 /// Which owner each purpose belongs to. The migration's CHECK says the same.
 export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
@@ -195,10 +199,22 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   PORTAL_APPLICATION_BANK_STATEMENT: "portalApplicationCreditor",
   // ADR 0042 D1: a file of a Project workspace document's version, on the version.
   PROJECT_DOCUMENT_FILE: "projectDocumentVersion",
+  // ADR 0045 D6 (WV-11): a supply claim's delivery order and invoice, files of the claim's version.
+  DELIVERY_ORDER: "projectDocumentVersion",
+  SUPPLY_INVOICE: "projectDocumentVersion",
 };
 
+/// ADR 0045 D1: an owner that also takes purposes another owner holds (PURPOSE_OWNER keeps each purpose's own). A contractor's online award return holds
+/// the award's return scans until an officer verifies them onto the award. The migration's CHECK pairs each of these purposes with both owners.
+export const SECOND_OWNER_PURPOSES: Readonly<Partial<Record<OwnerKind, readonly AttachmentPurpose[]>>> = {
+  awardOnlineReturn: ["SIGNED_LETTER", "DECLARATION", "AUTHORISATION", "ACCEPTANCE_PAGE"],
+};
+
+/// Every owner a purpose may be attached to: its own, then any owner that also takes it.
+export const purposeOwners = (p: AttachmentPurpose): OwnerKind[] => [PURPOSE_OWNER[p], ...OWNER_KINDS.filter((k) => SECOND_OWNER_PURPOSES[k]?.includes(p))];
+
 /// The column on DocumentAttachment that names each owner.
-export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId" | "evaluationId" | "evaluationMeetingId" | "evaluationBidderId" | "supplierDocumentId" | "supplierApplicationId" | "contractId" | "variationInstructionId" | "standingEventId" | "delayNoticeId" | "eotClaimId" | "registrationDraftDocumentId" | "creditorProfileId" | "onlineBidFileId" | "portalApplicationDocumentId" | "portalApplicationCreditorId" | "projectDocumentVersionId";
+export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId" | "evaluationId" | "evaluationMeetingId" | "evaluationBidderId" | "supplierDocumentId" | "supplierApplicationId" | "contractId" | "variationInstructionId" | "standingEventId" | "delayNoticeId" | "eotClaimId" | "registrationDraftDocumentId" | "creditorProfileId" | "onlineBidFileId" | "portalApplicationDocumentId" | "portalApplicationCreditorId" | "projectDocumentVersionId" | "awardOnlineReturnId";
 export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   meeting: "meetingId",
   exercise: "exerciseId",
@@ -227,14 +243,15 @@ export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   portalApplicationDocument: "portalApplicationDocumentId",
   portalApplicationCreditor: "portalApplicationCreditorId",
   projectDocumentVersion: "projectDocumentVersionId",
+  awardOnlineReturn: "awardOnlineReturnId",
 };
 
 /// Purposes attached only by their owner's own act, never from the shared attach choice: a
 /// bill's imported CSV is attached by the import that reads it, in the same transaction (6.2
 /// Q-3), so the file on a bill is always the one its lines came from.
 // Phase 4b: the supplier's own uploads are attached by the upload route in the same transaction as the file, never from the staff's shared choice.
-// ADR 0042 D8: a project document's files are pinned by the workspace act that makes the version, under the contract's and the document's locks.
-export const OWNER_ACT_PURPOSES: readonly AttachmentPurpose[] = ["BQ_IMPORT_SOURCE", "SUPPLIER_DRAFT_DOCUMENT", "SUPPLIER_BANK_STATEMENT", "ONLINE_BID_FILE", "PORTAL_APPLICATION_DOCUMENT", "PORTAL_APPLICATION_BANK_STATEMENT", "PROJECT_DOCUMENT_FILE"];
+// ADR 0042 D8: a project document's files are pinned by the workspace act that makes the version, under the contract's and the document's locks. ADR 0045 D6: a supply claim's two as well.
+export const OWNER_ACT_PURPOSES: readonly AttachmentPurpose[] = ["BQ_IMPORT_SOURCE", "SUPPLIER_DRAFT_DOCUMENT", "SUPPLIER_BANK_STATEMENT", "ONLINE_BID_FILE", "PORTAL_APPLICATION_DOCUMENT", "PORTAL_APPLICATION_BANK_STATEMENT", "PROJECT_DOCUMENT_FILE", "DELIVERY_ORDER", "SUPPLY_INVOICE"];
 
 /// The classification a purpose's document must carry to be attached (6.2 Q-1: the signed
 /// specification panel form is SULIT). A purpose not listed takes any classification.

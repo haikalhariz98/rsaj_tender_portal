@@ -49,6 +49,8 @@ export const KIND_SHAPE: Readonly<Record<SubmissionKind, { amount: boolean; day:
   DELAY_NOTICE: { amount: false, day: "AROSE", lines: false, signed: false },
   DEFECTS_RECTIFIED: { amount: false, day: null, lines: false, signed: false },
   STATUTORY_DECLARATION: { amount: false, day: null, lines: false, signed: true },
+  // ADR 0045 D6: Project workspace only (the legacy table refuses it). No typed figures: the files carry them (WV-12).
+  SUPPLY_CLAIM: { amount: false, day: null, lines: false, signed: false },
 };
 
 export function submissionFaults(i: SubmissionInput): ProjectFinding[] {

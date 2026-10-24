@@ -52,7 +52,8 @@ export const SIGNED_KIND: DocKind = "STATUTORY_DECLARATION";
  * The contractor's kind picker (plan step 6): each of the six kinds by its name, and whether sending it asks the password again. The value is a form's, never shown. No hint
  * about amounts or days goes with them: a kind carries no figure (PW-10), and the earlier form's hints (`SUBMISSION_KIND_HINT`) describe the figures it took.
  */
-export const kindChoices = (): { value: DocKind; label: string; asksPassword: boolean }[] => SUBMISSION_KINDS.map((k) => ({ value: k, label: kindWords(k), asksPassword: k === SIGNED_KIND }));
+// shortcut: SUPPLY_CLAIM is left out until wave V step V6 offers it by the contract type's payment route (ADR 0045 D6, WV-10).
+export const kindChoices = (): { value: DocKind; label: string; asksPassword: boolean }[] => SUBMISSION_KINDS.filter((k) => k !== "SUPPLY_CLAIM").map((k) => ({ value: k, label: kindWords(k), asksPassword: k === SIGNED_KIND }));
 
 /**
  * The words beside "Taken up", with the tab they link to (PW-24). Null where no screen records the kind: then nothing is said, and no button is shown.

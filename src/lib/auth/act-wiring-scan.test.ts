@@ -32,6 +32,11 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   // Wave 3b (SR-13): the two attestations of the bid sealing policy are wired since step 7 (`bid-sealing/core.ts`), so they leave this list.
   // ADR 0042 (plan step 4): the Project workspace's six staff slots are wired (`document-actions.ts`, `project-docs/store.ts`) and have left this list.
   // ADR 0042 D10 (plan step 7): the kick-off meeting's two slots are wired since the act step (`kick-off-actions.ts`, `project-docs/kick-off-store.ts`), so they leave this list.
+  // ADR 0045 (wave V step V1): the schema step registered four staff slots. Steps V2, V5 and V8 build the acts, and each leaves this list the day it is wired.
+  "AwardOnlineReturn.verifiedBy": { why: "Verifying an online award return is wave V step V2 and V5: no act decides a return yet.", writer: /\.awardOnlineReturn\.(?:update|updateMany|upsert)\(/ },
+  "AwardOnlineReturn.refusedBy": { why: "Refusing an online award return is wave V step V2 and V5: no act decides a return yet.", writer: /\.awardOnlineReturn\.(?:update|updateMany|upsert)\(/ },
+  "AwardQuery.answeredBy": { why: "Answering a contractor's question on an award is wave V step V2 and V5: no act answers one yet.", writer: /\.awardQuery\.(?:update|updateMany|upsert)\(/ },
+  "SupplyInvoicePayment.person": { why: "Recording Finance's payment of a supply claim is wave V step V6 and V8: no act writes one yet.", writer: /\.supplyInvoicePayment\.(?:create|createMany|upsert)\(/ },
 };
 
 function walk(dir: string, out: string[] = []): string[] {
