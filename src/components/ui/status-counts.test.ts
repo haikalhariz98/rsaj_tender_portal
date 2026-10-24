@@ -28,4 +28,9 @@ describe("StatusCounts (plan 6.1)", () => {
     expect(out).toContain("Drafts");
     expect(out).not.toContain("Sent back");
   });
+  it("an uncounted status (security review L7) stays in the row with a dash and its reason, never a number it does not have", () => {
+    const out = render([{ label: "Open for purchase", count: 0, href: "?view=open", uncounted: "Too many to judge." }]);
+    expect(out).toMatch(/>—<\/span>Open for purchase/);
+    expect(out).toContain('title="Too many to judge."');
+  });
 });
