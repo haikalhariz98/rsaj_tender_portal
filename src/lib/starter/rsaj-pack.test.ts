@@ -20,17 +20,25 @@ import { resolveSo } from "@/lib/supervision/so";
 import { columnsOf, planPacks } from "./plan";
 
 /**
- * The RSAJ starter pack, parts 1 and 2 (plan steps 4.4 and 4.6): every entry cites its requirement and its clause; the only ASSUMED entries are
- * named one by one (the three DAL rules whose slashed codes are a reading, SP-2a; the document parts whose class is not stated; the evaluation
- * stages whose side the form does not assign); the DAL's figures are the Appendix B fixture's, except the post-award rows, which are banded by
- * the contract's value rather than keyed by method (product owner's fix-up, 2026-10-24); the DAL and the models are drafts only; nothing
- * outside the pack imports it; and `rsaj,generic` plans clean into a fresh organisation.
+ * The RSAJ starter pack, parts 1 and 2 (plan steps 4.4 and 4.6) with RSAJ's answers of 2026-10-24: every entry cites its requirement and its
+ * clause; the only ASSUMED entries are named one by one (the document parts whose class is not stated; the evaluation stages whose side the form
+ * does not assign; the two direct methods' document pack); the DAL's figures are the Appendix B fixture's, except the post-award rows, which are
+ * banded by the contract's value rather than keyed by method (product owner's fix-up, 2026-10-24), and the three stacked-code rows, whose chains
+ * are read per answer 1; the DAL and the models are drafts only; nothing outside the pack imports it; and `rsaj,generic` plans clean into a
+ * fresh organisation.
  */
-const SLASHED = ["DP_ABOVE_5M", "TERMINATION", "ADVANCE_PAYMENT"];
-/// The document parts whose class FR-DOC-003 does not state, and the quotation declaration placed last (FR-DOC-008).
-const ASSUMED_PARTS = ["t_invitation", "t_conditions", "t_bond_forms", "t_summary_and_rates", "t_registration_background", "t_declaration", "t_instructions", "q_notice", "q_corrigendum", "q_instructions", "q_conditions", "q_specification", "q_form", "q_tenderer_background", "q_declaration"];
+/// Deliberate change (RSAJ answer 1): no DAL rule is a reading any more. The three that were are stacked cells, now STATED.
+const SLASHED: string[] = [];
+const ANSWERED = ["DP_ABOVE_5M", "TERMINATION", "ADVANCE_PAYMENT"];
+/// The document parts whose class FR-DOC-003 and SK001 7.3.4 do not state, and the quotation declaration placed last (FR-DOC-008).
+const ASSUMED_PARTS = ["t_invitation", "t_bond_forms", "t_summary_and_rates", "t_registration_background", "t_declaration", "t_instructions", "q_notice", "q_corrigendum", "q_instructions", "q_tenderer_background", "q_declaration"];
 /// The evaluation stages whose side the form does not assign, set to Contract & Procurement.
-const ASSUMED_STAGES = ["checklist", "combined", "recommendation", "phase_1", "phase_1_shortlist", "phase_5"];
+const ASSUMED_STAGES = ["checklist", "combined", "recommendation", "phase_5"];
+/// Named exception (RSAJ answer 15, an inference open to confirm): the two direct methods assemble no document pack.
+const ASSUMED_COLUMNS = [
+  ["direct_appointment", "documentPackKindProvenance"],
+  ["selective_direct_appointment", "documentPackKindProvenance"],
+];
 /// The post-award rows: B.6 and B.7 are headed by the contract's value, so these name no method and carry the regime's contract band.
 const Q_VO = ["Q_VO_UP_TO_20", "Q_VO_20_TO_50", "Q_VO_ABOVE_50"];
 const T_VO = ["T_VO_A_I", "T_VO_A_II", "T_VO_B_I", "T_VO_B_II", "T_VO_B_III", "T_VO_C_I", "T_VO_C_II", "T_VO_C_III", "T_VO_C_IV"];
@@ -64,14 +72,14 @@ describe("the RSAJ pack's entries", () => {
     expect(assumedRows).toEqual(ASSUMED_PARTS);
     for (const r of RSAJ_PACK.lists.flatMap((l) => l.rows)) if (r.values.provenance != null && r.values.provenance !== "ASSUMED") throw new Error(`${r.code}: ${String(r.values.provenance)}`);
     const parts = RSAJ_PACK.lists.find((l) => l.model === "TenderDocumentPart")!.rows;
-    for (const r of parts.filter((x) => ASSUMED_PARTS.includes(x.code))) expect(r.values.notes, r.code).toMatch(/stated \(FR-DOC-001\/013\); its class is not|Bound in by FR-DOC-008/);
-    for (const r of dal.rules.filter((x) => SLASHED.includes(x.ruleKey))) expect(r.source, r.ruleKey).toMatch(/read as .*SP-2a/);
+    for (const r of parts.filter((x) => ASSUMED_PARTS.includes(x.code))) expect(r.values.notes, r.code).toMatch(/stated \(FR-DOC-001\/013\); its class is not|summary of tender is not classed|its place in the pack is not stated/);
+    for (const r of dal.rules.filter((x) => ANSWERED.includes(x.ruleKey))) expect([r.provenance, r.source], r.ruleKey).toEqual(["STATED", expect.stringMatching(/; stacked code read per RSAJ answer 1 \(2026-10-24\)$/)]);
     for (const l of dal.coreRouting) expect([l.provenance, ...l.steps.map((s) => s.provenance)].every((p) => p === "STATED")).toBe(true);
     for (const t of dal.termsBands ?? []) expect(t.provenance).toBe("STATED");
-    // Every value of a row's own provenance column, wherever the pack sets one.
-    const own = [...RSAJ_PACK.lists.flatMap((l) => l.rows.flatMap((r) => Object.entries(r.values))), ...RSAJ_PACK.groups.flatMap((g) => Object.entries(g.values))].filter(([c]) => /Provenance$/.test(c));
+    // Every value of a row's own provenance column, wherever the pack sets one: STATED, but for the named exception.
+    const own = [...RSAJ_PACK.lists.flatMap((l) => l.rows.flatMap((r) => Object.entries(r.values).map(([c, v]) => [r.code, c, v]))), ...RSAJ_PACK.groups.flatMap((g) => Object.entries(g.values).map(([c, v]) => [g.label, c, v]))].filter(([, c]) => /Provenance$/.test(String(c)));
     expect(own.length).toBeGreaterThan(10);
-    for (const [c, v] of own) expect(v, c).toBe("STATED");
+    expect(own.filter(([, , v]) => v !== "STATED")).toEqual(ASSUMED_COLUMNS.map(([code, c]) => [code, c, "ASSUMED"]));
   });
 
   it("marks the evaluation models OBSERVED, as the specification says they are practice (decision D1), except the stages whose side is assumed", () => {
@@ -104,15 +112,17 @@ describe("the DAL draft", () => {
       generateCoreChain: r.generateCoreChain ?? null,
     });
     const { quotationFloor, tenderFloor } = dal.policy;
+    // The stacked-code rows (answer 1) differ from the fixture's reading in their chain only; their chains are asserted below.
+    const figuresOf = (r: Parameters<typeof figures>[0]) => (ANSWERED.includes(r.ruleKey) ? { ...figures(r), proposer: null, recommenders: null } : figures(r));
     for (const f of shared) {
       const r = dal.rules.find((x) => x.ruleKey === f.ruleKey)!;
       if (!REGIME_BANDED.includes(f.ruleKey) || T_VO.includes(f.ruleKey)) {
-        expect(figures(r), f.ruleKey).toEqual(figures(f));
+        expect(figuresOf(r), f.ruleKey).toEqual(figuresOf(f));
         if (T_VO.includes(f.ruleKey)) expect(r.method, f.ruleKey).toBeNull();
         continue;
       }
       // The recorded exception: no method, and the regime's contract band in place of the fixture's (it has none).
-      expect({ ...figures(r), band: null }, f.ruleKey).toEqual({ ...figures(f), band: null });
+      expect({ ...figuresOf(r), band: null }, f.ruleKey).toEqual({ ...figuresOf(f), band: null });
       expect(r.method, f.ruleKey).toBeNull();
       expect([r.contractValueMin, r.contractValueMax], f.ruleKey).toEqual(Q_VO.includes(f.ruleKey) ? [quotationFloor, tenderFloor] : [tenderFloor, null]);
       expect([r.minValue, r.maxValue, r.pctMin, r.pctMax], f.ruleKey).toEqual([f.minValue, f.maxValue, f.pctMin, f.pctMax]);
@@ -120,6 +130,24 @@ describe("the DAL draft", () => {
     expect(dal.rules.filter((r) => REGIME_BANDED.includes(r.ruleKey)).every((r) => r.method == null)).toBe(true);
     expect({ ...dal.policy }).toEqual({ ...DAL_FIXTURE.policy });
     expect(dal.coreRouting).toEqual(DAL_FIXTURE.coreRouting);
+  });
+
+  it("reads the three stacked cells per RSAJ answer 1: the proposer, then the starred office, then the requesting department's line", () => {
+    const chain = (key: string) => {
+      const r = dal.rules.find((x) => x.ruleKey === key)!;
+      return [r.proposerCode, ...r.recommenders.map((x) => `${x.roleCode} ${x.act}`), r.approverCode];
+    };
+    expect(chain("DP_ABOVE_5M")).toEqual(["HOD", "AD JR", "HODIV R", "TBC MR", "BOD"]);
+    expect(chain("ADVANCE_PAYMENT")).toEqual(["HOD", "CP JR", "HODIV R", "CEO"]);
+    expect(chain("TERMINATION")).toEqual(["HOD", "CP JR", "HODIV R", "CEO"]);
+    // The MR convention is for new rows: DP_ABOVE_5M keeps the fixture's figures, its delegability included.
+    expect(dal.rules.find((x) => x.ruleKey === "DP_ABOVE_5M")).toMatchObject({ nonDelegable: false, generateCoreChain: false });
+  });
+
+  it("states the boundary ruling (exactly RM300,000.00 is a quotation, RSAJ answer 3), with its source (A4)", () => {
+    expect(dal.policy.boundaryInclusive).toBe(true);
+    expect(dal.boundaryProvenance).toBe("STATED");
+    expect(dal.boundarySource).toMatch(/^DAL §3\.1\.4\.2–3\.1\.4\.4 bands .*RSAJ answer 3$/);
   });
 
   it("is a draft: nothing puts it in force or names who made it", () => {
@@ -158,6 +186,13 @@ describe("the DAL draft, put in force, routes a contract's matters whatever its 
 
   it("routes a 25% variation on a RM2 million direct contract to the CEO", () => {
     expect(route({ domain: "vo", method: "direct", pctRatio: pct("25"), contractValue: 2_000_000 })).toEqual({ rule: "T_VO_B_II", approver: "CEO", errors: [] });
+  });
+
+  it("routes spec example 5, RM6,000,000 direct: HOD P → AD JR → HODIV R → TBC MR → BOD A", () => {
+    const r = resolveApproval(matrix, { domain: "appointment", method: "direct", value: 6_000_000 });
+    expect(r.rule?.ruleKey).toBe("DP_ABOVE_5M");
+    expect(r.chain.map((s) => `${s.roleCode} ${s.act}`)).toEqual(["HOD P", "AD JR", "HODIV R", "TBC MR", "BOD A"]);
+    expect(r.warnings.filter((w) => w.level === "err")).toEqual([]);
   });
 
   // Part 2 loaded B.6 item 7, so a waiver of LAD on a RM200,000 contract now routes; termination there (B.6 item 8, slashed) is the gap.
@@ -211,6 +246,10 @@ describe("part 2: contracts, suppliers and system (plan step 4.6)", () => {
     const bodies = new Set(listOf("RegistrationBody").map((b) => `RegistrationBody:${b.code}`));
     const types = listOf("SupplierDocumentType");
     expect(types).toHaveLength(13);
+    // RSAJ answer 23: Suruhanjaya Tenaga is a registration body, with no qualifier stated, and its certificate names it.
+    expect(listOf("RegistrationBody").find((b) => b.code === "st")).toMatchObject({ values: { labelEn: "Suruhanjaya Tenaga" }, source: expect.stringMatching(/^SK001 7\.3\.4\(a\)/) });
+    expect(listOf("RegistrationBody").find((b) => b.code === "st")!.values).not.toHaveProperty("qualifierLabelEn");
+    expect(types.find((t) => t.code === "suruhanjaya_tenaga")!.values.bodyId).toEqual({ ref: "RegistrationBody:st" });
     for (const t of types) {
       const bodyRef = (t.values.bodyId as { ref: string } | undefined)?.ref ?? null;
       const input = { code: t.code, nameEn: String(t.values.nameEn), bodyId: bodyRef, valueKinds: (t.values.valueKinds as never[] | undefined) ?? [], provenance: RSAJ_PACK.provenance };
@@ -229,6 +268,9 @@ describe("part 2: contracts, suppliers and system (plan step 4.6)", () => {
     }
     expect(matchesFormat("PROC2025150424", String(formats[0].values.pattern))).toBe(true);
     expect(matchesFormat("NM/2026/00412", String(formats[1].values.pattern))).toBe(true);
+    // RSAJ answer 26: the Expenditure Request Form's own number.
+    expect(formats[1].values.example).toBe("NM/2025/00461");
+    expect(matchesFormat("NM/2025/00461", String(formats[1].values.pattern))).toBe(true);
     expect(matchesFormat("IN2026395", String(formats[2].values.pattern))).toBe(false);
   });
 
@@ -249,8 +291,11 @@ describe("part 2: contracts, suppliers and system (plan step 4.6)", () => {
     expect(series.filter((s) => s![0] === "rsaj")).toEqual([
       ["rsaj", "contract_tender", "RSAJ/KP/T/{SERIAL}/{YEAR}"],
       ["rsaj", "contract_consultancy", "RSAJ/KP/P/{SERIAL}/{YEAR}"],
+      ["rsaj", "exercise_tender", "RSAJ/TA/{SERIAL}/{YEAR}"],
+      ["rsaj", "direct_appointment", "RSAJ/KP/ST/{SERIAL}/{SHORTYEAR}"],
     ]);
     expect(series.filter((s) => s![0] === "generic")).toHaveLength(9);
+    expect(series.filter((s) => s![0] === "generic").map((s) => s![1])).not.toContain("exercise_tender");
   });
 });
 

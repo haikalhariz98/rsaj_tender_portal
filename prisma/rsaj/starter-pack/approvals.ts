@@ -4,14 +4,18 @@
  * matrix that a named person must adopt and put in force (ADR 0043 D2, SP-2). Transcribed from docs/requirements (the specification's
  * Appendix B reproduces DAL Issue A, Revision 00). Each entry cites its requirement and clause.
  *
- * The slashed DAL codes are read as the authority tests' Appendix B fixture reads them ("JR/R" as JR, "JR/P" as P) and those rules are ASSUMED,
- * with the reading as their source (SP-2a). The joint partner office is not modelled. A row whose code is slashed some other way ("MR/P",
- * B.7 item 4) is not loaded. Offices are this pack's own short codes; every figure is the appendix's.
+ * A stacked DAL cell ("JR/R", "JR/P", "MR/P") is two entries, read per RSAJ's answer 1 (2026-10-24): the starred line is the head of the office
+ * the Remarks name ("*by CP", "*by AD"), the unstarred line the head of the requesting department, and "P" the proposer. So a rule holds one
+ * proposer and its recommenders in the order printed, and is STATED with the reading in its source. An asterisk names who acts in the slot
+ * (answer 2): "*A by CP" makes the Head of Contract & Procurement approve. Offices are this pack's own short codes; every figure is the
+ * appendix's. Rows of a DAL item no product matter asks (the deed of assignment, B.6 items 11, 13 and 14, B.7 items 2, 6, 8 and 14, the LAD
+ * and suspension parts of B.6 item 6 and B.7 item 11, the release of retention and of the performance guarantee) are not loaded.
  */
 
 import { SIGNATORY_DOMAIN } from "../../../src/lib/award/types";
+import { NEGOTIATION_DOMAIN } from "../../../src/lib/evaluation/types";
 import { LAD_WAIVER_DOMAIN, TERMINATION_DOMAIN, EOT_DOMAIN } from "../../../src/lib/matter/matter";
-import { APPOINTMENT_DOMAIN } from "../../../src/lib/method/types";
+import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN, TENDERING_APPROVAL_DOMAIN } from "../../../src/lib/method/types";
 import { REQUISITION_DOMAIN } from "../../../src/lib/requisition/types";
 import { SO_DOMAIN } from "../../../src/lib/supervision/so";
 import type { CoreLevel, Recommender } from "../../../src/lib/authority/types";
@@ -42,7 +46,9 @@ export const OFFICES = list("AuthorityRole", "Office", [
   office("FD", "Functional Director", B1, { superior: "CEO" }),
   office("CEO", "Chief Executive Officer", B1, { superior: "CM" }),
   office("CM", "Chairman", B1),
-  office("CP", "Contract & Procurement", B1),
+  office("CP", "Head of Contract & Procurement", B1),
+  // B.4's Remarks: "*by AD", the starred line of DP_ABOVE_5M's stacked cell (answer 1). Its superior is not stated.
+  office("AD", "Head of Administration Division", { requirement: "FR-APR-001, FR-MTD-002", source: `${DAL} B.4 (§3.1.4.2 item 1, Remarks "*by AD"); RSAJ answer 1 (2026-10-24)` }),
   office("BOD", "Board of Directors", B1, { isCommittee: true }),
   office("TBC", "Tender Board Committee", B1, { isCommittee: true }),
   office("QC", "Quotation Committee", B1, { isCommittee: true }),
@@ -63,9 +69,10 @@ export const COMMITTEES = list("Committee", "Committee", [
       valueScopeMin: "300000.00",
       quorum: 3,
       quorumProvenance: "STATED",
+      notes: "An absent Chairman may appoint the CEO as chairman (SK003 7.6.3).",
     },
     requirement: `${CTE}, FR-CTE-003, FR-CTE-008`,
-    source: "DAL p.12 (Appendix B.10); SK003 7.2.1(a), 7.6.2",
+    source: "DAL p.12 (Appendix B.10); SK003 7.2.1(a), 7.6.2, 7.6.3",
   },
   {
     code: "QC",
@@ -80,14 +87,16 @@ export const COMMITTEES = list("Committee", "Committee", [
       aliases: ["Variation Order Committee"],
       action: "RECOMMENDS",
       mandate: "Mandatory, non-delegable recommendation on every variation and every delay and extension of time row in the tender regime, and on variations above 20% in the quotation regime.",
+      compositionProvenance: "STATED",
+      notes: "Chaired by the COO and CFO; members the heads of the P&D, P&M, QM and F&C divisions (KP002 flowchart 6.2). SK006 7.5.3 also has it approve extensions of time (see the route choice).",
     },
-    requirement: CTE,
-    source: "DAL §§3.1.4.3, 3.1.4.4 (spec §5.2)",
+    requirement: `${CTE}, FR-CTE-002`,
+    source: "DAL §§3.1.4.3, 3.1.4.4 (spec §5.2); KP002 flowchart 6.2; SK006 7.5.3; RSAJ answer 5 (2026-10-24)",
   },
   {
     code: "TOC",
-    values: { nameEn: "Tender Opening Committee", aliases: [], action: "APPROVES", mandate: "Opens the tender box on the closing day, lists the offers in the schedule of tenders in opening order, numbers and initials each tender, enters the department estimate and signs.", valueScopeMin: "300000.00", panelSize: 2, panelSizeProvenance: "STATED" },
-    requirement: `${CTE}, FR-OPN-001, FR-OPN-002`,
+    values: { nameEn: "Tender Opening Committee", aliases: [], action: "APPROVES", mandate: "Opens the tender box on the closing day, lists the offers in the schedule of tenders in opening order, numbers and initials each tender, enters the department estimate and signs.", valueScopeMin: "300000.00", panelSize: 2, panelSizeProvenance: "STATED", compositionProvenance: "STATED", notes: "Two appointed executives (SK002 7.7.2)." },
+    requirement: `${CTE}, FR-CTE-002, FR-OPN-001, FR-OPN-002`,
     source: "SK002 7.7.2–7.7.4; DAL §3.1.4.4 item 2",
   },
   {
@@ -134,12 +143,15 @@ export const NOT_APPROVED = list("NotApprovedOutcome", "Not approved", [
 
 const CRT = { requirement: "FR-CRT-007, FR-CRT-008", source: "FORMS §11 (ICC columns)" };
 /// The form a sheet prints on is its source, never its label (codes never reach a screen).
-const sheet = (code: string, labelEn: string, form: string | null, certificateKind: "NON_COMPLETION" | "PRACTICAL_COMPLETION" | "MAKING_GOOD_DEFECTS" | "VARIATION" | "EOT", upperEdgeInclusive: boolean | null = null) => ({
+const sheet = (code: string, labelEn: string, form: string | null, certificateKind: "NON_COMPLETION" | "PRACTICAL_COMPLETION" | "MAKING_GOOD_DEFECTS" | "VARIATION" | "EOT" | "INTERIM_PAYMENT", upperEdgeInclusive: boolean | null = null, more: { notes?: string; source?: string } = {}) => ({
   code,
-  values: { labelEn, subject: "CERTIFICATE" as const, certificateKind, upperEdgeInclusive },
+  values: { labelEn, subject: "CERTIFICATE" as const, certificateKind, upperEdgeInclusive, ...(more.notes ? { notes: more.notes } : {}) },
   requirement: CRT.requirement,
-  source: form ? `${CRT.source}; form ${form}` : CRT.source,
+  source: more.source ?? (form ? `${CRT.source}; form ${form}` : CRT.source),
 });
+/// RSAJ answer 12: the interim payment's two routing sheets. Which applies to a certificate is not stated, so no kind setting picks one.
+const IPC_SHEET = { source: "FR-CRT-008; RSAJ answer 12 (2026-10-24)" };
+const IPC_OPEN = "When (ii) applies is not stated (RSAJ question 12).";
 export const ROUTING_SHEETS = list("RoutingSheetType", "Routing sheet", [
   sheet("non_completion", "Certificate of non-completion", "CPD/DFA/CNC-CPC-CMGD", "NON_COMPLETION"),
   sheet("practical_completion", "Certificate of practical completion", "CPD/DFA/CNC-CPC-CMGD", "PRACTICAL_COMPLETION"),
@@ -149,12 +161,14 @@ export const ROUTING_SHEETS = list("RoutingSheetType", "Routing sheet", [
   sheet("variation_quotation", "Quotation variation", "CPD/DFA/VO(SH)", "VARIATION", true),
   sheet("eot_tender", "Tender extension of time, checking", null, "EOT"),
   sheet("eot_quotation", "Quotation extension of time, checking", null, "EOT"),
+  sheet("interim_payment_cp", "Interim payment, through Contract & Procurement", null, "INTERIM_PAYMENT", null, { ...IPC_SHEET, notes: `21 days the user department, 21 Contract & Procurement, 10 Finance. ${IPC_OPEN}` }),
+  sheet("interim_payment_so", "Interim payment, Superintending Officer approval", null, "INTERIM_PAYMENT", null, { ...IPC_SHEET, notes: `21 days the user department, 5 the Superintending Officer's approval, 15 Finance; Contract & Procurement is skipped. ${IPC_OPEN}` }),
 ]);
-const target = (code: string, sheetCode: string, targetDays: number, band: { pctMin?: string; pctMax?: string } = {}) => ({
+const target = (code: string, sheetCode: string, targetDays: number, band: { pctMin?: string; pctMax?: string } = {}, cited: Cited = CRT) => ({
   code,
   label: `${targetDays} days`,
   values: { typeId: ref("RoutingSheetType", sheetCode), targetDays, pctMin: band.pctMin ?? null, pctMax: band.pctMax ?? null },
-  ...CRT,
+  ...cited,
 });
 export const ROUTING_TARGETS = list("RoutingTarget", "ICC target", [
   target("non_completion", "non_completion", 28),
@@ -165,6 +179,8 @@ export const ROUTING_TARGETS = list("RoutingTarget", "ICC target", [
   target("variation_quotation_above", "variation_quotation", 42, { pctMin: "20" }),
   target("eot_tender", "eot_tender", 14),
   target("eot_quotation", "eot_quotation", 7),
+  target("interim_payment_cp", "interim_payment_cp", 52, {}, { requirement: CRT.requirement, source: IPC_SHEET.source }),
+  target("interim_payment_so", "interim_payment_so", 41, {}, { requirement: CRT.requirement, source: IPC_SHEET.source }),
 ]);
 
 // ------------------------------------------------------------------ the DAL, as one draft
@@ -215,9 +231,10 @@ const rule = (r: RuleIn, requirement: string): PackRule => ({
   requirement,
   ...r,
 });
-/// SP-2a: a slashed code read as the fixture reads it. The rule is ASSUMED, and says which reading it carries.
-const slashed = (r: RuleIn, requirement: string, reading: string): PackRule =>
-  rule({ ...r, provenance: "ASSUMED", note: reading, source: `${reading} (a reading of ${DAL} ${r.clause}, SP-2a; the joint partner office is not modelled)` }, requirement);
+/// A stacked DAL cell ("JR/R by CP"), read per RSAJ answer 1: STATED, the reading in its source.
+const stacked = (r: RuleIn, requirement: string): PackRule => rule({ ...r, source: `${DAL} ${r.clause}; stacked code read per RSAJ answer 1 (2026-10-24)` }, requirement);
+/// "*A by CP": the Head of Contract & Procurement approves (RSAJ answer 2).
+const byCp = (r: RuleIn, requirement: string): PackRule => rule({ approverCode: "CP", ...r, source: `${DAL} ${r.clause}; "*A by CP" read per RSAJ answer 2 (2026-10-24)` }, requirement);
 
 const REQ = "FR-REQ-009, FR-MTD-001";
 const APP = "FR-MTD-002, FR-APR-006";
@@ -231,6 +248,18 @@ const voTender = (ruleKey: string, labelEn: string, cvMin: number, cvMax: number
 const QUOTATION_CONTRACTS = { contractValueMin: QUOTATION_FLOOR, contractValueMax: TENDER_FLOOR } as const;
 const TENDER_CONTRACTS = { contractValueMin: TENDER_FLOOR, contractValueMax: null } as const;
 const EXAMPLE_5_REASON = "§3.1.4.2 item 1 states the chain; §2.2.1 is silent above the CEO";
+/// A pre-award matter is banded on its own value (B.6 and B.7 headings; exactly RM300,000.00 is a quotation, RSAJ answer 3).
+const QUOTATION_VALUES = { minValue: QUOTATION_FLOOR, maxValue: TENDER_FLOOR } as const;
+const TENDER_VALUES = { minValue: TENDER_FLOOR, maxValue: null } as const;
+const CP_THEN_HOD = { recommenders: steps(["CP", "JR"], ["HOD", "R"]) };
+/// "*A As S.O./P.D.": one row per Superintending Officer band (as the S.O. rows below), the stacked "JR/R by CP" beneath it.
+const SO_BANDS = [
+  { key: "300K_TO_1M", words: "contract more than RM300,000 and up to RM1 million", min: TENDER_FLOOR, max: 1 * M, office: "HODIV" },
+  { key: "1M_TO_3M", words: "contract more than RM1 million and up to RM3 million", min: 1 * M, max: 3 * M, office: "FD" },
+  { key: "ABOVE_3M", words: "contract more than RM3 million", min: 3 * M, max: null, office: "CEO" },
+] as const;
+const asSo = (prefix: string, domain: string, what: string, clause: string, requirement: string): PackRule[] =>
+  SO_BANDS.map((b) => stacked({ ruleKey: `${prefix}_${b.key}`, domain, contractValueMin: b.min, contractValueMax: b.max, labelEn: `${what}, ${b.words}`, ...CP_THEN_HOD, approverCode: b.office, clause }, requirement));
 
 const RULES: PackRule[] = [
   // B.3 §3.1.4.1 Approval of requisition. Requisition bands do not follow the boundary switch (ruling OD-4).
@@ -249,10 +278,10 @@ const RULES: PackRule[] = [
   ),
   rule({ ruleKey: "DP_300K_TO_3M", domain: APPOINTMENT_DOMAIN, method: "direct", labelEn: "Direct purchase, more than RM300,000 and up to RM3 million", minValue: 300 * K, maxValue: 3 * M, approverCode: "TBC", committeeCode: "TBC", committeeAct: "A", clause: "§3.1.4.2 item 1" }, APP),
   rule({ ruleKey: "DP_3M_TO_5M", domain: APPOINTMENT_DOMAIN, method: "direct", labelEn: "Direct purchase, more than RM3 million and up to RM5 million", minValue: 3 * M, maxValue: 5 * M, recommenders: steps(["TBC", "MR"]), approverCode: "CM", committeeCode: "TBC", committeeAct: "MR", clause: "§3.1.4.2 item 1" }, APP),
-  slashed(
-    { ruleKey: "DP_ABOVE_5M", domain: APPOINTMENT_DOMAIN, method: "direct", labelEn: "Direct purchase, more than RM5 million", minValue: 5 * M, proposerCode: "HOD", recommenders: steps(["HODIV", "JR"], ["TBC", "MR"]), approverCode: "BOD", committeeCode: "TBC", committeeAct: "MR", generateCoreChain: false, coreChainReason: EXAMPLE_5_REASON, clause: "§3.1.4.2 item 1" },
+  // "JR/R Head of Div (*by AD)": the Head of Administration Division jointly recommends, then the Head of Division recommends.
+  stacked(
+    { ruleKey: "DP_ABOVE_5M", domain: APPOINTMENT_DOMAIN, method: "direct", labelEn: "Direct purchase, more than RM5 million", minValue: 5 * M, proposerCode: "HOD", recommenders: steps(["AD", "JR"], ["HODIV", "R"], ["TBC", "MR"]), approverCode: "BOD", committeeCode: "TBC", committeeAct: "MR", generateCoreChain: false, coreChainReason: EXAMPLE_5_REASON, clause: "§3.1.4.2 item 1" },
     APP,
-    '"JR/R Head of Div (*by AD)" read as a joint recommendation (JR) by the Head of Division',
   ),
 
   // B.5 §3.1.4.2 item 2 Open and selective: no Chairman or Board row at any value.
@@ -293,27 +322,17 @@ const RULES: PackRule[] = [
   rule({ ruleKey: "LAD_WAIVER_ABOVE_30", domain: LAD_WAIVER_DOMAIN, ...TENDER_CONTRACTS, labelEn: "Waiver of LAD, more than 30% of the LAD amount", pctMin: "30", approverCode: "TBC", committeeCode: "TBC", committeeAct: "A", clause: "§3.1.4.4 item 12a" }, "FR-LAD-009, FR-APR-002"),
   rule({ ruleKey: "LAD_WAIVER_UP_TO_30", domain: LAD_WAIVER_DOMAIN, ...TENDER_CONTRACTS, labelEn: "Waiver of LAD, up to 30% of the LAD amount", pctMax: "30", approverCode: "CEO", clause: "§3.1.4.4 item 12b" }, "FR-LAD-009, FR-APR-002"),
 
-  // B.7 §3.1.4.4 items 13 and 15: "JR/P by CP" read as Contract & Procurement proposing.
-  slashed(
-    { ruleKey: "TERMINATION", domain: TERMINATION_DOMAIN, ...TENDER_CONTRACTS, labelEn: "Termination, arbitration or litigation", proposerCode: "CP", recommenders: steps(["HODIV", "R"]), approverCode: "CEO", clause: "§3.1.4.4 item 13" },
-    "FR-TRM-005, FR-APR-002",
-    '"JR/P by CP" read as a proposal (P) by Contract & Procurement',
-  ),
-  slashed(
-    { ruleKey: "ADVANCE_PAYMENT", domain: "advance_payment", ...TENDER_CONTRACTS, labelEn: "Advance payment", proposerCode: "CP", recommenders: steps(["HODIV", "R"]), approverCode: "CEO", clause: "§3.1.4.4 item 15" },
-    "FR-PAY-001, FR-APR-002",
-    '"JR/P by CP" read as a proposal (P) by Contract & Procurement',
-  ),
+  // B.7 §3.1.4.4 items 13 and 15, "JR/P by CP": the requesting department's head proposes and the Head of C&P jointly recommends.
+  stacked({ ruleKey: "TERMINATION", domain: TERMINATION_DOMAIN, ...TENDER_CONTRACTS, labelEn: "Termination, arbitration or litigation", proposerCode: "HOD", recommenders: steps(["CP", "JR"], ["HODIV", "R"]), approverCode: "CEO", clause: "§3.1.4.4 item 13" }, "FR-TRM-005, FR-APR-002"),
+  stacked({ ruleKey: "ADVANCE_PAYMENT", domain: "advance_payment", ...TENDER_CONTRACTS, labelEn: "Advance payment", proposerCode: "HOD", recommenders: steps(["CP", "JR"], ["HODIV", "R"]), approverCode: "CEO", clause: "§3.1.4.4 item 15" }, "FR-PAY-001, FR-APR-002"),
 
   // B.7 §3.1.4.4 item 16 Interim payment, by the certificate's value.
   rule({ ruleKey: "IPC_UP_TO_100K", domain: "payment", ...TENDER_CONTRACTS, labelEn: "Interim payment, up to RM100,000", maxValue: 100 * K, approverCode: "HODIV", clause: "§3.1.4.4 item 16c" }, "FR-PAY-016, FR-APR-002"),
   rule({ ruleKey: "IPC_100K_TO_500K", domain: "payment", ...TENDER_CONTRACTS, labelEn: "Interim payment, more than RM100,000 and up to RM500,000", minValue: 100 * K, maxValue: 500 * K, approverCode: "FD", clause: "§3.1.4.4 item 16b" }, "FR-PAY-016, FR-APR-002"),
   rule({ ruleKey: "IPC_ABOVE_500K", domain: "payment", ...TENDER_CONTRACTS, labelEn: "Interim payment, more than RM500,000", minValue: 500 * K, approverCode: "CEO", clause: "§3.1.4.4 item 16a" }, "FR-PAY-016, FR-APR-002"),
 
-  // Plan step 4.6: the B.6 and B.7 rows the DAL states plainly, deferred from part 1. Left out: every row whose office is slashed ("JR/R",
-  // "JR/P", "MR/P") or asterisked ("*by CP", "*by FIN"), which are questions for RSAJ (docs/notes/rsaj-questions.md 1 and 2); extension of time
-  // with no financial impact and extension of a term contract's period, open under decision D2; and the conditions of quotation (B.6 item 13),
-  // which no matter in the product asks.
+  // Plan step 4.6: the B.6 and B.7 rows the DAL states plainly. Extension of time with no financial impact, extension of a term contract's
+  // period and the quotation termination wait for the route choices of decision D2.
   // B.6 item 6 and B.7 item 5: the office that acts as Superintending Officer, by the contract's value.
   rule({ ruleKey: "SO_QUOTATION", domain: SO_DOMAIN, ...QUOTATION_CONTRACTS, labelEn: "Superintending Officer, contract more than RM15,000 and up to RM300,000", approverCode: "HODIV", clause: "§3.1.4.3 item 6" }, "FR-SUP-001, FR-APR-002"),
   rule({ ruleKey: "SO_300K_TO_1M", domain: SO_DOMAIN, contractValueMin: TENDER_FLOOR, contractValueMax: 1 * M, labelEn: "Superintending Officer, contract more than RM300,000 and up to RM1 million", approverCode: "HODIV", clause: "§3.1.4.4 item 5c" }, "FR-SUP-001, FR-APR-002"),
@@ -321,13 +340,40 @@ const RULES: PackRule[] = [
   rule({ ruleKey: "SO_ABOVE_3M", domain: SO_DOMAIN, contractValueMin: 3 * M, labelEn: "Superintending Officer, contract more than RM3 million", approverCode: "CEO", clause: "§3.1.4.4 item 5a" }, "FR-SUP-001, FR-APR-002"),
   // B.6 item 7: one waiver row for quotation contracts, "flat — no percentage split at this band".
   rule({ ruleKey: "LAD_WAIVER_QUOTATION", domain: LAD_WAIVER_DOMAIN, ...QUOTATION_CONTRACTS, labelEn: "Waiver of LAD, quotation contract", approverCode: "CEO", clause: "§3.1.4.3 item 7" }, "FR-LAD-009, FR-APR-002"),
+
+  // Pre-award, by the matter's own value (answers 1 to 3): no method, so a tender and a quotation pack of any method find their row.
+  byCp({ ruleKey: "TA_QUOTATION", domain: TENDERING_APPROVAL_DOMAIN, ...QUOTATION_VALUES, labelEn: "Approval for tendering, more than RM15,000 and up to RM300,000", clause: "§3.1.4.3 item 1" }, "FR-DOC-012, FR-APR-002"),
+  byCp({ ruleKey: "TA_TENDER", domain: TENDERING_APPROVAL_DOMAIN, ...TENDER_VALUES, labelEn: "Approval for tendering, more than RM300,000", clause: "§3.1.4.4 item 1" }, "FR-DOC-012, FR-APR-002"),
+  byCp({ ruleKey: "NEG_QUOTATION", domain: NEGOTIATION_DOMAIN, ...QUOTATION_VALUES, labelEn: "Price negotiation, more than RM15,000 and up to RM300,000", clause: "§3.1.4.3 item 3" }, "FR-EVL-016, FR-APR-002"),
+  byCp({ ruleKey: "NEG_TENDER", domain: NEGOTIATION_DOMAIN, ...TENDER_VALUES, labelEn: "Price negotiation, more than RM300,000", clause: "§3.1.4.4 item 3" }, "FR-EVL-016, FR-APR-002"),
+  stacked({ ruleKey: "NAME_QUOTATION", domain: NAME_APPROVAL_DOMAIN, ...QUOTATION_VALUES, labelEn: "Approval of the names, more than RM15,000 and up to RM300,000", proposerCode: "HOD", recommenders: steps(["CP", "JR"], ["HODIV", "R"]), approverCode: "FD", clause: "§3.1.4.3 item 4" }, "FR-MTD-008, FR-APR-002"),
+  // "MR/P by CP": the requesting department's head proposes and the Head of C&P gives a mandatory recommendation.
+  stacked(
+    { ruleKey: "NAME_TENDER", domain: NAME_APPROVAL_DOMAIN, ...TENDER_VALUES, labelEn: "Approval of the names, more than RM300,000", proposerCode: "HOD", recommenders: steps(["CP", "MR"], ["HODIV", "JR"], ["FD", "R"]), approverCode: "CEO", nonDelegable: true, clause: "§3.1.4.4 item 4" },
+    "FR-MTD-008, FR-APR-002",
+  ),
+  byCp({ ruleKey: "SIGN_INDENT", domain: SIGNATORY_DOMAIN, cond: "WORK_INDENT", ...QUOTATION_VALUES, labelEn: "Signing the work indent, more than RM15,000 and up to RM300,000", clause: "§3.1.4.3 item 15" }, "FR-AWD-007, FR-APR-002"),
+
+  // B.6 items 6, 10 and 12, "JR/R by CP" on a quotation contract: the Head of C&P jointly recommends, the requesting department's head recommends.
+  stacked({ ruleKey: "IPC_QUOTATION", domain: "payment", ...QUOTATION_CONTRACTS, labelEn: "Interim payment, quotation contract", ...CP_THEN_HOD, approverCode: "HODIV", clause: "§3.1.4.3 item 12" }, "FR-PAY-016, FR-APR-002"),
+  stacked({ ruleKey: "FINAL_QUOTATION", domain: "final_payment", ...QUOTATION_CONTRACTS, labelEn: "Final payment, quotation contract", ...CP_THEN_HOD, approverCode: "HODIV", clause: "§3.1.4.3 item 12" }, "FR-FIN-010, FR-APR-002"),
+  stacked({ ruleKey: "MGD_QUOTATION", domain: "making_good", ...QUOTATION_CONTRACTS, labelEn: "Certificate of making good defects, quotation contract", ...CP_THEN_HOD, approverCode: "HODIV", clause: "§3.1.4.3 item 10" }, "FR-CMP-016, FR-APR-002"),
+  stacked({ ruleKey: "EOT_Q_FIN_NOT_AUTHORITY", domain: EOT_DOMAIN, cond: "financial_not_authority", ...QUOTATION_CONTRACTS, labelEn: "Extension of time with financial impact, not due to an authority's requirement, quotation contract", ...CP_THEN_HOD, approverCode: "HODIV", clause: "§3.1.4.3 item 6" }, "FR-EOT-007, FR-APR-002"),
+  stacked({ ruleKey: "EOT_Q_FIN_AUTHORITY", domain: EOT_DOMAIN, cond: "financial_authority", ...QUOTATION_CONTRACTS, labelEn: "Extension of time with financial impact, due to an authority's requirement, quotation contract", ...CP_THEN_HOD, approverCode: "HODIV", clause: "§3.1.4.3 item 6" }, "FR-EOT-007, FR-APR-002"),
+
+  // B.7 items 11 and 17, "JR/R by CP" with "*A As S.O./P.D.": approved by whichever office acts as Superintending Officer at the contract's value.
+  ...asSo("NC_T", "non_completion", "Certificate of non-completion", "§3.1.4.4 item 11", "FR-LAD-006, FR-APR-002"),
+  ...asSo("PC_T", "practical_completion", "Certificate of practical completion", "§3.1.4.4 item 11", "FR-CMP-006, FR-APR-002"),
+  ...asSo("MGD_T", "making_good", "Certificate of making good defects", "§3.1.4.4 item 11", "FR-CMP-016, FR-APR-002"),
+  ...asSo("FINAL_T", "final_payment", "Final payment", "§3.1.4.4 item 17", "FR-FIN-010, FR-APR-002"),
 ].map((r, i) => ({ ...r, sortOrder: i + 1 }));
 
 export const DAL_DRAFT: PackMatrixDraft = {
   label: "DAL Issue A, Revision 00 (draft from the starter pack)",
-  // FR-MTD-003, decision D3: the interim position applies "more than RM300K", so a value exactly on the boundary sits below it. The issue's
-  // boundary provenance stays ASSUMED until a written ruling is recorded.
+  // FR-MTD-003, decision D3: "more than RM300K", so a value exactly on the boundary is a quotation (RSAJ answer 3).
   policy: { boundaryValue: TENDER_FLOOR, boundaryInclusive: true, quotationFloor: QUOTATION_FLOOR, tenderFloor: TENDER_FLOOR, requisitionBoundary: 50 * K, currency: "MYR" },
+  boundaryProvenance: "STATED",
+  boundarySource: "DAL §3.1.4.2–3.1.4.4 bands ('more than RM15K and up to RM300K'; 'more than RM300K'); SK001–SK003 'melebihi RM300,000'; RSAJ answer 3",
   coreRouting: CORE_ROUTING,
   // §4.2.3: the quotation-route appointment letters split at RM50,000; above it retention and the defects liability period apply, below it neither.
   termsBands: [

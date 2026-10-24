@@ -17,6 +17,8 @@ export const BODIES = list("RegistrationBody", "Registration body", [
   { code: "cidb", values: { labelEn: "CIDB", qualifierLabelEn: "Grade, category and specialisation" }, ...ELIGIBILITY },
   { code: "mof", values: { labelEn: "MOF", qualifierLabelEn: "Field codes" }, ...ELIGIBILITY },
   { code: "span", values: { labelEn: "SPAN", qualifierLabelEn: "Permit type and grade" }, requirement: "FR-VND-002", source: "SK001 7.3.4(a); FR-VND-002 (SPAN permit with type and grade)" },
+  // RSAJ answer 23: ST registration is an eligibility condition where the work needs it. What it qualifies by is not stated.
+  { code: "st", values: { labelEn: "Suruhanjaya Tenaga" }, ...ELIGIBILITY, source: "SK001 7.3.4(a); RSAJ answer 23 (2026-10-24)" },
 ]);
 
 // ------------------------------------------------------------------ statutory document types (FR-VND-002, FR-VND-003)
@@ -32,8 +34,7 @@ export const DOCUMENT_TYPES = list("SupplierDocumentType", "Supplier document ty
   { code: "mof_certificate", values: { nameEn: "MOF registration certificate", ...body("mof"), valueKinds: ["FIELD_CODE"], ...EACH }, requirement: "FR-VND-002, FR-VND-003", source: DOCS.source },
   { code: "cidb_certificate", values: { nameEn: "CIDB certificate", ...body("cidb"), valueKinds: ["GRADE", "CATEGORY", "SPECIALISATION"], ...EACH }, requirement: "FR-VND-002, FR-VND-003", source: DOCS.source },
   { code: "span_permit", values: { nameEn: "SPAN permit", ...body("span"), valueKinds: ["PERMIT_TYPE", "GRADE"], ...EACH }, ...DOCS },
-  // The class is not recorded: Suruhanjaya Tenaga is not a configured body (an open question for RSAJ).
-  { code: "suruhanjaya_tenaga", values: { nameEn: "Suruhanjaya Tenaga certificate", ...EACH }, ...DOCS },
+  { code: "suruhanjaya_tenaga", values: { nameEn: "Suruhanjaya Tenaga certificate", ...body("st"), ...EACH }, ...DOCS },
   { code: "ljt", values: { nameEn: "LJT land surveyor", ...EACH }, ...DOCS },
   { code: "bnm_broker", values: { nameEn: "Bank Negara Malaysia broker", ...EACH }, ...DOCS },
   { code: "sst", values: { nameEn: "SST registration", recordsRate: true, ...EACH }, ...DOCS },

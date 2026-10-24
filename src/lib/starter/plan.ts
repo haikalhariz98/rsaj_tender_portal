@@ -98,6 +98,7 @@ export const ALLOWED_MODELS: readonly string[] = [
   "DeclarationText",
   "DistributionRecipient",
   "DocumentClass",
+  "DocumentFeeFloor",
   "DocumentStorePolicy",
   "EvaluationAspect",
   "FundingRoute",
@@ -188,6 +189,8 @@ function matrixShapeFaults(m: PackMatrixDraft): string[] {
   if (m.rules.length === 0) out.push("the draft has no rules.");
   if (new Set(m.rules.map((r) => r.ruleKey)).size !== m.rules.length) out.push("two rules share a key.");
   for (const r of m.rules) if (!r.labelEn.trim() || r.labelEn === r.ruleKey) out.push(`the rule ${r.ruleKey} needs a label in words.`);
+  // As the issue's own rule: a boundary ruling is STATED only with its written source.
+  if (m.boundaryProvenance === "STATED" && !m.boundarySource?.trim()) out.push("a stated boundary ruling needs its source.");
   return out;
 }
 

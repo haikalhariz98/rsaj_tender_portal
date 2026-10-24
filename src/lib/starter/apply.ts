@@ -22,9 +22,9 @@ import { delegateOf, readSnapshot } from "./snapshot";
 import type { PackMatrixDraft, PackModelDraft, StarterPack } from "./types";
 
 const WORDS = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" } as const;
-/// Columns kept out of the audit row: keys, kinds and the list a row is on (codes never reach a screen; the entity label names the list), and the
+/// Columns kept out of the audit row: keys, kinds, a regime and the list a row is on (codes never reach a screen; the entity label names the list), and the
 /// provenance and source, which it records in words.
-const UNSHOWN = ["code", "key", "list", "domain", "kind", "provenance", "governingSource"];
+const UNSHOWN = ["code", "key", "list", "domain", "kind", "regime", "provenance", "governingSource"];
 /// Also kept out: a column holding another row's code (`approverCode`, `authorityMethodKey`). A value that is one of the schema's own codes
 /// (`BILL_OF_QUANTITIES`, `ONLINE`) is written in words ("Bill of quantities"), except in a name, which is words whatever its case.
 const codeColumn = (c: string) => /(Code|Key)$/.test(c);
@@ -116,11 +116,11 @@ const draftOrigin = (provenance: keyof typeof WORDS, source: string) => ({ where
 async function writeMatrixDraft(tx: Tx, organisationId: string, m: PackMatrixDraft, effectiveFrom: Date, a: DraftAudit & { office: (code: string) => string }) {
   const p = m.policy;
   const matrix = await tx.authorityMatrix.create({
-    data: { organisationId, label: m.label, effectiveFrom, boundaryValue: money(p.boundaryValue)!, boundaryInclusive: p.boundaryInclusive, quotationFloor: money(p.quotationFloor)!, tenderFloor: money(p.tenderFloor)!, requisitionBoundary: money(p.requisitionBoundary)!, currency: p.currency },
+    data: { organisationId, label: m.label, effectiveFrom, boundaryValue: money(p.boundaryValue)!, boundaryInclusive: p.boundaryInclusive, quotationFloor: money(p.quotationFloor)!, tenderFloor: money(p.tenderFloor)!, requisitionBoundary: money(p.requisitionBoundary)!, currency: p.currency, boundaryProvenance: m.boundaryProvenance, boundarySource: m.boundarySource },
     select: { id: true },
   });
   const audit = (entity: string, entityId: string, entityLabel: string, after: Record<string, unknown>) => writeAudit(tx, { organisationId, entity, entityId, entityLabel, reason: a.reason, actor: a.actor }, "CREATE", diffFields(null, after));
-  await audit("AuthorityMatrix", matrix.id, m.label, { label: m.label, state: "Draft, not in force", boundaryValue: money(p.boundaryValue), quotationFloor: money(p.quotationFloor), tenderFloor: money(p.tenderFloor), requisitionBoundary: money(p.requisitionBoundary), rules: m.rules.length, ...draftOrigin("STATED", m.source) });
+  await audit("AuthorityMatrix", matrix.id, m.label, { label: m.label, state: "Draft, not in force", boundaryValue: money(p.boundaryValue), quotationFloor: money(p.quotationFloor), tenderFloor: money(p.tenderFloor), requisitionBoundary: money(p.requisitionBoundary), rules: m.rules.length, boundaryRuling: m.boundaryProvenance ? `${WORDS[m.boundaryProvenance]}: ${m.boundarySource ?? ""}` : null, ...draftOrigin("STATED", m.source) });
   const chain = (steps: { roleCode: string; act: string }[]) => steps.map((s) => `${a.office(s.roleCode)} (${ACT_LABEL[s.act] ?? s.act})`).join(", ") || "None";
   for (const [i, l] of m.coreRouting.entries()) {
     const level = await tx.coreRoutingLevel.create({

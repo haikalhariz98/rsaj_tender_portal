@@ -5,9 +5,12 @@
  * five-phase quotation evaluation models AS DRAFTS (ADR 0043 D2). Transcribed from docs/requirements (the specification and Sourcing
  * Requirements v2, which overrides it where they differ). Each entry cites its requirement and clause.
  *
- * Only what the documents state is set. A behaviour they leave open (a contract type's downstream behaviours, a funding route's budget
- * commitment, which methods a committee gate holds) stays unset, and the screens say so. The evaluation models are what FR-EVL-008 to 012
- * transcribe from the forms in use: practice, not policy (decision D1), so they are OBSERVED, and a person completes and confirms them.
+ * Only what the documents state is set, with RSAJ's answers of 2026-10-24 (docs/notes/rsaj-questions.md): the parts' classes, a quotation with
+ * no table document, the quotation document fee, the newspaper's day as the advertisement day, Schedule of Rates at every band, no pack on a
+ * direct appointment (ASSUMED until confirmed), the consultancy contract type, and the quotation model's sides and must-pass. A behaviour the
+ * documents leave open (a contract type's downstream behaviours, a funding route's budget commitment, which methods a committee gate holds)
+ * stays unset, and the screens say so. The evaluation models are what FR-EVL-008 to 012 transcribe from the forms in use: practice, not policy
+ * (decision D1), so they are OBSERVED, and a person completes and confirms them.
  */
 
 import type { PackModelDraft } from "../../../src/lib/starter/types";
@@ -31,10 +34,13 @@ export const FUNDING_ROUTES = list("FundingRoute", "Funding route", [
 
 // ------------------------------------------------------------------ contract types and bases (FR-MTD-011, FR-MTD-013, FR-DOC-002)
 
+/// SK004 §7.2.1 (RSAJ answer 21): a tender contract is numbered RSAJ/KP/T, a consultancy services contract RSAJ/KP/P (system.ts).
+const TYPE = { requirement: "FR-MTD-011, FR-CON-002", source: "KP002/003/004 5.1.2, 5.5, 5.9, 5.10; SK004 §7.2.1" };
 export const CONTRACT_TYPES = list("ContractType", "Contract type", [
-  { code: "work", values: { nameEn: "Work" }, requirement: "FR-MTD-011", source: "KP002/003/004 5.1.2, 5.5, 5.9, 5.10" },
-  { code: "service", values: { nameEn: "Service" }, requirement: "FR-MTD-011", source: "KP002/003/004 5.1.2, 5.5, 5.9, 5.10" },
-  { code: "supply", values: { nameEn: "Supply" }, requirement: "FR-MTD-011", source: "KP002/003/004 5.1.2, 5.5, 5.9, 5.10" },
+  { code: "work", values: { nameEn: "Work", contractSeriesKey: "contract_tender" }, ...TYPE },
+  { code: "service", values: { nameEn: "Service", contractSeriesKey: "contract_tender" }, ...TYPE },
+  { code: "supply", values: { nameEn: "Supply", contractSeriesKey: "contract_tender" }, ...TYPE },
+  { code: "consultancy", values: { nameEn: "Consultancy services", contractSeriesKey: "contract_consultancy" }, requirement: "FR-MTD-011, FR-CON-002", source: "SK004 §7.2.1; DAL §3.1.4.2 (\"consultancy and advisory\"); RSAJ answer 21 (2026-10-24)" },
 ]);
 
 const BASIS = { requirement: "FR-MTD-013, FR-DOC-002", source: "SK001 3.1(a),(b), 7.3.1(a),(b); SK004 §3.2" };
@@ -54,6 +60,8 @@ const QUOTATION_PACK = { documentPackKind: "QUOTATION", documentPackKindProvenan
 /// FR-EST-006 (SK003 7.2.2(b)): a tender or quotation is judged against the company estimate.
 const ESTIMATE = { requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: "STATED" } as const;
 const opening = (code: "TOC" | "QOC") => ({ openingCommitteeCode: code, openingCommitteeProvenance: "STATED" }) as const;
+/// RSAJ answer 15: the Direct & Selective letter carries only an indent number, so no quotation pack is assembled. An inference, open to confirm.
+const NO_PACK = { documentPackKind: "NONE", documentPackKindProvenance: "ASSUMED" } as const;
 
 export const SOURCING_METHODS = list("SourcingMethod", "Sourcing method", [
   {
@@ -94,16 +102,21 @@ export const SOURCING_METHODS = list("SourcingMethod", "Sourcing method", [
     requirement: `${MTD}, FR-MTD-008, FR-DOC-013, FR-EST-006, FR-OPN-001`,
     source: "DAL §3.1.4.2 item 2, §3.1.4.3 items 2 and 4; SK003 7.2.2(b)",
   },
-  { code: "direct_appointment", values: { nameEn: "Direct appointment", ...ANY_VALUE, requiresDossier: true, authorityMethodKey: "direct" }, requirement: `${MTD}, FR-MTD-009`, source: "DAL §3.1.4.2 item 1" },
-  { code: "selective_direct_appointment", values: { nameEn: "Selective direct appointment", ...ANY_VALUE, authorityMethodKey: "direct" }, requirement: MTD, source: "DAL §3.1.4.2 item 1; OM/P/005 8.5–8.6" },
+  {
+    code: "direct_appointment",
+    values: { nameEn: "Direct appointment", ...ANY_VALUE, requiresDossier: true, dossierSeriesKey: "direct_appointment", authorityMethodKey: "direct", ...NO_PACK },
+    requirement: `${MTD}, FR-MTD-009`,
+    source: "DAL §3.1.4.2 item 1; FR-MTD-009 (RSAJ/KP/ST)",
+  },
+  { code: "selective_direct_appointment", values: { nameEn: "Selective direct appointment", ...ANY_VALUE, authorityMethodKey: "direct", ...NO_PACK }, requirement: MTD, source: "DAL §3.1.4.2 item 1; OM/P/005 8.5–8.6" },
   { code: "specialist_sole_source", values: { nameEn: "Specialist or sole source", ...ANY_VALUE, authorityMethodKey: "direct" }, requirement: MTD, source: "DAL §3.1.4.2 item 1 (proprietary); OM/P/005 8.5" },
   { code: "emergency_works", values: { nameEn: "Emergency works", ...ANY_VALUE, authorityMethodKey: "direct" }, requirement: MTD, source: "DAL §3.1.4.2 item 1 (emergency)" },
   {
     code: "schedule_of_rates",
-    // FR-MTD-010: no series documents how term contracts are procured, so where in the value bands a call-off may be used is not set.
-    values: { nameEn: "Schedule of Rates or term-contract call-off", requiresFreshSourcing: false, notes: "Which value bands a call-off may be used in is not stated (FR-MTD-010): set it before use." },
+    // How a call-off is approved is not stated (RSAJ question 31), so it names no approval rule.
+    values: { nameEn: "Schedule of Rates or term-contract call-off", ...ANY_VALUE, requiresFreshSourcing: false, notes: "DAL §3.1.4.2 item 2 allows it at every band (answer 14); RSAJ to confirm no other limit." },
     requirement: `${MTD}, FR-MTD-010`,
-    source: "DAL §3.1.4.2 item 2; SK012 3.1",
+    source: "DAL §3.1.4.2 item 2; SK012 3.1; RSAJ answer 14 (2026-10-24)",
   },
 ]);
 
@@ -124,9 +137,11 @@ export const PROPOSAL_ITEMS = list("MethodChecklistItem", "Selected tender propo
 
 // ------------------------------------------------------------------ tender and quotation document parts (FR-DOC-001, 002, 003, 013)
 
-/// FR-DOC-003 classes some instruments as standard and some as bespoke; only those parts keep a STATED class. For the rest the product needs a
-/// class, so "both" stands, ASSUMED, until RSAJ confirms it. SR-11: every part is uploaded, so the class has no effect on how a part is issued.
-const CLASS_STATED = ["t_form_of_tender", "t_loa_specimen", "t_specification", "t_bills_of_quantities", "t_drawings", "q_bill_of_quantities", "q_drawings"];
+/// FR-DOC-003 and SK001 7.3.4 (RSAJ answer 10) class five instruments as standard (the conditions of contract, the form of tender, the letter of
+/// acceptance, the standard specification, the standard schedule of rates) and three as bespoke (the bill, the addendum specification, the
+/// drawings); a specification is the standard one with its addendum, so MIXED. Only those parts keep a STATED class. For the rest the product
+/// needs a class, so "both" stands, ASSUMED, until RSAJ confirms it. SR-11: every part is uploaded, so the class has no effect on how it is issued.
+const CLASS_STATED = ["t_form_of_tender", "t_conditions", "t_loa_specimen", "t_specification", "t_bills_of_quantities", "t_drawings", "q_conditions", "q_specification", "q_form", "q_bill_of_quantities", "q_drawings"];
 const UNCLASSED = "The part and its order are stated (FR-DOC-001/013); its class is not (FR-DOC-003).";
 type PartIn = { code: string; packKind: "TENDER" | "QUOTATION"; printedNumber: string; labelEn: string; role: string; content: "STANDARD" | "BESPOKE" | "MIXED"; basis?: "bq" | "ds"; mandatory?: boolean | null; inTable?: boolean | null; declaration?: boolean; note?: string };
 const part = (p: PartIn, cited: Cited, sortOrder: number) => ({
@@ -155,33 +170,43 @@ const TENDER = { requirement: "FR-DOC-001, FR-DOC-002, FR-DOC-003, FR-DOC-007, F
 const TENDER_PARTS: PartIn[] = [
   { code: "t_invitation", packKind: "TENDER", printedNumber: "1", labelEn: "Letter of invitation to tender or notice of offer", role: "INVITATION", content: "MIXED", inTable: false },
   { code: "t_form_of_tender", packKind: "TENDER", printedNumber: "2", labelEn: "Form of tender", role: "FORM_OF_TENDER", content: "STANDARD", inTable: true },
-  { code: "t_conditions", packKind: "TENDER", printedNumber: "3", labelEn: "Articles of agreement and conditions of contract, with the appendices", role: "CONDITIONS", content: "MIXED", inTable: true },
+  { code: "t_conditions", packKind: "TENDER", printedNumber: "3", labelEn: "Articles of agreement and conditions of contract, with the appendices", role: "CONDITIONS", content: "STANDARD", inTable: true },
   { code: "t_loa_specimen", packKind: "TENDER", printedNumber: "4", labelEn: "Letter of acceptance of tender (specimen)", role: "LOA_SPECIMEN", content: "STANDARD", inTable: false },
   { code: "t_bond_forms", packKind: "TENDER", printedNumber: "5", labelEn: "Bank guarantee or insurance form for the performance bond", role: "BOND_FORMS", content: "MIXED", inTable: true },
   { code: "t_specification", packKind: "TENDER", printedNumber: "6", labelEn: "Specification", role: "SPECIFICATION", content: "MIXED", inTable: true },
   { code: "t_bills_of_quantities", packKind: "TENDER", printedNumber: "7a", labelEn: "Bills of quantities", role: "BILL_OF_QUANTITIES", content: "BESPOKE", basis: "bq", inTable: true },
-  { code: "t_summary_and_rates", packKind: "TENDER", printedNumber: "7b", labelEn: "Summary of tender and schedule of rates", role: "SUMMARY_AND_RATES", content: "MIXED", basis: "ds", inTable: false },
+  {
+    code: "t_summary_and_rates",
+    packKind: "TENDER",
+    printedNumber: "7b",
+    labelEn: "Summary of tender and schedule of rates",
+    role: "SUMMARY_AND_RATES",
+    content: "MIXED",
+    basis: "ds",
+    inTable: false,
+    note: "SK001 classes the standard schedule of rates as standard; the summary of tender is not classed.",
+  },
   { code: "t_registration_background", packKind: "TENDER", printedNumber: "8", labelEn: "Tenderer's registration background form", role: "REGISTRATION_BACKGROUND", content: "MIXED", inTable: false },
   { code: "t_declaration", packKind: "TENDER", printedNumber: "9", labelEn: "Bidder's declaration letter, with the letter of authorisation", role: "DECLARATION", content: "MIXED", inTable: false, declaration: true },
   { code: "t_drawings", packKind: "TENDER", printedNumber: "10", labelEn: "Drawings", role: "DRAWINGS", content: "BESPOKE", inTable: true },
   { code: "t_instructions", packKind: "TENDER", printedNumber: "11", labelEn: "Instructions to tenderers", role: "INSTRUCTIONS", content: "MIXED", inTable: false },
 ];
 const QUOTATION = { requirement: "FR-DOC-013, FR-DOC-003, FR-DOC-008", source: "OM/P/005 §3.2; SK001 7.3.4(j)" };
-/// FR-DOC-013's nine parts. Whether the corrigendum is mandatory (there is not always one) and which parts a quotation's table document holds
-/// are not stated.
+/// FR-DOC-013's nine parts. Whether the corrigendum is mandatory (there is not always one) is not stated. A quotation has no table document
+/// (RSAJ answer 9), so every part answers "no" (FR-DOC-010 is the Tender Table Document).
 const QUOTATION_PARTS: PartIn[] = [
-  { code: "q_notice", packKind: "QUOTATION", printedNumber: "1", labelEn: "Quotation notice", role: "INVITATION", content: "MIXED" },
-  { code: "q_corrigendum", packKind: "QUOTATION", printedNumber: "2", labelEn: "Corrigendum", role: "OTHER", content: "MIXED", mandatory: null },
-  { code: "q_instructions", packKind: "QUOTATION", printedNumber: "3", labelEn: "Instructions to tenderers", role: "INSTRUCTIONS", content: "MIXED" },
-  { code: "q_conditions", packKind: "QUOTATION", printedNumber: "4", labelEn: "Conditions of quotation for works", role: "CONDITIONS", content: "MIXED" },
-  { code: "q_specification", packKind: "QUOTATION", printedNumber: "5", labelEn: "Specification of works", role: "SPECIFICATION", content: "MIXED" },
-  { code: "q_form", packKind: "QUOTATION", printedNumber: "6", labelEn: "Quotation form", role: "FORM_OF_TENDER", content: "MIXED" },
-  { code: "q_bill_of_quantities", packKind: "QUOTATION", printedNumber: "7", labelEn: "Bill of quantities", role: "BILL_OF_QUANTITIES", content: "BESPOKE" },
-  { code: "q_tenderer_background", packKind: "QUOTATION", printedNumber: "8", labelEn: "Tenderer's background", role: "REGISTRATION_BACKGROUND", content: "MIXED" },
-  { code: "q_drawings", packKind: "QUOTATION", printedNumber: "9", labelEn: "Drawings", role: "DRAWINGS", content: "BESPOKE" },
+  { code: "q_notice", packKind: "QUOTATION", printedNumber: "1", labelEn: "Quotation notice", role: "INVITATION", content: "MIXED", inTable: false },
+  { code: "q_corrigendum", packKind: "QUOTATION", printedNumber: "2", labelEn: "Corrigendum", role: "OTHER", content: "MIXED", mandatory: null, inTable: false },
+  { code: "q_instructions", packKind: "QUOTATION", printedNumber: "3", labelEn: "Instructions to tenderers", role: "INSTRUCTIONS", content: "MIXED", inTable: false },
+  { code: "q_conditions", packKind: "QUOTATION", printedNumber: "4", labelEn: "Conditions of quotation for works", role: "CONDITIONS", content: "STANDARD", inTable: false },
+  { code: "q_specification", packKind: "QUOTATION", printedNumber: "5", labelEn: "Specification of works", role: "SPECIFICATION", content: "MIXED", inTable: false },
+  { code: "q_form", packKind: "QUOTATION", printedNumber: "6", labelEn: "Quotation form", role: "FORM_OF_TENDER", content: "STANDARD", inTable: false },
+  { code: "q_bill_of_quantities", packKind: "QUOTATION", printedNumber: "7", labelEn: "Bill of quantities", role: "BILL_OF_QUANTITIES", content: "BESPOKE", inTable: false },
+  { code: "q_tenderer_background", packKind: "QUOTATION", printedNumber: "8", labelEn: "Tenderer's background", role: "REGISTRATION_BACKGROUND", content: "MIXED", inTable: false },
+  { code: "q_drawings", packKind: "QUOTATION", printedNumber: "9", labelEn: "Drawings", role: "DRAWINGS", content: "BESPOKE", inTable: false },
 ];
 /// FR-DOC-008: a bid without the signed declaration fails the mandatory check at opening, so a quotation needs the part too. OM/P/005 does not
-/// list it among its nine, so it is placed last (a question for RSAJ: is it bound into the quotation form?).
+/// list it among its nine, so it is placed last.
 const Q_DECLARATION: PartIn = {
   code: "q_declaration",
   packKind: "QUOTATION",
@@ -190,9 +215,9 @@ const Q_DECLARATION: PartIn = {
   role: "DECLARATION",
   content: "MIXED",
   mandatory: true,
-  inTable: null,
+  inTable: false,
   declaration: true,
-  note: "Bound in by FR-DOC-008; not on OM/P/005's list of nine, so placed last.",
+  note: "A separate document (the quotation checklist scores it apart from the form, answer 7); its place in the pack is not stated.",
 };
 export const DOCUMENT_PARTS = list("TenderDocumentPart", "Tender document part", [
   ...TENDER_PARTS.map((p, i) => part(p, TENDER, (i + 1) * 10)),
@@ -209,15 +234,28 @@ export const CHANNELS = list("PublicationChannel", "Publication channel", [
   { code: "website", values: { nameEn: "Ranhill SAJ website", requiredWhenAdvertised: true }, ...ADV },
 ]);
 
+/// SK002 7.4.2(d) (FR-ADV-008): the minimum fee for a quotation document; quotation documents are sold (RSAJ answers 7 to 9).
+export const FEE_FLOORS = list("DocumentFeeFloor", "Document fee floor", [{ code: "quotation", label: "Quotation", values: { regime: "quotation", minimum: "50.00" }, requirement: "FR-ADV-008", source: "SK002 (minimum RM50); answers 7–9" }], { regime: "quotation" });
+
 export const WINDOW_GROUPS = [
-  // FR-ADV-004: two weeks the floor and, from its note, three weeks the target. How near the newspaper's day warns is not stated, so it stays
-  // unset and a re-run reads this group as partly set.
+  // FR-ADV-004: two weeks the floor and, from its note, three weeks the target. RSAJ answer 13 runs the two weeks from the newspaper's date, so
+  // the newspaper's day is the advertisement day (the day rule below) and no margin is added to it.
   group(
     "WindowPolicy",
     "Invitation · date rules",
-    { minAdvertisementDays: 14, targetAdvertisementDays: 21, newspaperWarnDays: null, purchaseCutoffDays: 2 },
-    { requirement: "FR-ADV-004, FR-ADV-007", source: "SK002 7.4.2(g), 7.4.2(c); CPD/DFA/PRE T-QUO three-week target (FR-ADV-004 note)" },
+    { minAdvertisementDays: 14, targetAdvertisementDays: 21, newspaperWarnDays: 0, purchaseCutoffDays: 2 },
+    {
+      requirement: "FR-ADV-004, FR-ADV-007",
+      source: "SK002 7.4.2(g), 7.4.2(c); CPD/DFA/PRE T-QUO three-week target (FR-ADV-004 note); RSAJ answer 13: the two weeks run from the newspaper's date, so its margin is 0",
+    },
     { provenance: "dateRulesProvenance", source: "dateRuleSource" },
+  ),
+  group(
+    "WindowPolicy",
+    "Invitation · advertisement day",
+    { advertisementDayRule: "NAMED_CHANNEL", advertisementChannelId: ref("PublicationChannel", "newspaper") },
+    { requirement: "FR-ADV-004", source: "SK002 7.4.2(g); answer 13 (the two weeks run from the newspaper date)" },
+    { provenance: "dayRuleProvenance" },
   ),
   group("WindowPolicy", "Invitation · closing time", { defaultClosingTime: "14:30" }, { requirement: "FR-ADV-006", source: "SK002 7.4.2(g)" }, { provenance: "closingTimeProvenance" }),
   // SR-10: the supplier pays online and can then download the documents, so they are released online too.
@@ -358,10 +396,13 @@ const TENDER_MODEL: PackModelDraft = {
 };
 
 const LPS = "Quotation evaluation report template (practice; FR-EVL-009 to 012)";
+/// RSAJ answer 11: Phase 1 is by CPD (Contract & Procurement), and every phase must be passed.
+const BY_CPD = { governingSource: `${LPS} + Phase 1 by CPD (answer 11)` };
+const ALL_PHASES = "Petender yang lulus semua Fasa (answer 11)";
 const QUOTATION_MODEL: PackModelDraft = {
   requirement: "FR-EVL-006, FR-EVL-009, FR-EVL-010, FR-EVL-011, FR-EVL-012",
   source: LPS,
-  notes: `${LEFT_OPEN} Also open: the marks of each Phase 2 criterion (the form gives a maximum of 90%), and whether Phases 2 to 4 must each be passed.`,
+  notes: "To complete before it is put in force: the side of Phase 5; where the four aspects of FR-EVL-003 are assessed; the marks of each Phase 2 criterion (the form gives a maximum of 90%); and how a figure between two bands is rounded (a CPR of 79.5 falls in none).",
   content: {
     code: "quotation_five_phase",
     nameEn: "Quotation evaluation, five phases",
@@ -418,14 +459,14 @@ const QUOTATION_MODEL: PackModelDraft = {
         kind: "CHECKLIST",
         side: "CONTRACT_PROCUREMENT",
         mustPass: true,
-        ...unassigned(LPS),
+        ...BY_CPD,
         criteria: [
           criterion(1, "before_closing", "Documents received before 2.30 p.m.", { scale: "PASS_FAIL" }),
           criterion(2, "eligible", "Tenderer eligible", { scale: "PASS_FAIL" }),
           criterion(3, "forms_complete", "Quotation form and bidder's declaration complete, signed and officially stamped", { scale: "PASS_FAIL" }),
         ],
       }),
-      stage({ order: 2, code: "phase_1_shortlist", labelEn: "Phase 1: shortlist of three or four tenderers", kind: "SHORTLIST", side: "CONTRACT_PROCUREMENT", shortlistRule: "COUNT_RANGE", shortlistMin: 3, shortlistMax: 4, ...unassigned(LPS) }),
+      stage({ order: 2, code: "phase_1_shortlist", labelEn: "Phase 1: shortlist of three or four tenderers", kind: "SHORTLIST", side: "CONTRACT_PROCUREMENT", shortlistRule: "COUNT_RANGE", shortlistMin: 3, shortlistMax: 4, ...BY_CPD }),
       stage({
         order: 3,
         code: "phase_2",
@@ -433,7 +474,8 @@ const QUOTATION_MODEL: PackModelDraft = {
         kind: "SCORED",
         side: "IMPLEMENTING_DEPARTMENT",
         maxMarks: "90",
-        governingSource: LPS,
+        mustPass: true,
+        governingSource: `${LPS} with CPD (answer 11); a joint side is not modelled; ${ALL_PHASES}`,
         criteria: [
           criterion(1, "work_experience", "Work experience"),
           criterion(2, "current_work", "Current work"),
@@ -451,11 +493,12 @@ const QUOTATION_MODEL: PackModelDraft = {
         side: "CONTRACT_PROCUREMENT",
         unlocksAfterOrder: 3,
         capitalBase: "COMPANY_ESTIMATE",
+        mustPass: true,
         factors: [
           { code: "store", labelEn: "Materials supplied from the Ranhill SAJ store", labelMs: null, factorPct: "3", provenance: OBS },
           { code: "contractor", labelEn: "Materials supplied by the contractor", labelMs: null, factorPct: "5", provenance: OBS },
         ],
-        governingSource: LPS,
+        governingSource: `${LPS}; ${ALL_PHASES}`,
         criteria: [criterion(1, "minimum_capital", "Average bank balance of the last three months against the minimum capital", { scale: "BANDED", computedInput: "MIN_CAPITAL_RATIO", bandSetCode: "capital" })],
       }),
       stage({
@@ -465,7 +508,8 @@ const QUOTATION_MODEL: PackModelDraft = {
         kind: "COMMERCIAL",
         side: "CONTRACT_PROCUREMENT",
         unlocksAfterOrder: 3,
-        governingSource: LPS,
+        mustPass: true,
+        governingSource: `${LPS}; ${ALL_PHASES}`,
         criteria: [
           criterion(1, "against_estimate", "Against the company estimate", { scale: "BANDED", computedInput: "VARIANCE_VS_ESTIMATE", bandSetCode: "variance" }),
           criterion(2, "against_lowest", "Against the lowest bid", { scale: "BANDED", computedInput: "VARIANCE_VS_LOWEST", bandSetCode: "variance" }),
@@ -477,7 +521,7 @@ const QUOTATION_MODEL: PackModelDraft = {
 };
 
 export const PURCHASING = {
-  lists: [FUNDING_ROUTES, CONTRACT_TYPES, CONTRACT_BASES, SOURCING_METHODS, PROPOSAL_ITEMS, DOCUMENT_PARTS, CHANNELS, ASPECTS],
+  lists: [FUNDING_ROUTES, CONTRACT_TYPES, CONTRACT_BASES, SOURCING_METHODS, PROPOSAL_ITEMS, DOCUMENT_PARTS, CHANNELS, FEE_FLOORS, ASPECTS],
   groups: [...WINDOW_GROUPS, ...SCOPE_GROUPS],
   drafts: { evaluationModels: [TENDER_MODEL, QUOTATION_MODEL] },
 };

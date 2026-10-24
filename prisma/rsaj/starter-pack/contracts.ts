@@ -3,10 +3,12 @@
  * executed contract and their stamp, the in-delay line, the retention released at as-built, the design guarantee bond and the finance system's
  * number formats. Transcribed from the specification; each entry cites its requirement and clause, and every one is STATED.
  *
- * Left out, because the documents do not state them (open questions for RSAJ, plan 4.6):
- * - the contract document parts (FR-CON-003): SK004 §7.3.1 prescribes an order per basis, but no document in docs/requirements lists it;
- * - the appointment-letter variants (FR-AWD-007): the six variants and their RM50,000 split are stated, but not which contract types each one
- *   serves, and each needs its template. Loaded with no types, every work indent below RM50,000 would find three equal variants and be refused.
+ * Left out, though RSAJ answered them on 2026-10-24 (docs/notes/rsaj-questions.md):
+ * - the contract document parts (FR-CON-003): SK004 §7.3.1 gives the parts and their order for three bases (answer 19), but SK004 itself has
+ *   not been supplied, so there is no list to transcribe;
+ * - the appointment-letter variants (FR-AWD-007): six, split by procurement route and value rather than by contract type (answer 20); what marks
+ *   a job as IT & QA, which methods are "One Shot" and the six templates are still to come (question 28). Loaded with no route, every work
+ *   indent below RM50,000 would find equal variants and be refused.
  */
 
 import { group, list } from "./shape";
@@ -59,7 +61,7 @@ const format = (key: string, label: string, pattern: string, example: string, re
   list("CodeFormat", "Finance system number format", [{ code: key, label, values: { pattern, example }, requirement, source }], { key });
 export const ERP_FORMATS = [
   format("erp_requisition_no", "Finance system requisition no. format", "PROC\\d{4}\\d{6}", "PROC2026154676", "FR-REQ-002", "PRETENDER-artifacts §5.1, §6.1 (PROC<YYYY><NNNNNN>)"),
-  format("erp_note_no", "Requisition note no. format", "NM/\\d{4}/\\d{5}", "", "FR-REQ-002", "PRETENDER-artifacts §5.1, §6.1 (NM/YYYY/NNNNN)"),
+  format("erp_note_no", "Requisition note no. format", "NM/\\d{4}/\\d{5}", "NM/2025/00461", "FR-REQ-002", "PRETENDER-artifacts §5.1, §6.1 (NM/YYYY/NNNNN); RSAJ answer 26 (the Expenditure Request Form)"),
   format("erp_indent_no", "Indent number format", "IN\\d{4}\\d{5}", "IN202600395", "FR-AWD-006", "DAL §3.1.4.3 items 14–15; IN202600395 covering memo (IN<YYYY><NNNNN>)"),
 ];
 

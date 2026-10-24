@@ -93,11 +93,23 @@ describe("loading rsaj,generic", () => {
       { status: "DRAFT", issuedAt: null, provenance: "OBSERVED", _count: { stages: 6 } },
     ]);
     expect(await db.configurationDraftMaker.count({ where: { organisationId: orgId } })).toBe(0);
-    // The slashed-code rules say they are a reading, and the trail says so too.
-    const rule = await db.authorityRule.findFirstOrThrow({ where: { authorityMatrixId: matrices[0].id, ruleKey: "DP_ABOVE_5M" }, include: { recommenders: true } });
-    expect(rule.note).toMatch(/read as a joint recommendation/);
+    // B3: the boundary ruling is written STATED with its source (RSAJ answer 3), and the trail says so.
+    expect(matrices[0]).toMatchObject({ boundaryInclusive: true, boundaryProvenance: "STATED", boundarySource: RSAJ_PACK.drafts!.matrices![0].boundarySource });
+    expect(matrices[0].boundarySource).toMatch(/RSAJ answer 3$/);
+    const matrixTrail = await db.auditEntry.findFirstOrThrow({ where: { organisationId: orgId, entity: "AuthorityMatrix", entityId: matrices[0].id } });
+    expect(matrixTrail.changes).toContainEqual(expect.objectContaining({ field: "boundaryRuling", after: expect.stringMatching(/^Stated: DAL /) }));
+    // A stacked-code rule (RSAJ answer 1) is STATED, its chain in the order printed, and the trail cites the reading.
+    const rule = await db.authorityRule.findFirstOrThrow({ where: { authorityMatrixId: matrices[0].id, ruleKey: "DP_ABOVE_5M" }, include: { recommenders: { orderBy: { sequence: "asc" } } } });
+    expect([rule.proposerCode, ...rule.recommenders.map((x) => `${x.roleCode} ${x.act}`), rule.approverCode]).toEqual(["HOD", "AD JR", "HODIV R", "TBC MR", "BOD"]);
     const trail = await db.auditEntry.findFirstOrThrow({ where: { organisationId: orgId, entity: "AuthorityRule", entityId: rule.id } });
-    expect(trail.changes).toContainEqual(expect.objectContaining({ field: "whereItComesFrom", after: "Assumed" }));
+    expect(trail.changes).toContainEqual(expect.objectContaining({ field: "whereItComesFrom", after: "Stated" }));
+    expect(trail.changes).toContainEqual(expect.objectContaining({ field: "governingSource", after: expect.stringMatching(/stacked code read per RSAJ answer 1/) }));
+    // A10: the quotation document fee floor, STATED, its audit row naming the regime in words.
+    const floor = await db.documentFeeFloor.findUniqueOrThrow({ where: { organisationId_regime: { organisationId: orgId, regime: "quotation" } } });
+    expect([floor.minimum.toString(), floor.provenance, floor.governingSource]).toEqual(["50", "STATED", "SK002 (minimum RM50); answers 7–9"]);
+    const floorTrail = await db.auditEntry.findFirstOrThrow({ where: { organisationId: orgId, entity: "DocumentFeeFloor", entityId: floor.id } });
+    expect(floorTrail.entityLabel).toBe("Document fee floor · Quotation");
+    expect(floorTrail.changes).not.toContainEqual(expect.objectContaining({ field: "regime" }));
     // A row that names its own provenance keeps it, and its audit row says so (the quotation declaration, placed last).
     const declaration = await db.tenderDocumentPart.findFirstOrThrow({ where: { organisationId: orgId, code: "q_declaration" } });
     expect(declaration).toMatchObject({ provenance: "ASSUMED", printedNumber: "10", returnedByBidder: true });
@@ -105,7 +117,8 @@ describe("loading rsaj,generic", () => {
     expect(partTrail.changes).toContainEqual(expect.objectContaining({ field: "whereItComesFrom", after: "Assumed" }));
     expect((await db.committee.findMany({ where: { organisationId: orgId }, select: { aliases: true } })).flatMap((c) => c.aliases)).toEqual(["Variation Order Committee"]);
     // The window and the Tender Board read as stated.
-    expect(await db.windowPolicy.findUniqueOrThrow({ where: { organisationId: orgId } })).toMatchObject({ minAdvertisementDays: 14, purchaseCutoffDays: 2, defaultClosingTime: "14:30", documentSaleMode: "ONLINE", electronicDocumentRelease: true, dateRulesProvenance: "STATED" });
+    const window = await db.windowPolicy.findUniqueOrThrow({ where: { organisationId: orgId }, include: { advertisementChannel: { select: { code: true } } } });
+    expect(window).toMatchObject({ minAdvertisementDays: 14, newspaperWarnDays: 0, purchaseCutoffDays: 2, defaultClosingTime: "14:30", documentSaleMode: "ONLINE", electronicDocumentRelease: true, dateRulesProvenance: "STATED", advertisementDayRule: "NAMED_CHANNEL", dayRuleProvenance: "STATED", advertisementChannel: { code: "newspaper" } });
     expect(await db.committee.findFirstOrThrow({ where: { organisationId: orgId, code: "TBC" } })).toMatchObject({ quorum: 3, quorumProvenance: "STATED" });
     expect(await db.methodChecklistItem.count({ where: { sourcingMethod: { organisationId: orgId, code: "selected_tender" } } })).toBe(10);
 
@@ -122,8 +135,12 @@ describe("loading rsaj,generic", () => {
     expect(await db.distributionRecipient.count({ where: { organisationId: orgId, onlyWhenRegulated: true } })).toBe(1);
     expect((await db.codeFormat.findMany({ ...where, orderBy: { key: "asc" } })).map((f) => f.key)).toEqual(["erp_indent_no", "erp_note_no", "erp_requisition_no"]);
     const series = await db.numberingSeries.findMany({ ...where, select: { key: true, pattern: true } });
-    expect(series).toHaveLength(11);
+    expect(series).toHaveLength(13);
     expect(series).toContainEqual({ key: "contract_tender", pattern: "RSAJ/KP/T/{SERIAL}/{YEAR}" });
+    expect(series).toContainEqual({ key: "exercise_tender", pattern: "RSAJ/TA/{SERIAL}/{YEAR}" });
+    expect(series).toContainEqual({ key: "direct_appointment", pattern: "RSAJ/KP/ST/{SERIAL}/{SHORTYEAR}" });
+    expect((await db.contractType.findFirstOrThrow({ where: { organisationId: orgId, code: "consultancy" } })).contractSeriesKey).toBe("contract_consultancy");
+    expect((await db.supplierDocumentType.findFirstOrThrow({ where: { organisationId: orgId, code: "suruhanjaya_tenaga" }, include: { body: true } })).body).toMatchObject({ code: "st", labelEn: "Suruhanjaya Tenaga" });
     expect(series).toContainEqual({ key: "requisition", pattern: "REQ/{YEAR}/{SERIAL}" });
   });
 
@@ -157,6 +174,10 @@ describe("putting the DAL in force", () => {
     expect((await db.authorityMatrix.findUniqueOrThrow({ where: { id: draft.id } })).issuedAt).toBeNull();
 
     await db.securityPolicy.update({ where: { organisationId: orgId }, data: { twoPersonChanges: false } });
+    // An office the DAL routes to with nobody holding it (the Head of Administration Division, B.4) does not hold back putting it in force.
+    const ad = await db.authorityRole.findFirstOrThrow({ where: { organisationId: orgId, code: "AD" } });
+    expect(await db.roleAssignment.count({ where: { roleCode: "AD", person: { organisationId: orgId } } })).toBe(0);
+    expect(ad.nameEn).toBe("Head of Administration Division");
     expect(await issue()).toEqual({ ok: true });
     expect(await db.authorityMatrix.findUniqueOrThrow({ where: { id: draft.id } })).toMatchObject({ issuedAt: expect.any(Date), issuedByPersonId: person.person.id });
   });

@@ -167,6 +167,13 @@ describe("planPacks: drafts (ADR 0043 D2)", () => {
     expect(planPacks([rsaj({ drafts: { matrices: [{ ...matrix, rules: [{ ...rule, labelEn: "R1" }] }] } })], snap()).faults[0]).toMatch(/label in words/);
   });
 
+  it("refuses a draft whose boundary ruling is stated without its source (B3)", () => {
+    const stated = (boundarySource?: string) => planPacks([rsaj({ drafts: { matrices: [{ ...matrix, boundaryProvenance: "STATED" as const, boundarySource }] } })], snap()).faults;
+    expect(stated()).toEqual(["rsaj · Limits, draft: a stated boundary ruling needs its source."]);
+    expect(stated("  ")).toEqual(["rsaj · Limits, draft: a stated boundary ruling needs its source."]);
+    expect(stated("DAL §3.1.4.2")).toEqual([]);
+  });
+
   it("judges the draft as issuing would: an approval beneath the approver in the core routing is refused", () => {
     const bad = { ...matrix, coreRouting: [{ approverCode: "HOD", clause: "c", provenance: "STATED" as const, steps: [{ roleCode: "HOD", act: "R" as const, provenance: "STATED" as const }] }] };
     expect(planPacks([rsaj({ drafts: { matrices: [bad] } })], snap()).faults[0]).toMatch(/APPROVER_BENEATH/);

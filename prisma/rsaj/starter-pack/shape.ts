@@ -22,6 +22,7 @@ interface Models {
   PublicationChannel: Prisma.PublicationChannelUncheckedCreateInput;
   EvaluationAspect: Prisma.EvaluationAspectUncheckedCreateInput;
   WindowPolicy: Prisma.WindowPolicyUncheckedCreateInput;
+  DocumentFeeFloor: Prisma.DocumentFeeFloorUncheckedCreateInput;
   ScopePolicy: Prisma.ScopePolicyUncheckedCreateInput;
   AwardPolicy: Prisma.AwardPolicyUncheckedCreateInput;
   DistributionRecipient: Prisma.DistributionRecipientUncheckedCreateInput;

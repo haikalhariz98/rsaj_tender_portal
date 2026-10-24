@@ -39,6 +39,9 @@ export type PackRule = Rule & { provenance: PackProvenance; source: string; requ
 export interface PackMatrixDraft {
   label: string;
   policy: Omit<Policy, "clauses">;
+  /// Where the ruling on a value exactly at the boundary comes from (AuthorityMatrix.boundaryProvenance); absent: ASSUMED, the column's default.
+  boundaryProvenance?: "STATED" | "OBSERVED" | "ASSUMED";
+  boundarySource?: string;
   coreRouting: CoreLevel[];
   rules: PackRule[];
   /// The contract terms bands (FR-MTD-001): which terms set applies at a value, never the retention or defects figures.
