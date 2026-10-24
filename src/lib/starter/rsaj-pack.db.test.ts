@@ -110,6 +110,8 @@ describe("loading rsaj,generic", () => {
     const floorTrail = await db.auditEntry.findFirstOrThrow({ where: { organisationId: orgId, entity: "DocumentFeeFloor", entityId: floor.id } });
     expect(floorTrail.entityLabel).toBe("Document fee floor · Quotation");
     expect(floorTrail.changes).not.toContainEqual(expect.objectContaining({ field: "regime" }));
+    const tenderFloor = await db.documentFeeFloor.findUniqueOrThrow({ where: { organisationId_regime: { organisationId: orgId, regime: "tender" } } });
+    expect([tenderFloor.minimum.toString(), tenderFloor.provenance, tenderFloor.governingSource]).toEqual(["250", "STATED", "FR-ADV-008; SK002 7.4.2(d)"]);
     // A row that names its own provenance keeps it, and its audit row says so (the quotation declaration, placed last).
     const declaration = await db.tenderDocumentPart.findFirstOrThrow({ where: { organisationId: orgId, code: "q_declaration" } });
     expect(declaration).toMatchObject({ provenance: "ASSUMED", printedNumber: "10", returnedByBidder: true });

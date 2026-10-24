@@ -236,13 +236,19 @@ describe("A9: the document parts (RSAJ answers 7 to 10)", () => {
   });
 });
 
-describe("A10: the quotation document fee floor", () => {
-  it("is RM50.00, STATED, scoped by its regime", () => {
-    const l = RSAJ_PACK.lists.find((x) => x.model === "DocumentFeeFloor")!;
-    expect(l.scope).toEqual({ regime: "quotation" });
-    expect(l.rows).toEqual([{ code: "quotation", label: "Quotation", values: { regime: "quotation", minimum: "50.00" }, requirement: "FR-ADV-008", source: "SK002 (minimum RM50); answers 7–9" }]);
-    const w = planPacks([RSAJ_PACK, GENERIC_PACK], fresh).writes.find((x) => x.kind === "ROW" && x.model === "DocumentFeeFloor");
-    expect(w).toMatchObject({ values: { regime: "quotation", minimum: "50.00", provenance: "STATED", governingSource: "SK002 (minimum RM50); answers 7–9" } });
+describe("A10: the document fee floors", () => {
+  it("are RM50.00 a quotation and RM250.00 a tender set, STATED, each scoped by its regime", () => {
+    const lists = RSAJ_PACK.lists.filter((x) => x.model === "DocumentFeeFloor");
+    expect(lists.map((l) => l.scope)).toEqual([{ regime: "quotation" }, { regime: "tender" }]);
+    expect(lists.flatMap((l) => l.rows)).toEqual([
+      { code: "quotation", label: "Quotation", values: { regime: "quotation", minimum: "50.00" }, requirement: "FR-ADV-008", source: "SK002 (minimum RM50); answers 7–9" },
+      { code: "tender", label: "Tender", values: { regime: "tender", minimum: "250.00" }, requirement: "FR-ADV-008", source: "FR-ADV-008; SK002 7.4.2(d)" },
+    ]);
+    const w = planPacks([RSAJ_PACK, GENERIC_PACK], fresh).writes.filter((x) => x.kind === "ROW" && x.model === "DocumentFeeFloor");
+    expect(w).toMatchObject([
+      { values: { regime: "quotation", minimum: "50.00", provenance: "STATED", governingSource: "SK002 (minimum RM50); answers 7–9" } },
+      { values: { regime: "tender", minimum: "250.00", provenance: "STATED", governingSource: "FR-ADV-008; SK002 7.4.2(d)" } },
+    ]);
   });
 });
 

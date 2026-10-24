@@ -234,8 +234,10 @@ export const CHANNELS = list("PublicationChannel", "Publication channel", [
   { code: "website", values: { nameEn: "Ranhill SAJ website", requiredWhenAdvertised: true }, ...ADV },
 ]);
 
-/// SK002 7.4.2(d) (FR-ADV-008): the minimum fee for a quotation document; quotation documents are sold (RSAJ answers 7 to 9).
+/// SK002 7.4.2(d) (FR-ADV-008): the minimum fee for a quotation document (quotation documents are sold, RSAJ answers 7 to 9) and for a tender
+/// document set. One list per regime, so each loads beside a floor the organisation has set for the other.
 export const FEE_FLOORS = list("DocumentFeeFloor", "Document fee floor", [{ code: "quotation", label: "Quotation", values: { regime: "quotation", minimum: "50.00" }, requirement: "FR-ADV-008", source: "SK002 (minimum RM50); answers 7–9" }], { regime: "quotation" });
+export const TENDER_FEE_FLOOR = list("DocumentFeeFloor", "Document fee floor", [{ code: "tender", label: "Tender", values: { regime: "tender", minimum: "250.00" }, requirement: "FR-ADV-008", source: "FR-ADV-008; SK002 7.4.2(d)" }], { regime: "tender" });
 
 export const WINDOW_GROUPS = [
   // FR-ADV-004: two weeks the floor and, from its note, three weeks the target. RSAJ answer 13 runs the two weeks from the newspaper's date, so
@@ -521,7 +523,7 @@ const QUOTATION_MODEL: PackModelDraft = {
 };
 
 export const PURCHASING = {
-  lists: [FUNDING_ROUTES, CONTRACT_TYPES, CONTRACT_BASES, SOURCING_METHODS, PROPOSAL_ITEMS, DOCUMENT_PARTS, CHANNELS, FEE_FLOORS, ASPECTS],
+  lists: [FUNDING_ROUTES, CONTRACT_TYPES, CONTRACT_BASES, SOURCING_METHODS, PROPOSAL_ITEMS, DOCUMENT_PARTS, CHANNELS, FEE_FLOORS, TENDER_FEE_FLOOR, ASPECTS],
   groups: [...WINDOW_GROUPS, ...SCOPE_GROUPS],
   drafts: { evaluationModels: [TENDER_MODEL, QUOTATION_MODEL] },
 };
