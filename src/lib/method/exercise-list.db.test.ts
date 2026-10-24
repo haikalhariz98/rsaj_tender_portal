@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { judgedViewIds } from "./judged-views";
+import { judgedViewIds, tooManyToJudge } from "./judged-views";
 import { db } from "@/lib/db";
 import { LIST_EXPORT_MAX_ROWS, parseListQuery, sortKeys } from "@/lib/list-query";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
@@ -135,6 +135,22 @@ describe("listExercises { all: true }", () => {
     expect((await listExercises(org, [], q)).total).toBe(all.total);
     const few = await listExercises(organisationId, [], query({ view: "preparing" }), { all: true });
     expect(few.rows).toHaveLength(1);
+  }, 60_000);
+
+  it("security review L7: the judged sets load at most the ceiling and one more, and say so", async () => {
+    const org = (await db.organisation.create({ data: { code: `LX_${randomId()}`, name: "Big published", timeZone: "Asia/Kuala_Lumpur" } })).id;
+    const req = await db.requisition.create({ data: requisitionRow(org, (await makePerson(org)).id, `LX/REQ/PUB${randomId()}`) });
+    await db.sourcingExercise.createMany({ data: Array.from({ length: LIST_EXPORT_MAX_ROWS + 2 }, (_, i) => exerciseRow(org, req.id, { reference: `PUB/${String(i).padStart(5, "0")}`, status: "ADVERTISED", onBoundary: true })) });
+    for (const view of ["open", "soon", "boundary"] as const) {
+      const candidates = await exerciseCandidates(org, [], query({ view }));
+      expect(candidates, view).toHaveLength(LIST_EXPORT_MAX_ROWS + 1);
+      expect(tooManyToJudge(candidates), view).toBe(true);
+    }
+    const facts = await exerciseListFacts(org, [], query({}));
+    expect(facts.publishedIds).toHaveLength(LIST_EXPORT_MAX_ROWS + 1);
+    expect(facts.onBoundary).toHaveLength(LIST_EXPORT_MAX_ROWS + 1);
+    // Narrowed by the search, the same view is small enough to judge.
+    expect(tooManyToJudge(await exerciseCandidates(org, [], query({ view: "open", q: "PUB/00001" })))).toBe(false);
   }, 60_000);
 
   it("the chips count under the facets: with a method filter each chip equals its view's total (I-6)", async () => {

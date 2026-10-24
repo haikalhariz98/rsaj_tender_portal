@@ -1,3 +1,4 @@
+import { LIST_EXPORT_MAX_ROWS } from "@/lib/list-query";
 import type { JudgedView } from "@/lib/method/repo";
 import { closesSoon } from "@/lib/window/closing-soon";
 import type { WindowPhase } from "@/lib/window/phase";
@@ -21,3 +22,7 @@ export function judgedViewIds(
   };
   return candidates.map((c) => c.id).filter(pass);
 }
+
+/// Security review L7: a judged set is loaded with at most `LIST_EXPORT_MAX_ROWS + 1` rows; holding more than the ceiling, it is too many to judge here, and the view, its count
+/// and its export say so rather than judge a cut-off part as if it were the whole.
+export const tooManyToJudge = (loaded: readonly unknown[]): boolean => loaded.length > LIST_EXPORT_MAX_ROWS;

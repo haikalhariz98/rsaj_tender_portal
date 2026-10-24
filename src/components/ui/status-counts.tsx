@@ -11,6 +11,8 @@ export interface StatusCount {
   tone?: Tone;
   /// The view being shown.
   active?: boolean;
+  /// More than `count` (a set too large to judge, read as "5000+").
+  more?: boolean;
 }
 
 /// Where a list stands, as chips of status and count that each open the filtered view ("3 Awaiting you"). A status with nothing in it is left
@@ -35,7 +37,7 @@ export function StatusCounts({ items, label, className }: { items: StatusCount[]
           )}
         >
           <Dot tone={i.tone} />
-          <span className="font-bold tabular-nums text-ink">{i.count}</span>
+          <span className="font-bold tabular-nums text-ink">{i.count}{i.more && "+"}</span>
           {i.label}
         </Link>
       ))}

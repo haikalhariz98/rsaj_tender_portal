@@ -4,7 +4,7 @@ import type { Sulit } from "@/lib/auth/sulit-access";
 import { nameRoutesOf } from "@/lib/method/approval";
 import { boundaryShown } from "@/lib/method/boundary-reading";
 import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_TONE, REGIME_SHORT, TERM } from "@/lib/method/labels";
-import { judgedViewIds } from "@/lib/method/judged-views";
+import { judgedViewIds, tooManyToJudge } from "@/lib/method/judged-views";
 import { loadMethodConfig, type listExercises } from "@/lib/method/repo";
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
 import { windowColumns } from "@/lib/window/read";
@@ -13,7 +13,7 @@ import { hiddenExercises, sulitExerciseValues } from "@/app/_auth/sulit";
 /// The value column's cell: the figure where the reader may read it, and "Withheld" with the reason where not.
 const valueCell = (v: Sulit<number> | undefined): Row["cells"][string] => (v && v.state === "GRANTED" ? { kind: "money", value: v.value } : { kind: "withheld", words: v?.state === "WITHHELD" ? v.words.en : "This value is not shown." });
 
-export { judgedViewIds };
+export { judgedViewIds, tooManyToJudge };
 
 const TONE = { brand: "brand", info: "info", ok: "ok", neutral: undefined } as const;
 

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { judgedViewIds } from "./judged-views";
+import { LIST_EXPORT_MAX_ROWS } from "@/lib/list-query";
+
+import { judgedViewIds, tooManyToJudge } from "./judged-views";
 
 describe("judgedViewIds (ST-8)", () => {
   const candidates = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
@@ -21,5 +23,13 @@ describe("judgedViewIds (ST-8)", () => {
   it("a reader granted none, or an exercise with no window, passes nothing", () => {
     expect(judgedViewIds("boundary", candidates, { ...judged, granted: new Set() })).toEqual([]);
     expect(judgedViewIds("open", [{ id: "zz" }], judged)).toEqual([]);
+  });
+});
+
+describe("tooManyToJudge (security review L7)", () => {
+  it("a load at the ceiling is judged; the one row more a capped load can hold is too many", () => {
+    expect(tooManyToJudge(Array.from({ length: LIST_EXPORT_MAX_ROWS }))).toBe(false);
+    expect(tooManyToJudge(Array.from({ length: LIST_EXPORT_MAX_ROWS + 1 }))).toBe(true);
+    expect(tooManyToJudge([])).toBe(false);
   });
 });

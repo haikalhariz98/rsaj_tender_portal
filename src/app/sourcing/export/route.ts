@@ -10,7 +10,7 @@ import { exerciseCandidates, exerciseOrg, EXERCISE_VIEWS, listExercises } from "
 import { CLOSING_SOON_DAYS } from "@/lib/window/closing-soon";
 import { windowColumns } from "@/lib/window/read";
 
-import { buildExerciseRows, judgedViewIds } from "../rows";
+import { buildExerciseRows, judgedViewIds, tooManyToJudge } from "../rows";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +43,7 @@ export async function GET(req: Request) {
   if (q.view === "open" || q.view === "soon") {
     const org = await exerciseOrg(actor.organisationId);
     const candidates = org ? await exerciseCandidates(org.id, hidden, q) : [];
+    if (tooManyToJudge(candidates)) return exportRefusal(413, "EXPORT_TOO_LARGE", EXPORT_TOO_LARGE(LIST_EXPORT_MAX_ROWS));
     ids = org ? judgedViewIds(q.view, candidates, { windows: await windowColumns(org.id, candidates.map((c) => c.id)), today: org.today, granted: new Set() }) : [];
   }
   const { rows } = await listExercises(actor.organisationId, hidden, q, { ids, all: true });

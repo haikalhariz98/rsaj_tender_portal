@@ -294,7 +294,8 @@ const STAGE_PHASE: Record<string, ExercisePhase | null> = { open: null, preparin
 const stageWhere = (stage: string | null): Prisma.SourcingExerciseWhereInput => (stage !== null && Object.hasOwn(STAGE_PHASE, stage) ? sourcingPhaseWhere(STAGE_PHASE[stage]) : {});
 
 /// What the header reads, over the whole set and never the page (`hidden`: the restricted exercises the reader may not see, left out so neither the list nor its count gives away that one exists):
-/// the count by status, the name approvals waiting, the not-cancelled exercises on the boundary (few, so all of them; the caller judges them for the reader), and the ids of the published ones, for the open and closing-soon counts.
+/// the count by status, the name approvals waiting, the not-cancelled exercises on the boundary (the caller judges them for the reader), and the ids of the published ones, for the open and
+/// closing-soon counts. The last two hold at most `LIST_EXPORT_MAX_ROWS + 1` rows: more than the ceiling is too many to judge (L7).
 export async function exerciseListFacts(organisationId: string, hidden: readonly string[], q: Pick<ListQuery<ExerciseView>, "unit" | "method" | "stage"> = { unit: null, method: null, stage: null }) {
   const org = await exerciseOrg(organisationId);
   if (!org) return { org: null, byStatus: new Map<string, number>(), awaitingName: 0, onBoundary: [] as { id: string; reference: string; estimatedValue: { toString(): string } }[], publishedIds: [] as string[] };
@@ -303,18 +304,21 @@ export async function exerciseListFacts(organisationId: string, hidden: readonly
   const [statuses, awaitingName, onBoundary, published] = await Promise.all([
     db.sourcingExercise.groupBy({ by: ["status"], where, _count: { _all: true } }),
     db.sourcingExercise.count({ where: { AND: [where, AWAITING_NAME] } }),
-    db.sourcingExercise.findMany({ where: { AND: [where, { onBoundary: true, status: { not: "CANCELLED" } }] }, select: { id: true, reference: true, estimatedValue: true } }),
-    db.sourcingExercise.findMany({ where: { AND: [where, { status: { in: PUBLISHED_STATUSES } }] }, select: { id: true } }),
+    // Security review L7: both are judged in full by the caller, so each loads at most the ceiling and one more (`tooManyToJudge`).
+    db.sourcingExercise.findMany({ where: { AND: [where, { onBoundary: true, status: { not: "CANCELLED" } }] }, select: { id: true, reference: true, estimatedValue: true }, orderBy: { id: "asc" }, take: LIST_EXPORT_MAX_ROWS + 1 }),
+    db.sourcingExercise.findMany({ where: { AND: [where, { status: { in: PUBLISHED_STATUSES } }] }, select: { id: true }, orderBy: { id: "asc" }, take: LIST_EXPORT_MAX_ROWS + 1 }),
   ]);
   return { org, byStatus: new Map(statuses.map((s) => [s.status as string, s._count._all])), awaitingName, onBoundary, publishedIds: published.map((p) => p.id) };
 }
 
 /// The candidates of a judged view under the search, in the list's order (ST-7), ids and what judging needs only. The judgement is not here. The SULIT estimate is
-/// selected for the boundary view alone (security review L6): open and closing soon are judged from the window, never the estimate.
+/// selected for the boundary view alone (security review L6): open and closing soon are judged from the window, never the estimate. At most `LIST_EXPORT_MAX_ROWS + 1`
+/// (security review L7): more than the ceiling is too many to judge (`tooManyToJudge`), never a silently short list.
 export async function exerciseCandidates(organisationId: string, hidden: readonly string[], q: ListQuery<ExerciseView>) {
   return db.sourcingExercise.findMany({
     where: exerciseListWhere(organisationId, hidden, q),
     orderBy: listOrderBy("exercise", q),
+    take: LIST_EXPORT_MAX_ROWS + 1,
     select: { id: true, reference: true, ...(q.view === "boundary" ? { estimatedValue: true } : {}) },
   });
 }

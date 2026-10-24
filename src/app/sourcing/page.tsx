@@ -18,7 +18,7 @@ import { windowColumns } from "@/lib/window/read";
 import { requireStaff } from "@/app/_auth/actor";
 import { hiddenExercises, sulitExerciseValues } from "@/app/_auth/sulit";
 
-import { buildExerciseRows, judgedViewIds } from "./rows";
+import { buildExerciseRows, judgedViewIds, tooManyToJudge } from "./rows";
 
 export const metadata = { title: "Tenders & quotations" };
 export const dynamic = "force-dynamic";
@@ -53,16 +53,28 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
   const { org, byStatus, awaitingName } = facts;
   const today = org?.today ?? null;
   // "On the boundary" states the estimate (ruling of 2026-10-08 on log line 1716), so it counts, lists and shows only the rows whose estimate this reader may read: the whole boundary set is judged here, for the chip and for the view.
-  const boundaryValues = await sulitExerciseValues(actor, facts.onBoundary.map((r) => ({ id: r.id, reference: r.reference })), "estimatedValue", () => true, "exercise", { list: true });
+  // Security review L7: a set over the export ceiling is not judged (nor its SULIT reads logged); its chip reads "5000+" and its view says it is too many to judge.
+  const boundaryOver = tooManyToJudge(facts.onBoundary);
+  const boundaryValues = boundaryOver ? new Map() : await sulitExerciseValues(actor, facts.onBoundary.map((r) => ({ id: r.id, reference: r.reference })), "estimatedValue", () => true, "exercise", { list: true });
   const granted = new Set(facts.onBoundary.filter((r) => boundaryValues.get(r.id)?.state === "GRANTED").map((r) => r.id));
-  const boundaryLeftOut = facts.onBoundary.length - granted.size;
+  const boundaryLeftOut = boundaryOver ? 0 : facts.onBoundary.length - granted.size;
   // 6.5: each published exercise's closing and phase, derived now from the stored instants (ADR 0014): the open and closing-soon counts, and those two views, are judged from them.
-  const judged = { windows: org ? await windowColumns(org.id, facts.publishedIds) : new Map(), today, granted };
+  const publishedOver = tooManyToJudge(facts.publishedIds);
+  const judged = { windows: org && !publishedOver ? await windowColumns(org.id, facts.publishedIds) : new Map(), today, granted };
   const published = facts.publishedIds.map((id) => ({ id }));
-  const openCount = judgedViewIds("open", published, judged).length;
-  const soonCount = judgedViewIds("soon", published, judged).length;
+  // The whole sets were too many to judge, but the search's candidates may not be: those are judged on their own (the boundary's grant asked of them alone).
+  const judgedFor = async (v: "open" | "soon" | "boundary", cs: { id: string; reference: string }[]) => {
+    if (v === "boundary" ? !boundaryOver : !publishedOver) return judged;
+    if (v !== "boundary") return { ...judged, windows: await windowColumns(org!.id, cs.map((c) => c.id)) };
+    const values = await sulitExerciseValues(actor, cs, "estimatedValue", () => true, "exercise", { list: true });
+    return { ...judged, granted: new Set(cs.filter((c) => values.get(c.id)?.state === "GRANTED").map((c) => c.id)) };
+  };
+  const openCount = publishedOver ? LIST_EXPORT_MAX_ROWS : judgedViewIds("open", published, judged).length;
+  const soonCount = publishedOver ? LIST_EXPORT_MAX_ROWS : judgedViewIds("soon", published, judged).length;
   // A judged view is paged over the ids that passed, in the list's order (ST-7), so the count and the sort are the judged ones.
-  const ids = isJudgedView(q.view) && org ? judgedViewIds(q.view, await exerciseCandidates(org.id, hidden, q), judged) : undefined;
+  const candidates = isJudgedView(q.view) && org ? await exerciseCandidates(org.id, hidden, q) : undefined;
+  const tooMany = !!candidates && tooManyToJudge(candidates);
+  const ids = candidates && isJudgedView(q.view) && !tooMany ? judgedViewIds(q.view, candidates, await judgedFor(q.view, candidates)) : candidates ? [] : undefined;
   const { rows, total, page } = await listExercises(actor.organisationId, hidden, q, { ids });
   const list = await buildExerciseRows(actor, rows, { forExport: false });
   const allCount = [...byStatus.values()].reduce((n, c) => n + c, 0);
@@ -107,10 +119,10 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
           { label: EXERCISE_STATUS_LABEL.DOCUMENTS_IN_PREPARATION, count: byStatus.get("DOCUMENTS_IN_PREPARATION") ?? 0, href: view("preparing"), tone: "info", active: q.view === "preparing" },
           { label: EXERCISE_STATUS_LABEL.PENDING_APPROVAL_FOR_TENDERING, count: byStatus.get("PENDING_APPROVAL_FOR_TENDERING") ?? 0, href: view("approval"), tone: "info", active: q.view === "approval" },
           { label: "Published", count: publishedCount, href: view("published"), tone: "ok", active: q.view === "published" },
-          { label: "Open for purchase", count: openCount, href: view("open"), tone: "ok", active: q.view === "open" },
-          { label: `Closing within ${CLOSING_SOON_DAYS} days`, count: soonCount, href: view("soon"), tone: "warn", active: q.view === "soon" },
+          { label: "Open for purchase", count: openCount, more: publishedOver, href: view("open"), tone: "ok", active: q.view === "open" },
+          { label: `Closing within ${CLOSING_SOON_DAYS} days`, count: soonCount, more: publishedOver, href: view("soon"), tone: "warn", active: q.view === "soon" },
           { label: `${TERM.nameApproval} in progress`, count: awaitingName, href: view("name"), tone: "info", active: q.view === "name" },
-          { label: "On the boundary", count: granted.size, href: view("boundary"), tone: "warn", active: q.view === "boundary" },
+          { label: "On the boundary", count: boundaryOver ? LIST_EXPORT_MAX_ROWS : granted.size, more: boundaryOver, href: view("boundary"), tone: "warn", active: q.view === "boundary" },
         ]}
       />
       {/* Said in words, so that a count of zero is never read as "none are": the rows whose estimate is withheld from this reader are not counted. */}
@@ -123,7 +135,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
           selectable={false}
           exportName="sourcing-exercises"
           searchPlaceholder="Search by title or reference"
-          emptyTitle={chosen ? (chosen.emptyTitle ?? "Nothing in this view") : "No tenders or quotations yet"}
+          emptyTitle={tooMany ? "Too many to judge. Narrow the search or the filters." : chosen ? (chosen.emptyTitle ?? "Nothing in this view") : "No tenders or quotations yet"}
           rowAction={{ label: "Open", hrefTemplate: "/sourcing/{id}" }}
           rowOpens
           columns={[
