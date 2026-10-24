@@ -128,10 +128,10 @@ export function EditContractorPortalSigning({ values }: { values: Record<string,
   return (
     <RecordEditor
       title="A contractor signs from its portal account"
-      description="Whether a contractor's portal account may sign these blocks. Undecided: the portal refuses."
+      description="Whether its portal account may sign these blocks and accept an award. Undecided: refused."
       columns={2}
       fields={[
-        { kind: "select", name: "contractorPortalSigning", label: "A contractor's portal account signs for it", placeholder: "Not decided", options: [{ value: "yes", label: "Yes: its account signs, with its password" }, { value: "no", label: "No: on paper only" }] },
+        { kind: "select", name: "contractorPortalSigning", label: "A contractor's portal account signs and accepts an award", placeholder: "Not decided", options: [{ value: "yes", label: "Yes: its account signs, with its password" }, { value: "no", label: "No: on paper only" }] },
         provenance("contractorPortalSigningProvenance", "Basis"),
       ]}
       values={values}

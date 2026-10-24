@@ -225,12 +225,12 @@ export default async function PostAwardControlsPage() {
                   columns={2}
                   items={[
                     settingLine(
-                      "A contractor signs from its portal account",
+                      "A contractor signs and accepts an award from its portal account",
                       read(
                         p?.contractorPortalSigning == null ? null : p.contractorPortalSigning ? "Yes" : "No, on paper only",
-                        "Yes: the account of a contact marked as authorised to sign signs its block on a variation or adjustment certificate, and its notice that the statutory declaration is lodged. No: an officer records the paper.",
+                        "Yes: the account of a contact marked as authorised to sign signs its block on a variation or adjustment certificate, its notice that the statutory declaration is lodged, and the return that accepts an award. No: an officer records the paper.",
                         p?.contractorPortalSigningProvenance,
-                        "The portal refuses the contractor's block and its notice that the statutory declaration is lodged; the contractor signs on paper.",
+                        "The portal refuses the contractor's block, its notice that the statutory declaration is lodged and its award return; the contractor signs on paper.",
                       ),
                       <EditContractorPortalSigning values={{ contractorPortalSigning: p?.contractorPortalSigning == null ? null : p.contractorPortalSigning ? "yes" : "no", contractorPortalSigningProvenance: p?.contractorPortalSigningProvenance ?? null }} />,
                     ),

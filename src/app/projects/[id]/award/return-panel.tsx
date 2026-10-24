@@ -17,15 +17,28 @@ import { formatDate } from "@/lib/format";
 import { db } from "@/lib/db";
 import { ReturnDrawer } from "@/app/awards/editors";
 import { loadAttributions } from "@/lib/auth/attribution-read";
+import { loadEventPlan } from "@/lib/award/clock-notices";
+import { AWARD_RETURN_EVENT_KEY } from "@/lib/award/online-return-store";
+import { onlineReturnState } from "@/lib/award/online-return";
+import { nobodyToldLine, onlineReturnCardFacts } from "@/lib/award/online-return-view";
+import { OnlineReturnCard } from "./online-return-card";
+import { QueriesCard } from "./queries-card";
 import { notSet, yesNo } from "./shared";
 
 
-export function ReturnPanel({ sulit, l, ret, people }: { sulit: Sulit<true>; l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
+export async function ReturnPanel({ sulit, l, ret, people }: { sulit: Sulit<true>; l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
   const { award } = l;
+  const online = onlineReturnCardFacts(award.onlineReturns, { awardStatus: award.status, sulitWithheldWords: null });
+  // AC-42 (WV-8): who is told of a return sent online and of a question. Read only for what exists; the line appears when nobody would be.
+  const told = async (eventKey: string) => nobodyToldLine(await loadEventPlan(db, { organisationId: l.org.id, organisationCode: l.org.code, requestingUnitCode: l.req.requestingUnitCode, namedPartyId: l.ex.personInChargeId, today: l.org.today, eventKey }));
+  const returnTold = online ? await told(AWARD_RETURN_EVENT_KEY.AWARD_RETURN_LODGED) : null;
+  const queryTold = award.queries.length > 0 ? await told(AWARD_RETURN_EVENT_KEY.AWARD_QUERY_RAISED) : null;
   // OD-5: the return counts with its scans, except for an award accepted before they were required.
   const scansAreRequired = scansRequired(award.status, award.returnScanSnapshot != null);
   return (
     <div className="flex flex-col gap-6">
+      {online && <OnlineReturnCard sulit={sulit} l={l} facts={online} nobodyTold={returnTold} />}
+      <QueriesCard l={l} nobodyTold={queryTold} />
       <ReturnRecordCard sulit={sulit} l={l} ret={ret} people={people} />
       <OwnerAttachments
         owner={{ kind: "award", id: award.id }}
@@ -63,7 +76,8 @@ async function ReturnRecordCard({ sulit, l, ret, people }: { sulit: Sulit<true>;
         icon={<ClipboardIcon size={17} />}
         title={<Say words={loa ? P.returnedItems : P.acceptancePage} />}
         subtitle={loa ? (state.complete ? "All three documents are back." : `Still to come: ${state.missing.map((m) => RETURN_ITEM_LABEL[m]).join(", ")}.`) : page.length === 0 ? "Every field is recorded." : `Still to record: ${page.map((x) => ACCEPTANCE_FAULT_LABEL[x]).join(", ")}.`}
-        actions={(award.status === "ISSUED" || award.status === "ACCEPTED") && sulit.state === "GRANTED" ? <ReturnDrawer id={award.id} loa={loa} people={people} correcting={award.status === "ACCEPTED"} values={{ ...ret, contractorSigned: yesNo(ret.contractorSigned), stampAffixed: yesNo(ret.stampAffixed), witnessSigned: yesNo(ret.witnessSigned), receivedByPersonId: r.receivedByPersonId, whereHeld: r.whereHeld }} /> : undefined}
+        // WV-4: paper is not recorded while a return sent online waits; the card above is decided first.
+        actions={(award.status === "ISSUED" || award.status === "ACCEPTED") && sulit.state === "GRANTED" && onlineReturnState(award.onlineReturns) !== "WAITING" ? <ReturnDrawer id={award.id} loa={loa} people={people} correcting={award.status === "ACCEPTED"} values={{ ...ret, contractorSigned: yesNo(ret.contractorSigned), stampAffixed: yesNo(ret.stampAffixed), witnessSigned: yesNo(ret.witnessSigned), receivedByPersonId: r.receivedByPersonId, whereHeld: r.whereHeld }} /> : undefined}
       />
       <CardBody className="flex flex-col gap-5">
         {loa ? (

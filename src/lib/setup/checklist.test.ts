@@ -26,6 +26,8 @@ const EMPTY: ChecklistFacts = {
   saleChannelSet: false,
   submissionChannelSet: false,
   sulitReadersDecided: false,
+  contractorPortalSigning: false,
+  awardReturnClassSet: false,
 };
 const state = (f: Partial<ChecklistFacts>, key: string) => buildChecklist({ ...EMPTY, ...f }).find((i) => i.key === key)!;
 const matrix = (m: Partial<MatrixFact>): MatrixFact => ({ issued: true, effectiveFrom: "2026-01-01", effectiveTo: null, issuedBy: { name: "Aini", at: new Date("2026-02-01") }, offices: ["A"], ...m });
@@ -106,6 +108,14 @@ describe("the checklist", () => {
     expect(state({ letterSlotsSet: 5 }, "letters").state).toBe("todo");
     expect(state({ letterSlotsSet: 6 }, "letters").state).toBe("done");
     expect(state({ budgetCheckSet: true }, "budget").state).toBe("done");
+  });
+
+  it("the returned-award class item exists only where a contractor's account signs, and is done once a SULIT class is set (WV-5)", () => {
+    expect(buildChecklist(EMPTY).some((i) => i.key === "award-return-class")).toBe(false);
+    expect(buildChecklist({ ...EMPTY, awardReturnClassSet: true }).some((i) => i.key === "award-return-class")).toBe(false);
+    expect(state({ contractorPortalSigning: true }, "award-return-class")).toMatchObject({ state: "todo", section: "contracts-payments", label: "Class for returned award documents" });
+    expect(state({ contractorPortalSigning: true, awardReturnClassSet: true }, "award-return-class").state).toBe("done");
+    expect(buildChecklist({ ...EMPTY, contractorPortalSigning: true })).toHaveLength(20);
   });
 
   it("go-live: off links to the one-person changes, on does not", () => {

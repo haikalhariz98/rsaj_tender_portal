@@ -1,4 +1,5 @@
 import type { Tx } from "@/lib/audit/record";
+import { awardReturnClassFault } from "@/lib/documents/award-return-class";
 import { twoPersonOn } from "@/lib/auth/policy-store";
 import { loadRegisterSettings } from "@/lib/portal/apply-repo";
 import { dayOrNull, organisationDay, todayIn } from "@/lib/dates";
@@ -15,7 +16,7 @@ export async function loadChecklist(db: Tx, organisationId: string, now = new Da
   const year = Number(today.slice(0, 4));
   const live = { OR: [{ effectiveTo: null }, { effectiveTo: { gt: day } }] };
   const register = await loadRegisterSettings(db).catch(() => null); // one reader with the public form; a failure reads as closed
-  const [matrices, assignments, committees, fees, window, evalModels, docTypes, texts, supplier, awardPolicy, budget, orgUnits, costCentres, two, sulitDecisions] = await Promise.all([
+  const [matrices, assignments, committees, fees, window, evalModels, docTypes, texts, supplier, awardPolicy, budget, orgUnits, costCentres, two, sulitDecisions, postAward, storePolicy] = await Promise.all([
     db.authorityMatrix.findMany({ where: { organisationId }, select: { issuedAt: true, effectiveFrom: true, effectiveTo: true, issuedByPerson: { select: { name: true } }, rules: { select: { proposerCode: true, approverCode: true } } } }),
     db.roleAssignment.findMany({ where: { person: { organisationId }, effectiveFrom: { lte: day }, ...live }, select: { roleCode: true } }),
     db.committee.findMany({ where: { organisationId, retiredOn: null }, select: { quorum: true, members: { where: { isAlternate: false, effectiveFrom: { lte: day }, ...live }, select: { id: true } } } }),
@@ -31,6 +32,8 @@ export async function loadChecklist(db: Tx, organisationId: string, now = new Da
     db.costCentre.count({ where: { organisationId, ...live } }),
     twoPersonOn(db, organisationId),
     db.rolePermission.count({ where: { organisationId, permissionKey: "sulit.read.organisation" } }),
+    db.postAwardPolicy.findUnique({ where: { organisationId }, select: { contractorPortalSigning: true } }),
+    db.documentStorePolicy.findUnique({ where: { organisationId }, select: { awardReturnClass: { select: { classification: true } } } }),
   ]);
   const calendar = window?.calendarId
     ? { yearRow: (await db.holidayCalendarYear.count({ where: { calendarId: window.calendarId, year } })) > 0, thisYear: await db.publicHoliday.count({ where: { calendarId: window.calendarId, day: { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) } } }) }
@@ -67,6 +70,8 @@ export async function loadChecklist(db: Tx, organisationId: string, now = new Da
     saleChannelSet: !!window?.documentSaleMode,
     submissionChannelSet: !!window?.submissionChannel,
     sulitReadersDecided: sulitDecisions > 0,
+    contractorPortalSigning: postAward?.contractorPortalSigning === true,
+    awardReturnClassSet: awardReturnClassFault(storePolicy?.awardReturnClass ?? null) === null,
   };
   return { items: buildChecklist(facts), facts };
 }

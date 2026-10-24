@@ -4,10 +4,12 @@ import { moreItemClass } from "@/components/ui/more-item-class";
 import { actorField } from "@/lib/auth/actor-field";
 
 import { INSURANCE_KIND_LABEL, RETURN_DRAWER_NOTE } from "@/lib/award/labels";
+import { cancelWaitingNote } from "@/lib/award/online-return-view";
 
 import { Blocked } from "../requisitions/editors";
 import {
   addCondition,
+  answerAwardQuery,
   cancelAward,
   chooseAwardRejection,
   citeAppointmentDecision,
@@ -20,12 +22,14 @@ import {
   recordCommitment,
   recordDespatch,
   recordReturn,
+  refuseOnlineReturn,
   reviewPolicy,
   reviewSecurity,
   satisfyCondition,
   submitAward,
   updateAwardDetails,
   updateAwardTerms,
+  verifyOnlineReturn,
 } from "./actions";
 
 /**
@@ -430,6 +434,56 @@ export function ReturnDrawer({ id, loa, values, people, correcting }: { id: stri
   );
 }
 
+/// ADR 0045 D1: verify a return the contractor sent online. It becomes the award's return and the award is accepted; the primary action of the header while one waits.
+export function VerifyOnlineReturnDrawer({ id, day, blocker }: { id: string; day: string; blocker: string | null }) {
+  if (blocker) return <Blocked label="Verify the return" reason={blocker} primary noteId={AWARD_NOTE_ID} />;
+  return (
+    <RecordEditor
+      title="Verify the return"
+      description={`Sent online on ${day}. It becomes the award's return and the award is accepted.`}
+      fields={[hidden("id"), actorField("AwardOnlineReturn.verifiedBy", { name: "verifiedByPersonId" })]}
+      values={{ id }}
+      action={verifyOnlineReturn}
+      submitLabel="Verify"
+      trigger={{ label: "Verify the return", className: buttonClass("primary", "sm") }}
+      size="sm"
+    />
+  );
+}
+
+/// The contractor reads the reason in its portal and may send the return again.
+export function RefuseOnlineReturnDrawer({ id, day, menu }: { id: string; day: string; menu?: boolean }) {
+  return (
+    <RecordEditor
+      title={`Refuse the return sent on ${day}`}
+      description="The contractor reads the reason and may send it again."
+      fields={[hidden("id"), actorField("AwardOnlineReturn.refusedBy", { name: "refusedByPersonId" })]}
+      values={{ id }}
+      action={refuseOnlineReturn}
+      destructive={{ reasonLabel: "Why it is refused" }}
+      submitLabel="Refuse the return"
+      trigger={{ label: "Refuse the return", className: menu ? moreItemClass(true) : buttonClass("destructive", "sm") }}
+      size="sm"
+    />
+  );
+}
+
+/// A question is answered once; the contractor reads the answer in its portal.
+export function AnswerQueryDrawer({ id, question }: { id: string; question: string }) {
+  return (
+    <RecordEditor
+      title="Answer the question"
+      description={question}
+      fields={[hidden("id"), { kind: "textarea", name: "answer", label: "Answer", required: true }, actorField("AwardQuery.answeredBy", { name: "answeredByPersonId" })]}
+      values={{ id }}
+      action={answerAwardQuery}
+      submitLabel="Send the answer"
+      trigger={{ label: "Answer", className: buttonClass("secondary", "sm") }}
+      size="md"
+    />
+  );
+}
+
 export function CommencementDrawer({ id, today, menu }: { id: string; today: string | null; menu?: boolean }) {
   return (
     <RecordEditor
@@ -445,7 +499,8 @@ export function CommencementDrawer({ id, today, menu }: { id: string; today: str
   );
 }
 
-export function CancelAwardDrawer({ id, issued, consequence, menu }: { id: string; issued: boolean; consequence: string | null; menu?: boolean }) {
+export function CancelAwardDrawer({ id, issued, consequence, menu, waiting }: { id: string; issued: boolean; consequence: string | null; menu?: boolean; /** The day a return sent online waits since (WV-4): the cancel is refused, naming it. */ waiting?: string | null }) {
+  if (waiting) return <Blocked label="Cancel award" reason={cancelWaitingNote(waiting)} destructive />;
   return (
     <RecordEditor
       title="Cancel this award"

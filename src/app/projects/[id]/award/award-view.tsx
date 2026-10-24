@@ -18,6 +18,7 @@ import { awardFacts, awardHistory, exerciseMatters, type LoadedAward } from "@/l
 import { instrumentReturned, type ReturnRecord } from "@/lib/award/stage-two";
 import { cancellable, editable } from "@/lib/award/status";
 import { onlineReturnState } from "@/lib/award/online-return";
+import { onlineReturnCardFacts } from "@/lib/award/online-return-view";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
@@ -31,7 +32,7 @@ import { applicableRequirements } from "@/lib/securities/insurance";
 import { RECOMMENDATION_FIELDS } from "@/lib/evaluation/recommendation-fields";
 import { conditionsOutstanding } from "@/lib/award/readiness";
 import { db } from "@/lib/db";
-import { AWARD_NOTE_ID, CancelAwardDrawer, CommencementDrawer, EditDetailsDrawer, EditTermsDrawer, IssueDrawer, RecordCommitmentDrawer, RecallAwardDrawer, SubmitAwardDrawer } from "@/app/awards/editors";
+import { AWARD_NOTE_ID, CancelAwardDrawer, CommencementDrawer, EditDetailsDrawer, EditTermsDrawer, IssueDrawer, RecordCommitmentDrawer, RecallAwardDrawer, RefuseOnlineReturnDrawer, SubmitAwardDrawer, VerifyOnlineReturnDrawer } from "@/app/awards/editors";
 import type { StaffActor } from "@/lib/auth/types";
 import { actStatusFault } from "@/lib/contract/act-status";
 import type { AwardStepFacts, BeforeSigningFacts } from "@/lib/contract/case-steps";
@@ -169,6 +170,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
     // Award step is done whatever it says), so the gate is asked only then.
     returnOffered: status === "ISSUED" && (await exerciseGate()).state === "GRANTED",
     returned: instrumentReturned(kind, award.awardReturn),
+    onlineReturnWaiting: status === "ISSUED" && onlineReturnState(award.onlineReturns) === "WAITING",
     commencement: ev.commencement ?? null,
     commencementOffered,
   };
@@ -262,7 +264,11 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
     let chromeParts: AwardFinish["chrome"] = null;
     if (chrome) {
       const canRecordCommitment = ["APPROVED", "ISSUED", "ACCEPTED"].includes(status) && !award.erpCommitmentNo;
-      const canCancel = cancellable(status, { returned: instrumentReturned(kind, award.awardReturn), commenced: !!award.commencedOn, onlineReturnWaiting: onlineReturnState(award.onlineReturns) === "WAITING" });
+      // WV-4: while a return sent online waits the cancel is drawn blocked, naming that return and its day, not hidden.
+      const canCancel = cancellable(status, { returned: instrumentReturned(kind, award.awardReturn), commenced: !!award.commencedOn });
+      const online = onlineReturnCardFacts(award.onlineReturns, { awardStatus: status, sulitWithheldWords: sulit.state === "WITHHELD" ? `Withheld from you. ${sulit.words.en}` : null });
+      const waitingRow = online?.state === "WAITING" ? award.onlineReturns.find((r) => r.id === online.latest) ?? null : null;
+      const waitingDay = waitingRow ? formatDate(day(waitingRow.submittedOn)!) : null;
       // FR-APR-017: only the originator recalls, before any decision. The action asks the same rule again, and also whether the matter is on a committee's agenda.
       const openAppointment = award.approvalInstances.find((i) => i.status === "PENDING" && i.domain === "appointment") ?? null;
       const recallStanding = openAppointment ? await committeeStandingOf(db, { exerciseId: award.exerciseId }, openAppointment.domain, openAppointment.openedAt) : null;
@@ -302,11 +308,15 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
           {status === "PENDING_APPROVAL" && openAppointment && <RecallAwardDrawer menu id={award.id} blocker={awardRecallRule ? RECALL_FAULT_TEXT[awardRecallRule] : null} />}
           {canRecordCommitment && <RecordCommitmentDrawer menu id={award.id} indent={!loa} example={f.config.indentFormat?.example || null} today={today} />}
           {status === "ISSUED" && !loa && !award.commencedOn && <CommencementDrawer menu id={award.id} today={today} />}
-          {canCancel && <CancelAwardDrawer menu id={award.id} issued={status === "ISSUED"} consequence={ev.commencement?.state === "LATE" && consequenceText ? `Work has not commenced within the grace period: the consequence recorded is ${consequenceText.toLowerCase()}.` : null} />}
+          {waitingRow && online?.refuse && <RefuseOnlineReturnDrawer menu id={waitingRow.id} day={waitingDay!} />}
+          {canCancel && <CancelAwardDrawer menu id={award.id} issued={status === "ISSUED"} waiting={waitingDay} consequence={ev.commencement?.state === "LATE" && consequenceText ? `Work has not commenced within the grace period: the consequence recorded is ${consequenceText.toLowerCase()}.` : null} />}
         </>
       );
+      const verifyReturn = waitingRow && online?.verify.offered ? <VerifyOnlineReturnDrawer id={waitingRow.id} day={waitingDay!} blocker={online.verify.blocker} /> : null;
       const fallback =
-        status === "DRAFT" ? (
+        verifyReturn ? (
+          verifyReturn
+        ) : status === "DRAFT" ? (
           main.SEND_FOR_APPROVAL
         ) : status === "APPROVED" && !(issueReady && ev.signatory?.ok) ? (
           <Button size="sm" variant="primary" disabled aria-describedby={AWARD_NOTE_ID}>
@@ -315,7 +325,11 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
         ) : null;
       const issueShownCount = findingsForReader(ev.issueFaults, recommendationShown).length;
       const headerNote =
-        status === "DRAFT" && submitBlocks.length ? (
+        waitingRow && online?.verify.blocker ? (
+          <span>
+            <span className="font-semibold text-ink-2">Verify the return:</span> {online.verify.blocker}
+          </span>
+        ) : status === "DRAFT" && submitBlocks.length ? (
           <span>
             <span className="font-semibold text-ink-2">Send for approval:</span> blocked, see below.
           </span>
@@ -344,7 +358,7 @@ export async function buildAwardView({ actor, l }: { actor: StaffActor; l: Loade
           ))}
         </>
       );
-      const hasMenu = edits.details || edits.terms || (status === "PENDING_APPROVAL" && !!openAppointment) || canRecordCommitment || (status === "ISSUED" && !loa && !award.commencedOn) || canCancel;
+      const hasMenu = edits.details || edits.terms || (status === "PENDING_APPROVAL" && !!openAppointment) || canRecordCommitment || (status === "ISSUED" && !loa && !award.commencedOn) || canCancel || !!waitingRow;
       chromeParts = { fallback, menu: hasMenu ? menu : null, headerNote, callouts };
     }
 

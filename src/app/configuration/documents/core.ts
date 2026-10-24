@@ -5,6 +5,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { auditedCreate, writeAudit } from "@/lib/audit/record";
 import { classClassificationFault } from "@/lib/documents/classification";
 import { policyView } from "@/lib/documents/audit-view";
+import { awardReturnClassFault } from "@/lib/documents/award-return-class";
 import { projectClassFault } from "@/lib/documents/project-class";
 import { documentFaultText } from "@/lib/documents/labels";
 import { megabytesToBytes, policyFaults } from "@/lib/documents/policy";
@@ -159,13 +160,21 @@ export async function saveStorePolicy(_prev: FormState, data: FormData): Promise
     const fault = projectClassFault(projectClass);
     if (fault) r.reject("projectDocumentClassId", fault);
   }
+  // The class a returned award's scans take when the contractor sends them online (ADR 0045, WV-5). SULIT: the acceptance page holds an identity card number. Read only when posted.
+  const awardPosted = new Set([...data.keys()]).has("awardReturnClassId");
+  const awardChoice = awardPosted ? (r.optionalText("awardReturnClassId") ?? "") : "";
+  const awardClass = awardChoice ? await db.documentClass.findFirst({ where: { id: awardChoice, organisationId: orgId }, select: { id: true, nameEn: true, classification: true } }) : null;
+  if (awardChoice) {
+    const fault = awardReturnClassFault(awardClass);
+    if (fault) r.reject("awardReturnClassId", fault);
+  }
   if (r.failed || !provenance) return { ok: false, errors: r.errors };
   const onlineBidFileClassId = bidClass?.id ?? null;
-  const projectWrite = projectPosted ? { projectDocumentClassId: projectClass?.id ?? null } : {};
+  const projectWrite = { ...(projectPosted ? { projectDocumentClassId: projectClass?.id ?? null } : {}), ...(awardPosted ? { awardReturnClassId: awardClass?.id ?? null } : {}) };
   const reason = String(data.get("reason") ?? "");
   await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR UPDATE`;
-    const names = { onlineBidFileClass: { select: { nameEn: true } }, projectDocumentClass: { select: { nameEn: true } } } as const;
+    const names = { onlineBidFileClass: { select: { nameEn: true } }, projectDocumentClass: { select: { nameEn: true } }, awardReturnClass: { select: { nameEn: true } } } as const;
     const before = await tx.documentStorePolicy.findUnique({ where: { organisationId: orgId }, include: names });
     const row = await tx.documentStorePolicy.upsert({
       where: { organisationId: orgId },
@@ -173,7 +182,7 @@ export async function saveStorePolicy(_prev: FormState, data: FormData): Promise
       update: { allowedMediaTypes, maxBytes, onlineBidFileClassId, ...projectWrite, provenance, notes },
       include: names,
     });
-    const changes = diffFields(policyView(before, before?.onlineBidFileClass?.nameEn ?? null, before?.projectDocumentClass?.nameEn ?? null), policyView(row, bidClass?.nameEn ?? null, row.projectDocumentClass?.nameEn ?? null));
+    const changes = diffFields(policyView(before, before?.onlineBidFileClass?.nameEn ?? null, before?.projectDocumentClass?.nameEn ?? null, before?.awardReturnClass?.nameEn ?? null), policyView(row, bidClass?.nameEn ?? null, row.projectDocumentClass?.nameEn ?? null, row.awardReturnClass?.nameEn ?? null));
     if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "DocumentStorePolicy", entityId: row.id, entityLabel: "Upload rules", reason }, before ? "UPDATE" : "CREATE", changes);
   });
   revalidatePath(PATH);

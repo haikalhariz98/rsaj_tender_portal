@@ -143,7 +143,7 @@ export default async function DocumentsConfigPage() {
         <CardHeader
           title="Upload rules"
           subtitle="Accepted files and size"
-          actions={policy ? <EditStorePolicy policy={{ allowedMediaTypes: policy.allowedMediaTypes, maxBytes: policy.maxBytes?.toString() ?? null, onlineBidFileClassId: policy.onlineBidFileClassId, projectDocumentClassId: policy.projectDocumentClassId, provenance: policy.provenance, notes: policy.notes }} sulitClasses={classes.filter((c) => c.classification === "SULIT").map((c) => ({ value: c.id, label: c.nameEn }))} projectClasses={projectClasses} /> : undefined}
+          actions={policy ? <EditStorePolicy policy={{ allowedMediaTypes: policy.allowedMediaTypes, maxBytes: policy.maxBytes?.toString() ?? null, onlineBidFileClassId: policy.onlineBidFileClassId, projectDocumentClassId: policy.projectDocumentClassId, awardReturnClassId: policy.awardReturnClassId, provenance: policy.provenance, notes: policy.notes }} sulitClasses={classes.filter((c) => c.classification === "SULIT").map((c) => ({ value: c.id, label: c.nameEn }))} projectClasses={projectClasses} /> : undefined}
           divided
         />
         <CardBody className="flex flex-col gap-5">
@@ -195,6 +195,10 @@ export default async function DocumentsConfigPage() {
                 value: policy?.onlineBidFileClassId ? (classes.find((c) => c.id === policy.onlineBidFileClassId)?.nameEn ?? NOT_SET) : <SettingValue value={null} unset="An online opening cannot be finalised." />,
               },
               { label: "Class for project files", value: <ProjectClassValue classId={policy?.projectDocumentClassId ?? null} classes={classes} /> },
+              {
+                label: "Class for returned award documents",
+                value: policy?.awardReturnClassId ? (classes.find((c) => c.id === policy.awardReturnClassId)?.nameEn ?? NOT_SET) : <SettingValue value={null} unset="A contractor cannot send an award return online." />,
+              },
               ...(policy?.notes ? [{ label: "Notes", value: policy.notes }] : []),
             ]}
           />

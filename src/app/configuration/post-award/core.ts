@@ -227,7 +227,7 @@ export async function saveContractorPortalSigning(_prev: FormState, data: FormDa
   const o = await exerciseOrg(actor.organisationId);
   if (!o) return NO_ORG;
   const r = new FormReader(data);
-  const choice = r.choice("contractorPortalSigning", "Whether a contractor signs from its portal account", ["yes", "no"] as const);
+  const choice = r.choice("contractorPortalSigning", "Whether a contractor signs and accepts an award from its portal account", ["yes", "no"] as const);
   const provenance = r.choice("contractorPortalSigningProvenance", "Basis", PROVENANCE);
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (choice != null && !provenance) r.reject("contractorPortalSigningProvenance", "Say where the decision came from: there is no default.");

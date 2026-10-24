@@ -90,6 +90,8 @@ export interface AwardStepFacts {
   returnOffered: boolean;
   /// instrumentReturned(kind, awardReturn): for the "next" words only, never a gate on RECORD_RETURN.
   returned: boolean;
+  /// A return the contractor sent online waits to be verified (ADR 0045): Verify is the step's one action, in the header (award-view.tsx), so the step offers no link of its own.
+  onlineReturnWaiting?: boolean;
   /// ev.commencement, for the "next" words only.
   commencement: CommencementState | null;
   /// awards/[id]/page.tsx:303: ISSUED or ACCEPTED, not a Letter of Acceptance, no commencedOn.
@@ -208,6 +210,7 @@ function awardStep(f: CaseFacts): Draft {
       if (a.issueReady) return { state: "in-progress", next: CASE_ACTION_NEXT.ISSUE, action: "ISSUE" };
       return { state: "in-progress", next: a.issueFaults.length ? findingWords(a.issueFaults[0]) : "Signatory not resolved", action: null };
     case "ISSUED":
+      if (a.onlineReturnWaiting) return { state: "in-progress", next: "A return sent online waits to be verified", action: null };
       if (a.despatchOpen > 0) return { state: "in-progress", next: `${plural(a.despatchOpen, "copy", "copies")} still to despatch`, action: "RECORD_DESPATCH" };
       if (a.returnOffered) return { state: "in-progress", next: a.returned ? "The return is recorded, waiting for acceptance" : CASE_ACTION_NEXT.RECORD_RETURN, action: "RECORD_RETURN" };
       return { state: "in-progress", next: "Waiting for the contractor's return", action: null };

@@ -274,6 +274,9 @@ describe("the Award step", () => {
   it("ISSUED, the return panel closed to this reader: no action", () => {
     expect(step(caseSteps(facts({ award: award("ISSUED") })), "award")).toMatchObject({ state: "in-progress", action: null, next: "Waiting for the contractor's return" });
   });
+  it("ISSUED, a return sent online waits: no link of its own (Verify is the header's action), even with copies to send", () => {
+    expect(step(caseSteps(facts({ award: award("ISSUED", { returnOffered: true, despatchOpen: 2, onlineReturnWaiting: true }) })), "award")).toMatchObject({ state: "in-progress", action: null, next: "A return sent online waits to be verified" });
+  });
   it("one copy to send: singular", () => {
     expect(step(caseSteps(facts({ award: award("ISSUED", { despatchOpen: 1 }) })), "award").next).toBe("1 copy still to despatch");
   });

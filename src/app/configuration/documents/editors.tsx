@@ -165,7 +165,7 @@ export function EditDocumentClass({ row, offices }: { row: DocumentClass; office
 }
 
 /// The organisation's upload rules (OD-3). Either may be left unset; uploads are then refused, naming it.
-export function EditStorePolicy({ policy, sulitClasses, projectClasses }: { policy: { allowedMediaTypes: readonly string[]; maxBytes: string | null; onlineBidFileClassId: string | null; projectDocumentClassId: string | null; provenance: string | null; notes: string }; sulitClasses: { value: string; label: string }[]; projectClasses: { value: string; label: string }[] }) {
+export function EditStorePolicy({ policy, sulitClasses, projectClasses }: { policy: { allowedMediaTypes: readonly string[]; maxBytes: string | null; onlineBidFileClassId: string | null; projectDocumentClassId: string | null; awardReturnClassId: string | null; provenance: string | null; notes: string }; sulitClasses: { value: string; label: string }[]; projectClasses: { value: string; label: string }[] }) {
   return (
     <RecordEditor
       title="Upload rules"
@@ -189,6 +189,7 @@ export function EditStorePolicy({ policy, sulitClasses, projectClasses }: { poli
         },
         { kind: "select", name: "onlineBidFileClassId", label: "Class of a filed online bid file", placeholder: "Not set", options: sulitClasses, hint: "Must be classified SULIT. Empty blocks online openings." },
         { kind: "select", name: "projectDocumentClassId", label: "Class for project files", placeholder: "Not set", options: projectClasses, hint: "Classified, not SULIT. Empty blocks project files." },
+        { kind: "select", name: "awardReturnClassId", label: "Class for returned award documents", placeholder: "Not set", options: sulitClasses, hint: "SULIT only. Empty blocks returns sent online." },
         { kind: "select", name: "provenance", label: "Basis", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
@@ -200,6 +201,7 @@ export function EditStorePolicy({ policy, sulitClasses, projectClasses }: { poli
         maxMegabytes: policy.maxBytes ? bytesToMegabytes(BigInt(policy.maxBytes)) : null,
         onlineBidFileClassId: policy.onlineBidFileClassId,
         projectDocumentClassId: policy.projectDocumentClassId,
+        awardReturnClassId: policy.awardReturnClassId,
         provenance: policy.provenance,
         notes: policy.notes,
       }}
