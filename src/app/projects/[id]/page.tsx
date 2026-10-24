@@ -74,6 +74,7 @@ import { DocumentsPanel } from "./documents-panel";
 import { SubmissionsTab } from "./submissions-tab";
 import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
 import { FormationPanel } from "./formation-panels";
+import { loadSupplyClaims, paymentRouteOf } from "@/lib/project-docs/supply-read";
 import { PaymentsPanel, PaymentSummaryCard, paymentView, type PaymentView } from "./payment-panels";
 import { OnSiteCard, SitePanel, supervisionView, TeamPanel, type SupervisionView } from "./supervision-panels";
 import { hiddenFor } from "@/lib/supervision/authority";
@@ -213,6 +214,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
     if (!hiddenActs.length) hiddenActs = hiddenOf(v);
   }
   const payments = lc && projectTab && (projectTab === "overview" || projectTab === "payments") ? await paymentView(lc, today) : null;
+  // Supply invoices are read only for the Payments tab, and only on the delivery order and invoice route (ADR 0045 D5).
+  const supply = lc && projectTab === "payments" && (await paymentRouteOf(db, lc)) === "DELIVERY_ORDER_INVOICE" ? await loadSupplyClaims(db, { organisationId: lc.org.id, orgName: lc.org.name, contractId: lc.contract.id }) : null;
   const variations = lc && projectTab && (projectTab === "overview" || projectTab === "variations") ? await variationView(lc, today) : null;
   const documentFacts = lc && projectTab === "documents" ? await contractDocumentFacts(l.org.id, lc.contract.id, today) : null;
   // The contract's gate (the priced working, the figures a certificate's override trail names) is asked only where a panel of the contract shows them.
@@ -255,7 +258,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       case "site":
         return supervision ? <SitePanel l={lc} v={supervision} people={people} today={today} page={pageNo} hidden={hiddenActs} /> : null;
       case "payments":
-        return supervision && payments ? <PaymentsPanel l={lc} v={payments} people={people} today={today} page={pageNo} hidden={hiddenActs} /> : null;
+        return supervision && payments ? <PaymentsPanel l={lc} v={payments} people={people} today={today} page={pageNo} hidden={hiddenActs} supply={supply} /> : null;
       case "variations":
         return supervision && variations ? <VariationsPanel l={lc} v={variations} people={people} today={today} page={pageNo} hidden={hiddenActs} /> : null;
       case "documents":

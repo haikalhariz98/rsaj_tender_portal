@@ -26,7 +26,8 @@ import {
   saveTaxonomyValue,
 } from "./actions";
 import type { ContractBehaviours, MethodBehaviour } from "@/lib/method/types";
-import { BEHAVIOUR_LABEL } from "@/lib/method/labels";
+import { BEHAVIOUR_LABEL, PAYMENT_ROUTE_LABEL } from "@/lib/method/labels";
+import { PAYMENT_ROUTES } from "@/lib/project-docs/types";
 
 /**
  * The field declarations behind each Reference data record.
@@ -470,6 +471,7 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
         { kind: "select", name: "claimsApprovalCommitteeCode", label: BEHAVIOUR_LABEL.claimsApprovalCommitteeCode, placeholder: "Not set", options: offices },
         // 6.13 Part A step 2 (FR-SUP-003): not one of the twelve; which letters a delegation on this type's contracts uses.
         { kind: "select", name: "delegationVariant", label: "Delegation letters", placeholder: "Not set", options: DELEGATION_VARIANTS.map((k) => ({ value: k, label: VARIANT_WORDS[k].en })), hint: "Unset: representative delegations are refused." },
+        { kind: "select", name: "paymentRoute", label: "How it is paid", placeholder: "Not set", options: PAYMENT_ROUTES.map((k) => ({ value: k, label: PAYMENT_ROUTE_LABEL[k] })) },
       ]}
       values={{
         id,
@@ -487,6 +489,7 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
         sumAdjustmentTriggers: (values.sumAdjustmentTriggers ?? []).join("\n"),
         claimsApprovalCommitteeCode: values.claimsApprovalCommitteeCode,
         delegationVariant: values.delegationVariant ?? null,
+        paymentRoute: values.paymentRoute ?? null,
       }}
       action={saveContractBehaviours}
       submitLabel="Save behaviours"

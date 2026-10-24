@@ -26,7 +26,7 @@ import {
 } from "./editors";
 import { loadMethodConfig } from "@/lib/method/repo";
 import { behaviourProfile } from "@/lib/method/profile";
-import { DELIVERABLE_LABEL } from "@/lib/method/labels";
+import { DELIVERABLE_LABEL, PAYMENT_ROUTE_LABEL } from "@/lib/method/labels";
 import { PATH_LABEL } from "@/lib/window/labels";
 import type { DeliverableKind } from "@/lib/method/types";
 import { KeyValues } from "@/components/ui/stat";
@@ -333,6 +333,7 @@ export default async function ReferenceDataPage() {
                     const v = typeRow(c.code)?.delegationVariant;
                     return v && isDelegationVariant(v) ? `Delegation letters: ${VARIANT_WORDS[v].en.toLowerCase()}` : "Delegation letters: not set — a delegation on its contracts is refused";
                   })()}</div>
+                  <div className="break-words text-[12.5px] text-ink-3">{`How it is paid: ${typeRow(c.code)?.paymentRoute ? PAYMENT_ROUTE_LABEL[typeRow(c.code)!.paymentRoute!] : "Not set"}`}</div>
                   {realSource(c.notes) && <div className="break-words text-[12.5px] text-ink-3">{c.notes}</div>}
                 </Td>
                 <Td label="Written in">

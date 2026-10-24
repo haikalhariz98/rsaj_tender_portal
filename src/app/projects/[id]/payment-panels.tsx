@@ -40,6 +40,8 @@ import { OPENING_GROUPS, openingClosed, openingReconciles, openingReleaseLine } 
 import { PARTY_KIND_WORDS } from "@/lib/supervision/labels";
 import type { HiddenAct } from "@/lib/supervision/authority";
 
+import { SupplyInvoices } from "./supply-panel";
+import type { SupplyClaimRow } from "@/lib/project-docs/supply-read";
 import { AdjustmentRefusedCallout } from "./adjustment-refused";
 import { WithHiddenNote } from "./hidden-note";
 import {
@@ -141,10 +143,12 @@ export function PaymentSummaryCard({ l, v }: { l: LoadedContract; v: PaymentView
 // ------------------------------------------------------------------ the tab
 
 /// `hidden`: the acts outside the delegated scope of a representative who is signed in, which their screen does not offer (FR-SUP-004, Phase 3d).
-export function PaymentsPanel({ l, v, people, today, page, hidden = [] }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; page: number; hidden?: readonly HiddenAct[] }) {
+/// `supply`: the contract's supply claims where its payment route is delivery order and invoice; null on any other route (no section).
+export function PaymentsPanel({ l, v, people, today, page, hidden = [], supply = null }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; page: number; hidden?: readonly HiddenAct[]; supply?: SupplyClaimRow[] | null }) {
   const body = (
     <Sections
       items={[
+        ...(supply ? [{ id: "supply", label: "Supply invoices", node: <SupplyInvoices contractId={l.contract.id} rows={supply} people={people} today={today} blocker={zone(today) ?? actStatusBlocker("PROJECT_WORKSPACE", l.contract.status as ContractStatus)} /> }] : []),
         { id: "valuations", label: "Valuations", node: <ValuationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} /> },
         { id: "retention", label: "Retention", node: <RetentionSection l={l} v={v} people={people} today={today} hidden={hidden} /> },
         { id: "advance", label: "Advance payment", node: <AdvanceSection l={l} v={v} people={people} hidden={hidden} /> },
