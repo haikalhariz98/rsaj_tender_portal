@@ -7,8 +7,12 @@ import type { SearchEntity } from "./fields";
 /// The most hits a group shows; its `total` says how many matched.
 export const SEARCH_GROUP_SIZE = 10;
 
+/// The groups global search answers in: five, fixed by ST-3. A list's own search can cover more (`SearchEntity` grows with the
+/// applications tab in 7.4) without adding a group here.
+export type SearchGroupEntity = Extract<SearchEntity, "requisition" | "exercise" | "project" | "supplier" | "sitting">;
+
 /// Each group's heading, in the order the page draws them. ST-3: committee sittings are the fifth group.
-export const SEARCH_GROUP_LABEL: Readonly<Record<SearchEntity, string>> = {
+export const SEARCH_GROUP_LABEL: Readonly<Record<SearchGroupEntity, string>> = {
   requisition: "Requisitions",
   exercise: "Tenders & quotations",
   project: "Projects",
@@ -19,7 +23,7 @@ export const SEARCH_GROUP_LABEL: Readonly<Record<SearchEntity, string>> = {
 export type HitTone = "brand" | "ok" | "warn" | "err" | "info";
 
 export interface SearchHit {
-  entity: SearchEntity;
+  entity: SearchGroupEntity;
   id: string;
   /// A sitting's is its committee's name; never an agenda item's or a matter's title (ST-3, FR-MTD-007).
   title: string;
@@ -33,7 +37,7 @@ export interface SearchHit {
 }
 
 export interface SearchGroup {
-  entity: SearchEntity;
+  entity: SearchGroupEntity;
   label: string;
   /// At most SEARCH_GROUP_SIZE, exact first, then newest.
   hits: SearchHit[];
