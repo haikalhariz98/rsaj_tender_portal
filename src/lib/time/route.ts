@@ -25,10 +25,8 @@ export const EOT_COND: Readonly<Record<FinancialImpact, string>> = {
 };
 export const eotCondOf = (impact: FinancialImpact): string => EOT_COND[impact];
 
-/// FR-EOT-007's note (decision D2): shown on every EOT route, so the conflict is never hidden.
-export const D2_EOT_NOTE = {
-  en: "Decision D2 is open: SK006 §7.6.1 (as amended 12.01.2026) makes the Variation Orders Committee the approver of an extension with no financial impact, while the DAL makes the S.O./P.D. the approver with the committee's mandatory recommendation. This route follows the matrix as configured.",
-} as const;
+/// Decision D2's conflict is no longer a note naming one customer's documents: it is a route choice on the matrix (RSAJ answers stage 2, B2),
+/// and a route not chosen refuses with CHOICE_NOT_MADE, naming the options.
 
 export interface MatterRouteQuery {
   kind: ContractMatterKind;
@@ -64,5 +62,5 @@ export function resolveMatterRoute(ctx: FunderContext, q: MatterRouteQuery, matr
   const res = r.resolution;
   const errors = r.warnings.filter((w) => w.level === "err");
   if (!res.rule || errors.length || res.chain.length === 0) return { ok: false, faults: [{ code: "NO_RULE", level: "block", data: { matrix: matrixLabel, domain, why: errors.map((e) => e.messageEn).join(" ") || null } }] };
-  return { ok: true, resolution: res, source: r.source, overrideIssue: r.overrideIssue, warnings: r.warnings, notes: q.kind === "EOT" ? [D2_EOT_NOTE] : [], domain };
+  return { ok: true, resolution: res, source: r.source, overrideIssue: r.overrideIssue, warnings: r.warnings, notes: [], domain };
 }

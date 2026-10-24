@@ -4,7 +4,7 @@ import { DAL_FIXTURE } from "@/lib/authority/dal-fixture";
 import type { Matrix } from "@/lib/authority/types";
 import { parseSen } from "@/lib/money";
 
-import { D2_EOT_NOTE, EOT_COND, eotCondOf, resolveMatterRoute } from "./route";
+import { EOT_COND, eotCondOf, resolveMatterRoute } from "./route";
 
 // Founder, 2026-10-19: English only. The Malay half of this file's word pairs and assertions was removed; the rule assertions are unchanged.
 
@@ -40,10 +40,10 @@ describe("FR-EOT-007: an EOT routes on the cause of its financial impact, never 
     }
   });
 
-  it("the D2 note travels with every EOT route (SK006 and the DAL disagree on the no-impact approver)", () => {
+  // Deliberate change (RSAJ answers stage 2, B2): the D2 note naming SK006 and the DAL is gone; the conflict is a route choice on the matrix.
+  it("an EOT route carries no fixed note on decision D2", () => {
     const r = resolveMatterRoute(ctx(), { ...base, kind: "EOT", cond: eotCondOf("OTHER") }, "fixture", () => false);
-    expect(r.ok && r.notes).toEqual([D2_EOT_NOTE]);
-    expect(D2_EOT_NOTE.en).toMatch(/D2/);
+    expect(r.ok && r.notes).toEqual([]);
   });
 });
 
