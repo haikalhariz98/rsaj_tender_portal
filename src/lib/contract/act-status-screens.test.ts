@@ -262,6 +262,7 @@ const NO_ACT: Readonly<Record<string, string>> = {
   PaymentsPanel: "Dispatches to its sections, which gate themselves.",
   SitePanel: "Dispatches to its sections, which gate themselves.",
   FormationPanel: "Dispatches to its sections, which gate themselves.",
+  FormationWithBill: "Reads the tendered bill for the item pickers and renders FormationPanel, which dispatches to its sections.",
   VariationsPanel: "Dispatches to its sections, which gate themselves.",
   SubmissionsTab: "Dispatches to the Documents list and an earlier record's read-only view, each of which gates itself (the list by the Project workspace's row, the record's answer by the supervision family's).",
   ProjectDocumentPage: "Loads the document and renders DocumentPageView, whose gates come from the loader.",

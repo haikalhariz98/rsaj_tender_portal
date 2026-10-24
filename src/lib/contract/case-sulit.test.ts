@@ -75,7 +75,9 @@ describe("the SULIT fields of the award's panels are refused under the contract'
     expect(src).toMatch(/sulitGate\(actor, \{ scope: "contract", entity: "Contract", id: c\.id, label: c\.number \}, fieldsOfScope\("contract"\)\)/);
     // Every place the page passes the gate on: the contract's Overview, Formation and History, nothing else.
     const passed = [...src.matchAll(/<(\w+)\b[^>]*\bsulit=\{/g)].map((m) => m[1]).sort();
-    expect(passed).toEqual(["FormationPanel", "HistoryPanel", "OverviewPanel"]);
+    expect(passed).toEqual(["FormationWithBill", "HistoryPanel", "OverviewPanel"]);
+    // FormationWithBill only adds the bill and hands every prop, the gate included, to FormationPanel.
+    expect(src).toMatch(/async function FormationWithBill\(props: Omit<ComponentProps<typeof FormationPanel>, "bill">\) \{\n\s+return <FormationPanel \{\.\.\.props\} bill=/);
     // The award panels reach the page only through the award composition, which holds the award's gates.
     expect(src).not.toMatch(/<(OverviewPanel|ReturnPanel|ApprovalPanel|ConditionsPanel)[^>]*\brecommendation=/);
   });
