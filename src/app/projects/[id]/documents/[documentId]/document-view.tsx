@@ -4,8 +4,9 @@ import { FileIcon, UsersIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Blocked } from "@/components/ui/blocked";
 import { ButtonLink, buttonClass } from "@/components/ui/button";
+import { MoreActions } from "@/components/ui/more-actions";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatBytes, SCAN_LABEL } from "@/lib/documents/labels";
 import { formatDate } from "@/lib/format";
@@ -15,7 +16,6 @@ import type { DocumentPage, Gate } from "@/lib/project-docs/page-store";
 import { AddApproverDrawer, ApproveDrawer, AskDrawer, MarkDrawer, RejectDrawer, RemoveApproverDrawer, UploadVersionDrawer } from "../../document-editors";
 import { gateNote, STATE_TONE } from "../../document-words";
 
-const HEADER_NOTE = "document-actions-note";
 const APPROVERS_NOTE = "document-approvers-note";
 const NOBODY_TO_ADD: Gate = { allowed: false, reasons: ["Nobody else holds authority to approve today."] };
 
@@ -37,20 +37,12 @@ export function DocumentPageView({ page }: { page: DocumentPage }) {
   const marks = page.markWords;
   // Once a kind's version is marked and final, the two marks are over: neither is shown as a disabled button.
   const showMarks = !!marks && !(page.final && !actions.markTakenUp.allowed && !actions.markReturned.allowed);
-  const markGates = marks && showMarks ? [{ label: marks.takenUp, gate: actions.markTakenUp }, { label: marks.returned, gate: actions.markReturned }] : [];
   // One primary: the answer when it is the reader's to give, else the next version.
   const primary = marks ? (actions.markTakenUp.allowed && decideId ? "takenUp" : null) : actions.approve.allowed && decideId ? "approve" : actions.upload.allowed ? "upload" : null;
-  const headerNote = gateNote(
-    marks
-      ? markGates
-      : [
-          { label: "Upload a new version", gate: actions.upload },
-          { label: "Ask for it", gate: actions.request },
-          { label: "Approve", gate: actions.approve },
-          { label: "Reject", gate: actions.reject },
-        ],
-  );
-  const blocked = (label: string, gate: Gate) => <Blocked label={label} reason={gate.reasons.join(" ")} noteId={HEADER_NOTE} />;
+  const takenUpHref = marks && page.takenUpLink && page.state === "TAKEN_UP" ? page.takenUpLink : null;
+  const menuHas = marks
+    ? actions.upload.allowed || actions.request.allowed || (showMarks && actions.markReturned.allowed && !!decideId)
+    : (actions.upload.allowed && primary !== "upload") || actions.request.allowed || (actions.approve.allowed && primary !== "approve" && !!decideId) || (actions.reject.allowed && !!decideId);
 
   const facts = [page.side === "CONTRACTOR" ? "The contractor's document" : `${page.sideLabel}'s document`, page.kindLabel, page.waitsOnLabel];
 
@@ -67,34 +59,44 @@ export function DocumentPageView({ page }: { page: DocumentPage }) {
         badge={<Badge tone={STATE_TONE[page.state]} dot>{page.stateLabel}</Badge>}
         subtitle={page.note || undefined}
         meta={facts}
-        actionsNote={headerNote ?? undefined}
-        actionsNoteId={HEADER_NOTE}
         actions={
-          marks ? (
-            <>
-              {/* The contractor's document: the organisation marks it, and may ask for it again or send its own version only where the loader allows (no blocked copy of an act that never applies). */}
-              {actions.upload.allowed && <UploadVersionDrawer {...common} tone="secondary" />}
-              {actions.request.allowed && <AskDrawer {...common} />}
-              {/* "Recorded under …": said only once it is taken up, and only with its link (PW-24). */}
-              {page.takenUpLink && page.state === "TAKEN_UP" && <ButtonLink href={page.takenUpLink.href} size="sm" variant="secondary">{page.takenUpLink.words}</ButtonLink>}
-              {showMarks && (
-                <>
-                  {actions.markReturned.allowed && decideId ? <MarkDrawer {...common} versionId={decideId} outcome="RETURNED" label={marks.returned} /> : blocked(marks.returned, actions.markReturned)}
-                  {actions.markTakenUp.allowed && decideId ? <MarkDrawer {...common} versionId={decideId} outcome="TAKEN_UP" label={marks.takenUp} tone={primary === "takenUp" ? "primary" : "secondary"} /> : blocked(marks.takenUp, actions.markTakenUp)}
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              {actions.upload.allowed ? <UploadVersionDrawer {...common} tone={primary === "upload" ? "primary" : "secondary"} /> : blocked("Upload a new version", actions.upload)}
-              {actions.request.allowed ? <AskDrawer {...common} /> : blocked("Ask for it", actions.request)}
-              {actions.approve.allowed && decideId && latest ? <ApproveDrawer {...common} versionId={decideId} versionLabel={latest.label} tone={primary === "approve" ? "primary" : "secondary"} /> : blocked("Approve", actions.approve)}
-              {actions.reject.allowed && decideId && latest ? <RejectDrawer {...common} versionId={decideId} versionLabel={latest.label} /> : blocked("Reject", actions.reject)}
-            </>
-          )
+          // Only what this reader can use: the one primary, the rest in the "..." menu. A blocked act is not drawn; the approvers card says why where it matters.
+          <>
+            {marks ? (
+              <>
+                {showMarks && actions.markTakenUp.allowed && decideId && <MarkDrawer {...common} versionId={decideId} outcome="TAKEN_UP" label={marks.takenUp} tone="primary" />}
+                {takenUpHref && <ButtonLink href={takenUpHref.href} size="sm" variant="secondary">{takenUpHref.words}</ButtonLink>}
+                {menuHas && (
+                  <MoreActions>
+                    {actions.upload.allowed && <UploadVersionDrawer {...common} tone="menu" />}
+                    {actions.request.allowed && <AskDrawer {...common} tone="menu" />}
+                    {showMarks && actions.markReturned.allowed && decideId && <MarkDrawer {...common} versionId={decideId} outcome="RETURNED" label={marks.returned} tone="menu" />}
+                  </MoreActions>
+                )}
+              </>
+            ) : (
+              <>
+                {primary === "approve" && decideId && latest && <ApproveDrawer {...common} versionId={decideId} versionLabel={latest.label} tone="primary" />}
+                {primary === "upload" && <UploadVersionDrawer {...common} tone="primary" />}
+                {menuHas && (
+                  <MoreActions>
+                    {primary !== "upload" && actions.upload.allowed && <UploadVersionDrawer {...common} tone="menu" />}
+                    {actions.request.allowed && <AskDrawer {...common} tone="menu" />}
+                    {primary !== "approve" && actions.approve.allowed && decideId && latest && <ApproveDrawer {...common} versionId={decideId} versionLabel={latest.label} tone="menu" />}
+                    {actions.reject.allowed && decideId && latest && <RejectDrawer {...common} versionId={decideId} versionLabel={latest.label} tone="menu" />}
+                  </MoreActions>
+                )}
+              </>
+            )}
+          </>
         }
       />
       <div className="flex flex-col gap-6">
+        {!page.classSet && (
+          <Callout tone="warn" title="Project files have no document class yet." action={<ButtonLink href="/configuration/documents" size="sm">Set it</ButtonLink>}>
+            Configuration › Documents
+          </Callout>
+        )}
         {page.openRequest && (
           <Card>
             <CardHeader icon={<FileIcon size={17} />} title={`Asked of ${page.openRequest.toSide === "CONTRACTOR" ? "the contractor" : page.openRequest.toLabel}`} subtitle={[formatDate(page.openRequest.requestedOn), page.openRequest.note || null].filter(Boolean).join(" · ")} divided={false} />

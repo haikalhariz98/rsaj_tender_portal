@@ -22,7 +22,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { MoreActions, MoreItem } from "@/components/ui/more-actions";
 import { moreItemClass } from "@/components/ui/more-item-class";
 import { RuleInfo } from "@/components/ui/rule-info";
-import { primaryAction } from "@/lib/requisition/primary-action";
+import { headerMenu, primaryAction } from "@/lib/requisition/primary-action";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState, FindingNote } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
@@ -131,6 +131,7 @@ import {
 
 import { loadAttributions, routeActed } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
+import { loadSecurityPolicy } from "@/lib/auth/policy-store";
 import { openFault } from "@/lib/method/exercise";
 import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_TONE, findingText, REGIME_SHORT } from "@/lib/method/labels";
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
@@ -430,7 +431,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   const decideBlocker = plainStep && !today ? DECIDER_FAULT_TEXT.TIME_ZONE_UNSET : null;
   const decider = (asPrimary: boolean, label?: string) =>
     plainStep ? (
-      <DecisionDrawer id={r.id} stepId={plainStep.id} roleLabel={plainStep.actingRoleLabel ?? plainStep.roleLabel} act={ACT_LABEL[plainStep.act]} done={ACT_DONE_LABEL[plainStep.act] ?? "Done"} people={deciderOptions(plainStep).options} today={today} blocker={decideBlocker} label={label} menu={!asPrimary} />
+      <DecisionDrawer paper={!asPrimary} id={r.id} stepId={plainStep.id} roleLabel={plainStep.actingRoleLabel ?? plainStep.roleLabel} act={ACT_LABEL[plainStep.act]} done={ACT_DONE_LABEL[plainStep.act] ?? "Done"} people={deciderOptions(plainStep).options} today={today} blocker={decideBlocker} label={label} menu={!asPrimary} />
     ) : null;
   const exerciseHref = liveHere.length === 1 ? `/sourcing/${liveHere[0].id}` : `/requisitions/${r.id}?tab=sourcing`;
 
@@ -440,7 +441,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
       ["Mark endorsed", kind === "endorse" ? endorseText : null],
       ["Check budget", kind === "check" ? (checkBlocker ?? (controls.budgetCheckSource ? null : "The budget check source is not set.")) : null],
       ["Submit for approval", kind === "submit" ? submitBlocker : null],
-      ["Record decision", kind === "approve" || kind === "record" ? decideBlocker : null],
+      ["Record decision", kind === "approve" ? decideBlocker : null],
     ] as [string, string | null][]
   ).filter((x): x is [string, string] => x[1] != null);
   // The same reason for two buttons (no time zone, say) is said once.
@@ -461,16 +462,24 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
 
   const approver = plainStep ? (plainStep.actingRoleLabel ?? plainStep.roleLabel) : null;
   const why =
-    (kind === "approve" || kind === "record") && inst?.checkedAgainstMatrix && inst.ruleLabel && approver ? (
+    kind === "approve" && inst?.checkedAgainstMatrix && inst.ruleLabel && approver ? (
       <RuleInfo label="Why this approver?" rule={`${approver} decides this step under ${inst.ruleLabel}${routeBand ? `, ${routeBand}` : ""}.`} clause={inst.ruleClause} />
     ) : null;
   const downloadable = prRefusal(r.status, !!approvedRoute) === null;
+  const menuFor = headerMenu({
+    kind,
+    plainStep: !!plainStep,
+    viewerMayRecordForOthers: actor.permissions.has("acts.recordOnBehalf"),
+    paperSignaturesAllowed: plainStep ? (await loadSecurityPolicy(db, actor.organisationId))?.paperSignatureRecording === "ALLOWED" : false,
+    viewerRaisedIt: actor.personId === r.requestingPersonId || actor.personId === open?.submittedByPersonId,
+    viewerIsOriginator: isOriginator,
+    recallUsable: !recallBlocker,
+  });
   const inMenu = {
     edit: r.status === "DRAFT",
     check: PRE_SUBMIT.includes(r.status) && kind !== "check",
     ret: PRE_SUBMIT.includes(r.status),
-    record: !!plainStep && kind !== "approve" && kind !== "record",
-    recall: isOriginator && kind !== "recall",
+    ...menuFor,
     cancel: ["DRAFT", "ENDORSED", "RETURNED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"].includes(r.status),
     download: downloadable,
   };
@@ -481,7 +490,6 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
       {kind === "check" && <CheckBudgetDrawer id={r.id} source={controls.budgetCheckSource} blocker={checkBlocker} today={today} primary />}
       {kind === "submit" && <SubmitDrawer id={r.id} blocker={submitBlocker} overBudget={overBudget} />}
       {kind === "approve" && decider(true, ACT_LABEL[plainStep!.act])}
-      {kind === "record" && decider(true)}
       {kind === "recall" && <RecallDrawer id={r.id} blocker={null} primary />}
       {kind === "reopen" && <ReopenDrawer id={r.id} />}
       {kind === "choose" && awaitingChoice && (
@@ -504,7 +512,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
           {inMenu.check && <CheckBudgetDrawer id={r.id} source={controls.budgetCheckSource} blocker={checkBlocker} today={today} menu />}
           {/* Founder, 2026-10-06: returnable as incomplete until it is submitted, also after the budget check. */}
           {inMenu.ret && <ReturnDrawer id={r.id} people={people} today={today} />}
-          {inMenu.record && decider(false)}
+          {inMenu.record && decider(false, "Record a paper decision")}
           {inMenu.recall && <RecallDrawer id={r.id} blocker={recallBlocker} />}
           {inMenu.cancel && <CancelDrawer id={r.id} />}
           {/* Founder, 2026-10-05: the expenditure request form, once approved. A plain link: it is a file, not a page. */}

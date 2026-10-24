@@ -20,6 +20,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState, Meter } from "@/components/ui/feedback";
 import { InfoChip } from "@/components/ui/info-chip";
 import { MoreText } from "@/components/ui/more-text";
+import { MoreActions } from "@/components/ui/more-actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { fieldLabel } from "@/lib/audit/diff";
 import { assessQuorum } from "@/lib/committee/quorum";
@@ -176,12 +177,16 @@ export default async function SittingPage({
 
   const actions = (
     <>
-      {!frozen && <EditSitting meeting={m} />}
       {m.status === "SCHEDULED" && <StartSitting meetingId={m.id} />}
       {m.status === "IN_PROGRESS" && (
         <MinuteSitting meetingId={m.id} blocker={minuteBlocker} blockerId="sitting-actions-note" />
       )}
-      {!frozen && <CancelSitting meetingId={m.id} />}
+      {!frozen && (
+        <MoreActions>
+          <EditSitting meeting={m} menu />
+          <CancelSitting meetingId={m.id} menu />
+        </MoreActions>
+      )}
     </>
   );
 

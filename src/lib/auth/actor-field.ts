@@ -36,6 +36,8 @@ export interface ActorFieldSpec {
   forPerson?: { id: string; name: string };
   /// The act moves money, time or authority, or is a signature: recorded from paper it needs the paper's reference (and the permission), so the field says so.
   paperReferenceRequired?: boolean;
+  /// The paper switch starts on: the form is for recording someone else's act.
+  paperFirst?: boolean;
 }
 
 export function actorField(
@@ -50,6 +52,8 @@ export function actorField(
     /// This act is the signed-in person's own although its slot may be recorded from paper elsewhere: offers no picker.
     paper?: boolean;
     forPerson?: { id: string; name: string };
+    /// Opens with "recorded from paper for someone else" switched on.
+    paperFirst?: boolean;
     /// The form names the person the act is about: a picker (the act's `namesSubject`), blank allowed where `optional`.
     named?: { optional?: boolean };
   },
@@ -65,6 +69,7 @@ export function actorField(
     ...(slot.onBehalf && opts.people && opts.paper !== false ? { onBehalf: opts.people } : {}),
     ...(slot.onBehalf && (slot.signatureClass || slot.paperGated) ? { paperReferenceRequired: true } : {}),
     ...(opts.forPerson ? { forPerson: opts.forPerson } : {}),
+    ...(opts.paperFirst ? { paperFirst: true } : {}),
     ...(opts.named && slot.onBehalf ? { named: { options: opts.people ?? [], optional: opts.named.optional ?? false } } : {}),
     ...(opts.dated && opts.people && slot.signatureClass ? { backdate: opts.people.filter((p) => !p.disabled).map(({ value, label }) => ({ value, label })) } : {}),
     ...(opts.hint ? { hint: opts.hint } : {}),

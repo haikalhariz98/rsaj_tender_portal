@@ -112,11 +112,12 @@ describe("a document of one of the six kinds, on the staff's page (plan step 6; 
     expect(html).not.toMatch(/Taken up|taken up/);
   });
 
-  it("a mark the reader may not give is blocked with the reason, said once; final and over, no disabled mark is left", () => {
+  it("a mark the reader may not give is not drawn; final and over, no disabled mark is left", () => {
     const why = "Only an approver may mark it.";
     const blocked = view(page({ actions: { ...ACTIONS, markTakenUp: shut(why), markReturned: shut(why) } }));
-    expect(blocked).toContain(why);
-    expect(blocked).toContain("disabled");
+    // Review B11: a mark the reader may not give is not drawn in the header at all.
+    expect(blocked).not.toContain(why);
+    expect(blocked).not.toMatch(/>Mark taken up<|>Return</);
     const over = view(page({ final: true, state: "TAKEN_UP", stateLabel: "Taken up", actions: { ...ACTIONS, markTakenUp: shut("Already marked."), markReturned: shut("Already marked.") } }));
     expect(over).not.toMatch(/Mark taken up|>Return</);
   });

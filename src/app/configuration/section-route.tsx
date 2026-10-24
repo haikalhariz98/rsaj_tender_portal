@@ -8,10 +8,10 @@ import { SETTINGS_SECTIONS } from "@/lib/nav";
 import { loadChecklist } from "@/lib/setup/checklist-repo";
 import type { SettingsSection } from "@/lib/setup/types";
 
-/// Who may open Settings' front pages: the administrator, or anyone who drafts, issues or reads the audit trail. Anyone else goes home.
+/// Who may open Settings' front pages: the administrator, or anyone who drafts, issues or reads the audit trail. Anyone else is shown the no-access page.
 export async function requireSettingsReader() {
   const actor = await requireStaff();
-  if (!(actor.isAdministrator || ["configuration.draft", "configuration.issue", "audit.read"].some((k) => actor.permissions.has(k as never)))) redirect("/");
+  if (!(actor.isAdministrator || ["configuration.draft", "configuration.issue", "audit.read"].some((k) => actor.permissions.has(k as never)))) redirect("/configuration/no-access");
   return actor;
 }
 

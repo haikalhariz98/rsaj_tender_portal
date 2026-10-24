@@ -119,14 +119,16 @@ describe("the approval route is changed only by someone who holds the permission
 describe("the Getting-started page is read only by those who work on configuration or its audit trail", () => {
   // Plan 5.1: the gate is one function, shared by Getting started and the six section pages.
   const page = readFileSync(path.join(CONFIG, "section-route.tsx"), "utf8");
-  it("sends anyone else Home, and names the three permissions and the administrator", () => {
+  it("sends anyone else to the no-access page, and names the three permissions and the administrator", () => {
     expect(readFileSync(path.join(CONFIG, "page.tsx"), "utf8")).toContain("requireSettingsReader()");
     expect(page).toContain("export async function SettingsSectionRoute");
     // Each section page asks the gate itself, first (auth-reach), and hands the reader to SettingsSectionRoute.
     for (const s of ["approvals", "contracts-payments", "people", "purchasing", "suppliers-portal", "system"]) {
       expect(readFileSync(path.join(CONFIG, s, "page.tsx"), "utf8")).toMatch(/const actor = await requireSettingsReader\(\);/);
     }
-    expect(page).toMatch(/redirect\("\/"\)/);
+    // Review B13: not a silent trip Home; the server gate stays, its target says why.
+    expect(page).toMatch(/redirect\("\/configuration\/no-access"\)/);
+    expect(readFileSync(path.join(CONFIG, "no-access", "page.tsx"), "utf8")).toContain("You don't have access to Settings");
     for (const key of ["configuration.draft", "configuration.issue", "audit.read"]) expect(page).toContain(`"${key}"`);
     expect(page).toContain("isAdministrator");
   });

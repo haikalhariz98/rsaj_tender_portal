@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
+import { moreItemClass } from "@/components/ui/more-item-class";
 import { actorField } from "@/lib/auth/actor-field";
 import { ACT_LABEL, matterLabel } from "@/lib/labels";
 import matters from "@/lib/labels.json";
@@ -87,7 +88,7 @@ export function ScheduleSitting({
   );
 }
 
-export function EditSitting({ meeting }: { meeting: { id: string; meetingDate: Date; agenda: string } }) {
+export function EditSitting({ meeting, menu }: { meeting: { id: string; meetingDate: Date; agenda: string }; /** An entry of the header's "..." menu. */ menu?: boolean }) {
   return (
     <RecordEditor
       title="Edit sitting"
@@ -99,7 +100,7 @@ export function EditSitting({ meeting }: { meeting: { id: string; meetingDate: D
       ]}
       values={{ meetingId: meeting.id, meetingDate: day(meeting.meetingDate), agenda: meeting.agenda }}
       action={editSitting}
-      trigger={{ label: "Edit" }}
+      trigger={{ label: "Edit", ...(menu ? { className: moreItemClass() } : {}) }}
     />
   );
 }
@@ -159,7 +160,7 @@ export function MinuteSitting({
   );
 }
 
-export function CancelSitting({ meetingId }: { meetingId: string }) {
+export function CancelSitting({ meetingId, menu }: { meetingId: string; /** An entry of the header's "..." menu. */ menu?: boolean }) {
   return (
     <RecordEditor
       title="Cancel the sitting"
@@ -171,7 +172,7 @@ export function CancelSitting({ meetingId }: { meetingId: string }) {
       destructive={{ reasonLabel: "Why is the sitting cancelled?" }}
       trigger={{
         label: "Cancel sitting",
-        className: buttonClass("destructive", "sm"),
+        className: menu ? moreItemClass(true) : buttonClass("destructive", "sm"),
       }}
       size="sm"
     />

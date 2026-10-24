@@ -278,7 +278,10 @@ export function DecisionDrawer({
   blocker,
   label = "Record decision",
   menu,
+  paper,
 }: {
+  /** Opens with "for someone else" on: a paper decision of the office holder. */
+  paper?: boolean;
   /** A menu entry rather than the header's primary button. */
   menu?: boolean;
   /** The trigger's words: the act when the viewer is the one deciding ("Approve"). */
@@ -313,7 +316,7 @@ export function DecisionDrawer({
           ],
         },
         // Recorded from paper, the picker lists the holders of the office for this department and their delegates first, then anyone who cannot decide it and why.
-        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true }),
+        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true, paperFirst: paper }),
         { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today or before submission." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a rejection." },
       ]}

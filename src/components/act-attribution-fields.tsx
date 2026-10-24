@@ -26,7 +26,7 @@ export const actPostedNames = actFieldNameList;
 export function ActAttributionFields({ spec, errors, initial }: { spec: ActorFieldSpec; errors?: Record<string, string>; initial?: string | boolean | null }) {
   const actorName = useActorName();
   const actorId = useActorPersonId();
-  const [chosenPaper, setPaper] = useState(false);
+  const [chosenPaper, setPaper] = useState(spec.paperFirst ?? false);
   const [named, setNamed] = useState(typeof initial === "string" ? initial : "");
   const [back, setBack] = useState(false);
   const id = `act-${spec.name}`;

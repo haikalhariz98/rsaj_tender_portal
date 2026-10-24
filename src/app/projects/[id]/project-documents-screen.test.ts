@@ -207,25 +207,29 @@ describe("a Project document's page", () => {
     const html = view(page());
     for (const w of ["Upload a new version", "Ask for it", "Approve", "Reject", "Add approver", "Remove Hassan Bin Ali"]) expect(html).toContain(`>${w}</button>`);
     expect(html).toContain('data-tone="primary">Approve');
-    expect(html).toContain('data-tone="secondary">Upload a new version');
+    // Review B11: the answer is the one header button; the other acts sit in the "..." menu.
+    expect(html.split('data-tone="primary"').length - 1).toBe(1);
     expect(html).not.toContain('disabled=""');
   });
 
   it("a reader with no authority reads everything, every act is blocked, and the reason is said once", () => {
     const g = shut(NO_AUTHORITY);
     const html = view(page({ readerMayAct: false, actions: { upload: g, request: g, addApprover: g, approve: g, reject: g, decideVersionId: "v2", markTakenUp: NO_KIND, markReturned: NO_KIND }, approvers: [{ ...page().approvers[0]!, remove: g }] }));
-    for (const w of ["Upload a new version", "Ask for it", "Approve", "Reject", "Add approver"]) expect(html).toMatch(new RegExp(`<button[^>]*disabled[^>]*>${w}</button>`));
+    // Review B11: the header draws only what the reader can use, so no header act is a disabled button; the approvers card still says why Add and Remove are shut.
+    for (const w of ["Upload a new version", "Ask for it", "Approve", "Reject"]) expect(html).not.toContain(`>${w}</button>`);
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Add approver<\/button>/);
     expect(html).toMatch(/<button[^>]*disabled[^>]*aria-label="Remove Hassan Bin Ali as an approver"[^>]*>Remove<\/button>|<button[^>]*aria-label="Remove Hassan Bin Ali as an approver"[^>]*disabled[^>]*>Remove<\/button>/);
-    // Said under the header and under the approvers, never beside each of the six buttons.
-    expect(html.split(`>${NO_AUTHORITY}<`).length - 1).toBe(2);
+    // Said once, under the approvers, never beside each button.
+    expect(html.split(`>${NO_AUTHORITY}<`).length - 1).toBe(1);
     expect(html).toContain("Version 1");
     expect(html).not.toContain("data-tone");
   });
 
   it("acts blocked for different reasons are named with theirs", () => {
     const html = view(page({ actions: { upload: shut(faultText({ code: "UNDER_REVIEW", level: "block", data: { state: "WAITING_FOR_APPROVAL" } }, ORG)), request: shut("Already asked."), addApprover: open, approve: open, reject: open, decideVersionId: "v2", markTakenUp: NO_KIND, markReturned: NO_KIND } }));
-    expect(html).toContain("Upload a new version: Its latest version is waiting for approval.");
-    expect(html).toContain("Ask for it: Already asked.");
+    // Review B11: a shut act is not drawn in the header, so its reason is not either.
+    expect(html).not.toContain("Its latest version is waiting for approval.");
+    expect(html).not.toContain(">Upload a new version</button>");
   });
 
   it("says who waits because they uploaded the version, never a silent wait", () => {
@@ -252,7 +256,7 @@ describe("a Project document's page", () => {
 
   it("with the project class unset the upload is blocked and the setting is named", () => {
     const html = view(page({ classSet: false, actions: { upload: shut(CLASS_UNSET), request: open, addApprover: open, approve: open, reject: open, decideVersionId: "v2", markTakenUp: NO_KIND, markReturned: NO_KIND } }));
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>Upload a new version<\/button>/);
+    expect(html).not.toContain(">Upload a new version</button>");
     expect(html).toContain("Configuration › Documents");
   });
 

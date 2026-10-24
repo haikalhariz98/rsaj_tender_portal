@@ -7,6 +7,7 @@ import { addProjectApprover, createProjectDocument, decideProjectVersion, markPr
 import { postUpload } from "@/components/attachments/post-upload";
 import { EMPTY_FORM_STATE, RecordEditor, type Field, type FormState, type SaveAction } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { moreItemClass } from "@/components/ui/more-item-class";
 import { STAGED_FOR_PROJECT_DOCUMENT } from "@/lib/documents/staged-for";
 
 /**
@@ -22,6 +23,8 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 const primary = buttonClass("primary", "sm");
 const secondary = buttonClass("secondary", "sm");
 const ghost = buttonClass("ghost", "sm");
+/// A drawer's trigger by its place in the header: the one primary button, or an entry of the "..." menu.
+const toneClass = (tone: "primary" | "secondary" | "menu") => (tone === "primary" ? primary : tone === "menu" ? moreItemClass() : secondary);
 
 export interface PickerOption {
   personId: string;
@@ -125,7 +128,7 @@ export function NewDocumentDrawer({ contractId, picker }: { contractId: string; 
 }
 
 /// A new version of an organisation's document: files, and a note.
-export function UploadVersionDrawer({ contractId, documentId, title, tone = "secondary" }: { contractId: string; documentId: string; title: string; tone?: "primary" | "secondary" }) {
+export function UploadVersionDrawer({ contractId, documentId, title, tone = "secondary" }: { contractId: string; documentId: string; title: string; tone?: "primary" | "secondary" | "menu" }) {
   const staged = useRef(new Map<string, string>());
   const save = useCallback<SaveAction>(async (_prev, data) => {
     const s = await stageFiles(data, staged.current);
@@ -142,14 +145,14 @@ export function UploadVersionDrawer({ contractId, documentId, title, tone = "sec
       values={{ contractId, documentId }}
       action={save}
       submitLabel="Upload"
-      trigger={{ label: "Upload a new version", className: tone === "primary" ? primary : secondary }}
+      trigger={{ label: "Upload a new version", className: toneClass(tone) }}
       size="md"
     />
   );
 }
 
 /// Ask the document's side for it again.
-export function AskDrawer({ contractId, documentId, title }: { contractId: string; documentId: string; title: string }) {
+export function AskDrawer({ contractId, documentId, title, tone = "secondary" }: { contractId: string; documentId: string; title: string; tone?: "primary" | "secondary" | "menu" }) {
   return (
     <RecordEditor
       title={`Ask the contractor for ${title}`}
@@ -157,7 +160,7 @@ export function AskDrawer({ contractId, documentId, title }: { contractId: strin
       values={{ contractId, documentId }}
       action={requestProjectDocument}
       submitLabel="Ask"
-      trigger={{ label: "Ask for it", className: secondary }}
+      trigger={{ label: "Ask for it", className: toneClass(tone) }}
       size="sm"
     />
   );
@@ -200,7 +203,7 @@ export function RemoveApproverDrawer({ contractId, documentId, approverId, name 
 }
 
 /// Approve the latest version; remarks are optional.
-export function ApproveDrawer({ contractId, documentId, versionId, title, versionLabel, tone = "secondary" }: { contractId: string; documentId: string; versionId: string; title: string; versionLabel: string; tone?: "primary" | "secondary" }) {
+export function ApproveDrawer({ contractId, documentId, versionId, title, versionLabel, tone = "secondary" }: { contractId: string; documentId: string; versionId: string; title: string; versionLabel: string; tone?: "primary" | "secondary" | "menu" }) {
   return (
     <RecordEditor
       title={`Approve ${versionLabel} of ${title}`}
@@ -208,14 +211,14 @@ export function ApproveDrawer({ contractId, documentId, versionId, title, versio
       values={{ contractId, documentId, versionId, outcome: "APPROVED" }}
       action={decideProjectVersion}
       submitLabel="Approve"
-      trigger={{ label: "Approve", className: tone === "primary" ? primary : secondary }}
+      trigger={{ label: "Approve", className: toneClass(tone) }}
       size="sm"
     />
   );
 }
 
 /// Reject the latest version; the remarks go back with it.
-export function RejectDrawer({ contractId, documentId, versionId, title, versionLabel }: { contractId: string; documentId: string; versionId: string; title: string; versionLabel: string }) {
+export function RejectDrawer({ contractId, documentId, versionId, title, versionLabel, tone = "secondary" }: { contractId: string; documentId: string; versionId: string; title: string; versionLabel: string; tone?: "primary" | "secondary" | "menu" }) {
   return (
     <RecordEditor
       title={`Reject ${versionLabel} of ${title}`}
@@ -224,7 +227,7 @@ export function RejectDrawer({ contractId, documentId, versionId, title, version
       danger
       action={decideProjectVersion}
       submitLabel="Reject"
-      trigger={{ label: "Reject", className: secondary }}
+      trigger={{ label: "Reject", className: toneClass(tone) }}
       size="sm"
     />
   );
@@ -232,7 +235,7 @@ export function RejectDrawer({ contractId, documentId, versionId, title, version
 
 /// Mark the contractor's latest version of one of the six kinds: taken up (noted, on defects rectified), or returned with remarks, which go back with it for a new version. The button's words
 /// are the loader's (`markWords`); no password is asked (PW-26), and no person is picked: marking is the officer's own act (`onBehalf: false`), as approving is (PW-51).
-export function MarkDrawer({ contractId, documentId, versionId, title, outcome, label, tone = "secondary" }: { contractId: string; documentId: string; versionId: string; title: string; outcome: "TAKEN_UP" | "RETURNED"; label: string; tone?: "primary" | "secondary" }) {
+export function MarkDrawer({ contractId, documentId, versionId, title, outcome, label, tone = "secondary" }: { contractId: string; documentId: string; versionId: string; title: string; outcome: "TAKEN_UP" | "RETURNED"; label: string; tone?: "primary" | "secondary" | "menu" }) {
   const returned = outcome === "RETURNED";
   return (
     <RecordEditor
@@ -248,7 +251,7 @@ export function MarkDrawer({ contractId, documentId, versionId, title, outcome, 
       danger={returned}
       action={markProjectVersion}
       submitLabel={label}
-      trigger={{ label, className: tone === "primary" ? primary : secondary }}
+      trigger={{ label, className: toneClass(tone) }}
       size="sm"
     />
   );

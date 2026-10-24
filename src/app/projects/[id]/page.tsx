@@ -18,7 +18,7 @@ import { AWARD_STATUS_TONE } from "@/lib/award/labels";
 import { loadAward } from "@/lib/award/repo";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { caseStage } from "@/lib/contract/case-stage";
-import { caseSteps, earlierOpenSteps, SIGNED_CONTRACT_STATUSES, type CaseAction, type CaseFacts } from "@/lib/contract/case-steps";
+import { caseSteps, defaultCaseStep, earlierOpenSteps, SIGNED_CONTRACT_STATUSES, type CaseAction, type CaseFacts } from "@/lib/contract/case-steps";
 import { nextLine, primaryAction } from "@/lib/contract/primary-action";
 import { MoreActions } from "@/components/ui/more-actions";
 import { CASE_TABS, HISTORY_TAB } from "@/lib/contract/case-tabs";
@@ -284,11 +284,17 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
 
   // ----------------------------------------------------------------- the header, the bar, the main button
   const phase = facts?.phase ?? status;
+  const leftovers = earlierOpenSteps(steps, standing, stage);
+  // The bar draws the case itself, not the tab being viewed: steps behind the live stage still open are warnings whichever stage is on screen.
+  const unfinished = earlierOpenSteps(steps, standing, defaultCaseStep(steps, standing)).map((x) => x.key);
   const stepperSteps: StepperStep[] = steps.map((s) => ({
     key: s.key,
     label: t(CASE_STEP_WORDS[s.key]),
-    state: STEP_STATE[s.state],
-    stateText: s.key === "award" && visibility === "CONTRACT_STAGES_ONLY" ? t(H.awardRestricted) : undefined,
+    // An earlier step left open is drawn as a warning, so the viewed stage is the only current step (review B7).
+    ...(unfinished.includes(s.key) ? { state: "rejected" as const, tone: "warn" as const, stateText: "Not finished" } : {
+      state: STEP_STATE[s.state],
+      stateText: s.key === "award" && visibility === "CONTRACT_STAGES_ONLY" ? t(H.awardRestricted) : undefined,
+    }),
     href: caseHref(ref, { stage: s.key }),
   }));
   // Review S1: the family's row first, in the acts' own words, for the one drawer the header offers.
@@ -304,13 +310,14 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         : null;
   const mainLink = linkAt && act ? <ButtonLink href={caseHref(ref, linkAt)} size="sm" variant="primary">{LINK_ACTION_WORDS[act] ? t(LINK_ACTION_WORDS[act]!) : null}</ButtonLink> : null;
   // On the Award stage the award's own drawers (C-3) sit in the menu; a step with no act of its own shows the blocked one, with its reason.
+  // A stage with nothing of its own to do (the live Project stage with the award still open) points back at the step that holds the work.
+  const mainBack = !mainNode && !mainLink && !fin?.chrome?.fallback && leftovers[0] ? <ButtonLink href={caseHref(ref, { stage: leftovers[0].key })} size="sm" variant="primary">Finish {t(CASE_STEP_WORDS[leftovers[0].key])}</ButtonLink> : null;
   const actions = (
     <>
-      {mainNode ?? mainLink ?? fin?.chrome?.fallback}
+      {mainNode ?? mainLink ?? fin?.chrome?.fallback ?? mainBack}
       {fin?.chrome?.menu && <MoreActions>{fin.chrome.menu}</MoreActions>}
     </>
   );
-  const leftovers = earlierOpenSteps(steps, standing, stage);
   const awardStatus = award.status as AwardStatus;
 
   return (
@@ -334,7 +341,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       />
       <div className="mb-6 flex flex-col gap-3">
         {leftovers.map((x) => (
-          <Callout key={x.key} tone="warn" title={`${t(CASE_STEP_WORDS[x.key])} is not finished`} action={<ButtonLink href={caseHref(ref, { stage: x.key })} size="sm">Open</ButtonLink>}>
+          <Callout key={x.key} tone="warn" title={`${t(CASE_STEP_WORDS[x.key])} is not finished`} action={mainBack && x === leftovers[0] ? undefined : <ButtonLink href={caseHref(ref, { stage: x.key })} size="sm">Open</ButtonLink>}>
             {x.next}
           </Callout>
         ))}
