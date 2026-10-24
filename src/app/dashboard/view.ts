@@ -1,8 +1,8 @@
 /**
  * What the Dashboard draws for one tab: tiles and charts as plain data, from the store's finished figures (design note 0007 §5).
  * Pure, and figures only: it never sees the insights context, so nothing hidden can reach a component. A tile or bar links only
- * where a list holds exactly the same records (§5 drill-down v1), which a Department or Funding route filter breaks, so those
- * drop the link rather than open a longer list.
+ * where a list holds exactly the same records (§5). Since I-6 the lists take the same filters (department, funding route, method,
+ * stage and the financial year's days), so a link carries whatever filter is active and the count on a tile is the list's total.
  */
 
 import type { BarRow, ChartValue } from "@/components/ui/chart";
@@ -10,6 +10,7 @@ import type { Tone } from "@/components/ui/badge";
 import { storedDay } from "@/lib/dates";
 import { formatCompactRM } from "@/lib/format";
 import { insightsHref, type InsightsQuery } from "@/lib/insights/query";
+import { listHref, NO_FACETS, type ListFacets } from "@/lib/list-query";
 import type { Group, PipelineStage } from "@/lib/insights/tiles";
 import type { BudgetFigures, OverviewFigures, ProjectFigures, RequisitionFigures, TabFigures, TenderFigures } from "@/lib/insights/store";
 import { formatMoney, type Sen } from "@/lib/money";
@@ -61,9 +62,16 @@ const STAGE: Record<PipelineStage, string> = {
   SIGNING: "Signing",
   ON_SITE: "On site",
 };
+/// A list's address with the dashboard's filters; the year's days only where the figure is of the year.
+const listLink = (base: string, view: string | null, f: Partial<ListFacets> & { fy?: FinancialYear }): string => {
+  const { fy, ...facets } = f;
+  const range = fy?.state === "SET" ? { from: fy.from, to: fy.to } : null;
+  return listHref(base, { ...NO_FACETS, ...range, ...facets, ...(view ? { view } : {}) });
+};
 const CASE_STAGE = { AWARDING: "Awarding", SIGNING: "Signing", ON_SITE: "On site", COMPLETED: "Completed", CLOSED: "Closed" } as const;
 
-const countRows = (gs: readonly Group[]): BarRow[] => gs.map((g) => ({ label: g.label, values: [g.count] }));
+/// A group with no code ("No department") has nothing to filter on, so it links nowhere.
+const countRows = (gs: readonly Group[], href?: (key: string) => string | undefined): BarRow[] => gs.map((g) => ({ label: g.label, values: [g.count], href: g.key != null ? href?.(g.key) : undefined }));
 const amountRows = (gs: readonly Group[]): BarRow[] => gs.map((g) => ({ label: g.label, values: [g.amount] }));
 
 /// A chart held back while the year is not set; otherwise the body built from the figure.
@@ -72,7 +80,9 @@ const yearBound = <T,>(v: T | null, make: (v: T) => ChartBody): ChartBody => (v 
 function overview(f: OverviewFigures, q: InsightsQuery): TabView {
   const at = (tab: Parameters<typeof insightsHref>[0]["tab"]) => insightsHref({ tab, year: q.year, unit: q.unit });
   const b = f.budgetUsed;
-  const stageHref = (s: PipelineStage) => (!q.unit && (s === "AWARDING" || s === "SIGNING" || s === "ON_SITE") ? `/projects?view=${s.toLowerCase()}` : undefined);
+  const unit = q.unit;
+  const stageHref = (s: PipelineStage): string =>
+    s === "WITH_CP" ? listLink("/requisitions", "pipeline", { unit }) : s === "AWARDING" || s === "SIGNING" || s === "ON_SITE" ? listLink("/projects", s.toLowerCase(), { unit }) : listLink("/sourcing", null, { unit, stage: s.toLowerCase() });
   return {
     tiles: [
       ...(b ? [{ label: "Budget used now", value: b.utilisation == null ? "No allocation" : percent(b.utilisation), hint: b.utilisation == null ? undefined : `${formatCompactRM(b.used)} of ${formatCompactRM(b.allocated)}`, href: at("budget") }] : []),
@@ -118,36 +128,38 @@ function budget(f: BudgetFigures, q: InsightsQuery, today: string | null): TabVi
 }
 
 function requisitions(f: RequisitionFigures, q: InsightsQuery): TabView {
-  // /requisitions has no department or route filter yet (I-6): a narrowed count would not match the list it opens.
-  const list = (view: string) => (q.unit || q.route ? undefined : `/requisitions?view=${view}`);
+  const mine = { unit: q.unit, route: q.route };
+  const list = (view: string) => listLink("/requisitions", view, mine);
+  const raised = (more: Partial<ListFacets>) => (f.fy.state === "SET" ? listLink("/requisitions", null, { ...mine, fy: f.fy, ...more }) : undefined);
   const d = f.toApproval;
   return {
     tiles: [
-      { label: `Raised in ${fyName(f.fy)}`, ...inYear(f.fy, f.raised, String) },
-      { label: `Approved in ${fyName(f.fy)}`, ...inYear(f.fy, f.approved, String) },
+      { label: `Raised in ${fyName(f.fy)}`, ...inYear(f.fy, f.raised, String), href: raised({}) },
+      { label: `Approved in ${fyName(f.fy)}`, ...inYear(f.fy, f.approved, String), href: raised({ stage: "approved" }) },
       { label: "Waiting for approval now", value: String(f.waiting), href: list("pending") },
       { label: "Over budget now", value: String(f.overBudget), href: list("over"), tone: f.overBudget > 0 ? "warn" : "neutral" },
       d?.days != null ? { label: "Median days to approval", value: days(d.days), hint: `Across ${d.across}` } : { label: "Median days to approval", value: null, hint: d ? "None approved yet" : NOT_SET },
     ],
     charts: [
       { title: "Raised and approved by month", body: yearBound(f.months, (m) => ({ kind: "months", money: false, series: ["Raised", "Approved"], months: m.map((x) => ({ month: x.month, values: [x.raised, x.approved] })) })) },
-      { title: "By department", body: yearBound(f.byDepartment, (g) => ({ kind: "bars", head: "Department", series: ["Raised"], money: false, rows: countRows(g) })) },
-      { title: "By funding route", body: yearBound(f.byRoute, (g) => ({ kind: "bars", head: "Funding route", series: ["Raised"], money: false, rows: countRows(g) })) },
+      { title: "By department", body: yearBound(f.byDepartment, (g) => ({ kind: "bars", head: "Department", series: ["Raised"], money: false, rows: countRows(g, (k) => raised({ unit: k })) })) },
+      { title: "By funding route", body: yearBound(f.byRoute, (g) => ({ kind: "bars", head: "Funding route", series: ["Raised"], money: false, rows: countRows(g, (k) => raised({ route: k })) })) },
     ],
   };
 }
 
-function tenders(f: TenderFigures): TabView {
+function tenders(f: TenderFigures, q: InsightsQuery): TabView {
+  const sourcing = (stage: string, method: string | null = q.method) => listLink("/sourcing", null, { unit: q.unit, method, stage });
   return {
     tiles: [
-      { label: "Open now", value: String(f.open.total) },
-      { label: "Preparing", value: String(f.open.PREPARING) },
-      { label: "In market", value: String(f.open.IN_MARKET) },
-      { label: "Evaluating", value: String(f.open.EVALUATING) },
+      { label: "Open now", value: String(f.open.total), href: sourcing("open") },
+      { label: "Preparing", value: String(f.open.PREPARING), href: sourcing("preparing") },
+      { label: "In market", value: String(f.open.IN_MARKET), href: sourcing("in_market") },
+      { label: "Evaluating", value: String(f.open.EVALUATING), href: sourcing("evaluating") },
       { label: `Awarded in ${fyName(f.fy)}`, ...inYear(f.fy, f.awarded, (a) => formatCompactRM(a.amount), (a) => plural(a.count, "award", "awards")) },
     ],
     charts: [
-      { title: "Open by method", body: { kind: "bars", head: "Method", series: ["Preparing", "In market", "Evaluating"], money: false, rows: f.openByMethod.map((g) => ({ label: g.label, values: [g.phases.PREPARING, g.phases.IN_MARKET, g.phases.EVALUATING] })) } },
+      { title: "Open by method", body: { kind: "bars", head: "Method", series: ["Preparing", "In market", "Evaluating"], money: false, rows: f.openByMethod.map((g) => ({ label: g.label, values: [g.phases.PREPARING, g.phases.IN_MARKET, g.phases.EVALUATING], href: g.key != null ? sourcing("open", g.key) : undefined })) } },
       { title: "Awarded by month", body: yearBound(f.awardedByMonth, (m) => ({ kind: "months", money: true, series: ["Awarded"], months: m.map((x) => ({ month: x.month, values: [x.amount] })) })) },
       { title: "Awarded by method", body: yearBound(f.awardedByMethod, (g) => ({ kind: "bars", head: "Method", series: ["Awarded"], money: true, rows: amountRows(g) })) },
     ],
@@ -155,7 +167,7 @@ function tenders(f: TenderFigures): TabView {
 }
 
 function projects(f: ProjectFigures, q: InsightsQuery): TabView {
-  const view = (s: string) => (q.unit ? undefined : `/projects?view=${s}`);
+  const view = (s: string) => listLink("/projects", s, { unit: q.unit });
   const w = f.awaitingPayment;
   return {
     tiles: [
@@ -182,7 +194,7 @@ export function dashboardView(f: TabFigures, q: InsightsQuery, today: string | n
     case "requisitions":
       return requisitions(f, q);
     case "tenders":
-      return tenders(f);
+      return tenders(f, q);
     case "projects":
       return projects(f, q);
     default:

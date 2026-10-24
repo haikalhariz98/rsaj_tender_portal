@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { isDay } from "@/lib/dates";
 import { PAGE_SIZES } from "@/lib/paging";
 import type { SearchEntity } from "@/lib/search/fields";
 
@@ -14,7 +15,27 @@ const DEFAULT_SIZE = 25;
 export type PageSize = (typeof PAGE_SIZES)[number];
 export type SortDir = "asc" | "desc";
 
-export interface ListQuery<V extends string = string, S extends string = string> {
+/**
+ * I-6 (design note 0007, DB-4): the dashboard's drill-down filters, kept in the address so a tile and the list it opens hold the same records.
+ * Each is read by shape only (a configuration code or a day); what it means is the list's own where, built from `insightsWhere`, so a list that
+ * does not take a facet ignores it. `from` and `to` come as a pair (`to` is exclusive, as a financial year's is), or not at all.
+ */
+export interface ListFacets {
+  /// A department's unit code: the requesting unit.
+  unit: string | null;
+  route: string | null;
+  method: string | null;
+  /// A list's own stage word (sourcing: open, preparing, in_market, evaluating; requisitions: approved).
+  stage: string | null;
+  from: string | null;
+  to: string | null;
+}
+export const FACET_KEYS = ["unit", "route", "method", "stage", "from", "to"] as const satisfies readonly (keyof ListFacets)[];
+export const NO_FACETS: ListFacets = { unit: null, route: null, method: null, stage: null, from: null, to: null };
+/// Whether any facet narrows the list.
+export const hasFacets = (q: ListFacets): boolean => FACET_KEYS.some((k) => q[k] != null);
+
+export interface ListQuery<V extends string = string, S extends string = string> extends ListFacets {
   /// Trimmed, inner whitespace collapsed; null when shorter than Q_MIN or longer than Q_MAX.
   q: string | null;
   /// q split on spaces, each kept literal (no wildcard meaning: `words.ts` escapes them).
@@ -37,13 +58,25 @@ type Params = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined): string | undefined => (Array.isArray(v) ? v[0] : v);
 const pick = <T extends string>(v: string | undefined, allowed: readonly T[]): T | null => (v !== undefined && (allowed as readonly string[]).includes(v) ? (v as T) : null);
 
+const CODE = /^[A-Za-z0-9_.-]{1,64}$/;
+const code = (v: string | undefined): string | null => (v !== undefined && CODE.test(v) ? v : null);
+
 export function parseListQuery<V extends string, S extends string = never>(sp: Params, views: readonly V[], sorts: readonly S[] = []): ListQuery<V, S> {
   const text = (one(sp.q) ?? "").trim().replace(/\s+/g, " ");
   const q = text.length >= Q_MIN && text.length <= Q_MAX ? text : null;
   const pageText = one(sp.page) ?? "";
   const page = /^\d+$/.test(pageText) && Number.isSafeInteger(Number(pageText)) ? Number(pageText) : 0;
   const size = (PAGE_SIZES as readonly number[]).find((n) => String(n) === one(sp.size)) as PageSize | undefined;
+  const from = one(sp.from);
+  const to = one(sp.to);
+  const range = from !== undefined && to !== undefined && isDay(from) && isDay(to) && from < to;
   return {
+    unit: code(one(sp.unit)),
+    route: code(one(sp.route)),
+    method: code(one(sp.method)),
+    stage: code(one(sp.stage)),
+    from: range ? from : null,
+    to: range ? to : null,
     q,
     words: q ? q.split(" ") : [],
     view: pick(one(sp.view), views),
@@ -56,10 +89,11 @@ export function parseListQuery<V extends string, S extends string = never>(sp: P
 
 /// The list's own address with q, view, sort, dir, page and size; empty and default parts left out, so `parseListQuery` reads back
 /// the same query. A base that already holds a query (`?tab=`, `?sv=`) keeps it.
-export function listHref(base: string, q: Partial<Pick<ListQuery, "q" | "view" | "sort" | "dir" | "page" | "size">>): string {
+export function listHref(base: string, q: Partial<Pick<ListQuery, "q" | "view" | "sort" | "dir" | "page" | "size"> & ListFacets>): string {
   const p = new URLSearchParams();
   if (q.q) p.set("q", q.q);
   if (q.view) p.set("view", q.view);
+  for (const k of FACET_KEYS) if (q[k]) p.set(k, q[k]);
   if (q.sort) {
     p.set("sort", q.sort);
     if (q.dir === "asc") p.set("dir", "asc");

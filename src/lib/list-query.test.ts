@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LIST_SORTS, listHref, listOrderBy, parseListQuery, Q_MAX, sortKeys } from "./list-query";
+import { LIST_SORTS, listHref, NO_FACETS, listOrderBy, parseListQuery, Q_MAX, sortKeys } from "./list-query";
 
 /** ADR 0044 D5 and ST-6, ST-7: a list's query read from its address, and written back. */
 
@@ -8,9 +8,24 @@ const VIEWS = ["pending", "drafts"] as const;
 const SORTS = sortKeys("requisition");
 const parse = (sp: Record<string, string | string[] | undefined>) => parseListQuery(sp, VIEWS, SORTS);
 
+describe("the dashboard's facets (I-6)", () => {
+  it("are read by shape: a code or a day pair, else null", () => {
+    expect(parse({ unit: "WS_1", route: "a b", method: "OPEN", stage: "in_market", from: "2026-01-01", to: "2027-01-01" })).toMatchObject({ unit: "WS_1", route: null, method: "OPEN", stage: "in_market", from: "2026-01-01", to: "2027-01-01" });
+  });
+  it("take a day range only as a real, ordered pair", () => {
+    for (const sp of [{ from: "2026-01-01" }, { to: "2027-01-01" }, { from: "2026-02-30", to: "2027-01-01" }, { from: "2027-01-01", to: "2026-01-01" }]) expect(parse(sp)).toMatchObject({ from: null, to: null });
+  });
+  it("write back to the same query", () => {
+    const sp = { view: "drafts", unit: "WS", stage: "approved", from: "2026-01-01", to: "2027-01-01" };
+    const href = listHref("/x", parse(sp));
+    expect(href).toBe("/x?view=drafts&unit=WS&stage=approved&from=2026-01-01&to=2027-01-01");
+    expect(parse(Object.fromEntries(new URL(href, "http://x").searchParams))).toEqual(parse(sp));
+  });
+});
+
 describe("parseListQuery", () => {
   it("an empty address is page 0 of 25, all views, the default sort", () => {
-    expect(parse({})).toEqual({ q: null, words: [], view: null, page: 0, size: 25, sort: null, dir: "desc" });
+    expect(parse({})).toEqual({ ...NO_FACETS, q: null, words: [], view: null, page: 0, size: 25, sort: null, dir: "desc" });
   });
   it("a bad page is 0: negative, letters, exponent, fraction, too big to be exact", () => {
     for (const page of ["-1", "abc", "1e9", "1.5", "", "99999999999999999999"]) expect(parse({ page }).page, page).toBe(0);
@@ -40,7 +55,7 @@ describe("parseListQuery", () => {
     expect(parse({ q: "50% a_b" }).words).toEqual(["50%", "a_b"]);
   });
   it("a repeated parameter reads as its first value", () => {
-    expect(parse({ q: ["roof", "x"], view: ["drafts", "pending"], page: ["2", "9"], size: ["10", "50"], sort: ["title", "date"], dir: ["asc", "desc"] })).toEqual({ q: "roof", words: ["roof"], view: "drafts", page: 2, size: 10, sort: "title", dir: "asc" });
+    expect(parse({ q: ["roof", "x"], view: ["drafts", "pending"], page: ["2", "9"], size: ["10", "50"], sort: ["title", "date"], dir: ["asc", "desc"] })).toEqual({ ...NO_FACETS, q: "roof", words: ["roof"], view: "drafts", page: 2, size: 10, sort: "title", dir: "asc" });
   });
   it("sort is only one of the list's own keys, and dir is asc or desc (ST-7)", () => {
     expect(parse({ sort: "estimatedValue" }).sort).toBeNull();

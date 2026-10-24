@@ -21,6 +21,8 @@ import type { CertificateKind } from "@/lib/certificate/types";
 import { CASE_PIPELINE, REQUISITION_PIPELINE, SOURCING_PIPELINE_WHERE, casePipelineWhere, type CasePipelineStage } from "@/lib/dashboard/pipeline";
 import { dayToDate, instantAt } from "@/lib/dates";
 import { PAID_FIGURE } from "@/lib/payment/finance";
+import { EXERCISE_PHASE, type ExercisePhase } from "@/lib/method/phase";
+import type { ExerciseStatus } from "@/lib/method/types";
 import type { RequisitionStatus } from "@/lib/requisition/types";
 
 export interface Filters {
@@ -60,6 +62,17 @@ const awardFilters = (f: Filters): Prisma.AwardWhereInput => {
 const visibleCase = (f: Filters, hidden: readonly string[]): Prisma.AwardWhereInput => ({ AND: [caseVisibilityWhere(hidden), awardFilters(f)] });
 
 const approvedRequisitionRoute = { matterKind: "REQUISITION", status: "APPROVED" } as const;
+
+/// The department, route and method filters on each table, for the lists' own drill-down facets (I-6): one definition, so a tile and its list agree.
+export const facetWhere = { requisition: requisitionFilters, exercise: exerciseFilters, award: awardFilters };
+
+/// A requisition whose route was approved, whenever.
+export const requisitionApprovedAny = { approvalInstances: { some: approvedRequisitionRoute } } satisfies Prisma.RequisitionWhereInput;
+
+/// The open-sourcing pipeline (Home's Sourcing card), narrowed to one phase where given; the statuses are those `EXERCISE_PHASE` puts in it.
+export const sourcingPhaseWhere = (phase: ExercisePhase | null): Prisma.SourcingExerciseWhereInput => ({
+  AND: [SOURCING_PIPELINE_WHERE, phase ? { status: { in: (Object.keys(EXERCISE_PHASE) as ExerciseStatus[]).filter((s) => s !== "CANCELLED" && EXERCISE_PHASE[s] === phase) } } : {}],
+});
 
 export const insightsWhere = {
   /// Raised in the year: not a draft, `raisedOn` (a day) in the year.

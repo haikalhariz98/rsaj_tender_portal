@@ -2,13 +2,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import type { ListQuery } from "@/lib/list-query";
+import { NO_FACETS, type ListQuery } from "@/lib/list-query";
 
 import { DataList, type Column, type Row, type ServerMode } from "./data-list";
 import { serverMode } from "./server-list";
 
 /** Server mode (7.3): the server searches, sorts and pages; the client filters nothing and counts from the total. */
-const base: ListQuery = { q: null, view: null, sort: null, dir: "desc", page: 0, size: 25, words: [] };
+const base: ListQuery = { ...NO_FACETS, q: null, view: null, sort: null, dir: "desc", page: 0, size: 25, words: [] };
 const sortColumns = { name: "title" };
 const make = (query: Partial<ListQuery> = {}, o: Partial<{ total: number; page: number; exportHref: string; exportBlocked: string }> = {}): ServerMode =>
   serverMode("/list", { ...base, ...query }, { total: 340, page: 0, sortColumns, ...o });
@@ -94,8 +94,18 @@ describe("DataList in server mode", () => {
   });
 });
 
+describe("serverMode keeps the dashboard's filters", () => {
+  const f: ListQuery = { ...base, unit: "ws", from: "2026-01-01", to: "2027-01-01" };
+  it("in every link and the search form, and clears them with the way back", () => {
+    const m = serverMode("/list", f, { total: 100, page: 0, sortColumns: { name: "title" } });
+    expect(m.nextHref).toBe("/list?unit=ws&from=2026-01-01&to=2027-01-01&page=1");
+    expect(m.keep).toMatchObject({ unit: "ws", from: "2026-01-01", to: "2027-01-01" });
+    expect(m.clearHref).toBe("/list");
+  });
+});
+
 describe("serverMode links", () => {
-  const q: ListQuery = { q: "bid", view: "open", sort: null, dir: "desc", page: 2, size: 10, words: ["bid"] };
+  const q: ListQuery = { ...NO_FACETS, q: "bid", view: "open", sort: null, dir: "desc", page: 2, size: 10, words: ["bid"] };
   const o = { total: 100, page: 2, sortColumns: { name: "title" } };
   it("cycles a sort from ascending to descending to the default, back on the first page and keeping q, view and size", () => {
     expect(serverMode("/l", q, o).sortHrefs.name).toBe("/l?q=bid&view=open&sort=title&dir=asc&size=10");

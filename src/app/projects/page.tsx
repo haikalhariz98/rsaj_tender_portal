@@ -1,5 +1,7 @@
 import { DataList, type Row } from "@/components/data-list";
 import { serverMode } from "@/components/server-list";
+import { ListFacets } from "@/components/list-facets";
+import { codeFacet, facetChoices } from "@/lib/list-facets";
 import { FileIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
@@ -82,7 +84,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   ]);
   // "commenced" is the variations' exposure report above, not a view over cases; every other view is one `listCases` pages.
   const rowView: CaseRowView | undefined = parsed && parsed !== "commenced" ? parsed : undefined;
-  const data = await listCases(actor.organisationId, hidden, { view: rowView, page, size: q.size, words: q.words, sort: q.sort, dir: q.dir, delayIds, commencedContractIds: [...new Set(commenced.map((v) => v.contract.id))] });
+  const data = await listCases(actor.organisationId, hidden, { view: rowView, page, size: q.size, words: q.words, sort: q.sort, dir: q.dir, unit: q.unit, delayIds, commencedContractIds: [...new Set(commenced.map((v) => v.contract.id))] });
   const ready = [...derived.values()].filter((x) => x === "READY_TO_SIGN").length;
   const awaiting = [...derived.values()].filter((x) => x === "AWAITING_CONDITIONS").length;
   // 6.13 Part A (FR-SUP-010): In Delay, derived, never stored. Tagged ASSUMED (the shared badge) only where the
@@ -92,8 +94,9 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
 
   const rows: Row[] = commencedView ? [] : buildCaseRows(data.rows, { derived, inDelay, policy, today: org0?.today ?? null, lang }, { forExport: false });
   // A view's address keeps the search, the sort and the page size; the page starts again.
-  const at = (v: CaseRowView | undefined) => listHref("/projects", { q: q.q, view: v ?? null, sort: q.sort, dir: q.dir, size: q.size });
+  const at = (v: CaseRowView | undefined) => listHref("/projects", { ...q, view: v ?? null, page: 0 });
 
+  const choices = await facetChoices(db, actor.organisationId);
   const countLabel = (label: string, count: number) => sayWith(L.viewCount, lang, { label, count: String(count) });
   // The plain name of each view, for the card heading (the option's own label carries its count).
   const plainNames = new Map<string, string>();
@@ -158,7 +161,12 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
           exportName="cases"
           searchPlaceholder={t(L.search)}
           emptyTitle={t(delayView ? L.noneInDelay : rowView ? L.noneHere : L.noCasesYet)}
-          toolbarFilters={<CaseViewSelect groups={viewGroups} current={current} label={t(L.showCases)} chipLabel={t(L.viewChip)} />}
+          toolbarFilters={
+            <>
+              <CaseViewSelect groups={viewGroups} current={current} label={t(L.showCases)} chipLabel={t(L.viewChip)} />
+              <ListFacets facets={[codeFacet("/projects", q, "unit", "Department", "Any department", choices.units, "A unit no longer configured")]} />
+            </>
+          }
           rowAction={{ label: t(L.open), hrefTemplate: "/projects/{id}" }}
           rowOpens
           stackBelow="xl"
@@ -170,7 +178,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
             { key: "dates", label: t(L.colDates), width: "220px", mobile: "meta" },
           ]}
           rows={rows}
-          server={serverMode("/projects", q, { total: data.total, page: data.page, sortColumns: { contract: "reference" }, exportHref: data.total > LIST_EXPORT_MAX_ROWS ? undefined : listHref("/projects/export", { q: q.q, view: q.view, sort: q.sort, dir: q.dir }), exportBlocked: data.total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined })}
+          server={serverMode("/projects", q, { total: data.total, page: data.page, sortColumns: { contract: "reference" }, exportHref: data.total > LIST_EXPORT_MAX_ROWS ? undefined : listHref("/projects/export", { ...q, page: 0, size: undefined }), exportBlocked: data.total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined })}
         />
       </Card>
       )}

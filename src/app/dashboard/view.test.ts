@@ -31,20 +31,26 @@ describe("the Dashboard view", () => {
     const b = dashboardView(overview({ budgetUsed: { utilisation: null, used: 0n, allocated: 0n } }), q(), null).tiles[0];
     expect(b).toMatchObject({ label: "Budget used now", value: "No allocation" });
   });
-  it("links a bar to its list only when the list holds the same records", () => {
-    const hrefs = (u: string | null) => (dashboardView(overview(), q({ unit: u }), null).charts[0].body as { rows: { href?: string }[] }).rows.map((r) => r.href);
-    expect(hrefs(null)).toEqual(["/projects?view=on_site", undefined]);
-    expect(hrefs("dept")).toEqual([undefined, undefined]);
+  it("links every pipeline bar to its list, carrying the department while one is chosen", () => {
+    const hrefs = (u: string | null) => (dashboardView(overview({ pipeline: [{ stage: "WITH_CP", count: 1 }, { stage: "IN_MARKET", count: 1 }, { stage: "ON_SITE", count: 2 }] }), q({ unit: u }), null).charts[0].body as { rows: { href?: string }[] }).rows.map((r) => r.href);
+    expect(hrefs(null)).toEqual(["/requisitions?view=pipeline", "/sourcing?stage=in_market", "/projects?view=on_site"]);
+    expect(hrefs("dept")).toEqual(["/requisitions?view=pipeline&unit=dept", "/sourcing?unit=dept&stage=in_market", "/projects?view=on_site&unit=dept"]);
   });
   it("labels never show a code", () => {
     const rows = (dashboardView(overview(), q(), null).charts[0].body as { rows: { label: string }[] }).rows;
     expect(rows.map((r) => r.label)).toEqual(["On site", "With C&P"]);
   });
-  it("requisition list tiles drop their link under a Department or route filter", () => {
-    const f: RequisitionFigures = { tab: "requisitions", fy: SET, raised: 1, approved: 1, waiting: 2, overBudget: 0, toApproval: { days: null, across: 0 }, months: null, byDepartment: [], byRoute: [] };
-    const link = (o: Partial<InsightsQuery>) => dashboardView(f, q({ tab: "requisitions", ...o }), null).tiles.find((t) => t.label === "Waiting for approval now")!.href;
+  it("requisition tiles and bars keep their link under a Department or route filter, with the year's days", () => {
+    const g = (key: string | null) => ({ key, label: key ?? "None", count: 1, amount: 0n });
+    const f: RequisitionFigures = { tab: "requisitions", fy: SET, raised: 1, approved: 1, waiting: 2, overBudget: 0, toApproval: { days: null, across: 0 }, months: null, byDepartment: [g("ws"), g(null)], byRoute: [g("r1")] };
+    const v = (o: Partial<InsightsQuery>) => dashboardView(f, q({ tab: "requisitions", ...o }), null);
+    const link = (o: Partial<InsightsQuery>, label = "Waiting for approval now") => v(o).tiles.find((t) => t.label === label)!.href;
     expect(link({})).toBe("/requisitions?view=pending");
-    expect(link({ route: "r" })).toBeUndefined();
+    expect(link({ route: "r", unit: "u" })).toBe("/requisitions?view=pending&unit=u&route=r");
+    expect(link({ unit: "u" }, "Raised in FY 2026")).toBe("/requisitions?unit=u&from=2026-01-01&to=2027-01-01");
+    expect(link({}, "Approved in FY 2026")).toBe("/requisitions?stage=approved&from=2026-01-01&to=2027-01-01");
+    const rows = (v({ route: "r1" }).charts[1].body as { rows: { href?: string }[] }).rows;
+    expect(rows.map((r) => r.href)).toEqual(["/requisitions?unit=ws&route=r1&from=2026-01-01&to=2027-01-01", undefined]);
     expect(dashboardView(f, q({ tab: "requisitions" }), null).tiles[4]).toMatchObject({ value: null, hint: "None approved yet" });
   });
   it("links each project stage bar to its stage view", () => {

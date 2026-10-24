@@ -10,7 +10,7 @@ import { buildRequisitionRows } from "../rows";
 
 export const dynamic = "force-dynamic";
 
-const VIEW_LABEL = { pending: "Pending approval", drafts: "Drafts", over: "Over budget" } as const;
+const VIEW_LABEL = { pending: "Pending approval", drafts: "Drafts", over: "Over budget", pipeline: "In the pipeline" } as const;
 const COLUMNS: XlsxColumn[] = ["Reference", "Requisition", "Funding", "Status", "Requester", "Department", "Required by"].map((header) => ({ header, type: "text" }));
 
 /**

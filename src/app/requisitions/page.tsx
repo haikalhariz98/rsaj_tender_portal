@@ -9,6 +9,9 @@ import { listRequisitions, REQUISITION_VIEWS, type RequisitionView } from "@/lib
 import { requireStaff } from "@/app/_auth/actor";
 import { LIST_EXPORT_MAX_ROWS, listHref, parseListQuery, sortKeys } from "@/lib/list-query";
 import { serverMode } from "@/components/server-list";
+import { ListFacets } from "@/components/list-facets";
+import { db } from "@/lib/db";
+import { codeFacet, facetChoices, rangeFacet } from "@/lib/list-facets";
 
 import { buildRequisitionRows } from "./rows";
 
@@ -27,8 +30,15 @@ export default async function RequisitionsPage(props: PageProps<"/requisitions">
   const q = parseListQuery((await props.searchParams) as Record<string, string | string[] | undefined>, REQUISITION_VIEWS, sortKeys("requisition"));
   const { org, rows, total, page, counts } = await listRequisitions(actor.organisationId, q);
   const list = await buildRequisitionRows(actor, rows, { forExport: false });
-  const view = (v: RequisitionView | null) => listHref("/requisitions", { q: q.q, view: v, sort: q.sort, dir: q.dir, size: q.size });
+  const view = (v: RequisitionView | null) => listHref("/requisitions", { ...q, view: v, page: 0 });
   const over = total > LIST_EXPORT_MAX_ROWS;
+  // I-6: the dashboard's filters, as dropdowns; the day range shows only while the address carries one.
+  const choices = await facetChoices(db, actor.organisationId);
+  const facets = [
+    codeFacet("/requisitions", q, "unit", "Department", "Any department", choices.units, "A unit no longer configured"),
+    codeFacet("/requisitions", q, "route", "Funding route", "Any route", choices.routes, "A route no longer configured"),
+    rangeFacet("/requisitions", q, q.stage === "approved" ? "Raised and approved" : "Raised"),
+  ].flatMap((f) => (f ? [f] : []));
 
   return (
     <>
@@ -91,8 +101,9 @@ export default async function RequisitionsPage(props: PageProps<"/requisitions">
             { key: "requester", label: "Requester and department", width: "20%", hideBelow: "md", mobile: "meta" },
             { key: "required", label: "Required by", width: "112px", hideBelow: "2xl", mobile: "meta" },
           ]}
+          toolbarFilters={<ListFacets facets={facets} />}
           rows={list}
-          server={serverMode("/requisitions", q, { total, page, sortColumns: { title: "title" }, exportHref: over ? undefined : listHref("/requisitions/export", { q: q.q, view: q.view, sort: q.sort, dir: q.dir }), exportBlocked: over ? "This view cannot be exported" : undefined })}
+          server={serverMode("/requisitions", q, { total, page, sortColumns: { title: "title" }, exportHref: over ? undefined : listHref("/requisitions/export", { ...q, page: 0, size: undefined }), exportBlocked: over ? "This view cannot be exported" : undefined })}
         />
       </Card>
     </>

@@ -10,6 +10,8 @@ import type { Tx } from "@/lib/audit/record";
 import type { Prisma, RequisitionStatus } from "@/generated/prisma/client";
 import { LIST_EXPORT_MAX_ROWS, listOrderBy, type ListQuery } from "@/lib/list-query";
 import { wordsWhere } from "@/lib/search/words";
+import { REQUISITION_PIPELINE } from "@/lib/dashboard/pipeline";
+import { facetWhere, insightsWhere, requisitionApprovedAny } from "@/lib/insights/where";
 import type { BudgetCode as PureBudgetCode } from "@/lib/budget/codes";
 import { decisionRecord, type DecisionRecord } from "@/lib/committee/record";
 import { isRegisterSnapshot } from "@/lib/committee/assess-sitting";
@@ -218,13 +220,19 @@ export async function withLockedRequisition<T>(organisationId: string, id: strin
 }
 
 /// The list's own views (ST-8 does not touch these: each is a status set), and the statuses each one holds.
-export const REQUISITION_VIEWS = ["pending", "drafts", "over"] as const;
+export const REQUISITION_VIEWS = ["pending", "drafts", "over", "pipeline"] as const;
 export type RequisitionView = (typeof REQUISITION_VIEWS)[number];
-const VIEW_STATUSES: Record<RequisitionView, readonly RequisitionStatus[]> = { pending: ["PENDING_APPROVAL"], drafts: ["DRAFT", "RETURNED", "RECALLED"], over: ["OVER_BUDGET"] };
+const VIEW_STATUSES: Record<RequisitionView, readonly RequisitionStatus[]> = { pending: ["PENDING_APPROVAL"], drafts: ["DRAFT", "RETURNED", "RECALLED"], over: ["OVER_BUDGET"], pipeline: REQUISITION_PIPELINE };
 
-/// The list's where for a query: the organisation, the search words and the view's status set, all ANDed.
-export const requisitionListWhere = (organisationId: string, q: Pick<ListQuery<RequisitionView>, "words" | "view">): Prisma.RequisitionWhereInput => ({
-  AND: [{ organisationId }, wordsWhere("requisition", q.words), q.view ? { status: { in: [...VIEW_STATUSES[q.view]] } } : {}],
+/// I-6: the dashboard's facets, from its own where-builders. A day range is "raised in the range"; stage "approved" narrows it to those whose route was approved.
+function facetsWhere(organisationId: string, q: Pick<ListQuery<RequisitionView>, "unit" | "route" | "method" | "stage" | "from" | "to">): Prisma.RequisitionWhereInput {
+  if (q.from && q.to) return (q.stage === "approved" ? insightsWhere.requisitionsApproved : insightsWhere.requisitionsRaised)(organisationId, q, { from: q.from, to: q.to });
+  return { ...facetWhere.requisition(q), ...(q.stage === "approved" ? requisitionApprovedAny : {}) };
+}
+
+/// The list's where for a query: the organisation, the search words, the view's status set and the dashboard's facets, all ANDed.
+export const requisitionListWhere = (organisationId: string, q: Pick<ListQuery<RequisitionView>, "words" | "view" | "unit" | "route" | "method" | "stage" | "from" | "to">): Prisma.RequisitionWhereInput => ({
+  AND: [{ organisationId }, wordsWhere("requisition", q.words), q.view ? { status: { in: [...VIEW_STATUSES[q.view]] } } : {}, facetsWhere(organisationId, q)],
 });
 
 /// The organisation's requisitions for the list: one page of `q.size` (a page past the end is the last), ordered by `listOrderBy` (ST-7), under the search and the view.

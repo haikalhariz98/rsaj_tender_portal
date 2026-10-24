@@ -61,7 +61,7 @@ export async function GET(req: Request) {
     const hidden = await hiddenExercises(actor);
     const ctx = await loadCaseContext(actor.organisationId);
     const view: CaseRowView | undefined = q.view ?? undefined;
-    const { rows: found } = await listCases(actor.organisationId, hidden, { view, words: q.words, sort: q.sort, dir: q.dir, all: true, delayIds: ctx.delayIds });
+    const { rows: found } = await listCases(actor.organisationId, hidden, { view, words: q.words, sort: q.sort, dir: q.dir, all: true, delayIds: ctx.delayIds, unit: q.unit });
     if (found.length > LIST_EXPORT_MAX_ROWS) return exportRefusal(413, "EXPORT_TOO_LARGE", EXPORT_TOO_LARGE(LIST_EXPORT_MAX_ROWS));
     const rows = buildCaseRows(found, { derived: ctx.derived, inDelay: new Set(ctx.delayIds), policy: ctx.policy, today: ctx.org?.today ?? null, lang: ENGLISH }, { forExport: true });
     sheet = {

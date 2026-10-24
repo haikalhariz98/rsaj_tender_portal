@@ -23,6 +23,7 @@ import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { LIST_EXPORT_MAX_ROWS, listOrderBy, type SortDir } from "@/lib/list-query";
+import { facetWhere } from "@/lib/insights/where";
 import { exerciseOrg } from "@/lib/method/repo";
 import { wordsWhere } from "@/lib/search/words";
 import { inDelayContractIds } from "@/lib/supervision/load";
@@ -109,7 +110,7 @@ const EMPTY_COUNTS: CasePage["counts"] = { all: 0, awarding: 0, signing: 0, on_s
 export async function listCases(
   organisationId: string,
   hidden: readonly string[],
-  q: { view?: CaseRowView; page?: number; size?: number; words?: readonly string[]; sort?: string | null; dir?: SortDir; all?: boolean; delayIds?: readonly string[]; commencedContractIds?: readonly string[] } = {},
+  q: { view?: CaseRowView; page?: number; size?: number; words?: readonly string[]; sort?: string | null; dir?: SortDir; all?: boolean; delayIds?: readonly string[]; commencedContractIds?: readonly string[]; unit?: string | null } = {},
 ): Promise<CasePage> {
   const size = q.size ?? CASE_PAGE;
   const page = Math.max(0, q.page ?? 0);
@@ -137,7 +138,7 @@ export async function listCases(
     delay: byContracts(delay), commenced: byContracts(commenced),
   };
   // Fragments carry a top-level OR or AND, so they are joined by AND and never spread (case-visibility.ts).
-  const whereOf = (v: CaseRowView | "all", words: readonly string[] = []): Prisma.AwardWhereInput => ({ organisationId: org.id, AND: [caseVisibilityWhere(hidden), viewWhere[v], wordsWhere("project", words, hidden)] });
+  const whereOf = (v: CaseRowView | "all", words: readonly string[] = []): Prisma.AwardWhereInput => ({ organisationId: org.id, AND: [caseVisibilityWhere(hidden), viewWhere[v], wordsWhere("project", words, hidden), facetWhere.award({ unit: q.unit ?? null })] });
 
   const keys = Object.keys(EMPTY_COUNTS) as (CaseRowView | "all")[];
   const view = q.view ?? "all";

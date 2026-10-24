@@ -8,6 +8,8 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { LIST_EXPORT_MAX_ROWS, listOrderBy, type ListQuery } from "@/lib/list-query";
 import { wordsWhere } from "@/lib/search/words";
+import { facetWhere, sourcingPhaseWhere } from "@/lib/insights/where";
+import type { ExercisePhase } from "./phase";
 import { isPublished } from "@/lib/window/phase";
 import { SEALED_AUDIT_ENTITIES } from "@/lib/bids/online/audit-mask";
 import { exerciseNotHidden, refuseHiddenExercise, type Reader } from "@/lib/auth/sulit-store";
@@ -283,9 +285,13 @@ function viewWhere(view: ExerciseView | null): Prisma.SourcingExerciseWhereInput
 }
 
 /// The list's where: the organisation, the restricted exercises left out (FR-MTD-007), the search words and the view. Never a bare `onBoundary: true` for a count: see `exerciseListFacts`.
-export const exerciseListWhere = (organisationId: string, hidden: readonly string[], q: Pick<ListQuery<ExerciseView>, "words" | "view">): Prisma.SourcingExerciseWhereInput => ({
-  AND: [{ organisationId }, exerciseNotHidden(hidden), wordsWhere("exercise", q.words), viewWhere(q.view)],
+export const exerciseListWhere = (organisationId: string, hidden: readonly string[], q: Pick<ListQuery<ExerciseView>, "words" | "view" | "unit" | "method" | "stage">): Prisma.SourcingExerciseWhereInput => ({
+  AND: [{ organisationId }, exerciseNotHidden(hidden), wordsWhere("exercise", q.words), viewWhere(q.view), facetWhere.exercise(q), stageWhere(q.stage)],
 });
+
+/// I-6: the dashboard's open-sourcing stage ("open" is the whole pipeline, as Home's Sourcing card counts it). An unknown stage word narrows nothing.
+const STAGE_PHASE: Record<string, ExercisePhase | null> = { open: null, preparing: "PREPARING", in_market: "IN_MARKET", evaluating: "EVALUATING" };
+const stageWhere = (stage: string | null): Prisma.SourcingExerciseWhereInput => (stage !== null && Object.hasOwn(STAGE_PHASE, stage) ? sourcingPhaseWhere(STAGE_PHASE[stage]) : {});
 
 /// What the header reads, over the whole set and never the page (`hidden`: the restricted exercises the reader may not see, left out so neither the list nor its count gives away that one exists):
 /// the count by status, the name approvals waiting, the not-cancelled exercises on the boundary (few, so all of them; the caller judges them for the reader), and the ids of the published ones, for the open and closing-soon counts.

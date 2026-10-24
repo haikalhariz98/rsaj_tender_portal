@@ -1,4 +1,4 @@
-import { listHref, type ListQuery } from "@/lib/list-query";
+import { FACET_KEYS, hasFacets, listHref, type ListQuery } from "@/lib/list-query";
 import { PAGE_SIZES } from "@/lib/paging";
 
 import type { ServerMode } from "./data-list";
@@ -13,7 +13,7 @@ export function serverMode(
   q: ListQuery,
   o: { total: number; page: number; sortColumns: Record<string, string>; exportHref?: string; exportBlocked?: string },
 ): ServerMode {
-  const here = { q: q.q, view: q.view, sort: q.sort, dir: q.dir, size: q.size };
+  const here = { q: q.q, view: q.view, sort: q.sort, dir: q.dir, size: q.size, unit: q.unit, route: q.route, method: q.method, stage: q.stage, from: q.from, to: q.to };
   const sortHrefs: Record<string, string> = {};
   for (const [column, key] of Object.entries(o.sortColumns)) {
     const next = q.sort !== key ? { sort: key, dir: "asc" as const } : q.dir === "asc" ? { sort: key, dir: "desc" as const } : { sort: null, dir: "desc" as const };
@@ -23,7 +23,7 @@ export function serverMode(
   return {
     q: q.q,
     action: base,
-    keep: { ...(q.view ? { view: q.view } : {}), ...(q.sort ? { sort: q.sort, ...(q.dir === "asc" ? { dir: "asc" } : {}) } : {}), ...(q.size !== 25 ? { size: String(q.size) } : {}) },
+    keep: { ...Object.fromEntries(FACET_KEYS.flatMap((k) => (q[k] ? [[k, q[k]!]] : []))), ...(q.view ? { view: q.view } : {}), ...(q.sort ? { sort: q.sort, ...(q.dir === "asc" ? { dir: "asc" } : {}) } : {}), ...(q.size !== 25 ? { size: String(q.size) } : {}) },
     total: o.total,
     page: o.page,
     size: q.size,
@@ -34,6 +34,6 @@ export function serverMode(
     sorted: sortedColumn ? { key: sortedColumn, dir: q.dir } : null,
     exportHref: o.exportHref,
     exportBlocked: o.exportBlocked,
-    clearHref: q.q || q.view ? listHref(base, { sort: q.sort, dir: q.dir, size: q.size }) : null,
+    clearHref: q.q || q.view || hasFacets(q) ? listHref(base, { sort: q.sort, dir: q.dir, size: q.size }) : null,
   };
 }

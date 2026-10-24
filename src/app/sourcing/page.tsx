@@ -1,6 +1,9 @@
 import { DataList } from "@/components/data-list";
 import { GlobeIcon, PlusIcon } from "@/components/icons";
 import { serverMode } from "@/components/server-list";
+import { ListFacets } from "@/components/list-facets";
+import { db } from "@/lib/db";
+import { codeFacet, facetChoices, stageFacet } from "@/lib/list-facets";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -64,7 +67,19 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
   const list = await buildExerciseRows(actor, rows, { forExport: false });
   const allCount = [...byStatus.values()].reduce((n, c) => n + c, 0);
   const publishedCount = PUBLISHED_STATUSES.reduce((n, st) => n + (byStatus.get(st) ?? 0), 0);
-  const view = (v: ExerciseView | null) => listHref("/sourcing", { q: q.q, view: v, sort: q.sort, dir: q.dir, size: q.size });
+  const view = (v: ExerciseView | null) => listHref("/sourcing", { ...q, view: v, page: 0 });
+  // I-6: the dashboard's filters, as dropdowns.
+  const choices = await facetChoices(db, actor.organisationId);
+  const facets = [
+    codeFacet("/sourcing", q, "unit", "Department", "Any department", choices.units, "A unit no longer configured"),
+    codeFacet("/sourcing", q, "method", "Method", "Any method", choices.methods, "A method no longer configured"),
+    stageFacet("/sourcing", q, "Stage", "Any stage", [
+      { value: "open", label: "Open (any stage)" },
+      { value: "preparing", label: "Preparing" },
+      { value: "in_market", label: "In market" },
+      { value: "evaluating", label: "Evaluating" },
+    ]),
+  ];
   const chosen = VIEWS.find((v) => v.id === q.view) ?? null;
   // ST-8: the boundary view's rows state the estimate, so exporting them would disclose it: no export there; nor over the cap.
   const exportBlocked = q.view === "boundary" || total > LIST_EXPORT_MAX_ROWS ? "This view cannot be exported" : undefined;
@@ -126,8 +141,9 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
             { key: "status", label: "Status", width: "200px", mobile: "meta" },
             { key: "checks", label: "Band and checks", width: "168px", hideBelow: "2xl", mobile: "meta" },
           ]}
+          toolbarFilters={<ListFacets facets={facets} />}
           rows={list}
-          server={serverMode("/sourcing", q, { total, page, sortColumns: { title: "title" }, exportHref: exportBlocked ? undefined : listHref("/sourcing/export", { q: q.q, view: q.view, sort: q.sort, dir: q.dir }), exportBlocked })}
+          server={serverMode("/sourcing", q, { total, page, sortColumns: { title: "title" }, exportHref: exportBlocked ? undefined : listHref("/sourcing/export", { ...q, page: 0, size: undefined }), exportBlocked })}
         />
       </Card>
     </>
