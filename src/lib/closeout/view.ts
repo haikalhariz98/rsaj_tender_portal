@@ -5,9 +5,9 @@
  */
 
 import type { Tx } from "@/lib/audit/record";
-import { contractLabel, type LoadedContract } from "@/lib/contract/repo";
+import { contractLabel, loadContract, type LoadedContract } from "@/lib/contract/repo";
 import { db } from "@/lib/db";
-import { dayPlus } from "@/lib/dates";
+import { dayPlus, dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { loadEventPlan } from "@/lib/award/clock-notices";
 import { dlpEndingNotices } from "@/lib/inbox/notices";
@@ -86,10 +86,24 @@ export async function closeoutView(l: LoadedContract, today: string | null) {
 }
 export type CloseoutView = Awaited<ReturnType<typeof closeoutView>>;
 
-/// The DLP notice (plan §4.3): who is told, and the offsets reached today written once each. Read only where the Completion tab is shown.
-export async function dlpNotice(l: LoadedContract, v: CloseoutView, today: string | null) {
+/// The DLP notice (plan §4.3): who is told, and the offset reached today written once. Read where the Completion tab is shown, and by `dlpSweep`.
+export const dlpNotice = (l: LoadedContract, v: CloseoutView, today: string | null) => dlpNoticeFor(l, v.rows.cpc, today);
+
+/**
+ * F9 (code review of close-out stage B): the DLP reminders go out without anyone opening the contract. Each contract of the organisation whose CPC
+ * is issued and whose period is still running is told its offset reached today, as the Completion tab tells it; run where the inbox is read.
+ */
+export async function dlpSweep(organisationId: string, today: string | null): Promise<void> {
+  if (!today) return;
+  const running = await db.practicalCompletion.findMany({ where: { organisationId, dlpEnd: { gt: dayToDate(today) }, certificate: { status: "ISSUED" } }, select: { contractId: true } });
+  for (const { contractId } of running) {
+    const l = await loadContract(organisationId, contractId);
+    if (l) await dlpNoticeFor(l, (await loadCloseout(contractId)).cpc, today);
+  }
+}
+
+async function dlpNoticeFor(l: LoadedContract, pc: CloseoutRows["cpc"], today: string | null) {
   const plan = await loadEventPlan(db, { organisationId: l.org.id, organisationCode: l.org.code, requestingUnitCode: l.req.requestingUnitCode, namedPartyId: null, today, eventKey: DLP_EVENT_KEY });
-  const pc = v.rows.cpc;
   if (!pc || pc.certificate.status !== "ISSUED" || !today) return plan;
   const dlp = dlpOfRow(pc);
   if (dlp.applies !== true || plan.state !== "RULE_SET") return plan;

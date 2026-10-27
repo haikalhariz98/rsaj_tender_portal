@@ -9,6 +9,8 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import type { Words } from "@/lib/contract/labels";
 import { db } from "@/lib/db";
+import { dlpSweep } from "@/lib/closeout/view";
+import { dayOf } from "@/lib/dates";
 import { formatOrgDateTime } from "@/lib/format";
 import { STAFF_NOTICE_KIND_LABEL, type StaffNoticeKind } from "@/lib/inbox/kinds";
 import { decodeCursor, encodeCursor } from "@/lib/inbox/paging";
@@ -36,6 +38,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const hidden = await hiddenExercises(actor);
   // The page is drawn at one moment: "Mark all as read" marks what was raised by then, so a notice that arrives while it is open is not marked unseen.
   const drawnAt = new Date();
+  // F9 (code review of close-out stage B): the DLP reminders due today are written before the inbox is read, so nobody has to open the contract first.
+  await dlpSweep(actor.organisationId, dayOf(drawnAt, actor.organisationTimeZone));
   const [{ notices, more }, totals] = await Promise.all([loadInboxPage(db, viewer, hidden, { before: decodeCursor(before) }), inboxTotals(db, viewer, hidden)]);
   const last = notices[notices.length - 1];
   const rows: Row[] = notices.map((n) => ({

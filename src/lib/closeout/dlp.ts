@@ -10,11 +10,13 @@ import type { Day } from "./types";
 
 export const DLP_EVENT_KEY = "contract.dlp.ending";
 
-/// The offsets reached today: the period has not ended, and its end (exclusive) is no more than the offset's days away.
+/// The offset to tell today: the period has not ended, and of the offsets whose days before the end are reached, the latest (the smallest). A first
+/// reading late in the period tells that one only, never every offset already passed at once (F9, code review of close-out stage B).
 export function dlpOffsetsDue(endExclusive: Day, today: Day, offsets: readonly number[]): number[] {
   if (today >= endExclusive) return [];
   const left = daysFrom(today, endExclusive);
-  return [...new Set(offsets)].filter((o) => o > 0 && left <= o).sort((a, b) => b - a);
+  const reached = [...new Set(offsets)].filter((o) => o > 0 && left <= o);
+  return reached.length ? [Math.min(...reached)] : [];
 }
 
 /// The days left before the period ends (0 once it has), for the Meter.
