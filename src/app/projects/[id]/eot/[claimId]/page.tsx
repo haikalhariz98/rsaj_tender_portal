@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ActGate } from "@/components/act-gate";
 import { ApprovalRouteCard } from "@/components/approval-route-card";
+import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { DataList, type Row } from "@/components/data-list";
 import { ClockIcon, FileIcon, RouteIcon, WalletIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
@@ -175,6 +176,8 @@ export default async function EotClaimPage(props: PageProps<"/projects/[id]/eot/
             />
           </CardBody>
         </Card>
+
+        <OwnerAttachments owner={{ kind: "eotClaim", id: c.id }} title="Evidence" only={c.isWeather ? ["METEOROLOGICAL_RECORD", "EOT_CALCULATION"] : ["EOT_CALCULATION"]} required={c.isWeather ? { METEOROLOGICAL_RECORD: true, EOT_CALCULATION: false } : { EOT_CALCULATION: false }} collapseWhenEmpty={c.entitlement != null} />
 
         <Card className="overflow-hidden">
           <CardHeader icon={<ClockIcon size={17} />} title="Reasons" subtitle={c.reasons.length ? `${computed} days computed (assumed)` : undefined} divided={false} />

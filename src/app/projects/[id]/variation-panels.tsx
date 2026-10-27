@@ -221,6 +221,7 @@ function AdjustmentsSection({ l, v, people, today, hidden }: { l: LoadedContract
               orders={free.map(({ x, o }) => ({ value: o.id, label: `Variation ${x.reference}: ${DIRECTION_WORDS[orderNetOf(o) < 0n ? "OMISSION" : "ADDITION"].en.toLowerCase()} ${formatMoney(orderNetOf(o) < 0n ? -orderNetOf(o) : orderNetOf(o))}` }))}
               triggers={ADJUSTMENT_TRIGGERS.filter((t) => t !== "VARIATION").map((t) => ({ value: t, label: TRIGGER_WORDS[t].en }))}
               directions={ADJUSTMENT_DIRECTIONS.map((d) => ({ value: d, label: DIRECTION_WORDS[d].en }))}
+              losses={v.losses}
               people={people}
               blocker={blocker}
             />

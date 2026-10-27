@@ -370,10 +370,12 @@ export function OrderDrawer({ id, variationId, description, clauses, people, blo
   );
 }
 
-export function AdjustmentDrawer({ id, orders, triggers, directions, people, blocker }: { id: string; orders: Option[]; triggers: Option[]; directions: Option[]; people: Option[]; blocker: string | null }) {
+export function AdjustmentDrawer({ id, orders, triggers, directions, losses, people, blocker }: { id: string; orders: Option[]; triggers: Option[]; directions: Option[]; losses: Option[]; people: Option[]; blocker: string | null }) {
   const other = (n: number): Field[] => [
     { kind: "note", text: `Other adjustment ${n} (optional), with its basis.` },
     { kind: "select", name: `other${n}Trigger`, label: "Trigger", placeholder: "None", options: triggers },
+    // Phase 2 close-out stage A (FR-EOT-006): a loss-and-expense line names the approved claim it pays.
+    { kind: "select", name: `other${n}LossClaim`, label: "The claim it pays", placeholder: losses.length ? "Choose" : "No approved claim unpaid", options: losses },
     { kind: "select", name: `other${n}Direction`, label: "Addition or omission", placeholder: "Choose", options: directions },
     { kind: "money", name: `other${n}Amount`, label: "Amount (RM)" },
     { kind: "text", name: `other${n}Reference`, label: "Reference" },
@@ -388,6 +390,7 @@ export function AdjustmentDrawer({ id, orders, triggers, directions, people, blo
       columns={2}
       fields={[hidden("id"), { kind: "tokens", name: "orderIds", label: "Variation Order Certificates (issued, not yet adjusted)", placeholder: orders.length ? "Choose" : "None to adjust", options: orders }, ...other(1), ...other(2), ...other(3), by("SumAdjustment.person", "personId", people)]}
       values={{ id }}
+      showWhen={Object.fromEntries([1, 2, 3].map((n) => [`other${n}LossClaim`, { name: `other${n}Trigger`, in: ["LOSS_AND_EXPENSE"] }]))}
       action={raiseSumAdjustment}
       submitLabel="Raise"
       submitBlock={blocker}

@@ -8,6 +8,8 @@ import { loadIssue } from "@/lib/authority/load";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { matterApproved, type ContractMatterKind } from "@/lib/matter/matter";
+import { formatMoney, senFromDecimal } from "@/lib/money";
 import { baselineOn } from "@/lib/payment/load";
 import { loadPostAwardPolicy } from "@/lib/supervision/load";
 
@@ -26,6 +28,10 @@ export async function variationView(l: LoadedContract, today: string | null) {
     today ? loadIssue(l.org.code, dayToDate(today), undefined, null) : Promise.resolve(null),
   ]);
   const facts = all.map(factsOf);
+  // Phase 2 close-out stage A (FR-EOT-006): the approved loss-and-expense claims a 1.2 line may pay, not yet paid on a live adjustment.
+  const losses = (await db.lossExpenseClaim.findMany({ where: { contractId: l.contract.id, organisationId: l.org.id, matterId: { not: null } }, orderBy: { recordedAt: "asc" }, select: { id: true, valued: true, matter: { select: { kind: true, reference: true, closedAt: true, closeReason: true, approvedRouteId: true, routes: { select: { id: true, status: true }, orderBy: [{ openedAt: "asc" }, { id: "asc" }] } } }, adjustmentLines: { select: { sumAdjustment: { select: { certificate: { select: { status: true } } } } } } } }))
+    .filter((x) => x.matter && matterApproved({ kind: x.matter.kind as ContractMatterKind, reference: x.matter.reference, closed: x.matter.closedAt ? { reason: x.matter.closeReason } : null, seriesSet: true, routes: x.matter.routes, approvedRouteId: x.matter.approvedRouteId }) && !x.adjustmentLines.some((a) => a.sumAdjustment.certificate.status !== "VOID"))
+    .map((x) => ({ value: x.id, label: `Loss and expense ${x.matter!.reference ?? ""}`.trim() + (x.valued ? `, approved at ${formatMoney(senFromDecimal(x.valued))}` : "") }));
   const baseline = today ? baselineOn(l, today) : null;
   const original = baseline?.values.contractSum ?? null;
   // The issued adjustments, the revised sum and the sum the percentage is taken over (null: not set, no baseline in
@@ -39,7 +45,8 @@ export async function variationView(l: LoadedContract, today: string | null) {
   const labelOf = (r: Reading, domain: string) => sentLabelOf(r, rules, domain);
   const formOf = (k: string) => kinds.find((x) => x.kind === k)?.templateId ?? null;
   const formSet = (k: string) => !!formOf(k);
-  return { all, facts, adjustments, issued, refused, policy, baseline, original, revised, cumulative, base, edges, labelOf, formSet, formOf, matrixLabel: issue?.label ?? null };
+  return {
+    losses, all, facts, adjustments, issued, refused, policy, baseline, original, revised, cumulative, base, edges, labelOf, formSet, formOf, matrixLabel: issue?.label ?? null };
 }
 
 export type VariationView = Awaited<ReturnType<typeof variationView>>;

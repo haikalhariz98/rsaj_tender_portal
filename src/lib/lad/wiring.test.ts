@@ -57,6 +57,12 @@ describe("Phase 2 close-out stage A2: the loss-and-expense and waiver acts call 
     expect(of(time, "sendLossExpense")).toMatch(/lossSendFaults\(\{ valued \}\)/);
     expect(of(time, "sendLossExpense")).toMatch(/chainCheck: \(codes, nameOf\) => claimsCommitteeFaults\(codes, claims, nameOf\)/);
   });
+  it("the adjustment drawer posts each line's claim, shown only for a loss-and-expense line, from the approved claims not yet paid", () => {
+    const drawer = readFileSync("src/app/projects/[id]/variation-editors.tsx", "utf8");
+    expect(drawer).toMatch(/name: `other\$\{n\}LossClaim`, label: "The claim it pays"/);
+    expect(drawer).toMatch(/`other\$\{n\}LossClaim`, \{ name: `other\$\{n\}Trigger`, in: \["LOSS_AND_EXPENSE"\] \}/);
+    expect(readFileSync("src/app/projects/[id]/variation-panels.tsx", "utf8")).toMatch(/losses=\{v\.losses\}/);
+  });
   it("a 1.2 line takes an approved claim, once, never above its value", () => {
     expect(of(readFileSync("src/app/projects/[id]/variation-actions.ts", "utf8"), "raiseSumAdjustment")).toMatch(/lossLineFaults\(\{ approved, label, adjustedOn:/);
   });

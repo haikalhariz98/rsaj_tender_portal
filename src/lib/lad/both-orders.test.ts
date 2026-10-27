@@ -124,3 +124,10 @@ describe("two period agreements (Phase 2 close-out, stage A)", () => {
     expect(codes(periodMovedFaults("2026-12-31", "2027-03-31"))).toEqual(["PERIOD_MOVED"]);
   });
 });
+
+describe("a waiver the raise applies does not move the basis at issue (Phase 2 close-out stage A2)", () => {
+  it("frozen with it approved and applied, read again with it applied and no longer approved: no fault; a waiver newly approved still moves it", () => {
+    expect(ladBasisMoved(basis({ waiversApproved: ["w1"], waiversApplied: ["w1"] }), basis({ waiversApproved: [], waiversApplied: ["w1"] }), names)).toEqual([]);
+    expect(codes(ladBasisMoved(basis({ waiversApproved: ["w1"], waiversApplied: ["w1"] }), basis({ waiversApproved: ["w2"], waiversApplied: ["w1"] }), names))).toEqual(["LAD_BASIS_MOVED"]);
+  });
+});

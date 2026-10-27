@@ -14,7 +14,7 @@
  * `eot` rows on the demo matrix approved by the CEO (demo_tsr1–3), the EOT form with an SO authorising block and the contractor's (demo_tst1, blocks
  * demo_tsb1–2, copies demo_tsd1–2) and its kind setting (demo_tsk1), and the demo's own post-award controls' waiver timing and accrual alert (ASSUMED).
  * Acts' rows take the sub-prefixes in demo-acts.ts (demo_tdn, tcm, tec, tcn, ter, tex). Ids grepped free. Applied alone by `npm run demo:time`, and at the
- * end of a full load; a second run writes nothing.
+ * end of a full load; a second run writes nothing. Only the full load writes the configuration: on a loaded database `demo:time` refuses where it is missing.
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
@@ -72,11 +72,15 @@ async function worksTypeOffersEot(db: Db, organisationId: string) {
   await db.auditEntry.create({ data: { id: `${P}tsau_ct1`, organisationId, entity: "ContractType", entityId: t.id, entityLabel: `Contract type · ${t.nameEn}`, action: "UPDATE", at: new Date("2026-10-04T01:00:00.000Z"), changes: [{ field: "timeInstrument", before: null, after: "Extension of time" }], reason: "Demo time configuration (invented, ASSUMED).", ...DEMO_ACTOR } as never });
 }
 
-export async function loadTimeDemo(db: Db, organisationId: string): Promise<{ notes: string[] }> {
+/// `configure`: only the fresh `demo:load` writes the configuration (rulings 12c, 20z: none on a loaded database); `demo:time` on a loaded database
+/// refuses, naming what is missing, where it is not there.
+export async function loadTimeDemo(db: Db, organisationId: string, opts: { configure: boolean }): Promise<{ notes: string[] }> {
   if (!(await db.contract.findUnique({ where: { id: CON }, select: { id: true } }))) return { notes: ["demo_con13 is not loaded: the time demo is skipped"] };
   if (await db.eotClaim.findFirst({ where: { contractId: CON }, select: { id: true } })) return { notes: [] };
-  if (!(await db.certificateKindSetting.findUnique({ where: { id: `${P}tsk1` }, select: { id: true } }))) await configure(db, organisationId);
-  await worksTypeOffersEot(db, organisationId);
+  const configured = !!(await db.certificateKindSetting.findUnique({ where: { id: `${P}tsk1` }, select: { id: true } }));
+  if (!configured && !opts.configure) throw new Error("demo time: the time configuration (the contract-matter series, the eot rows, the EOT form and its setting) is not on this database, and no configuration is written on a loaded database. Load a fresh demo, or set them under Settings.");
+  if (!configured) await configure(db, organisationId);
+  if (opts.configure) await worksTypeOffersEot(db, organisationId);
   const T = await import("../src/app/projects/[id]/time-actions");
   const M = await import("../src/app/projects/[id]/matter-actions");
   const C = await import("../src/app/projects/[id]/certificates/[certId]/actions");

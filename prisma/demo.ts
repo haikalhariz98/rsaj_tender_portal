@@ -826,7 +826,7 @@ async function load() {
   await loadFundingDemo(db, organisationId);
   // Phase 2 close-out stage A: the extension of time on demo_con13 and its next interim (prisma/demo-time.ts), after every act dated before it.
   await seedActIds(db);
-  await loadTimeDemo(db, organisationId);
+  await loadTimeDemo(db, organisationId, { configure: true });
   await checkTimeDemo(db);
   // Phase 2b: the rows the loaders wrote straight into the tables are attributed to the demo loader, as the acts it ran already are.
   await attributeSeededRows(db, organisationId);
@@ -2266,7 +2266,7 @@ async function time() {
     return;
   }
   await seedActIds(db);
-  const made = await loadTimeDemo(db, org.id);
+  const made = await loadTimeDemo(db, org.id, { configure: false });
   if (made.notes.length) await checkTimeDemo(db);
   await attributeSeededRows(db, org.id);
   console.log(made.notes.length ? `Added or noted: ${made.notes.join("; ")}.` : "The time demonstration is already there: nothing was written.");
