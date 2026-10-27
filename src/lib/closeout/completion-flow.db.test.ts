@@ -225,3 +225,19 @@ describe("a CPC line with history", () => {
     await expect(db.defectItem.create({ data: { organisationId: o.organisationId, contractId: k2.contractId, source: "PRACTICAL_COMPLETION", practicalCompletionId: line.practicalCompletionId, description: "Observed?", dueOn: D(k2.due), observedOn: D(k2.due), reportedByPersonId: o.so, recordedAt: new Date() } })).rejects.toThrow(/DefectItem_observed_on/);
   });
 });
+
+// Money test 10 (code review of close-out stage B): an interim in progress does not hold the CPC's issue back. Valuation is allowed once practically
+// complete (ACT_STATUS), so nothing is stranded, and the interim is finished after the CPC.
+describe("the CPC's issue against an interim in progress", () => {
+  it("issues, and the interim stays in draft to be finished", async () => {
+    const k3 = await activeContract(o, { dueIn: -10 });
+    expect((await as(o.so, () => raisePracticalCompletion({ ok: false }, form({ id: k3.contractId, completionDate: k3.due, possessionTakenOn: k3.due, inspectedOn: k3.due, testReasons: "Complete." })))).ok).toBe(true);
+    const ipc = await db.certificate.create({ data: { organisationId: o.organisationId, contractId: k3.contractId, kind: "INTERIM_PAYMENT", status: "DRAFT", baselineId: k3.baselineId, openedAt: new Date(), openedOn: D(today()) } });
+    const pc = await db.practicalCompletion.findFirstOrThrow({ where: { contractId: k3.contractId } });
+    const r = await issue(pc.certificateId, "practical_completion");
+    expect(r.ok, r.message).toBe(true);
+    expect((await db.contract.findUniqueOrThrow({ where: { id: k3.contractId } })).status).toBe("PRACTICALLY_COMPLETE");
+    expect((await db.certificate.findUniqueOrThrow({ where: { id: ipc.id } })).status).toBe("DRAFT");
+  });
+});
+
