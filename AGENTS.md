@@ -67,10 +67,11 @@ Tailwind utilities.
   an icon package.
 
 The prototype (`docs/prototype/`) remains the reference for **what a screen holds** —
-its fields, lists and actions — not for how it looks. The screen comparator
-(`scripts/compare-screen.mjs`) compares content, and its `ALLOWED_EXTRA` list still
-records every decided difference from the sample, with its reason. Drawers have no
-comparator; `scripts/text-snapshot.mjs` and the screen walk cover them.
+its fields, lists and actions — not for how it looks. The screen comparator was retired
+(it read the prototype's retired class names, so it saw nothing on our screens); every
+decided difference from the sample, with its reason, is recorded in
+`docs/notes/prototype-differences.md`, and a new one is added there.
+`scripts/text-snapshot.mjs` and the screen walk check screens and drawers.
 
 ## Provenance: the pattern to copy
 

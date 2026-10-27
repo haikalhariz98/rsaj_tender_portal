@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { lex } from "@/lib/scan/source";
 
 /**
- * A content guard for the screens of wave 3b that the prototype does not have (Sourcing Requirements v2, SR-13), so `scripts/compare-screen.mjs` has nothing to diff them against.
+ * A content guard for the screens of wave 3b that the prototype does not have (Sourcing Requirements v2, SR-13), and so no prototype screen to hold them to (docs/notes/prototype-differences.md).
  * A restyle must not drop a label that says where a fact comes from, a "not set" state, or the words that a record is attested and not checked. It reads the sources, because no
  * signed-in session can be assumed. `scripts/text-snapshot.mjs` records the rendered text of the same screens against a running server.
  */
