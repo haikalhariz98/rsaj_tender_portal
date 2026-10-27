@@ -8,7 +8,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatusCounts } from "@/components/ui/status-counts";
+import { StatusCounts, type StatusCount } from "@/components/ui/status-counts";
 import { loadRegisterSettings } from "@/lib/portal/apply-repo";
 import { flagWords } from "@/lib/portal/queue";
 import { loadPortalQueue } from "@/lib/portal/queue-repo";
@@ -158,21 +158,22 @@ export default async function SuppliersPage(props: { searchParams: Promise<Recor
   };
   const registerAt = (v: (typeof SUPPLIER_VIEWS)[number] | null) => listHref("/suppliers?tab=register", { q: registerQ.q, view: v, sort: registerQ.sort, dir: registerQ.dir, size: registerQ.size });
   const applicationsAt = (v: (typeof APPLICATION_VIEWS)[number] | null) => listHref("/suppliers?tab=applications", { q: applicationsQ.q, view: v, sort: applicationsQ.sort, dir: applicationsQ.dir, size: applicationsQ.size });
-  const registerViews = [
-    { id: null, label: "All" },
-    { id: "registered", label: `Registered (${registered})` },
-    { id: "applicants", label: `Applicants (${data.applicants})` },
-    { id: "attention", label: `Documents to see to${today ? ` (${attention})` : ""}` },
-    { id: "barred", label: `Suspended or blacklisted${barredCount == null ? "" : ` (${barredCount})`}` },
-    { id: "unsynced", label: `${ERP_NOT_SYNCED.en} (${unsynced})` },
-  ] as const;
-  const applicationViews = [
-    { id: null, label: "All" },
-    { id: "received", label: `Received (${data.applicationCounts.received})` },
-    { id: "approval", label: `With approval (${data.applicationCounts.approval})` },
-    { id: "resubmission", label: `Resubmission requested (${data.applicationCounts.resubmission})` },
-    { id: "lapsed", label: `Lapsed: record the lapse (${data.applicationCounts.lapsed})` },
-  ] as const;
+  // One row of views per list, the same chips Requisitions and Sourcing use (Phase 0.2): each opens its view, and its count is that view's total.
+  const registerViews: StatusCount[] = [
+    { label: "All", count: data.everyone, href: registerAt(null), active: !registerQ.view },
+    { label: "Registered", count: registered, href: registerAt("registered"), tone: "ok", active: registerQ.view === "registered" },
+    { label: "Applicants", count: data.applicants, href: registerAt("applicants"), tone: "info", active: registerQ.view === "applicants" },
+    { label: "Documents to see to", count: attention, uncounted: today ? undefined : "Not counted: the time zone is not set", href: registerAt("attention"), tone: "warn", active: registerQ.view === "attention" },
+    { label: "Suspended or blacklisted", count: barredCount ?? 0, uncounted: barredCount == null ? "Not judged" : undefined, href: registerAt("barred"), tone: "err", active: registerQ.view === "barred" },
+    { label: ERP_NOT_SYNCED.en, count: unsynced, href: registerAt("unsynced"), tone: "warn", active: registerQ.view === "unsynced" },
+  ];
+  const applicationViews: StatusCount[] = [
+    { label: "All", count: data.queueTotal, href: applicationsAt(null), active: !applicationsQ.view },
+    { label: "Received", count: data.applicationCounts.received, href: applicationsAt("received"), tone: "info", active: applicationsQ.view === "received" },
+    { label: "With approval", count: data.applicationCounts.approval, href: applicationsAt("approval"), tone: "info", active: applicationsQ.view === "approval" },
+    { label: "Resubmission requested", count: data.applicationCounts.resubmission, href: applicationsAt("resubmission"), tone: "warn", active: applicationsQ.view === "resubmission" },
+    { label: "Lapsed: record the lapse", count: data.applicationCounts.lapsed, href: applicationsAt("lapsed"), tone: "err", active: applicationsQ.view === "lapsed" },
+  ];
 
   const tabs = [
     {
@@ -181,15 +182,10 @@ export default async function SuppliersPage(props: { searchParams: Promise<Recor
       icon: <BuildingIcon size={15} />,
       count: registerQ.q || registerQ.view ? undefined : data.total,
       panel: (
+        <>
+        <StatusCounts label="Register views" className="mb-4" items={registerViews} />
         <Card className="overflow-hidden">
           <CardHeader icon={<BuildingIcon size={17} />} title="The register" subtitle="Newest first" divided={false} />
-          <div className="flex flex-wrap gap-1.5 px-5 pb-3 sm:px-6">
-            {registerViews.map((v) => (
-              <ButtonLink key={v.id ?? "all"} href={registerAt(v.id)} size="sm" variant={(registerQ.view ?? null) === v.id ? "secondary" : "ghost"} aria-current={(registerQ.view ?? null) === v.id ? "page" : undefined}>
-                {v.label}
-              </ButtonLink>
-            ))}
-          </div>
           <DataList
             flat
             selectable={false}
@@ -209,6 +205,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<Recor
             server={tabMode("register", registerQ, { total: data.total, page: data.page, sortColumns: { supplier: "name" } })}
           />
         </Card>
+        </>
       ),
     },
     {
@@ -217,15 +214,10 @@ export default async function SuppliersPage(props: { searchParams: Promise<Recor
       icon: <ClipboardIcon size={15} />,
       count: data.queueTotal,
       panel: (
+        <>
+        <StatusCounts label="Application views" className="mb-4" items={applicationViews} />
         <Card className="overflow-hidden">
           <CardHeader icon={<ClipboardIcon size={17} />} title="Applications awaiting a decision" subtitle="Oldest first" divided={false} />
-          <div className="flex flex-wrap gap-1.5 px-5 pb-3 sm:px-6">
-            {applicationViews.map((v) => (
-              <ButtonLink key={v.id ?? "all"} href={applicationsAt(v.id)} size="sm" variant={(applicationsQ.view ?? null) === v.id ? "secondary" : "ghost"} aria-current={(applicationsQ.view ?? null) === v.id ? "page" : undefined}>
-                {v.label}
-              </ButtonLink>
-            ))}
-          </div>
           <DataList
             flat
             selectable={false}
@@ -242,6 +234,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<Recor
             server={tabMode("applications", applicationsQ, { total: data.applicationsTotal, page: data.applicationsPage, sortColumns: { supplier: "name", received: "date" } })}
           />
         </Card>
+        </>
       ),
     },
     {
@@ -420,17 +413,6 @@ export default async function SuppliersPage(props: { searchParams: Promise<Recor
         title="Suppliers"
         info={{ title: "Suppliers", text: "Register, applications, documents and standing. Reminders and notices show here." }}
         actions={<ButtonLink href="/suppliers/new" size="sm" variant="primary">Record a paper application</ButtonLink>}
-      />
-      <StatusCounts
-        label="Where the register stands"
-        className="mb-6"
-        items={[
-          { label: "Registered", count: registered, href: "/suppliers?tab=register&view=registered" },
-          { label: "Awaiting a decision", count: data.queueTotal, href: "/suppliers?tab=applications", tone: "info" },
-          { label: "With documents to see to", count: attention, href: "/suppliers?tab=register&view=attention", tone: "warn" },
-          { label: "Suspended or blacklisted", count: barredCount ?? 0, href: "/suppliers?tab=standing", tone: "err" },
-          { label: ERP_NOT_SYNCED.en, count: unsynced, href: "/suppliers?tab=register&view=unsynced", tone: "warn" },
-        ]}
       />
       {barredCount == null && <Callout tone="warn" className="mb-6" title="Suspended and blacklisted suppliers are not judged." />}
       <Tabs initial={tab} label="Suppliers" tabs={tabs} />

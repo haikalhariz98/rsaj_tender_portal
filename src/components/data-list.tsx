@@ -310,7 +310,8 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
         <span className="flex flex-col items-start gap-1">
           {cell.items.map((item) => {
             const chip = (
-              <Chip key={item.text} tone={item.tone} title={item.text} className={item.nowrap ? "md:whitespace-nowrap" : undefined}>
+              // A chip wider than its column wraps inside it rather than being cut ("Approved, not in the finance sy…"); `nowrap` keeps one line.
+              <Chip key={item.text} tone={item.tone} title={item.text} wrap={!item.nowrap}>
                 {item.text}
               </Chip>
             );

@@ -347,7 +347,7 @@ export async function listSuppliers(
   const queueWhere: Prisma.SupplierApplicationWhereInput = { AND: [where, OPEN_APPLICATION, wordsWhere("application", apps.words), apps.view ? { id: { in: applicationIds[apps.view] } } : {}] };
   const applicationsTotal = await client.supplierApplication.count({ where: queueWhere });
   const queueAt = opts.all === "applications" ? 0 : Math.min(Math.max(0, apps.page), Math.max(0, Math.ceil(applicationsTotal / apps.size) - 1));
-  const [suppliers, registered, unsynced, applicants, queue, queueTotal, soonest, expiringTotal, barred, requested, lapsed, standingTotal, barredCount] = await inOrder(
+  const [suppliers, registered, unsynced, applicants, queue, queueTotal, soonest, expiringTotal, barred, requested, lapsed, standingTotal, barredCount, everyone] = await inOrder(
     () => client.supplier.findMany({
       where: registerWhere,
       orderBy: listOrderBy("supplier", register),
@@ -371,11 +371,13 @@ export async function listSuppliers(
     () => barredWhere ? client.supplier.findMany({ where: openRequest, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SUPPLIERS_PAGE, select: watchedSelect }) : Promise.resolve([]),
     () => lapseUnset ? client.supplier.findMany({ where: lapseUnset, orderBy: [{ registeredName: "asc" }, { id: "asc" }], take: SUPPLIERS_PAGE, select: watchedSelect }) : Promise.resolve([]),
     () => standingWhere ? client.supplier.count({ where: standingWhere }) : Promise.resolve(0),
-    () => barredWhere ? client.supplier.count({ where: barredWhere }) : Promise.resolve(null));
+    () => barredWhere ? client.supplier.count({ where: barredWhere }) : Promise.resolve(null),
+    // The register's "All" chip: every supplier, under no search or view.
+    () => client.supplier.count({ where }));
   const expiringRows = soonest.length ? await client.supplier.findMany({ where: { id: { in: soonest.map((g) => g.supplierId) } }, select: watchedSelect }) : [];
   const expiring = soonest.map((g) => expiringRows.find((x) => x.id === g.supplierId)!).filter(Boolean);
   const standing = [...new Map([...barred, ...requested, ...lapsed].map((x) => [x.id, x])).values()].sort((a, b) => a.registeredName.localeCompare(b.registeredName) || a.id.localeCompare(b.id));
-  return { org, page: at, suppliers, total, registered, unsynced, applicants, queue, queueTotal, applicationsTotal, applicationsPage: queueAt, applicationCounts, expiring, expiringTotal, standing, standingTotal, barredCount };
+  return { org, page: at, suppliers, total, registered, unsynced, applicants, queue, queueTotal, applicationsTotal, applicationsPage: queueAt, applicationCounts, expiring, expiringTotal, standing, standingTotal, barredCount, everyone };
 }
 
 /**

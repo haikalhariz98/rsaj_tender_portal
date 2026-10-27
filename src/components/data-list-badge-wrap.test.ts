@@ -29,3 +29,16 @@ describe("a status badge in a list", () => {
     }
   });
 });
+
+/** Phase 0.2 item 1: a status chip wider than its column ("Approved, not in the finance system" in a 250px Status column) was cut with an ellipsis. It now wraps inside the column, as the badge does; a chip marked `nowrap` keeps one line. */
+describe("a status chip in a list", () => {
+  const chipRows: Row[] = [{ id: "1", search: "x", cells: { name: { kind: "text", text: "Rekaan" }, where: { kind: "chips", items: [{ text: "Approved, not in the finance system", tone: "warn" }, { text: "Waiting for you", tone: "brand", nowrap: true }] } } }];
+  const out = renderToStaticMarkup(createElement(DataList, { columns: [{ key: "name", label: "Supplier", mobile: "primary" }, { key: "where", label: "Status", width: "250px", mobile: "meta" }], rows: chipRows, selectable: false }));
+  it("wraps rather than truncating, unless it asks for one line", () => {
+    const wrapped = [...out.matchAll(/title="Approved, not in the finance system"[^>]*>\s*<span class="([^"]*)"/g)].map((m) => m[1]);
+    expect(wrapped.length).toBeGreaterThanOrEqual(1);
+    for (const c of wrapped) expect(c).not.toMatch(/\btruncate\b/);
+    const kept = [...out.matchAll(/title="Waiting for you"[^>]*>\s*<span class="([^"]*)"/g)].map((m) => m[1]);
+    for (const c of kept) expect(c).toMatch(/\btruncate\b/);
+  });
+});
