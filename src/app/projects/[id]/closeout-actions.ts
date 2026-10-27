@@ -6,7 +6,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
 import { cpcLineFaults, cpcRaiseFaults, dlpOf } from "@/lib/closeout/completion";
-import { defectActFaults, defectState, reportDefectFaults, type DefectAct } from "@/lib/closeout/defects";
+import { defectActFaults, defectState, onDraftCpc, reportDefectFaults, type DefectAct } from "@/lib/closeout/defects";
 import { closeoutRefusal, SECURITY_FORM_WORDS, SECURITY_KIND_WORDS } from "@/lib/closeout/labels";
 import { cmgdIssuedOn, defectFactsOf, dlpOfRow, liveLadWindows, loadCloseout, openLineCount, releaseEventsOf } from "@/lib/closeout/load";
 import { cmgdRaiseFaults } from "@/lib/closeout/making-good";
@@ -177,10 +177,12 @@ export async function removeCpcDefect(_prev: FormState, data: FormData): Promise
   return inContract(actor, toAuditActor(actor), idOf(data), now, "COMPLETION", async (c) => {
     const pc = await lockCpc(c);
     if (!pc) throw new ActRefusal({ ok: false, message: "That defect is not on the certificate." });
-    await c.tx.$queryRaw`SELECT id FROM "DefectItem" WHERE id = ${defectId} FOR UPDATE`;
+    await c.tx.$queryRaw`SELECT id FROM "DefectItem" WHERE id = ${defectId} AND "contractId" = ${c.l.contract.id} FOR UPDATE`;
     const d = await c.tx.defectItem.findFirst({ where: { id: defectId, practicalCompletionId: pc.id, organisationId: c.l.org.id } });
     if (!d) throw new ActRefusal({ ok: false, message: "That defect is not on the certificate." });
     if (pc.certificate.status !== "DRAFT") refuse("Not removed:", [{ code: "CPC_NOT_DRAFT", level: "block" }]);
+    // F6: a line with anything recorded against it is kept (its events would otherwise be lost to a foreign-key error).
+    if (await c.tx.defectEvent.count({ where: { defectId: d.id } })) refuse("Not removed:", [{ code: "LINE_HAS_EVENTS", level: "block" }]);
     await c.tx.defectItem.deleteMany({ where: { id: d.id, organisationId: c.l.org.id } });
     await audit(c, "DefectItem", d.id, `${c.label} · defect`, "DELETE", diffFields({ defect: d.description, where: d.location || null, madeGoodBy: storedDay(d.dueOn) }, { defect: null, where: null, madeGoodBy: null }));
     return { ok: true };
@@ -235,7 +237,7 @@ async function onDefect(actor: Extract<Awaited<ReturnType<typeof staffForAct>>, 
     const rows = await loadCloseout(c.l.contract.id, c.tx);
     const d = defectFactsOf(rows).find((x) => x.id === defectId);
     if (!d) throw new ActRefusal({ ok: false, message: "That defect is not on this contract." });
-    const fs = defectActFaults(which, defectState(d.events).state, { note, on: storedDay(on), today: c.today });
+    const fs = defectActFaults(which, defectState(d.events).state, { note, on: storedDay(on), today: c.today, onDraftCpc: onDraftCpc(rows.lines.find((x) => x.id === d.id)!, rows.cpc?.certificate.status ?? null) });
     if (fs.length) refuse("Not recorded:", fs);
     const evidence = evidenceId ? await c.tx.projectDocument.findFirst({ where: { id: evidenceId, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true, title: true } }) : null;
     if (evidenceId && !evidence) fieldError("evidenceDocumentId", "That document is not on this contract.");

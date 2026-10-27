@@ -25,6 +25,7 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   TEST_REASONS_REQUIRED: () => "Say why the works are practically complete.",
   LAD_WINDOW_OPEN: () => "Damages are still running. Close the damages window at the completion date under Payments first.",
   LAD_WINDOW_MISMATCH: (d) => `The damages window closes on ${day(d.day)}, not the completion date (${day(d.completion)}).`,
+  LINE_HAS_EVENTS: () => "Something is already recorded against this defect, so it stays on the list.",
   CPC_NOT_DRAFT: () => "The certificate's list is fixed once it leaves draft.",
   DESCRIPTION_REQUIRED: () => "Say what the defect is.",
   DUE_REQUIRED: () => "Give the day it is to be made good by.",

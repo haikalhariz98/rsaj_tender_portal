@@ -41,16 +41,21 @@ export type DefectAct = "REPORT_RECTIFIED" | "ACCEPT" | "RETURN" | "WITHDRAW";
 
 /// Whether an act may move the line now: the contractor reports an open line rectified; an officer accepts an open or reported line, returns a
 /// reported one with a note, or withdraws an open or reported one with a reason. Never a day after today.
-export function defectActFaults(act: DefectAct, state: DefectState, i: { note: string; on: Day; today: Day }): Finding[] {
+export function defectActFaults(act: DefectAct, state: DefectState, i: { note: string; on: Day; today: Day; onDraftCpc?: boolean }): Finding[] {
   const out: Finding[] = [];
   const f = (code: string, data: Record<string, string | number | null> = {}) => out.push({ code, level: "block", data });
-  if (!isOpenLine(state)) f("LINE_CLOSED", { state });
+  // F6 (code review of close-out stage B): a line on the CPC's list is acted on only once the CPC is issued; while it is a draft the list is still being made.
+  if (i.onDraftCpc) f("CPC_NOT_ISSUED");
+  else if (!isOpenLine(state)) f("LINE_CLOSED", { state });
   else if (act === "REPORT_RECTIFIED" && state !== "OPEN") f("NOT_OPEN");
   else if (act === "RETURN" && state !== "REPORTED_RECTIFIED") f("NOT_REPORTED");
   if ((act === "RETURN" || act === "WITHDRAW") && !i.note.trim()) f(act === "RETURN" ? "RETURN_NOTE_REQUIRED" : "WITHDRAW_REASON_REQUIRED");
   if (i.on > i.today) f("DAY_IN_FUTURE", { day: i.on });
   return out;
 }
+
+/// Whether a line sits on a CPC not yet issued (a line on a void CPC's list is no line of the contract, and is not read).
+export const onDraftCpc = (line: { practicalCompletionId: string | null }, cpcStatus: string | null): boolean => line.practicalCompletionId != null && cpcStatus !== "ISSUED";
 
 /// A line reported during the defects liability period (FR-CMP-011), with what it is and a due day. A defect found at the inspection at the
 /// period's end is still reported, until the Schedule of Defects that lists the open lines is issued (it copies none of its own, ADR 0047 D1).

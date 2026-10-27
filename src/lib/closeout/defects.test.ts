@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defectActFaults, defectState, frozenLinesOf, overdue, reportDefectFaults, withdrawnCount } from "./defects";
+import { defectActFaults, defectState, frozenLinesOf, onDraftCpc, overdue, reportDefectFaults, withdrawnCount } from "./defects";
 import type { DefectEventFact, DefectFact } from "./types";
 
 /** ADR 0047 D1; plan closeout-plan.md §4.3, §6.3: a line's state is derived from its events only. */
@@ -68,5 +68,15 @@ describe("frozen lines (ruling 4)", () => {
       ["d2", "WITHDRAWN", "By others"],
     ]);
     expect(withdrawnCount(lines)).toBe(1);
+  });
+});
+
+// F6 (code review of close-out stage B).
+describe("a line on a CPC not yet issued", () => {
+  it("is not acted on, and onDraftCpc reads it from the line and the CPC", () => {
+    expect(defectActFaults("ACCEPT", "OPEN", { note: "", on: "2026-10-01", today: "2026-10-02", onDraftCpc: true }).map((f) => f.code)).toEqual(["CPC_NOT_ISSUED"]);
+    expect(onDraftCpc({ practicalCompletionId: "pc" }, "DRAFT")).toBe(true);
+    expect(onDraftCpc({ practicalCompletionId: "pc" }, "ISSUED")).toBe(false);
+    expect(onDraftCpc({ practicalCompletionId: null }, null)).toBe(false);
   });
 });

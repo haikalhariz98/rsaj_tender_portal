@@ -101,6 +101,11 @@ describe("close-out stage B through its acts", () => {
     expect(again.message).toMatch(/already raised/);
     for (const description of ["Leaking roof, block A", "Cracked tiles, ground floor", "Loose handrail"]) expect((await as(o.so, () => addCpcDefect({ ok: false }, form({ id: k.contractId, description, location: "Site", dueOn: dayPlus(k.due, 14) })))).ok).toBe(true);
     const third = (await linesOf())[2];
+    // F6 (code review of close-out stage B): a line on a draft CPC is not acted on, by an officer or by the contractor.
+    const early = await as(o.so, () => acceptDefect({ ok: false }, form({ id: k.contractId, defectId: third.id, on: today() })));
+    expect(early.ok).toBe(false);
+    expect(early.message).toMatch(/practical completion certificate is not issued yet/);
+    await expect(reportRectifiedAsContractor(supplier, { contractId: k.contractId, defectId: third.id, note: "", evidenceDocumentId: null })).rejects.toMatchObject({ status: 404 });
     expect((await as(o.so, () => removeCpcDefect({ ok: false }, form({ id: k.contractId, defectId: third.id })))).ok).toBe(true);
     expect((await linesOf()).length).toBe(2);
   });
@@ -202,5 +207,19 @@ describe("close-out stage B through its acts", () => {
     const twice = await as(o.so, () => returnSecurity({ ok: false }, form({ id: k.contractId, securityId: bond.id, returnedOn: today(), officialReceiptRef: "", note: "" })));
     expect(twice.ok).toBe(false);
     expect(twice.message).toMatch(/Already returned/);
+  });
+});
+
+// F6 (code review of close-out stage B): a CPC line with an event written before the fix is kept, with a named refusal rather than a foreign-key error.
+describe("a CPC line with history", () => {
+  it("is not removed from the draft's list", async () => {
+    const k2 = await activeContract(o, { dueIn: -10 });
+    expect((await as(o.so, () => raisePracticalCompletion({ ok: false }, form({ id: k2.contractId, completionDate: k2.due, possessionTakenOn: k2.due, inspectedOn: k2.due, testReasons: "Complete." })))).ok).toBe(true);
+    expect((await as(o.so, () => addCpcDefect({ ok: false }, form({ id: k2.contractId, description: "Scratched door", dueOn: dayPlus(k2.due, 7) })))).ok).toBe(true);
+    const line = await db.defectItem.findFirstOrThrow({ where: { contractId: k2.contractId } });
+    await db.defectEvent.create({ data: { organisationId: o.organisationId, defectId: line.id, kind: "REPORTED_RECTIFIED", on: D(today()), note: "Before F6.", personId: o.so, recordedAt: new Date() } });
+    const kept = await as(o.so, () => removeCpcDefect({ ok: false }, form({ id: k2.contractId, defectId: line.id })));
+    expect(kept.ok).toBe(false);
+    expect(kept.message).toMatch(/already recorded against this defect/);
   });
 });

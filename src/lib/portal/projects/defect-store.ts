@@ -1,7 +1,7 @@
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import type { SupplierActor } from "@/lib/auth/types";
-import { defectActFaults, defectState } from "@/lib/closeout/defects";
+import { defectActFaults, defectState, onDraftCpc } from "@/lib/closeout/defects";
 import { defectFactsOf, loadCloseout } from "@/lib/closeout/load";
 import { actStatusFault } from "@/lib/contract/act-status";
 import { contractLabel } from "@/lib/contract/repo";
@@ -40,6 +40,8 @@ export async function reportRectifiedAsContractor(actor: SupplierActor, i: Defec
       const rows = await loadCloseout(l.contract.id, tx);
       const d = defectFactsOf(rows).find((x) => x.id === i.defectId);
       if (!d) return refuse([{ code: "DEFECT_NOT_FOUND", level: "block" }], 404);
+      // F6: a line on a CPC not yet issued is not reported (the contractor's tab lists none until it issues).
+      if (onDraftCpc(rows.lines.find((x) => x.id === d.id)!, rows.cpc?.certificate.status ?? null)) return refuse([{ code: "DEFECT_NOT_FOUND", level: "block" }], 404);
       if (defectActFaults("REPORT_RECTIFIED", defectState(d.events).state, { note: i.note, on: today, today }).length) return refuse([{ code: "DEFECT_NOT_OPEN", level: "block" }], 409);
       const evidence = i.evidenceDocumentId ? await tx.projectDocument.findFirst({ where: { id: i.evidenceDocumentId, contractId: l.contract.id, organisationId: actor.organisationId, side: "CONTRACTOR" }, select: { id: true, title: true } }) : null;
       if (i.evidenceDocumentId && !evidence) return refuse([{ code: "EVIDENCE_NOT_YOURS", level: "block" }]);
