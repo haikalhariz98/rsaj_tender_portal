@@ -64,3 +64,4 @@ Open questions the product cannot answer from RSAJ's documents. Each one is load
 - **41. Sukuk budget.** Is SF-03's budget the RM100m envelope, or the sum of the Sukuk project budgets (RM90m in DEV03)? The portal uses the envelope.
 - **42. Sukuk re-split.** Must a contract's funding split change after payments (for example when the Sukuk runs out)? Today it is locked once money is certified.
 - **43. Funding source mandatory.** Must every requisition name a funding source (the document's CFO decision 1)? Today it is optional.
+- **44. Schedule of Rates with several contractors.** When one Schedule of Rates exercise awards more than one contractor, each contract cannot share the quotation number as its contract number. How are they numbered (e.g. a suffix per contractor)?
