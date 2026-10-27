@@ -451,7 +451,7 @@ export function ChairAppointmentEditor({ meetingId, people, current }: { meeting
       fields={[
         { kind: "hidden", name: "meetingId" },
         { kind: "select", name: "personId", label: "Who sits in the chair", required: true, placeholder: "Choose", options: people },
-        { kind: "text", name: "chairAppointment", label: "Appointing record", required: true, hint: "The chairman's letter or note: its reference and day." },
+        { kind: "text", name: "chairAppointment", label: "Appointing record", required: true, hint: "The chairman's letter: its reference and day." },
       ]}
       values={{ meetingId, personId: current.personId, chairAppointment: current.record }}
       action={recordChairAppointment}
