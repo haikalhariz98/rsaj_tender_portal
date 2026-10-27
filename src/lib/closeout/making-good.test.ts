@@ -5,7 +5,7 @@ import { cmgdFigureLines, cmgdFiguresMoved, cmgdRaiseFaults, cmgdSnapshotOf, typ
 /** FR-CMP-015, 018; plan closeout-plan.md §4.4, §6.3; rulings 4 and 6. */
 
 const codes = (fs: readonly { code: string }[]) => fs.map((f) => f.code);
-const ok: CmgdRaiseInput = { cpcIssued: true, dlp: { applies: true, start: "2025-10-01", endExclusive: "2026-10-01" }, today: "2026-10-20", open: 0, live: null, madeGoodOn: "2026-10-15", finalInspectionOn: "2026-10-18" };
+const ok: CmgdRaiseInput = { cpcIssued: true, dlp: { applies: true, start: "2025-10-01", endExclusive: "2026-10-01" }, today: "2026-10-20", open: 0, live: null, madeGoodOn: "2026-10-15", finalInspectionOn: "2026-10-18", completionDate: "2025-10-01", scheduleIssuedOn: null };
 
 describe("cmgdRaiseFaults", () => {
   it("DEFECTS_OPEN counts every line neither made good nor withdrawn (a reported line not yet accepted counts)", () => {
@@ -15,9 +15,18 @@ describe("cmgdRaiseFaults", () => {
   it("refuses each by name", () => {
     expect(codes(cmgdRaiseFaults({ ...ok, cpcIssued: false }))).toEqual(["CPC_NOT_ISSUED"]);
     expect(codes(cmgdRaiseFaults({ ...ok, dlp: { applies: false } }))).toEqual(["DLP_NOT_APPLICABLE"]);
-    expect(codes(cmgdRaiseFaults({ ...ok, today: "2026-09-30", madeGoodOn: "2026-09-29", finalInspectionOn: "2026-09-29" }))).toEqual(["DLP_NOT_ENDED"]);
+    // Fixture fix (ruling 2): the final inspection moves to the period's last day, which ruling 2 allows, so DLP_NOT_ENDED stays the one refusal.
+    expect(codes(cmgdRaiseFaults({ ...ok, today: "2026-09-30", madeGoodOn: "2026-09-29", finalInspectionOn: "2026-09-30" }))).toEqual(["DLP_NOT_ENDED"]);
     expect(codes(cmgdRaiseFaults({ ...ok, live: { number: "CMGD/1" } }))).toEqual(["CMGD_LIVE"]);
     expect(codes(cmgdRaiseFaults({ ...ok, finalInspectionOn: "2026-10-21" }))).toEqual(["DAY_IN_FUTURE"]);
+  });
+  // Ruling 2 (code review of close-out stage B, P3).
+  it("refuses a final inspection before the period's last day or before the issued schedule, and a making good before completion", () => {
+    expect(codes(cmgdRaiseFaults({ ...ok, finalInspectionOn: "2026-09-29" }))).toEqual(["FINAL_INSPECTION_BEFORE_DLP_END"]);
+    expect(cmgdRaiseFaults({ ...ok, finalInspectionOn: "2026-09-30" })).toEqual([]);
+    expect(codes(cmgdRaiseFaults({ ...ok, scheduleIssuedOn: "2026-10-05", finalInspectionOn: "2026-10-04" }))).toEqual(["FINAL_INSPECTION_BEFORE_DLP_END"]);
+    expect(cmgdRaiseFaults({ ...ok, scheduleIssuedOn: "2026-10-05", finalInspectionOn: "2026-10-05" })).toEqual([]);
+    expect(codes(cmgdRaiseFaults({ ...ok, madeGoodOn: "2025-09-30" }))).toEqual(["MADE_GOOD_BEFORE_COMPLETION"]);
   });
 });
 

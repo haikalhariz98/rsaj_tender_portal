@@ -6,6 +6,7 @@
  * retention balance needs. Its snapshot carries the performance bond's value, the retention balance and the securities' numbers (ruling 6).
  */
 
+import { dayPlus } from "@/lib/dates";
 import { senToDecimalString, type Sen } from "@/lib/money";
 
 import { SECURITY_KIND_WORDS, withdrawnWords } from "./labels";
@@ -20,6 +21,9 @@ export interface CmgdRaiseInput {
   live: { number: string | null } | null;
   madeGoodOn: Day;
   finalInspectionOn: Day;
+  /// Ruling 2 (code review of close-out stage B, P3): the practical completion date, and the issued Schedule of Defects' issue day (null: none).
+  completionDate: Day | null;
+  scheduleIssuedOn: Day | null;
 }
 
 export function cmgdRaiseFaults(i: CmgdRaiseInput): Finding[] {
@@ -30,6 +34,14 @@ export function cmgdRaiseFaults(i: CmgdRaiseInput): Finding[] {
   else if (i.today < i.dlp.endExclusive) f("DLP_NOT_ENDED", { day: i.dlp.endExclusive });
   if (i.open > 0) f("DEFECTS_OPEN", { n: i.open });
   if (i.live) f("CMGD_LIVE", { number: i.live.number });
+  // Ruling 2: the final inspection is held at the period's end (its last day or after), and after the Schedule of Defects where one issued; the
+  // defects are not made good before practical completion.
+  if (i.dlp?.applies === true) {
+    const last = dayPlus(i.dlp.endExclusive, -1);
+    const floor = i.scheduleIssuedOn && i.scheduleIssuedOn > last ? i.scheduleIssuedOn : last;
+    if (i.finalInspectionOn < floor) f("FINAL_INSPECTION_BEFORE_DLP_END", { day: floor });
+  }
+  if (i.completionDate && i.madeGoodOn < i.completionDate) f("MADE_GOOD_BEFORE_COMPLETION", { day: i.completionDate });
   if (i.madeGoodOn > i.today) f("DAY_IN_FUTURE", { day: i.madeGoodOn });
   if (i.finalInspectionOn > i.today) f("DAY_IN_FUTURE", { day: i.finalInspectionOn });
   return out;

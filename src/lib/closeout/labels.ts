@@ -51,6 +51,8 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   LIMIT_NOT_SET: () => "The longest period a schedule may give is not set, so it is not checked.",
   // The certificate of making good defects
   DEFECTS_OPEN: (d) => `${s(d.n, "Some")} ${d.n === 1 ? "defect is" : "defects are"} neither made good nor withdrawn.`,
+  FINAL_INSPECTION_BEFORE_DLP_END: (d) => `The final defects inspection is before ${day(d.day)}: it is held at the end of the defects liability period, after the Schedule of Defects where one issued.`,
+  MADE_GOOD_BEFORE_COMPLETION: (d) => `The defects are made good before practical completion (${day(d.day)}).`,
   CMGD_FIGURES_MOVED: (d) => `What it prints has changed since it was raised (${s(d.items, "its figures")}). Void it and raise it again.`,
   CMGD_LIVE: (d) => `A certificate of making good defects${d.number ? ` (${d.number})` : ""} is already raised.`,
   // Retention and securities

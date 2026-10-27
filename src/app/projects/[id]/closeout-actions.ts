@@ -320,7 +320,7 @@ export async function raiseMakingGood(_prev: FormState, data: FormData): Promise
     const who = await recordedFor(c, act, { soOnly: true }, c.today);
     await c.tx.$queryRaw`SELECT id FROM "DefectItem" WHERE "contractId" = ${c.l.contract.id} ORDER BY id FOR UPDATE`;
     const rows = await loadCloseout(c.l.contract.id, c.tx);
-    const fs = cmgdRaiseFaults({ cpcIssued: rows.cpc?.certificate.status === "ISSUED", dlp: rows.cpc ? dlpOfRow(rows.cpc) : null, today: c.today, open: openLineCount(rows), live: rows.cmgd ? { number: rows.cmgd.certificate.number } : null, madeGoodOn: storedDay(madeGoodOn), finalInspectionOn: storedDay(finalInspectionOn) });
+    const fs = cmgdRaiseFaults({ cpcIssued: rows.cpc?.certificate.status === "ISSUED", dlp: rows.cpc ? dlpOfRow(rows.cpc) : null, today: c.today, open: openLineCount(rows), live: rows.cmgd ? { number: rows.cmgd.certificate.number } : null, madeGoodOn: storedDay(madeGoodOn), finalInspectionOn: storedDay(finalInspectionOn), completionDate: rows.cpc ? storedDay(rows.cpc.completionDate) : null, scheduleIssuedOn: rows.schedule?.certificate.status === "ISSUED" ? ((rows.schedule.certificate.issueSnapshot as { issuedOn?: string } | null)?.issuedOn ?? null) : null });
     if (fs.length) refuse("Not raised:", fs);
     const form = await formOf(c, "MAKING_GOOD_DEFECTS");
     // Ruling 6 (FR-CMP-015): the certificate's own figures carry the bond's value, the balance and each security's number; its issue checks them again (F5).
