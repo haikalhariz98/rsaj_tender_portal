@@ -12,6 +12,7 @@ import { notificationsOperations } from "../notifications/operations";
 import { numberingOperations } from "../numbering/operations";
 import { organisationOperations } from "../organisation/operations";
 import { organisationSignInOperations } from "../organisation/sign-in-operations";
+import { performanceOperations } from "../performance/operations";
 import { postAwardOperations } from "../post-award/operations";
 import { referenceDataOperations } from "../reference-data/operations";
 import { requisitionsOperations } from "../requisitions/operations";
@@ -46,6 +47,7 @@ export const OPERATIONS = {
   ...numberingOperations,
   ...organisationOperations,
   ...organisationSignInOperations,
+  ...performanceOperations,
   ...postAwardOperations,
   ...referenceDataOperations,
   ...requisitionsOperations,

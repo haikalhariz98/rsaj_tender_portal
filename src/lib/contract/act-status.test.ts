@@ -48,8 +48,9 @@ describe("the table is exhaustive: every act, every status", () => {
     expect(Object.keys(ACT_STATUS).sort()).toEqual([...CONTRACT_ACTS].sort());
   });
   // Changed for ADR 0042 D11 (PW-22): the Project workspace's row joins after the certificate's, before Part B's; and for ADR 0046, the funding row after it.
-  it("37 families: 13 built before Part B (R2's originals included), the Project workspace's, the funding row, then Part B's 22 (R5's design guarantee claim included)", () => {
-    expect(CONTRACT_ACTS.length).toBe(37);
+  // Changed for Phase 2 close-out stage D (ADR 0047 D4, ruling 12): PERFORMANCE_REPORT joins Part B's rows, before the final account's.
+  it("38 families: 13 built before Part B (R2's originals included), the Project workspace's, the funding row, then Part B's 23 (R5's design guarantee claim and the performance report included)", () => {
+    expect(CONTRACT_ACTS.length).toBe(38);
     expect(CONTRACT_ACTS.indexOf("PROJECT_WORKSPACE")).toBe(CONTRACT_ACTS.indexOf("CERTIFICATE") + 1);
     expect(CONTRACT_ACTS.indexOf("FUNDING")).toBe(CONTRACT_ACTS.indexOf("PROJECT_WORKSPACE") + 1);
     expect(CONTRACT_ACTS.indexOf("EOT")).toBe(15);
@@ -57,7 +58,8 @@ describe("the table is exhaustive: every act, every status", () => {
     expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("PROJECT_WORKSPACE");
     expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("FUNDING");
     expect(CONTRACT_ACTS.slice(15)).toContain("DESIGN_GUARANTEE_CLAIM");
-    expect(CONTRACT_ACTS.slice(15)).toHaveLength(22);
+    expect(CONTRACT_ACTS.slice(15)).toContain("PERFORMANCE_REPORT");
+    expect(CONTRACT_ACTS.slice(15)).toHaveLength(23);
   });
   it("CANCELLED refuses every act, first", () => {
     for (const a of CONTRACT_ACTS) expect(actStatusFault(a, "CANCELLED")?.code, a).toBe("CONTRACT_CANCELLED");
@@ -267,5 +269,12 @@ describe("the callout's title names the state in English and Malay", () => {
     expect(statusCalloutTitle("CLOSED")).toEqual({ en: "The contract is closed" });
     expect(statusCalloutTitle("PRACTICALLY_COMPLETE")).toEqual({ en: "The contract is practically complete" });
     for (const f of ["src/app/projects/[id]/variations/[variationId]/page.tsx", "src/app/projects/[id]/certificates/[certId]/page.tsx"]) expect(readFileSync(f, "utf8"), f).toMatch(/title=\{statusCalloutTitle\(l\.contract\.status as ContractStatus\)\.en\}/);
+  });
+});
+
+// Phase 2 close-out stage D (ruling 12, ADR 0047 D4): the report is recorded once practically complete or making good complete, never before or after.
+describe("PERFORMANCE_REPORT", () => {
+  it("is allowed in PRACTICALLY_COMPLETE and MAKING_GOOD_COMPLETE only (the act judges the CPC and the DLP)", () => {
+    expect(CONTRACT_STATUSES.filter((s) => ACT_STATUS.PERFORMANCE_REPORT[s] === "ALLOWED").sort()).toEqual(["MAKING_GOOD_COMPLETE", "PRACTICALLY_COMPLETE"]);
   });
 });

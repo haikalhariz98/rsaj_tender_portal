@@ -495,6 +495,12 @@ model Organisation {
   defectSchedules          DefectSchedule[]
   makingGoods              MakingGood[]
   securityReleases         SecurityRelease[]
+  // Phase 2 close-out stage D: the contractor performance forms and reports.
+  performanceForms         PerformanceForm[]
+  performanceCriteria      PerformanceCriterion[]
+  performanceGradeBands    PerformanceGradeBand[]
+  performanceReports       PerformanceReport[]
+  performanceScores        PerformanceScore[]
   variationApprovals       VariationApproval[]
   variationInstructions    VariationInstruction[]
   variationMeasurements    VariationMeasurement[]
@@ -755,6 +761,10 @@ model Person {
   defectSchedulesRaised  DefectSchedule[]          @relation("DefectScheduleRaisedBy")
   makingGoodsRaised      MakingGood[]              @relation("MakingGoodRaisedBy")
   securitiesReturned     SecurityRelease[]         @relation("SecurityReturnedBy")
+  performanceFormsIssued PerformanceForm[]         @relation("PerformanceFormIssuedBy")
+  performanceReportsOpened   PerformanceReport[]   @relation("PerformanceReportOpenedBy")
+  performanceReportsAssessed PerformanceReport[]   @relation("PerformanceReportAssessedBy")
+  performanceReportsVerified PerformanceReport[]   @relation("PerformanceReportVerifiedBy")
   variationRoutesSent    VariationApproval[]       @relation("VariationRouteSentBy")
   instructionsRecorded   VariationInstruction[]    @relation("InstructionRecordedBy")
   measurementsRecorded   VariationMeasurement[]    @relation("MeasurementRecordedBy")
@@ -4291,6 +4301,8 @@ model Contract {
   defectSchedules        DefectSchedule[]
   makingGoods            MakingGood[]
   securityReleases       SecurityRelease[]
+  /// Phase 2 close-out stage D: its contractor performance report.
+  performanceReport      PerformanceReport?
   /// ADR 0046: its funding split (SF-05) and impact figures (SF-04).
   fundingAllocations     FundingAllocation[]
   impacts                ProjectImpact[]
@@ -8937,6 +8949,8 @@ model Supplier {
   @@unique([organisationId, reference])
   @@unique([organisationId, registrationNoKey])
   @@unique([organisationId, erpVendorCode])
+  /// Phase 2 close-out stage D: the performance reports filed on its contracts.
+  performanceReports PerformanceReport[]
 }
 
 /// A person at a supplier, as the supplier names them. Not a `Person` (NFR-SEC-005; 6.15b attaches a
@@ -12523,6 +12537,115 @@ model SecurityRelease {
   recordedAt         DateTime
 
   @@index([contractId])
+}
+
+/// Phase 2 close-out stage D (ADR 0047 D6; FR-CPR-002, 003): a contractor performance form. Each form belongs to exactly one contract type,
+/// with no general fallback (ruling 10). Drafted, then issued by someone who did not make the draft (trigger `guard_draft_issue`); an issued
+/// form is frozen, and a report pins it with its snapshot. Shipped empty.
+model PerformanceForm {
+  id               String                @id @default(cuid())
+  organisationId   String
+  organisation     Organisation          @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  nameEn           String
+  contractTypeCode String
+  /// The top of the scoring scale; scores run from 1 to it. CHECK 2..10 (ruling 10).
+  scaleMax         Int
+  status           PerformanceFormStatus @default(DRAFT)
+  version          Int
+  issuedAt         DateTime?
+  issuedByPersonId String?
+  issuedBy         Person?               @relation("PerformanceFormIssuedBy", fields: [issuedByPersonId], references: [id], onDelete: Restrict)
+  provenance       Provenance
+  source           String                @default("")
+  retiredOn        DateTime?
+  createdAt        DateTime              @default(now())
+
+  criteria PerformanceCriterion[]
+  bands    PerformanceGradeBand[]
+  reports  PerformanceReport[]
+
+  @@unique([organisationId, contractTypeCode, version])
+}
+
+enum PerformanceFormStatus {
+  DRAFT
+  ISSUED
+  RETIRED
+}
+
+model PerformanceCriterion {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  formId         String
+  form           PerformanceForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  sortOrder      Int
+  labelEn        String
+  guideEn        String          @default("")
+  /// CHECK > 0. The weights of a form total exactly 1.0000 at issue.
+  weight         Decimal         @db.Decimal(9, 4)
+
+  @@index([formId])
+}
+
+/// A grade from its lower bound (inclusive) up to the next band's; graded through `evaluation/bands.ts`.
+model PerformanceGradeBand {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  formId         String
+  form           PerformanceForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  label          String
+  /// CHECK 0..100.
+  lowerPct       Decimal         @db.Decimal(9, 4)
+  sortOrder      Int
+
+  @@index([formId])
+}
+
+/// One report per contract (ADR 0047 D6): opened once the CMGD is issued, or the CPC where no DLP applies (ruling 17); scored and assessed,
+/// then verified by a different signed-in person (CHECK and act), which files it. `scoreTotal` and `gradeLabel` are SULIT (supplier scope).
+model PerformanceReport {
+  id                 String            @id @default(cuid())
+  organisationId     String
+  organisation       Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId         String            @unique
+  contract           Contract          @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  /// The award's supplier when it was opened; null where the award is not linked to the supplier register.
+  supplierId         String?
+  supplier           Supplier?         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  formId             String
+  form               PerformanceForm   @relation(fields: [formId], references: [id], onDelete: Restrict)
+  formSnapshot       Json
+  scoreTotal         Decimal?          @db.Decimal(9, 4)
+  gradeLabel         String?
+  assessedByPersonId String?
+  assessedBy         Person?           @relation("PerformanceReportAssessedBy", fields: [assessedByPersonId], references: [id], onDelete: Restrict)
+  assessedAt         DateTime?
+  verifiedByPersonId String?
+  verifiedBy         Person?           @relation("PerformanceReportVerifiedBy", fields: [verifiedByPersonId], references: [id], onDelete: Restrict)
+  verifiedAt         DateTime?
+  personId           String
+  person             Person            @relation("PerformanceReportOpenedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime
+
+  scores PerformanceScore[]
+
+  @@index([supplierId])
+}
+
+model PerformanceScore {
+  id             String            @id @default(cuid())
+  organisationId String
+  organisation   Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  reportId       String
+  report         PerformanceReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  criterionOrder Int
+  /// CHECK >= 1; the act holds it to the form's scale.
+  score          Int
+  note           String            @default("")
+
+  @@unique([reportId, criterionOrder])
 }
 
 model Variation {

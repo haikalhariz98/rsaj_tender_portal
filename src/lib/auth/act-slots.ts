@@ -198,6 +198,8 @@ export const ACT_SLOTS: readonly ActSlot[] = [
 
   // ---- scope, estimates and the tender pack
   slot("RateSchedule", "issuedBy", "Issued by"),
+  // Phase 2 close-out stage D: a contractor performance form is issued as a schedule of rates is, by someone who did not make the draft.
+  slot("PerformanceForm", "issuedBy", "Issued by"),
   // FR-EST-005 (Phase 3d): each column of the specification panel is signed by its verifier with their own password, against the panel, in the column's capacity. Not paper-capable: the
   // signed paper form is still attached (and required), but the verification is the signatory's own sign-in (an open item for the product owner, logged with Phase 3d).
   slot("SpecPanelVerification", "person", "Verified by", { signatureClass: true, holder: "SIGNATURE", entryPoints: ["src/app/sourcing/[id]/scope/actions.ts#recordPanelVerification"] }),
@@ -363,6 +365,11 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   paper("DefectSchedule", "person", "Raised by"),
   paper("MakingGood", "person", "Raised by"),
   gated("SecurityRelease", "person", "Released by"),
+  // Phase 2 close-out stage D (ADR 0047 D6): the contractor performance report. Each is the signed-in person's own, never recorded from paper: one sign-in could
+  // otherwise record "scored by" someone else and then verify as itself, and the second person would be fake.
+  slot("PerformanceReport", "person", "Started by"),
+  slot("PerformanceReport", "assessedBy", "Scored by"),
+  slot("PerformanceReport", "verifiedBy", "Verified by"),
   paper("Variation", "originator", "Originated by"),
   paper("Variation", "reviewedBy", "Reviewed by"),
   paper("Variation", "principal", "Passed on by"),

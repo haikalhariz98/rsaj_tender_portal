@@ -47,6 +47,8 @@ const ENTITIES = new Set([
   "Meeting",
   "NotApprovedOutcome",
   "PostAwardPolicy",
+  // Phase 2 close-out stage D: Settings › Performance forms (each form's criteria and grades are audited against the form).
+  "PerformanceForm",
   "NotificationRule",
   "NumberingSeries",
   "SourcingMethod",

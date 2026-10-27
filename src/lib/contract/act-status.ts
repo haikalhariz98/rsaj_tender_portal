@@ -69,6 +69,8 @@ export const CONTRACT_ACTS = [
   // R5 (review S9a): the claim against the design guarantee bond and the rectification by other means it pays for.
   "DESIGN_GUARANTEE_CLAIM",
   "DEBT",
+  // Phase 2 close-out stage D (ADR 0047 D4, D6; ruling 12): the contractor performance report.
+  "PERFORMANCE_REPORT",
   "FINAL_ACCOUNT",
   "FINAL_PAYMENT",
   "CLOSE",
@@ -146,6 +148,8 @@ export const ACT_STATUS = {
   // its act) requires a design-and-build contract whose bond is held and not released.
   DESIGN_GUARANTEE_CLAIM: executed(PC, MGC, FCI, T, C),
   DEBT: executed(PC, MGC, FCI, T, C),
+  // Ruling 12 (ADR 0047 D4): the report opens at the CMGD, or at the CPC where no defects liability period applies; the act judges the DLP.
+  PERFORMANCE_REPORT: only(PC, MGC),
   FINAL_ACCOUNT: only(PC, MGC),
   FINAL_PAYMENT: only(FCI),
   // R1 (BD-613-113): a terminated contract is closed too (ACTIVE → TERMINATED → CLOSED); run 5 allows it once the

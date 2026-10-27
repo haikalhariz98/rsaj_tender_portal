@@ -52,7 +52,8 @@ const PROPOSES_AUTHORITY: Record<string, string[]> = {
 };
 
 /// The other configuration editors: each a proposal too (`registry-scan.test.ts` holds every one), named so that a new section is not silently one that is not.
-const OTHER_EDITORS = ["audit", "awards", "bid-sealing", "budget", "contracts", "documents", "evaluation", "funding", "invitation", "notifications", "numbering", "organisation", "post-award", "reference-data", "requisitions", "routing-sheets", "scope", "suppliers", "templates", "tender-documents"];
+/// Phase 2 close-out stage D adds "performance" (Settings › Performance forms).
+const OTHER_EDITORS = ["audit", "awards", "bid-sealing", "budget", "contracts", "documents", "evaluation", "funding", "invitation", "notifications", "numbering", "organisation", "performance", "post-award", "reference-data", "requisitions", "routing-sheets", "scope", "suppliers", "templates", "tender-documents"];
 
 describe("the approval route is changed only by someone who holds the permission", () => {
   it("finds the matrix editor's exports, and the issue among them", () => {
