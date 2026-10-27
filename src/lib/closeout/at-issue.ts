@@ -33,6 +33,8 @@ import { ladWindowFaults } from "./completion";
 import { defectState, frozenLinesOf, isOpenLine } from "./defects";
 import { closeoutRefusal } from "./labels";
 import { defectFactsOf, liveLadWindows, loadCloseout } from "./load";
+import { cmgdFiguresMoved } from "./making-good";
+import { cmgdFiguresNow } from "./view";
 
 type Cert = { id: string; kind: string };
 
@@ -135,6 +137,10 @@ export async function cmgdIssueRefusal(tx: Tx, l: LoadedContract, cert: Cert): P
   const rows = await lockLines(tx, l.contract.id);
   const open = defectFactsOf(rows).filter((d) => isOpenLine(defectState(d.events).state)).length;
   if (open > 0) return closeoutRefusal("Not issued:", [{ code: "DEFECTS_OPEN", level: "block", data: { n: open } }]);
+  // F5 (code review of close-out stage B): what it prints is what is held as it issues; a figure that moved since the raise refuses, by name.
+  const printed = (await tx.certificate.findUniqueOrThrow({ where: { id: cert.id }, select: { computedSnapshot: true } })).computedSnapshot as { lines?: { key: string; value: string | null }[] } | null;
+  const moved = cmgdFiguresMoved(new Map((printed?.lines ?? []).map((x) => [x.key, x.value])), (await cmgdFiguresNow(l.contract.id, rows, tx)).lines);
+  if (moved.length) return closeoutRefusal("Not issued:", moved);
   return statusRefusal(tx, l, cert, "MAKING_GOOD_COMPLETE", "MAKING_GOOD");
 }
 

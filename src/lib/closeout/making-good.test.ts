@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cmgdRaiseFaults, cmgdSnapshotOf, type CmgdRaiseInput } from "./making-good";
+import { cmgdFigureLines, cmgdFiguresMoved, cmgdRaiseFaults, cmgdSnapshotOf, type CmgdRaiseInput } from "./making-good";
 
 /** FR-CMP-015, 018; plan closeout-plan.md §4.4, §6.3; rulings 4 and 6. */
 
@@ -27,5 +27,22 @@ describe("cmgdSnapshotOf (ruling 6, FR-CMP-015)", () => {
     expect(snap.performanceBond).toEqual({ value: "25000.00", reference: "BG-77" });
     expect(snap.retentionBalance).toBe("12345.67");
     expect(snap.securities.map((s) => s.reference)).toEqual(["BG-77", "OR-12"]);
+  });
+});
+
+// Code review of close-out stage B: every performance bond, and F5's check of the printed figures.
+describe("cmgdSnapshotOf with several bonds, and cmgdFiguresMoved (F5)", () => {
+  it("sums every performance bond and lists their numbers", () => {
+    const snap = cmgdSnapshotOf({ securities: [{ kind: "PERFORMANCE_BOND", form: "BANK_GUARANTEE", reference: "BG-1", value: 100000n }, { kind: "PERFORMANCE_BOND", form: "INSURANCE_GUARANTEE", reference: "IG-2", value: 50000n }], retentionBalance: 0n });
+    expect(snap.performanceBond).toEqual({ value: "1500.00", reference: "BG-1; IG-2" });
+  });
+  it("names each printed figure that moved, and none when all match; a kind is a label, never its code", () => {
+    const snap = cmgdSnapshotOf({ securities: [{ kind: "PERFORMANCE_BOND", form: "BANK_GUARANTEE", reference: "BG-1", value: 100000n }, { kind: "SOMETHING_NEW", form: "CASH", reference: "", value: 1n }], retentionBalance: 200000n });
+    const now = cmgdFigureLines(snap, { total: 3, withdrawn: 1 });
+    expect(now.cmgdDefects).toBe("2 made good, 1 withdrawn, not made good");
+    expect(now.cmgdSecurities).toBe("Performance bond: BG-1; Security: no number");
+    expect(cmgdFiguresMoved(new Map(Object.entries(now)), now)).toEqual([]);
+    const printed = new Map(Object.entries({ ...now, cmgdRetentionBalance: "1500.00" }));
+    expect(cmgdFiguresMoved(printed, now)).toEqual([{ code: "CMGD_FIGURES_MOVED", level: "block", data: { items: "the retention balance held" } }]);
   });
 });

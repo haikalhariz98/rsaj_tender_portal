@@ -4,6 +4,7 @@
  * Every state and next line is the pure rules' (`closeoutNext`, `defectState`, `balanceEventOf`, `securityReturnFaults`); nothing is decided here.
  */
 
+import type { Tx } from "@/lib/audit/record";
 import { contractLabel, type LoadedContract } from "@/lib/contract/repo";
 import { db } from "@/lib/db";
 import { dayPlus } from "@/lib/dates";
@@ -18,7 +19,9 @@ import type { Tiers } from "@/lib/payment/retention";
 
 import { dlpOffsetsDue, DLP_EVENT_KEY } from "./dlp";
 import { SECURITY_KIND_WORDS } from "./labels";
-import { dlpOfRow, loadCloseout, openLineCount, releaseEventsOf } from "./load";
+import { defectState } from "./defects";
+import { defectFactsOf, dlpOfRow, loadCloseout, openLineCount, releaseEventsOf, type CloseoutRows } from "./load";
+import { cmgdFigureLines, cmgdSnapshotOf } from "./making-good";
 import { closeoutNext } from "./next";
 import { securityReturnFaults, type SecurityReturnInput } from "./release";
 import type { BalanceEvent, CloseoutFacts, Finding } from "./types";
@@ -44,6 +47,15 @@ export function retentionOf(p: PaymentRows): { held: Sen; first: Sen; balance: S
   const b = p.retentionReleases.find((r) => r.kind === "RELEASED_BALANCE");
   const since = b ? held - first - (senFromDecimal(b.main) + senFromDecimal(b.nsc) + senFromDecimal(b.ns)) : 0n;
   return { held, first, balance: balance > 0n ? balance : 0n, balanceReleased: rs.already.balance, sinceBalance: since > 0n ? since : 0n };
+}
+
+/// What the CMGD prints, from what is held now (ruling 6): read at its raise, and again at its issue, which refuses if a figure moved (F5).
+export async function cmgdFiguresNow(contractId: string, rows: CloseoutRows, client: Tx) {
+  const [p, securities] = await Promise.all([loadPayment(contractId, client), client.securityInstrument.findMany({ where: { contractId, status: { not: "REJECTED" }, release: null }, orderBy: [{ lodgedOn: "asc" }, { id: "asc" }] })]);
+  const snap = cmgdSnapshotOf({ securities: securities.map((s) => ({ kind: s.kind, form: s.form, reference: s.instrumentRef, value: senFromDecimal(s.value) })), retentionBalance: retentionOf(p).balance });
+  const facts = defectFactsOf(rows);
+  const withdrawn = facts.filter((d) => defectState(d.events).state === "WITHDRAWN").length;
+  return { snap, withdrawn, lines: cmgdFigureLines(snap, { total: facts.length, withdrawn }) };
 }
 
 export async function closeoutView(l: LoadedContract, today: string | null) {

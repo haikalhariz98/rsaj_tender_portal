@@ -9,10 +9,10 @@ import { cpcLineFaults, cpcRaiseFaults, dlpOf } from "@/lib/closeout/completion"
 import { defectActFaults, defectState, reportDefectFaults, type DefectAct } from "@/lib/closeout/defects";
 import { closeoutRefusal, SECURITY_FORM_WORDS, SECURITY_KIND_WORDS } from "@/lib/closeout/labels";
 import { cmgdIssuedOn, defectFactsOf, dlpOfRow, liveLadWindows, loadCloseout, openLineCount, releaseEventsOf } from "@/lib/closeout/load";
-import { cmgdRaiseFaults, cmgdSnapshotOf } from "@/lib/closeout/making-good";
+import { cmgdRaiseFaults } from "@/lib/closeout/making-good";
 import { beforeCertificateFault, returnTriggerOf, securityReturnFaults, type SecurityReturnInput } from "@/lib/closeout/release";
 import { scheduleRaiseFaults } from "@/lib/closeout/schedule";
-import { advanceRecoupedOf, retentionOf } from "@/lib/closeout/view";
+import { advanceRecoupedOf, cmgdFiguresNow } from "@/lib/closeout/view";
 import type { Finding } from "@/lib/closeout/types";
 import { refusalText } from "@/lib/certificate/fault-text";
 import { noFormFault } from "@/lib/certificate/form-needs";
@@ -302,12 +302,6 @@ export async function raiseDefectSchedule(_prev: FormState, data: FormData): Pro
 
 // ------------------------------------------------------------------ FR-CMP-015, 018: the certificate of making good defects
 
-/// What the contract holds today (ruling 6): its securities not returned and not rejected, and the retention balance still held.
-async function heldOf(c: ActCtx) {
-  const [p, securities] = await Promise.all([loadPayment(c.l.contract.id, c.tx), c.tx.securityInstrument.findMany({ where: { contractId: c.l.contract.id, status: { not: "REJECTED" }, release: null }, orderBy: [{ lodgedOn: "asc" }, { id: "asc" }] })]);
-  return { p, securities, balance: retentionOf(p).balance };
-}
-
 export async function raiseMakingGood(_prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
   if (!txGuard.ok) return txGuard.state;
@@ -327,22 +321,19 @@ export async function raiseMakingGood(_prev: FormState, data: FormData): Promise
     const fs = cmgdRaiseFaults({ cpcIssued: rows.cpc?.certificate.status === "ISSUED", dlp: rows.cpc ? dlpOfRow(rows.cpc) : null, today: c.today, open: openLineCount(rows), live: rows.cmgd ? { number: rows.cmgd.certificate.number } : null, madeGoodOn: storedDay(madeGoodOn), finalInspectionOn: storedDay(finalInspectionOn) });
     if (fs.length) refuse("Not raised:", fs);
     const form = await formOf(c, "MAKING_GOOD_DEFECTS");
-    const h = await heldOf(c);
-    const snap = cmgdSnapshotOf({ securities: h.securities.map((s) => ({ kind: s.kind, form: s.form, reference: s.instrumentRef, value: senFromDecimal(s.value) })), retentionBalance: h.balance });
-    const facts = defectFactsOf(rows);
-    const withdrawn = facts.filter((d) => defectState(d.events).state === "WITHDRAWN").length;
-    // Ruling 6 (FR-CMP-015): the certificate's own figures carry the bond's value, the balance and each security's number.
+    // Ruling 6 (FR-CMP-015): the certificate's own figures carry the bond's value, the balance and each security's number; its issue checks them again (F5).
+    const { snap, withdrawn, lines: f } = await cmgdFiguresNow(c.l.contract.id, rows, c.tx);
     const computed = snapshot(c.today, "The defects made good, and what is held against the contract as the certificate is raised.", [
       line("cmgdMadeGoodOn", "Defects made good on", "DATE", storedDay(madeGoodOn)),
       line("cmgdFinalInspectionOn", "Final defects inspection on", "DATE", storedDay(finalInspectionOn)),
-      line("cmgdDefects", "Defects", "TEXT", `${facts.length - withdrawn} made good${withdrawn ? `, ${withdrawn} withdrawn, not made good` : ""}`),
-      line("cmgdPerformanceBond", "Performance bond", "MONEY", snap.performanceBond?.value ?? null),
-      line("cmgdRetentionBalance", "Retention balance held", "MONEY", snap.retentionBalance),
-      line("cmgdSecurities", "Securities held (guarantee or receipt numbers)", "TEXT", snap.securities.map((s) => `${SECURITY_KIND_WORDS[s.kind] ?? s.kind}: ${s.reference || "no number"}`).join("; ") || "None"),
+      line("cmgdDefects", "Defects", "TEXT", f.cmgdDefects),
+      line("cmgdPerformanceBond", "Performance bond", "MONEY", f.cmgdPerformanceBond),
+      line("cmgdRetentionBalance", "Retention balance held", "MONEY", f.cmgdRetentionBalance),
+      line("cmgdSecurities", "Securities held (guarantee or receipt numbers)", "TEXT", f.cmgdSecurities),
     ]);
     const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "MAKING_GOOD_DEFECTS", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed }, c.now, c.today);
     const row = await c.tx.makingGood.create({ data: { organisationId: c.l.org.id, certificateId: certId, contractId: c.l.contract.id, madeGoodOn, finalInspectionOn, snapshot: json(snap), personId: who.person.id, recordedAt: c.now } });
-    await audit(c, "MakingGood", row.id, `${c.label} · making good of defects`, "CREATE", diffFields(null, { madeGoodOn: storedDay(madeGoodOn), finalInspection: storedDay(finalInspectionOn), withdrawnNotMadeGood: withdrawn || null, performanceBond: snap.performanceBond ? formatMoney(senFromDecimal(snap.performanceBond.value)) : null, retentionBalance: formatMoney(h.balance), raisedFor: who.person.name }));
+    await audit(c, "MakingGood", row.id, `${c.label} · making good of defects`, "CREATE", diffFields(null, { madeGoodOn: storedDay(madeGoodOn), finalInspection: storedDay(finalInspectionOn), withdrawnNotMadeGood: withdrawn || null, performanceBond: snap.performanceBond ? formatMoney(senFromDecimal(snap.performanceBond.value)) : null, retentionBalance: formatMoney(senFromDecimal(snap.retentionBalance)), raisedFor: who.person.name }));
     await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
     return { ok: true };
   });

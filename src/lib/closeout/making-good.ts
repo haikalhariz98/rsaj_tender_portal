@@ -8,6 +8,7 @@
 
 import { senToDecimalString, type Sen } from "@/lib/money";
 
+import { SECURITY_KIND_WORDS, withdrawnWords } from "./labels";
 import type { Day, Dlp, Finding } from "./types";
 
 export interface CmgdRaiseInput {
@@ -43,10 +44,35 @@ export interface CmgdSnapshot {
 }
 
 export function cmgdSnapshotOf(i: { securities: readonly { kind: string; form: string; reference: string; value: Sen }[]; retentionBalance: Sen }): CmgdSnapshot {
-  const bond = i.securities.find((s) => s.kind === "PERFORMANCE_BOND") ?? null;
+  // Code review of close-out stage B: every performance bond held, not the first only (their values summed, their numbers listed).
+  const bonds = i.securities.filter((s) => s.kind === "PERFORMANCE_BOND");
   return {
-    performanceBond: bond ? { value: senToDecimalString(bond.value), reference: bond.reference } : null,
+    performanceBond: bonds.length ? { value: senToDecimalString(bonds.reduce((a, b) => a + b.value, 0n)), reference: bonds.map((b) => b.reference).join("; ") } : null,
     retentionBalance: senToDecimalString(i.retentionBalance),
     securities: i.securities.map((s) => ({ kind: s.kind, form: s.form, reference: s.reference, value: senToDecimalString(s.value) })),
   };
 }
+
+/**
+ * The figures the CMGD prints (ruling 6), by line key, as the raise writes them and the issue checks them (code review of close-out stage B, F5):
+ * a figure that moved between the raise and the issue (an interim issued, a security returned, a line withdrawn) refuses the issue by name.
+ * A security's kind is always a label, never its code.
+ */
+export function cmgdFigureLines(snap: CmgdSnapshot, defects: { total: number; withdrawn: number }): Readonly<Record<"cmgdDefects" | "cmgdPerformanceBond" | "cmgdRetentionBalance" | "cmgdSecurities", string | null>> {
+  const withdrawn = withdrawnWords(defects.withdrawn);
+  return {
+    cmgdDefects: `${defects.total - defects.withdrawn} made good${withdrawn ? `, ${withdrawn}` : ""}`,
+    cmgdPerformanceBond: snap.performanceBond?.value ?? null,
+    cmgdRetentionBalance: snap.retentionBalance,
+    cmgdSecurities: snap.securities.map((s) => `${SECURITY_KIND_WORDS[s.kind] ?? "Security"}: ${s.reference || "no number"}`).join("; ") || "None",
+  };
+}
+
+export const CMGD_FIGURE_WORDS: Readonly<Record<string, string>> = { cmgdDefects: "the defects", cmgdPerformanceBond: "the performance bond", cmgdRetentionBalance: "the retention balance held", cmgdSecurities: "the securities held" };
+
+/// The printed figures that differ from what is held now, named (empty: none moved).
+export function cmgdFiguresMoved(printed: ReadonlyMap<string, string | null>, now: ReturnType<typeof cmgdFigureLines>): Finding[] {
+  const moved = (Object.keys(now) as (keyof typeof now)[]).filter((k) => (printed.get(k) ?? null) !== now[k]);
+  return moved.length ? [{ code: "CMGD_FIGURES_MOVED", level: "block", data: { items: moved.map((k) => CMGD_FIGURE_WORDS[k]).join(", ") } }] : [];
+}
+

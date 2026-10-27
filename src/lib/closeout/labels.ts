@@ -49,6 +49,7 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   LIMIT_NOT_SET: () => "The longest period a schedule may give is not set, so it is not checked.",
   // The certificate of making good defects
   DEFECTS_OPEN: (d) => `${s(d.n, "Some")} ${d.n === 1 ? "defect is" : "defects are"} neither made good nor withdrawn.`,
+  CMGD_FIGURES_MOVED: (d) => `What it prints has changed since it was raised (${s(d.items, "its figures")}). Void it and raise it again.`,
   CMGD_LIVE: (d) => `A certificate of making good defects${d.number ? ` (${d.number})` : ""} is already raised.`,
   // Retention and securities
   RELEASE_EVENT_NOT_SET: (d) => `When the ${s(d.setting, "release")} is released is not set. See Configuration › Post-award.`,

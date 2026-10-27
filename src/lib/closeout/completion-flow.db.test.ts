@@ -174,6 +174,16 @@ describe("close-out stage B through its acts", () => {
     expect(stranded.message).toMatch(new RegExp(`Finish or close first: .*${matter.reference}`));
     expect(await status()).toBe("PRACTICALLY_COMPLETE");
     await db.contractMatter.update({ where: { id: matter.id }, data: { closedAt: new Date(), closeReason: "Withdrawn by the contractor." } });
+    // F5 / money test 9 (code review of close-out stage B): an interim issued between the raise and the issue moves the retention balance the CMGD
+    // prints, so the issue is refused by name; once it is gone the figures match again.
+    const ipc = await db.certificate.create({ data: { organisationId: o.organisationId, contractId: k.contractId, kind: "INTERIM_PAYMENT", status: "ISSUED", baselineId: k.baselineId, number: `IPC/${randomId()}`, sequence: 1, issuedAt: new Date(), certificateDate: D(today()), openedAt: new Date(), openedOn: D(today()), issueSnapshot: { figures: { lines: [{ key: "retentionMain", value: "5000.00" }, { key: "retentionNsc", value: "0.00" }, { key: "retentionNs", value: "0.00" }], totals: [] } } } });
+    const val = await db.interimValuation.create({ data: { organisationId: o.organisationId, contractId: k.contractId, trigger: "VALUATION_DATE", valuationDate: D(today()), status: "RAISED", personId: o.so, certificateId: ipc.id, judgedUnder: { version: 1, sequence: 1, released: { MAIN: "0.00", NSC: "0.00", NS: "0.00" }, recoupments: [] }, recordedAt: new Date(), recordedOn: D(today()) } });
+    const moved = await as(o.so, () => recordCertificateSignature({ ok: false }, form({ certId: mg.certificateId, blockOrder: "2", personBlock: "no", name: "Tan Mei Hua", icNumber: "000000-00-0013", signedOn: today() })));
+    expect(moved.ok).toBe(false);
+    expect(moved.message).toMatch(/What it prints has changed since it was raised \(the retention balance held\)/);
+    expect(await status()).toBe("PRACTICALLY_COMPLETE");
+    await db.interimValuation.delete({ where: { id: val.id } });
+    await db.certificate.delete({ where: { id: ipc.id } });
     const done = await as(o.so, () => recordCertificateSignature({ ok: false }, form({ certId: mg.certificateId, blockOrder: "2", personBlock: "no", name: "Tan Mei Hua", icNumber: "000000-00-0013", signedOn: today() })));
     expect(done.ok, done.message).toBe(true);
     expect(await status()).toBe("MAKING_GOOD_COMPLETE");
