@@ -135,6 +135,9 @@ describe("A5: the committees' notes", () => {
     expect(committee("VOC")).toMatchObject({ compositionProvenance: "STATED", notes: expect.stringMatching(/^Chaired by the COO and CFO; .*\(KP002 flowchart 6\.2\)\. SK006 7\.5\.3 and 7\.6 have it approve extensions of time and of the contract period/) });
     expect(committee("TOC")).toMatchObject({ compositionProvenance: "STATED", panelSize: 2, notes: expect.stringContaining("SK002 7.7.2") });
     expect(committee("TBC")).toMatchObject({ notes: "An absent Chairman may appoint the CEO as chairman (SK003 7.6.3)." });
+    // Phase 0.3 item 13 (RSAJ Q6): the Tender Board sits with its chairman or the chairman's appointee, stated by SK003 7.6.2 and 7.6.3.
+    expect(committee("TBC")).toMatchObject({ chairPresence: "CHAIR_OR_APPOINTED", chairPresenceProvenance: "STATED" });
+    expect(listOf("Committee").find((c) => c.code === "TBC")!.source).toMatch(/SK003 .*7\.6\.2, 7\.6\.3/);
     expect(RSAJ_PACK.lists.map((l) => l.model)).not.toContain("CommitteeMember");
   });
 });

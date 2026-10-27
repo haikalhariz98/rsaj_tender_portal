@@ -13,6 +13,7 @@ import {
   snapshotRegister,
 } from "./assess-sitting";
 import { registerRole, type Seat } from "./sitting";
+import { blockerShort } from "./labels";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 const person = (id: string): Person => ({
@@ -247,5 +248,37 @@ describe("assessFromRegister: the sitting's status (6.10 local review 1)", () =>
   it("assessSitting passes the status through", () => {
     const a = assessSitting({ meetingDate: d("2026-03-01"), seats, roster, quorum: 2, votingRule: "SIMPLE_MAJORITY", attendance: [], matters: [matter], status: "SCHEDULED" });
     expect(a.matters.X.blockers).toEqual(["SITTING_NOT_STARTED"]);
+  });
+});
+
+// Phase 0.3 item 13 (RSAJ Q6): a matter is not decided while the chairman must sit and nobody sits in the chair; a decided matter keeps its own rule.
+describe("the chairman's presence at a sitting", () => {
+  const votes = (ids: string[]) => ids.map((personId) => ({ personId, choice: "SETUJU" as const }));
+  const matter = (ids: string[]) => ({ id: "M", act: "R", tabled: true, outcome: "PENDING" as const, dependencyOutcome: null, recusedIds: [], votes: votes(ids) });
+  const run = (chairPresence: "CHAIR_REQUIRED" | "CHAIR_OR_APPOINTED" | null, attendance: ReturnType<typeof here>[], chairStandInAllowed = false) =>
+    assessSitting({ meetingDate: d("2026-03-01"), seats, roster: { ...roster, people: [...roster.people, person("ceo")] }, quorum: 2, votingRule: "SIMPLE_MAJORITY", attendance, matters: [matter(attendance.map((a) => a.personId))], chairPresence, chairStandInAllowed });
+
+  it("unset: members are counted and the chair is not, as before", () => {
+    expect(run(null, [here("money"), here("named")]).matters.M.canRecord).toBe(true);
+  });
+  it("set: without the chairman the matter is not decided, and the short words say why", () => {
+    const m = run("CHAIR_REQUIRED", [here("money"), here("named")]).matters.M;
+    expect(m.blockers).toEqual(["QUORUM_NOT_MET"]);
+    expect(blockerShort(m)).toBe("The chairman is absent and nobody appointed sits in the chair");
+    expect(run("CHAIR_REQUIRED", [here("chief"), here("money")]).matters.M.canRecord).toBe(true);
+  });
+  it("chair or appointee: the chairman's appointee in the chair certifies the sitting", () => {
+    const a = run("CHAIR_OR_APPOINTED", [here("ceo", "chair"), here("money")], true);
+    expect(a.present.faults).toEqual([]);
+    expect(a.matters.M.canRecord).toBe(true);
+    // No appointing record: the stand-in is refused and the chair is absent.
+    const none = run("CHAIR_OR_APPOINTED", [here("ceo", "chair"), here("money")], false);
+    expect(none.present.faults).toEqual([{ personId: "ceo", fault: "STAND_IN_FOR_CHAIR" }]);
+    expect(none.matters.M.blockers).toContain("QUORUM_NOT_MET");
+  });
+  it("a decided matter keeps the rule it was recorded under", () => {
+    const reg = resolveRegister({ meetingDate: d("2026-03-01"), seats, roster, attendance: [here("money"), here("named")] });
+    const decided = { ...matter(["money", "named"]), outcome: "CARRIED" as const, snapshot: { quorum: 2, votingRule: "SIMPLE_MAJORITY" as const, alternateMayVoteForRecused: null } };
+    expect(assessFromRegister(reg, { quorum: 2, votingRule: "SIMPLE_MAJORITY", alternateMayVoteForRecused: null, chairPresence: "CHAIR_REQUIRED" }, [decided]).matters.M.canRecord).toBe(true);
   });
 });

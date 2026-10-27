@@ -25,6 +25,8 @@ export interface QuorumAssessment {
   /// How many more attendees are needed. Null when there is no configured quorum.
   shortfall: number | null;
   messageEn: string;
+  /// Phase 0.3 item 13: not met because the chairman is absent (with or without enough heads).
+  chairAbsent?: boolean;
 }
 
 export interface AssessQuorumInput {
@@ -32,9 +34,11 @@ export interface AssessQuorumInput {
   quorum: number | null;
   /// Number of members recorded as present.
   present: number;
+  /// Phase 0.3 item 13 (RSAJ Q6): the committee needs its chairman (`chairPresence` set) and nobody sits in the chair. Absent or false: heads only, as before.
+  chairAbsent?: boolean;
 }
 
-export function assessQuorum({ quorum, present }: AssessQuorumInput): QuorumAssessment {
+export function assessQuorum({ quorum, present, chairAbsent }: AssessQuorumInput): QuorumAssessment {
   if (quorum == null) {
     return {
       state: "UNCONFIGURED",
@@ -48,6 +52,18 @@ export function assessQuorum({ quorum, present }: AssessQuorumInput): QuorumAsse
   }
 
   const shortfall = Math.max(0, quorum - present);
+
+  // Heads are not enough where the body needs its chairman: three members without the chair do not certify the sitting.
+  if (chairAbsent) {
+    return {
+      state: "NOT_MET",
+      required: quorum,
+      present,
+      shortfall,
+      chairAbsent: true,
+      messageEn: `Not quorate — the chairman is absent and nobody the chairman appointed sits in the chair (${present} of ${quorum} required members present).`,
+    };
+  }
 
   return {
     state: shortfall === 0 ? "MET" : "NOT_MET",

@@ -1,4 +1,5 @@
 import { PencilIcon } from "@/components/icons";
+import { CHAIR_PRESENCE_LABEL } from "@/lib/committee/labels";
 import { END_DAY_LABEL } from "@/lib/effective-text";
 import { LOOP_KEY_LABEL, LOOP_STAGE_KEYS } from "@/lib/evaluation/loop";
 import { RecordEditor, type Field } from "@/components/record-editor";
@@ -17,6 +18,8 @@ import {
 export type OfficeOption = { code: string; nameEn: string };
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+
+const CHAIR_PRESENCE_OPTIONS = Object.entries(CHAIR_PRESENCE_LABEL).map(([value, label]) => ({ value, label }));
 
 const PROVENANCE_OPTIONS = [
   { value: "STATED", label: "Stated — written in a governing document" },
@@ -129,6 +132,22 @@ function committeeFields(editing: boolean, offices: OfficeOption[], candidates: 
       placeholder: "Not set",
       options: PROVENANCE_OPTIONS,
     },
+    // Phase 0.3 item 13 (RSAJ Q6): whether a sitting needs its chairman.
+    {
+      kind: "select",
+      name: "chairPresence",
+      label: "Must the chairman sit?",
+      placeholder: "Not set",
+      hint: "Unset: members are counted, the chair is not.",
+      options: CHAIR_PRESENCE_OPTIONS,
+    },
+    {
+      kind: "select",
+      name: "chairPresenceProvenance",
+      label: "Where the chairman rule came from",
+      placeholder: "Not set",
+      options: PROVENANCE_OPTIONS,
+    },
     {
       kind: "text",
       name: "carriedLabelEn",
@@ -202,6 +221,8 @@ export interface CommitteeValues {
   votingRuleProvenance: string | null;
   alternateMayVoteForRecused: boolean | null;
   alternateMayVoteForRecusedProvenance: string | null;
+  chairPresence?: string | null;
+  chairPresenceProvenance?: string | null;
   carriedLabelEn?: string | null;
   carriedLabelMs?: string | null;
 }
@@ -238,6 +259,8 @@ export function EditCommittee({ committee, offices }: { committee: CommitteeValu
         alternateMayVoteForRecused:
           committee.alternateMayVoteForRecused == null ? null : committee.alternateMayVoteForRecused ? "yes" : "no",
         alternateMayVoteForRecusedProvenance: committee.alternateMayVoteForRecusedProvenance,
+        chairPresence: committee.chairPresence ?? null,
+        chairPresenceProvenance: committee.chairPresenceProvenance ?? null,
         carriedLabelEn: committee.carriedLabelEn ?? null,
         carriedLabelMs: committee.carriedLabelMs ?? null,
       }}

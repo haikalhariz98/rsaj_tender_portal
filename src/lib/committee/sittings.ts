@@ -17,7 +17,7 @@ import {
 } from "./assess-sitting";
 import { outcomesOffered, type DecisionOutcome } from "./matter";
 import { assessQuorum } from "./quorum";
-import type { Seat } from "./sitting";
+import { chairAbsentFrom, chairStandInAllowed, type Seat } from "./sitting";
 import { secretariatHoldersOn } from "./tabling";
 import { inOrder } from "@/lib/series";
 
@@ -73,9 +73,10 @@ export async function listSittings(scope: OrgScope, q: ListQuery<SittingView>, o
     const snap = m.status === "MINUTED" && isRegisterSnapshot(m.registerSnapshot) ? m.registerSnapshot : null;
     const register = snap
       ? snap.register
-      : resolveRegister({ meetingDate: m.meetingDate, seats: m.committee.members, roster, attendance: m.attendance });
+      : resolveRegister({ meetingDate: m.meetingDate, seats: m.committee.members, roster, attendance: m.attendance, chairStandInAllowed: chairStandInAllowed(m.committee.chairPresence, m.chairAppointment) });
     const quorum = snap ? snap.rules.quorum : m.committee.quorum;
     const present = register.present.voterIds.length;
+    const chairAbsent = chairAbsentFrom(snap ? snap.rules.chairPresence : m.committee.chairPresence, register.voting, register.present.occupants);
     return {
       id: m.id,
       reference: m.reference,
@@ -86,7 +87,7 @@ export async function listSittings(scope: OrgScope, q: ListQuery<SittingView>, o
       pending: m.decisions.filter((d) => d.outcome === "PENDING" && !d.withdrawnAt).length,
       present,
       quorum,
-      quorumState: assessQuorum({ quorum, present }).state,
+      quorumState: assessQuorum({ quorum, present, chairAbsent }).state,
     };
   });
 
@@ -173,10 +174,11 @@ export async function loadSitting(scope: OrgScope, id: string, client: Tx = db, 
         votingRule: c.votingRule,
         votingRuleProvenance: c.votingRuleProvenance,
         alternateMayVoteForRecused: c.alternateMayVoteForRecused,
+        chairPresence: c.chairPresence,
       };
   const register = snapshot
     ? snapshot.register
-    : resolveRegister({ meetingDate: meeting.meetingDate, seats: c.members, roster, attendance: meeting.attendance });
+    : resolveRegister({ meetingDate: meeting.meetingDate, seats: c.members, roster, attendance: meeting.attendance, chairStandInAllowed: chairStandInAllowed(c.chairPresence, meeting.chairAppointment) });
   const assessment = assessFromRegister(register, rules, matters, meeting.status);
 
   const names: Record<string, string> = snapshot
@@ -347,6 +349,7 @@ export async function inProgressSittingRefusal(scope: OrgScope, change: {
       seats,
       roster: change.roster ? change.roster(roster) : roster,
       attendance: s.meeting.attendance,
+      chairStandInAllowed: s.register.chairStandInAllowed,
     });
     const check = checkRegisterChange(s.register, after, s.rules, s.matters);
     if (check.ok) continue;

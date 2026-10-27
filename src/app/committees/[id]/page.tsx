@@ -48,7 +48,7 @@ import {
 import { isLive } from "@/lib/documents/evidence";
 import { liveOutcomes, MANDATORY_ACTS } from "@/lib/committee/matter";
 import { isFrozen, meetingTransition } from "@/lib/committee/meeting";
-import type { VotingSeat } from "@/lib/committee/sitting";
+import { chairAbsentFrom, type VotingSeat } from "@/lib/committee/sitting";
 import { loadSitting, redactHiddenMatters, sittingHistory, type LoadedSitting } from "@/lib/committee/sittings";
 import { HIDDEN_MATTER_SUBJECT, hiddenDecisionIds } from "@/lib/committee/hidden";
 import { hiddenExercises, sulitGate, sulitMatterAmounts } from "@/app/_auth/sulit";
@@ -72,6 +72,7 @@ import {
   EditSitting,
   MinuteSitting,
   RecordAttendanceEditor,
+  ChairAppointmentEditor,
   RecordOutcome,
   StartSitting,
   TableMatter,
@@ -136,7 +137,7 @@ export default async function SittingPage({
   // A minuted sitting reads its quorum and rule from its own snapshot.
   const quorum = s.rules.quorum;
   const votingRule = s.rules.votingRule;
-  const quorumState = assessQuorum({ quorum, present: a.present.voterIds.length }).state;
+  const quorumState = assessQuorum({ quorum, present: a.present.voterIds.length, chairAbsent: chairAbsentFrom(s.rules.chairPresence, a.voting, a.present.occupants) }).state;
 
   const present = a.present.voterIds.length;
   const cancelled = m.status === "CANCELLED";
@@ -610,6 +611,17 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
       role: `${POSITION_LABEL[v.position]} · alternate ${v.forSeatId && seatById.get(v.forSeatId) ? `for ${seatById.get(v.forSeatId)!.name ?? seatLabel(seatById.get(v.forSeatId)!)}` : `for any ${POSITION_LABEL[v.position].toLowerCase()} seat`}`,
       alternate: true,
     })),
+    // Phase 0.3 item 13: the chairman's appointee, who need not be a member of the register.
+    ...m.attendance
+      .filter((r) => r.attended && r.standingInForSeatId != null && seatById.get(r.standingInForSeatId)?.position === "CHAIRMAN")
+      .filter((r) => !a.voting.some((v) => v.personId === r.personId) && !a.alternates.some((v) => v.personId === r.personId))
+      .map((r) => ({
+        key: `chair-${r.personId}`,
+        personId: r.personId,
+        name: s.names[r.personId] ?? "Not on record",
+        role: m.chairAppointment ? `In the chair, appointed by the chairman · ${m.chairAppointment}` : "In the chair",
+        alternate: false,
+      })),
     ...a.nonVotingMemberIds.map((pid) => ({
       key: `sec-${pid}`,
       personId: pid,
@@ -653,8 +665,17 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
           title="Register"
           subtitle={
             a.registerTaken
-              ? `${a.present.voterIds.length} voting ${a.present.voterIds.length === 1 ? "member" : "members"} present`
+              ? `${a.present.voterIds.length} voting ${a.present.voterIds.length === 1 ? "member" : "members"} present${chairAbsentFrom(s.rules.chairPresence, a.voting, a.present.occupants) ? " · chairman absent" : ""}`
               : "Taken when the sitting starts"
+          }
+          actions={
+            editable && s.rules.chairPresence === "CHAIR_OR_APPOINTED" ? (
+              <ChairAppointmentEditor
+                meetingId={m.id}
+                people={s.roster.people.map((p) => ({ value: p.id, label: p.name }))}
+                current={{ personId: m.attendance.find((r) => r.attended && r.standingInForSeatId != null && seatById.get(r.standingInForSeatId)?.position === "CHAIRMAN")?.personId ?? null, record: m.chairAppointment }}
+              />
+            ) : undefined
           }
         />
         <ul className="divide-y divide-line/70">

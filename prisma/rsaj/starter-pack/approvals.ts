@@ -69,6 +69,9 @@ export const COMMITTEES = list("Committee", "Committee", [
       valueScopeMin: "300000.00",
       quorum: 3,
       quorumProvenance: "STATED",
+      // RSAJ Q6 (Phase 0.3 item 13): a sitting without its chairman, or the CEO he appointed, cannot proceed (SK003 7.6.2, 7.6.3).
+      chairPresence: "CHAIR_OR_APPOINTED",
+      chairPresenceProvenance: "STATED",
       notes: "An absent Chairman may appoint the CEO as chairman (SK003 7.6.3).",
     },
     requirement: `${CTE}, FR-CTE-003, FR-CTE-008, FR-EOT-006`,

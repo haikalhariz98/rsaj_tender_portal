@@ -16,12 +16,14 @@ import { assessMatter, type DecisionOutcome, type MatterAssessment, type Meeting
 import type { VoteChoice } from "./quorum";
 import {
   alternatesOn,
+  chairAbsentFrom,
   nonVotingMembersOn,
   presentVoters,
   seatHasAlternate,
   votingSeatsOn,
   type AlternateSeat,
   type AttendanceRecord,
+  type ChairPresence,
   type PresentVoters,
   type Seat,
   type VotingSeat,
@@ -53,12 +55,16 @@ export interface Register {
   alternates: AlternateSeat[];
   nonVotingMemberIds: string[];
   present: PresentVoters;
+  /// Phase 0.3 item 13: a stand-in the chairman appointed may sit in the chair at this sitting. Absent (older snapshots): no.
+  chairStandInAllowed?: boolean;
 }
 
 export interface SittingRules {
   quorum: number | null;
   votingRule: VotingRule | null;
   alternateMayVoteForRecused: boolean | null;
+  /// Phase 0.3 item 13: Committee.chairPresence. Absent (older snapshots) or null: not judged, heads only.
+  chairPresence?: ChairPresence | null;
 }
 
 export interface SittingAssessment extends Register {
@@ -73,13 +79,15 @@ export function resolveRegister(i: {
   seats: readonly Seat[];
   roster: Roster;
   attendance: readonly AttendanceRecord[];
+  chairStandInAllowed?: boolean;
 }): Register {
   const on = i.meetingDate;
   const voting = votingSeatsOn(i.seats, i.roster, on);
   const alternates = alternatesOn(i.seats, i.roster, on);
   const nonVotingMemberIds = nonVotingMembersOn(i.seats, i.roster, on);
-  const present = presentVoters({ voting, alternates, nonVotingMemberIds, attendance: i.attendance });
-  return { voting, alternates, nonVotingMemberIds, present };
+  const chairStandInAllowed = i.chairStandInAllowed ?? false;
+  const present = presentVoters({ voting, alternates, nonVotingMemberIds, attendance: i.attendance, chairStandInAllowed });
+  return { voting, alternates, nonVotingMemberIds, present, chairStandInAllowed };
 }
 
 /// The register with a different attendance, for checking a change before it is made.
@@ -102,6 +110,8 @@ export function assessFromRegister(
     hasAlternate: seatHasAlternate(s, register.alternates),
   }));
   const out: Record<string, MatterAssessment> = {};
+  // A decided matter keeps the rule it was recorded under: the chair is judged on matters still open.
+  const chairAbsent = chairAbsentFrom(rules.chairPresence, register.voting, register.present.occupants);
   for (const m of matters) {
     out[m.id] = assessMatter({
       quorum: m.snapshot ? m.snapshot.quorum : rules.quorum,
@@ -115,6 +125,7 @@ export function assessFromRegister(
       votes: m.votes,
       dependencyOutcome: m.dependencyOutcome,
       sittingStatus: status,
+      chairAbsent: m.snapshot ? false : chairAbsent,
     });
   }
   return { ...register, matters: out, registerTaken: status !== "SCHEDULED" };
@@ -130,10 +141,12 @@ export function assessSitting(i: {
   attendance: readonly AttendanceRecord[];
   matters: readonly SittingMatter[];
   status?: MeetingStatus;
+  chairPresence?: ChairPresence | null;
+  chairStandInAllowed?: boolean;
 }): SittingAssessment {
   return assessFromRegister(
     resolveRegister(i),
-    { quorum: i.quorum, votingRule: i.votingRule, alternateMayVoteForRecused: i.alternateMayVoteForRecused ?? null },
+    { quorum: i.quorum, votingRule: i.votingRule, alternateMayVoteForRecused: i.alternateMayVoteForRecused ?? null, chairPresence: i.chairPresence ?? null },
     i.matters,
     i.status,
   );

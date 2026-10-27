@@ -11,6 +11,7 @@ import {
   declareRecusal,
   editSitting,
   recordAttendance,
+  recordChairAppointment,
   recordOutcome,
   saveMinutes,
   scheduleSitting,
@@ -437,6 +438,25 @@ export function WithdrawMatter({ decisionId, subject }: { decisionId: string; su
       submitLabel="Withdraw from the agenda"
       trigger={{ label: "Withdraw from agenda", className: buttonClass("destructive", "sm") }}
       size="sm"
+    />
+  );
+}
+
+/// Phase 0.3 item 13 (SK003 7.6.3): who sits in the chair for the absent chairman, by the chairman's appointment, with the appointing record.
+export function ChairAppointmentEditor({ meetingId, people, current }: { meetingId: string; people: { value: string; label: string }[]; current: { personId: string | null; record: string } }) {
+  return (
+    <RecordEditor
+      title="Appointed to the chair"
+      description="The absent chairman's appointee sits in the chair for this sitting."
+      fields={[
+        { kind: "hidden", name: "meetingId" },
+        { kind: "select", name: "personId", label: "Who sits in the chair", required: true, placeholder: "Choose", options: people },
+        { kind: "text", name: "chairAppointment", label: "Appointing record", required: true, hint: "The chairman's letter or note: its reference and day." },
+      ]}
+      values={{ meetingId, personId: current.personId, chairAppointment: current.record }}
+      action={recordChairAppointment}
+      submitLabel="Record"
+      trigger={{ label: current.personId ? "Change the appointee" : "Record the chairman's appointee", className: buttonClass("secondary", "sm") }}
     />
   );
 }

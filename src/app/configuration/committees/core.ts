@@ -21,6 +21,7 @@ const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const ACTIONS = ["APPROVES", "RECOMMENDS", "CONSENTS", "DECIDES"] as const;
 const POSITIONS = ["CHAIRMAN", "DEPUTY_CHAIRMAN", "MEMBER", "SECRETARY"] as const;
 const VOTING_RULES = ["SIMPLE_MAJORITY", "UNANIMOUS"] as const;
+const CHAIR_PRESENCE = ["CHAIR_REQUIRED", "CHAIR_OR_APPOINTED"] as const;
 const KINDS = ["LOOP", "TERMINAL"] as const;
 const PATH = "/configuration/committees";
 
@@ -112,6 +113,13 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
     r.reject("alternateMayVoteForRecusedProvenance", "Say where this came from, or leave it unset.");
   }
 
+  // Phase 0.3 item 13 (RSAJ Q6): whether a sitting needs its chairman, or a stand-in the chairman appointed. Unset: heads only. Set, it says where it came from.
+  const chairPresence = r.choice("chairPresence", "Must the chairman sit?", CHAIR_PRESENCE);
+  const chairPresenceProvenance = r.choice("chairPresenceProvenance", "Where the chairman rule came from", PROVENANCE);
+  if (chairPresence && !chairPresenceProvenance) {
+    r.reject("chairPresenceProvenance", "Say where this came from, or leave it unset.");
+  }
+
   const aliases = [
     ...new Set(
       String(data.get("aliases") ?? "")
@@ -149,6 +157,8 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
     votingRuleProvenance: votingRule ? votingRuleProvenance : null,
     alternateMayVoteForRecused,
     alternateMayVoteForRecusedProvenance: alternateMayVoteForRecused == null ? null : alternateMayVoteForRecusedProvenance,
+    chairPresence,
+    chairPresenceProvenance: chairPresence ? chairPresenceProvenance : null,
     // What this body calls a carried decision (ruling CO-2: an RSAJ committee would say
     // "Perlu"). Unset reads "Carried", never a borrowed word.
     carriedLabelEn: r.optionalText("carriedLabelEn"),

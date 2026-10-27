@@ -52,6 +52,12 @@ export const VOTING_RULE_LABEL = {
   UNANIMOUS: "Unanimous",
 } as const;
 
+/// Phase 0.3 item 13: Committee.chairPresence in words.
+export const CHAIR_PRESENCE_LABEL = {
+  CHAIR_REQUIRED: "The chairman must sit",
+  CHAIR_OR_APPOINTED: "The chairman, or someone the chairman appointed",
+} as const;
+
 export const NOT_APPROVED_KIND_LABEL = {
   LOOP: "Returns the matter",
   TERMINAL: "Ends the matter",
@@ -278,7 +284,7 @@ export const TRANSITION_FAULT_MESSAGE: Record<TransitionFault, string> = {
  */
 export function blockerShort(a: {
   blockers: readonly MatterBlocker[];
-  quorum: { shortfall: number | null };
+  quorum: { shortfall: number | null; chairAbsent?: boolean };
   tally: { notVoted: number; cast: number };
 }): string | null {
   const b = a.blockers[0];
@@ -288,7 +294,10 @@ export function blockerShort(a: {
       return "The sitting has not started";
     case "QUORUM_NOT_MET": {
       const n = a.quorum.shortfall ?? 0;
-      return `Needs ${n} more voting ${n === 1 ? "member" : "members"} present`;
+      const more = `${n} more voting ${n === 1 ? "member" : "members"}`;
+      // Phase 0.3 item 13: heads are not enough where the body needs its chairman.
+      if (a.quorum.chairAbsent) return n > 0 ? `The chairman is absent, and ${more} needed` : "The chairman is absent and nobody appointed sits in the chair";
+      return `Needs ${more} present`;
     }
     case "VOTES_OUTSTANDING":
       return a.tally.cast === 0

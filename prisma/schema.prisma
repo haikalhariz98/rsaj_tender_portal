@@ -105,6 +105,12 @@ enum VotingRule {
   UNANIMOUS /// Every vote cast is SETUJU.
 }
 
+/// Phase 0.3 item 13 (RSAJ Q6): whether a sitting needs its chairman. Unset on a committee: heads only, as before.
+enum ChairPresence {
+  CHAIR_REQUIRED /// The chairman sits, or the sitting is not certified. Nobody stands in.
+  CHAIR_OR_APPOINTED /// The chairman sits, or someone the chairman appointed sits in the chair (SK003 7.6.3), with the appointing record.
+}
+
 /// What a matter not carried does next. A loop sends the matter back to an earlier
 /// stage, a terminal outcome ends it.
 enum NotApprovedKind {
@@ -1055,6 +1061,10 @@ model Committee {
   alternateMayVoteForRecused           Boolean?
   alternateMayVoteForRecusedProvenance Provenance?
 
+  /// Phase 0.3 item 13: whether a sitting needs its chairman, or a stand-in the chairman appointed. Null: not set, and only heads count.
+  chairPresence           ChairPresence?
+  chairPresenceProvenance Provenance?
+
   /// What this body calls a carried decision, as the customer writes it (an RSAJ
   /// committee would say "Perlu"). Null renders "Carried": never a borrowed word.
   carriedLabelEn String?
@@ -1139,6 +1149,9 @@ model Meeting {
 
   /// Why a cancelled sitting did not go ahead.
   cancelledReason  String    @default("")
+  /// Phase 0.3 item 13: the record by which the absent chairman appointed who sits in the chair (a letter's reference and day). Empty: none.
+  /// The appointee is the attendance row standing in for the chairman's seat; allowed only where the committee's chairPresence is CHAIR_OR_APPOINTED.
+  chairAppointment String    @default("")
   /// Once minuted, the sitting and everything under it are frozen.
   minutedAt        DateTime?
   /// The register as it stood when minuted: seats, holders, alternates and who sat

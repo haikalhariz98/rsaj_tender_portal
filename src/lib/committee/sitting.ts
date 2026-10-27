@@ -196,6 +196,9 @@ export function presentVoters(i: {
   alternates: readonly AlternateSeat[];
   nonVotingMemberIds: readonly string[];
   attendance: readonly AttendanceRecord[];
+  /// Phase 0.3 item 13 (SK003 7.6.3): the committee allows a stand-in the chairman appointed, and the sitting records the appointing record. Then
+  /// one person, member or not, may sit in the chair while its holder is absent; otherwise nobody stands in for the chair.
+  chairStandInAllowed?: boolean;
 }): PresentVoters {
   const present = i.attendance.filter((a) => a.attended);
   const holdersPresent = new Set(
@@ -233,11 +236,13 @@ export function presentVoters(i: {
       faults.push({ personId: a.personId, fault: "ALTERNATE_NOT_FOR_THAT_SEAT" });
       continue;
     }
-    if (seat.position === "CHAIRMAN") {
+    const chair = seat.position === "CHAIRMAN";
+    if (chair && !i.chairStandInAllowed) {
       faults.push({ personId: a.personId, fault: "STAND_IN_FOR_CHAIR" });
       continue;
     }
-    const mayCover = i.alternates.some((alt) => alt.personId === a.personId && alternateMayCover(alt, seat));
+    // The chair's stand-in is the chairman's appointee, not an alternate of the register.
+    const mayCover = chair || i.alternates.some((alt) => alt.personId === a.personId && alternateMayCover(alt, seat));
     if (!mayCover) {
       faults.push({ personId: a.personId, fault: "ALTERNATE_NOT_FOR_THAT_SEAT" });
       continue;
@@ -256,3 +261,15 @@ export function presentVoters(i: {
 
   return { voterIds: [...new Set(occupants.map((o) => o.personId))], occupants, faults };
 }
+
+/// Phase 0.3 item 13 (RSAJ Q6): whether the chairman sits. Unset `chairPresence`: never judged. Set: someone occupies a chairman's seat (its holder, or under
+/// CHAIR_OR_APPOINTED the chairman's appointee), else the chair is absent; a committee with no chairman's seat in force has nobody to sit in it.
+export type ChairPresence = "CHAIR_REQUIRED" | "CHAIR_OR_APPOINTED";
+export function chairAbsentFrom(rule: ChairPresence | null | undefined, voting: readonly Pick<VotingSeat, "seatId" | "position">[], occupants: readonly Pick<Occupant, "seatId">[]): boolean {
+  if (!rule) return false;
+  const chairs = new Set(voting.filter((s) => s.position === "CHAIRMAN").map((s) => s.seatId));
+  return !occupants.some((o) => chairs.has(o.seatId));
+}
+
+/// Phase 0.3 item 13: a stand-in may sit in the chair only where the committee allows the chairman's appointee and the sitting records the appointing record.
+export const chairStandInAllowed = (rule: ChairPresence | null | undefined, appointment: string): boolean => rule === "CHAIR_OR_APPOINTED" && appointment.trim() !== "";

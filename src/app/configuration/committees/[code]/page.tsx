@@ -12,6 +12,7 @@ import { assessQuorum, quorumFaults } from "@/lib/committee/quorum";
 import { seatsInForce } from "@/lib/committee/seats";
 import { alternatesOn, votingSeatsOn } from "@/lib/committee/sitting";
 import {
+  CHAIR_PRESENCE_LABEL,
   COMMITTEE_ACTION_LABEL,
   matterCount,
   MEETING_STATUS_LABEL,
@@ -269,6 +270,22 @@ export default async function CommitteePage({
                             ) : null
                           }
                           unset="An item where a member with an alternate steps aside cannot be decided."
+                        />
+                      ),
+                    },
+                    {
+                      label: "The chairman at a sitting",
+                      value: (
+                        <SettingValue
+                          value={
+                            committee.chairPresence ? (
+                              <span className="inline-flex items-center gap-1">
+                                {CHAIR_PRESENCE_LABEL[committee.chairPresence]}
+                                <RuleInfo label="The rule behind the chairman" rule="Without the chairman, or the chairman's appointee where allowed, a sitting is not quorate." source={committee.chairPresenceProvenance} />
+                              </span>
+                            ) : null
+                          }
+                          unset="Members are counted; the chair is not."
                         />
                       ),
                     },

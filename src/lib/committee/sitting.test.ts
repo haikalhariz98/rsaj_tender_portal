@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { Roster } from "@/lib/people/roster";
 import type { Office, Person } from "@/lib/people/types";
 
-import { quorumFaults } from "./quorum";
+import { assessQuorum, quorumFaults } from "./quorum";
 import {
   alternatesOn,
+  chairAbsentFrom,
+  chairStandInAllowed,
   nonVotingMembersOn,
   presentVoters,
   votingSeatsOn,
@@ -165,5 +167,41 @@ describe("quorumFaults", () => {
   it("accepts a quorum within them, and says nothing about an unset one", () => {
     expect(quorumFaults({ quorum: 3, votingSeats: 3 })).toEqual([]);
     expect(quorumFaults({ quorum: null, votingSeats: 0 })).toEqual([]);
+  });
+});
+
+// Phase 0.3 item 13 (RSAJ Q6; SK003 7.6.2, 7.6.3): the chairman's presence as a committee rule. Unset: heads only, as before.
+describe("the chairman at a sitting", () => {
+  const sitWith = (attendance: AttendanceRecord[], chairStandInAllowed: boolean) =>
+    presentVoters({ voting: votingSeatsOn(SEATS, roster, ON), alternates: alternatesOn(SEATS, roster, ON), nonVotingMemberIds: nonVotingMembersOn(SEATS, roster, ON), attendance, chairStandInAllowed });
+  const voting = votingSeatsOn(SEATS, roster, ON);
+
+  it("lets the chairman's appointee sit in the chair, member or not, only where the committee allows it and the appointing record is there", () => {
+    expect(sitWith([here("stranger", "s-chair"), here("money")], false).faults).toEqual([{ personId: "stranger", fault: "STAND_IN_FOR_CHAIR" }]);
+    const r = sitWith([here("stranger", "s-chair"), here("money")], true);
+    expect(r.faults).toEqual([]);
+    expect(r.occupants).toContainEqual({ seatId: "s-chair", personId: "stranger", standIn: true });
+    expect(sitWith([here("chief"), here("stranger", "s-chair")], true).faults).toEqual([{ personId: "stranger", fault: "STAND_IN_WHILE_HOLDER_PRESENT" }]);
+    expect(chairStandInAllowed("CHAIR_OR_APPOINTED", "Letter TB/1, 3 Oct 2026")).toBe(true);
+    expect(chairStandInAllowed("CHAIR_OR_APPOINTED", "  ")).toBe(false);
+    expect(chairStandInAllowed("CHAIR_REQUIRED", "Letter TB/1")).toBe(false);
+    expect(chairStandInAllowed(null, "Letter TB/1")).toBe(false);
+  });
+
+  it("is absent only where a rule is set and nobody sits in a chairman's seat", () => {
+    const without = sit([here("money"), here("named")]).occupants;
+    expect(chairAbsentFrom(null, voting, without)).toBe(false);
+    expect(chairAbsentFrom("CHAIR_REQUIRED", voting, without)).toBe(true);
+    expect(chairAbsentFrom("CHAIR_REQUIRED", voting, sit([here("chief"), here("money")]).occupants)).toBe(false);
+    expect(chairAbsentFrom("CHAIR_OR_APPOINTED", voting, sitWith([here("stranger", "s-chair"), here("money")], true).occupants)).toBe(false);
+    expect(chairAbsentFrom("CHAIR_REQUIRED", voting.filter((v) => v.position !== "CHAIRMAN"), without)).toBe(true);
+  });
+
+  it("three members without the chairman are not quorate where the chairman must sit, and the words say why", () => {
+    expect(assessQuorum({ quorum: 3, present: 3 }).state).toBe("MET");
+    const q = assessQuorum({ quorum: 3, present: 3, chairAbsent: true });
+    expect(q).toMatchObject({ state: "NOT_MET", shortfall: 0, chairAbsent: true });
+    expect(q.messageEn).toBe("Not quorate — the chairman is absent and nobody the chairman appointed sits in the chair (3 of 3 required members present).");
+    expect(assessQuorum({ quorum: null, present: 3, chairAbsent: true }).state).toBe("UNCONFIGURED");
   });
 });

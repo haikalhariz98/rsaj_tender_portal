@@ -685,7 +685,12 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
         }),
       };
     }
-    if (role.kind === "NOT_A_MEMBER") {
+    // Phase 0.3 item 13: the chairman's appointee need not be a member; presentVoters judges the stand-in.
+    const chairSeat = (seatId: string | null) => seatId != null && s.register.voting.some((v) => v.seatId === seatId && v.position === "CHAIRMAN");
+    const chairAppointee = s.register.chairStandInAllowed === true && chairSeat(standingInForSeatId);
+    // An appointee recorded in the chair may later be recorded absent.
+    const wasAppointee = !attended && s.meeting.attendance.some((x) => x.personId === personId && chairSeat(x.standingInForSeatId));
+    if (role.kind === "NOT_A_MEMBER" && !chairAppointee && !wasAppointee) {
       return { ok: false, errors: { personId: attendanceFaultText(name, "NOT_A_MEMBER") } };
     }
 
@@ -722,6 +727,65 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
     });
     await audit(tx, toAuditActor(actor), s, "MeetingAttendance", row.id, `${name} at ${s.meeting.reference}`, before ? "UPDATE" : "CREATE",
       diffFields(before && { attended: before.attended, standingInForSeatId: before.standingInForSeatId }, { attended, standingInForSeatId }));
+    return { ok: true };
+  });
+}
+
+/**
+ * Phase 0.3 item 13 (SK003 7.6.3): who sits in the chair for the absent chairman, by the chairman's appointment, and the appointing record. Only where the
+ * committee's chairPresence is CHAIR_OR_APPOINTED, and only while the chairman's seat is not taken by its holder. The appointee need not be a member; a
+ * new appointee replaces the earlier one, who is recorded absent. The register is checked as for any attendance change.
+ */
+export async function recordChairAppointment(_prev: FormState, data: FormData): Promise<FormState> {
+  const guard = await staffForAct("HOLDER_CHECKED");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
+  const meetingId = String(data.get("meetingId") ?? "");
+  const r = new FormReader(data);
+  const personId = r.text("personId", "Who sits in the chair", { required: true });
+  const chairAppointment = r.text("chairAppointment", "Appointing record", { required: true, max: 300 });
+  if (r.failed) return { ok: false, errors: r.errors };
+
+  return inSitting(actor, meetingId, async (tx, s) => {
+    const refusal = permit(s, "ATTENDANCE");
+    if (refusal) return refusal;
+    if (s.rules.chairPresence !== "CHAIR_OR_APPOINTED") return { ok: false, message: "This committee does not allow a stand-in for its chairman. Set it on the committee in Settings first." };
+    const chair = s.register.voting.find((v) => v.position === "CHAIRMAN");
+    if (!chair) return { ok: false, message: "This committee has no chairman's seat on the sitting's date." };
+    if (!s.roster.people.some((p) => p.id === personId)) return { ok: false, errors: { personId: "Choose someone on record." } };
+    const name = s.names[personId] ?? "This person";
+
+    const earlier = s.meeting.attendance.find((x) => x.standingInForSeatId === chair.seatId && x.attended && x.personId !== personId) ?? null;
+    const proposed = [
+      ...s.meeting.attendance.filter((x) => x.personId !== personId && x.personId !== earlier?.personId),
+      ...(earlier ? [{ personId: earlier.personId, attended: false, standingInForSeatId: null }] : []),
+      { personId, attended: true, standingInForSeatId: chair.seatId },
+    ];
+    const change = checkAttendanceChange({ ...s.register, chairStandInAllowed: true }, s.rules, s.matters, proposed);
+    if (!change.ok) {
+      const lines = [
+        ...change.newFaults.map((f) => attendanceFaultText(s.names[f.personId] ?? "Someone", f.fault)),
+        ...(change.newlyIneligible.length || change.brokenDecisions.length ? ["A vote or a decision already recorded would no longer follow from the register."] : []),
+      ];
+      return { ok: false, message: `This change is refused. ${lines.join(" ")}` };
+    }
+
+    const m = s.meeting;
+    await tx.meeting.update({ where: { id: m.id, committee: { organisationId: actor.organisationId } }, data: { chairAppointment } });
+    await audit(tx, toAuditActor(actor), s, "Meeting", m.id, m.reference, "UPDATE", diffFields({ chairAppointment: m.chairAppointment }, { chairAppointment }));
+    if (earlier) {
+      await tx.meetingAttendance.update({ where: { meetingId_personId: { meetingId, personId: earlier.personId } }, data: { attended: false, standingInForSeatId: null } });
+      await audit(tx, toAuditActor(actor), s, "MeetingAttendance", earlier.id, `${s.names[earlier.personId] ?? "Someone"} at ${m.reference}`, "UPDATE",
+        diffFields({ attended: true, standingInForSeatId: earlier.standingInForSeatId }, { attended: false, standingInForSeatId: null }));
+    }
+    const before = m.attendance.find((x) => x.personId === personId) ?? null;
+    const row = await tx.meetingAttendance.upsert({
+      where: { meetingId_personId: { meetingId, personId } },
+      update: { attended: true, standingInForSeatId: chair.seatId },
+      create: { meetingId, personId, attended: true, standingInForSeatId: chair.seatId },
+    });
+    await audit(tx, toAuditActor(actor), s, "MeetingAttendance", row.id, `${name} at ${m.reference}`, before ? "UPDATE" : "CREATE",
+      diffFields(before && { attended: before.attended, standingInForSeatId: before.standingInForSeatId }, { attended: true, standingInForSeatId: chair.seatId }));
     return { ok: true };
   });
 }

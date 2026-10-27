@@ -60,6 +60,8 @@ export interface MatterInput {
   /// taken: its quorum and votes are not yet counted, and an empty register is not a
   /// shortfall. Absent, the sitting is taken to be open — the write paths only run then.
   sittingStatus?: MeetingStatus;
+  /// Phase 0.3 item 13: the committee needs its chairman and nobody sits in the chair (`chairAbsentFrom`). Absent: not judged.
+  chairAbsent?: boolean;
 }
 
 export interface MatterAssessment {
@@ -130,7 +132,7 @@ export function assessMatter(i: MatterInput): MatterAssessment {
   const entitledIds = [...entitled];
   const recusedPresentIds = [...new Set(i.occupants.map((o) => o.personId))].filter((p) => recused.has(p));
 
-  const quorum = assessQuorum({ quorum: i.quorum, present: entitledIds.length });
+  const quorum = assessQuorum({ quorum: i.quorum, present: entitledIds.length, chairAbsent: i.chairAbsent });
 
   const eligible = i.votes.filter((v) => entitled.has(v.personId) && v.choice !== "ABSTAIN");
   const ineligibleVoterIds = i.votes
