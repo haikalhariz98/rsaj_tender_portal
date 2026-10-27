@@ -1,7 +1,10 @@
 import type { Tx } from "@/lib/db";
 import { senFromDecimal } from "@/lib/money";
 
-import { caseFunding } from "./case-funding";
+import { PAYABLE_KINDS } from "@/lib/insights/where";
+
+import { caseFunding, splitLocked } from "./case-funding";
+import { inForce } from "./eligibility";
 import { bpToPercent } from "./split";
 import type { CaseFunding, SourceRef } from "./types";
 
@@ -49,4 +52,52 @@ export async function fundingTextForContract(client: Tx, organisationId: string,
 export async function fundingFact(client: Tx, organisationId: string, text: string | null): Promise<string | null> {
   if (text) return `Funding: ${text}`;
   return (await client.fundingSource.count({ where: { organisationId } })) > 0 ? "Funding not set" : null;
+}
+
+/// FS-7's lock, read: an issued certificate of a payable kind, or a supply payment, on the contract.
+export async function splitLockedOn(client: Tx, organisationId: string, contractId: string): Promise<boolean> {
+  // In turn, not at once: inside a transaction the client is one connection.
+  const issuedPayableCertificates = await client.certificate.count({ where: { organisationId, contractId, status: "ISSUED", kind: { in: [...PAYABLE_KINDS] } } });
+  const supplyPayments = await client.supplyInvoicePayment.count({ where: { organisationId, contractId } });
+  return splitLocked({ issuedPayableCertificates, supplyPayments });
+}
+
+export interface FundingCardView {
+  state: CaseFunding["state"];
+  rows: { label: string; percent: string }[];
+  locked: boolean;
+  /// The split as it stands, for the drawer: source id and percent.
+  current: { sourceId: string; percent: string }[];
+  /// Sources in force on the day, for the drawer's dropdowns.
+  sources: { value: string; label: string }[];
+}
+
+/// The project overview's Funding card (plan §4.5): each source with its share, "From the requisition" when no split is recorded, and whether it is fixed.
+export async function fundingCard(client: Tx, organisationId: string, contractId: string, on: Date): Promise<FundingCardView> {
+  const [funding, sources, locked] = await Promise.all([contractFunding(client, organisationId, contractId), sourcesOf(client, organisationId), splitLockedOn(client, organisationId, contractId)]);
+  const label = (id: string) => sources.find((s) => s.id === id)?.label ?? "A source no longer configured";
+  const shares = funding.state === "NOT_SET" ? [] : funding.shares;
+  return {
+    state: funding.state,
+    rows: shares.map((s) => ({ label: label(s.sourceId), percent: bpToPercent(s.bp) })),
+    locked,
+    current: shares.map((s) => ({ sourceId: s.sourceId, percent: bpToPercent(s.bp) })),
+    sources: sources.filter((s) => inForce(s, on)).map((s) => ({ value: s.id, label: s.label })),
+  };
+}
+
+export interface ImpactCardView {
+  /// Measures in force, with this contract's figure (null: none recorded); a retired measure with a figure is kept.
+  measures: { id: string; label: string; unit: string; value: string | null }[];
+}
+
+/// The project overview's Impact card (SF-04): null while the organisation has no measure, so the card is hidden.
+export async function impactCard(client: Tx, organisationId: string, contractId: string, on: Date): Promise<ImpactCardView | null> {
+  const [measures, values] = await Promise.all([
+    client.impactMeasure.findMany({ where: { organisationId }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, unit: true, retiredOn: true } }),
+    client.projectImpact.findMany({ where: { organisationId, contractId }, select: { measureId: true, value: true } }),
+  ]);
+  if (measures.length === 0) return null;
+  const valueOf = (id: string) => values.find((v) => v.measureId === id)?.value.toString() ?? null;
+  return { measures: measures.filter((m) => inForce(m, on) || valueOf(m.id) != null).map((m) => ({ id: m.id, label: m.nameEn, unit: m.unit, value: valueOf(m.id) })) };
 }

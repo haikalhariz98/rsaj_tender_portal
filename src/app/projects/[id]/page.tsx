@@ -1,4 +1,6 @@
-import { fundingFact, fundingTextForContract, fundingTextForRequisition } from "@/lib/funding/store";
+import { fundingCard, fundingFact, fundingTextForContract, fundingTextForRequisition, impactCard } from "@/lib/funding/store";
+import { FundingCard } from "./funding-card";
+import { ImpactCard } from "./impact-card";
 import { MoreText } from "@/components/ui/more-text";
 import { billItemOptions } from "@/lib/contract/bill-items";
 import type { ComponentProps, ReactNode } from "react";
@@ -55,7 +57,7 @@ import { loadContract, type LoadedContract } from "@/lib/contract/repo";
 import { briefingMissing } from "@/lib/contract/sign";
 import { isExecuted } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
-import { dayOrNull as day } from "@/lib/dates";
+import { dayOrNull as day, dayToDate } from "@/lib/dates";
 import { raiseCaseClockNotices } from "@/lib/award/clock-notices";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
@@ -157,8 +159,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const status = c ? (c.status as ContractStatus) : null;
   const today = l.org.today;
   const ref = { awardId: award.id, contractId: c?.id ?? null };
-  // ADR 0046 FS-5: the contract's own split once recorded, else the requisition's source; a restricted case's reader sees none of it.
-  const funding = visibility === "WHOLE" ? await fundingFact(db, l.org.id, c ? await fundingTextForContract(db, l.org.id, c.id) : await fundingTextForRequisition(db, l.org.id, ex.requisitionId)) : null;
+  // ADR 0046 FS-5: the contract's own split once recorded, else the requisition's source. A contract fact, so a reader of the contract stages sees it (FS-11).
+  const funding = c || visibility === "WHOLE" ? await fundingFact(db, l.org.id, c ? await fundingTextForContract(db, l.org.id, c.id) : await fundingTextForRequisition(db, l.org.id, ex.requisitionId)) : null;
   const { tab, page, docs, docsAfter, earlier } = { tab: first("tab"), page: first("page"), docs: first("docs"), docsAfter: first("docsAfter"), earlier: first("earlier") };
   const pageNo = Math.max(0, Number.parseInt(page ?? "0", 10) || 0);
 
@@ -486,7 +488,22 @@ async function OverviewPanel({ actor, sulit, l, awardOpen, facts, today, supervi
       </Card>
     </div>
     </ActGate>
+    <FundingSection l={l} today={today} />
     </div>
+  );
+}
+
+/// ADR 0046: the contract's funding split and impact figures. Outside the formation family's gate: their acts are record acts of their own (FS-7, FS-12).
+async function FundingSection({ l, today }: { l: LoadedContract; today: string | null }) {
+  const on = today ? dayToDate(today) : new Date();
+  const [funding, impact] = [await fundingCard(db, l.org.id, l.contract.id, on), await impactCard(db, l.org.id, l.contract.id, on)];
+  // A customer who keeps no funding source and no measure sees neither card.
+  if (funding.sources.length === 0 && funding.rows.length === 0 && !impact) return null;
+  return (
+    <>
+      {(funding.sources.length > 0 || funding.rows.length > 0) && <FundingCard contractId={l.contract.id} status={l.contract.status as ContractStatus} view={funding} />}
+      {impact && <ImpactCard contractId={l.contract.id} status={l.contract.status as ContractStatus} view={impact} />}
+    </>
   );
 }
 

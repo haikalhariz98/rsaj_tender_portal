@@ -241,6 +241,19 @@ describe("a supply claim from delivery order to payment (worked example)", () =>
     expect(await db.supplyInvoicePayment.count({ where: { documentId } })).toBe(1);
   });
 
+  it("a supply payment fixes the contract's funding split (ADR 0046 FS-7)", async () => {
+    const { recordFundingSplit } = await import("@/app/projects/[id]/funding-actions");
+    const source = await db.fundingSource.create({ data: { organisationId, code: `FS_${randomId()}`, nameEn: "Internal", categoriesRestricted: false } });
+    const c = await contractor();
+    const contractId = await contract(c.supplierId, SUPPLY);
+    const split = () => as(p.so, () => recordFundingSplit({ ok: false }, form({ contractId, sourceId: source.id, sharePct: "100", reason: "Funded internally" })));
+    expect(await split()).toEqual({ ok: true });
+    const documentId = docOf(await sendClaim(c, contractId, "INV-FS-1"));
+    await mark(contractId, documentId, "TAKEN_UP");
+    expect(await pay(contractId, documentId)).toEqual({ ok: true });
+    expect(await split()).toEqual({ ok: false, message: "Funding is fixed once a payment is certified." });
+  });
+
   it("refuses a payment dated before the claim was verified or after today, of nothing, or with no batch: each in words, nothing written", async () => {
     const c = await contractor();
     const contractId = await contract(c.supplierId, SUPPLY);

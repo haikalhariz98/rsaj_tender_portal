@@ -254,6 +254,9 @@ const SECTION_FAMILIES: Readonly<Record<string, readonly ContractAct[]>> = {
   AdjustmentsSection: ["SUM_ADJUSTMENT"],
   OverviewPanel: ["FORMATION"],
   SecuritiesPanel: ["FORMATION"],
+  // ADR 0046: the funding split and the impact figures are Project workspace acts on the overview (FS-7, FS-12); each card states the row's words to its drawer.
+  FundingCard: ["PROJECT_WORKSPACE"],
+  ImpactCard: ["PROJECT_WORKSPACE"],
   // AC-16, PW-11: answering an earlier contractor submission is an act of the contract's supervision (answerContractorSubmission). Its read-only record sits above the Documents list (plan step 6, which replaced the queue); the answer alone is under this gate.
   EarlierRecord: ["SUPERVISION"],
 };
@@ -268,6 +271,8 @@ const NO_ACT: Readonly<Record<string, string>> = {
   SubmissionsTab: "Dispatches to the Documents list and an earlier record's read-only view, each of which gates itself (the list by the Project workspace's row, the record's answer by the supervision family's).",
   ProjectDocumentPage: "Loads the document and renders DocumentPageView, whose gates come from the loader.",
   KickOffSection: "Loads the kick-off meeting's card and renders KickOffCard, whose gates come from the loader. It sits beside the Overview's formation gate, not inside it.",
+  FundingSection: "Loads the funding and impact cards (ADR 0046) and renders them; each card asks the Project workspace's row and gates its own drawer. It sits beside the Overview's formation gate, not inside it.",
+  SplitRows: "The funding split drawer's rows: it reads the card's gate (useActGate), disables its own buttons under it, and records nothing; the drawer's act is recordFundingSplit.",
 };
 
 /// The Project workspace's screens (ADR 0042 D11): their gates come whole from a loader that asks the PROJECT_WORKSPACE row of the table first (`actStatusFault`) and the rules' own faults after, so the screen restates no rule and

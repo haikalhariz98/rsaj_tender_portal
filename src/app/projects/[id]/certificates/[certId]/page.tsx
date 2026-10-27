@@ -118,8 +118,8 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   const gates = certificateGates(cert.kind as CertificateKind, cert.status as CertificateStatus, l.contract.status as ContractStatus);
   const status = cert.status as CertificateStatus;
   const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
-  // ADR 0046 FS-5: the certificate reads its contract's funding; a restricted case's reader sees none of it.
-  const funding = visibility === "WHOLE" ? await fundingFact(db, l.org.id, await fundingTextForContract(db, l.org.id, l.contract.id)) : null;
+  // ADR 0046 FS-5: the certificate reads its contract's funding, a contract fact (FS-11).
+  const funding = await fundingFact(db, l.org.id, await fundingTextForContract(db, l.org.id, l.contract.id));
   const [people, roles] = await Promise.all([
     db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.authorityRole.findMany({ where: { organisationId: l.org.id }, select: { code: true, nameEn: true } }),
