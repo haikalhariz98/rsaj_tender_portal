@@ -10438,7 +10438,7 @@ model Certificate {
   /// LAD waiver applied on it.
   extensionOfTime       ExtensionOfTime?
   periodAgreement       PeriodAgreement?
-  ladWaiverApplied      LadWaiver?            @relation("LadWaiverAppliedOn")
+  ladWaiversApplied     LadWaiver[]           @relation("LadWaiverAppliedOn")
 
   @@unique([organisationId, number])
   @@unique([contractId, kind, sequence])
@@ -12317,7 +12317,7 @@ model LadWaiver {
   basis                  Json
   waiverLetterRef        String         @default("")
   reason                 String
-  appliedOnCertificateId String?        @unique
+  appliedOnCertificateId String?
   appliedOnCertificate   Certificate?   @relation("LadWaiverAppliedOn", fields: [appliedOnCertificateId], references: [id], onDelete: Restrict)
   appliedAt              DateTime?
   personId               String
@@ -12325,6 +12325,8 @@ model LadWaiver {
   recordedAt             DateTime
 
   @@index([decisionId])
+  /// Review M3: one interim applies every approved waiver it reaches, so a certificate carries several.
+  @@index([appliedOnCertificateId])
 }
 
 model Variation {
