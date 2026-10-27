@@ -23,7 +23,7 @@ import type { ScopeDecision, ScopeIn } from "@/lib/lad/scopes";
 import { lineScopeOf } from "@/lib/lad/scopes";
 import { rateSegments, segmentsKey } from "@/lib/lad/segments";
 import { accrualOf } from "@/lib/lad/accrual";
-import { applicationOf, ladAmountAt, type WaiverBasis } from "@/lib/lad/waiver";
+import { applicationOf, ladAmountAt, waiverTakes, type WaiverBasis } from "@/lib/lad/waiver";
 import { approvalOfRecord } from "@/lib/matter/matter";
 import { scopeDate } from "@/lib/time/extension";
 import { formatSen, parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
@@ -417,11 +417,14 @@ export function waiverBasisOf(p: PaymentRows, baseline: Baseline, decisionId: st
   return { amount, extensions, supersededBy: d.supersededByEot ? (d.supersededByEot.certificate.number ?? d.supersededByEot.id) : null, segments: segmentsKey(segments), charging, scopeKey: key, label };
 }
 
-/// Review M4: what the decision's other waivers already take off its LAD amount: every waiver but `exceptId` that is applied, or whose matter is
-/// still open (recorded, waiting, approved or refused and not closed). A closed one (re-sent, withdrawn) takes nothing.
+/// Review M4, as ruling 4 (code review of close-out stage B, P7) narrows it: what the decision's other waivers already take off its LAD amount, every
+/// waiver but `exceptId` that `waiverTakes` counts: applied, or open and approved, or open with its latest route pending. One recorded and never sent,
+/// returned, recalled, refused or closed (re-sent) takes nothing.
 export function waivedOnDecision(p: PaymentRows, decisionId: string, exceptId: string | null): Sen {
   const d = p.nonCompletions.find((x) => x.id === decisionId);
-  return (d?.waivers ?? []).filter((w) => w.id !== exceptId && (w.appliedOnCertificateId != null || !w.matter.closedAt)).reduce((a, w) => a + senFromDecimal(w.waived), 0n);
+  return (d?.waivers ?? [])
+    .filter((w) => w.id !== exceptId && waiverTakes({ applied: w.appliedOnCertificateId != null, open: !w.matter.closedAt, approved: waiverApproved(w), latestRoutePending: w.matter.routes.at(-1)?.status === "PENDING" }))
+    .reduce((a, w) => a + senFromDecimal(w.waived), 0n);
 }
 
 /// A waiver's frozen basis, as stored at its send (`LadWaiver.basis`); null where it cannot be read.

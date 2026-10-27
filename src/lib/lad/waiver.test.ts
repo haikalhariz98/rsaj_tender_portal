@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseSen } from "@/lib/money";
 import { ratioPercentText } from "@/lib/percent-band";
 
-import { applicationOf, ladAmountAt, waiverRatio, waiverRecordFaults, type LadAmountInput } from "./waiver";
+import { applicationOf, ladAmountAt, waiverRatio, waiverRecordFaults, waiverTakes, type LadAmountInput } from "./waiver";
 
 /**
  * 6.13 Part B run 1b (FR-LAD-008, 009; OD-B7 as ruled, BD-613-75): the waiver's LAD amount, its ratio, and when it
@@ -67,5 +67,18 @@ describe("OD-B7 (BD-613-75): when an approved waiver reaches the money", () => {
     }
     const seg = applicationOf({ setting: "NEXT_CERTIFICATE", approved: true, applied: false, frozen, now: { ...now, segments: "269.38 to 9 Sep 2026; 215.50 from it" } });
     expect(seg.state === "MOVED" && seg.fault.data?.moved).toBe("an occupation's confirmed rate changed the rate segments");
+  });
+});
+
+// Ruling 4 (code review of close-out stage B, P7).
+describe("waiverTakes", () => {
+  const w = { applied: false, open: true, approved: false, latestRoutePending: false };
+  it("counts an applied waiver, an open approved one and an open one whose latest route is pending; nothing else", () => {
+    expect(waiverTakes({ ...w, applied: true, open: false })).toBe(true);
+    expect(waiverTakes({ ...w, approved: true })).toBe(true);
+    expect(waiverTakes({ ...w, latestRoutePending: true })).toBe(true);
+    expect(waiverTakes(w)).toBe(false);
+    expect(waiverTakes({ ...w, open: false, approved: true })).toBe(false);
+    expect(waiverTakes({ ...w, open: false, latestRoutePending: true })).toBe(false);
   });
 });

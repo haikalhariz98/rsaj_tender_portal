@@ -52,10 +52,17 @@ export function ladAmountAt(i: LadAmountInput): Sen {
   return total;
 }
 
+/**
+ * Ruling 4 (code review of close-out stage B, P7): a waiver takes from its decision's LAD amount only once it is applied, or while its matter is open
+ * and approved, or open with its latest route pending. One recorded and never sent, returned, recalled or refused takes nothing (there is no withdraw
+ * act yet: backlog). Pure.
+ */
+export const waiverTakes = (w: { applied: boolean; open: boolean; approved: boolean; latestRoutePending: boolean }): boolean => w.applied || (w.open && (w.approved || w.latestRoutePending));
+
 export const waiverRatio = (waived: Sen, ladAmount: Sen): ExactRatio => ({ num: waived, den: ladAmount });
 
-/// Review M4: `alreadyWaived` is what the decision's other waivers already take (open, approved or applied; not a closed one), so waivers on one
-/// decision never add up past its LAD amount.
+/// Review M4, as ruling 4 of the close-out stage B review (P7) narrows it: `alreadyWaived` is what the decision's other waivers already take
+/// (`waiverTakes`), so waivers on one decision never add up past its LAD amount.
 export function waiverRecordFaults(i: { decision: { charging: boolean; label: string } | null; waived: Sen | null; ladAmount: Sen; reason: string; asOf: Day; today: Day; alreadyWaived?: Sen }): Finding[] {
   const out: Finding[] = [];
   const f = (code: string, data: Record<string, string | number | null> = {}) => out.push({ code, level: "block", data });
