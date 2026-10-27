@@ -82,4 +82,9 @@ describe("returning a security through the act", () => {
     expect(r.ok).toBe(false);
     expect(r.message).toMatch(/design guarantee bond survives the close/);
   });
+
+  it("the database refuses a return at making good that names no certificate (CHECK)", async () => {
+    const bond = await security("PERFORMANCE_BOND", "BANK_GUARANTEE");
+    await expect(db.securityRelease.create({ data: { organisationId: o.organisationId, securityId: bond.id, contractId: k.contractId, trigger: "MAKING_GOOD", certificateId: null, returnedOn: D(today()), personId: o.so, note: "", recordedAt: new Date() } })).rejects.toThrow(/SecurityRelease_making_good_certificate/);
+  });
 });
