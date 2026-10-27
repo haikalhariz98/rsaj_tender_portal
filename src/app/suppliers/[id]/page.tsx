@@ -114,7 +114,7 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
   const answeredHere = await answeredOnTimeIds(db, org.id, s.applications.map((a) => a.id));
   // a2: where it stands, derived on the organisation's day (OD-7 A), never stored.
   const reading = today ? standing({ status, registeredOn: day(s.registeredOn) }, s.standingEvents.map(standingEventFacts), states.filter((x) => x.mandatory).map((x) => ({ typeLabel: x.type.label, state: x.state })), { autoSuspendOnLapse: cfg.policy?.autoSuspendOnLapse ?? null }, today) : null;
-  const linkedCount = s.parties.length + s.awards.filter((a) => !a.awardeePartyId).length;
+  const linkedCount = s.partiesTotal + s.awards.filter((a) => !a.awardeePartyId).length;
   // Phase 4b: how many versions of its bank details the supplier has sent (a count, never a value), and where its registration stands, for the header.
   const [creditorCount, sentOnline] = await Promise.all([
     db.creditorProfile.count({ where: { supplierId: s.id, organisationId: org.id, submittedAt: { not: null } } }),

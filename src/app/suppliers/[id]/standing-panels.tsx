@@ -307,7 +307,7 @@ export async function ParticipationPanel({ l, people }: { l: LoadedSupplier; peo
         <CardHeader
           icon={<LinkIcon size={17} />}
           title="On exercises"
-          subtitle="Linked by an explicit act"
+          subtitle={s.partiesTotal > s.parties.length ? `Showing the latest ${s.parties.length} of ${s.partiesTotal}` : "Linked by an explicit act"}
           actions={<span className="flex flex-wrap items-center gap-2"><LinkPartyDrawer supplierId={s.id} parties={unlinked.map((p) => ({ value: p.id, label: `${p.exercise.reference} · ${p.name} (${p.registrationNo || "no number"})` }))} /><LinkAwardDrawer supplierId={s.id} awards={partyless.map((a) => ({ value: a.id, label: `${a.reference} · ${a.awardeeName}` }))} /></span>}
           divided={s.parties.length === 0}
         />

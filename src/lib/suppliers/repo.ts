@@ -147,16 +147,28 @@ const supplierInclude = {
  * say that this supplier tendered for, or won, an exercise the reader may not know exists. `hidden` is returned too, for the panels that read exercises
  * of their own.
  */
+/// The most exercise links a supplier record reads: the latest, with the true count (NFR-PRF-001 near-target risk, 2026-10-25). They grow with every tender.
+export const SUPPLIER_PARTIES_MAX = 200;
+
 export async function loadSupplier(organisationId: string, id: string, hidden: readonly string[], client: Tx = db) {
   const org = await supplierOrg(organisationId, client);
   if (!org) return null;
-  const found = await client.supplier.findFirst({ where: { id, organisationId: org.id }, include: supplierInclude });
+  const visible = hidden.length ? { exerciseId: { notIn: [...hidden] } } : {};
+  const found = await client.supplier.findFirst({
+    where: { id, organisationId: org.id },
+    include: {
+      ...supplierInclude,
+      parties: { ...supplierInclude.parties, where: visible, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: SUPPLIER_PARTIES_MAX },
+      _count: { select: { parties: { where: visible } } },
+    },
+  });
   if (!found) return null;
   const gone = new Set(hidden);
   // Phase 4a: whether a contact's portal account is locked right now, read here where the clock may be read, so that a screen draws it without asking the time.
   const now = Date.now();
   const contacts = found.contacts.map((c) => ({ ...c, account: c.account ? { ...c.account, locked: c.account.lockedUntil != null && c.account.lockedUntil.getTime() > now } : null }));
-  const supplier = { ...found, contacts, parties: found.parties.filter((p) => !gone.has(p.exerciseId)), awards: found.awards.filter((a) => !gone.has(a.exerciseId)) };
+  // Read newest first to keep the latest; shown oldest first as before. `partiesTotal`: every visible link, for the counts and the "latest" line.
+  const supplier = { ...found, contacts, parties: [...found.parties].reverse(), partiesTotal: found._count.parties, awards: found.awards.filter((a) => !gone.has(a.exerciseId)) };
   return { org, supplier, hidden: [...hidden] };
 }
 export type LoadedSupplier = NonNullable<Awaited<ReturnType<typeof loadSupplier>>>;
@@ -408,6 +420,11 @@ export async function answeredOnTimeIds(client: Tx, organisationId: string, appl
 export const HISTORY_PAGE = 200;
 export async function supplierHistory(l: LoadedSupplier) {
   const s = l.supplier;
+  // The record reads only the latest SUPPLIER_PARTIES_MAX links; the trail covers them all, by id alone.
+  const parties = await db.exerciseParty.findMany({
+    where: { organisationId: l.org.id, vendorId: s.id, ...(l.hidden.length ? { exerciseId: { notIn: l.hidden } } : {}) },
+    select: { id: true, specialPermissions: { select: { id: true, routes: { select: { id: true, steps: { select: { id: true } } } } } } },
+  });
   const ids = [
     s.id,
     ...s.contacts.map((c) => c.id),
@@ -417,7 +434,7 @@ export async function supplierHistory(l: LoadedSupplier) {
     // a2: standing events, requests and their routes; linked parties, awards and special permissions.
     ...s.standingEvents.map((e) => e.id),
     ...s.standingRequests.flatMap((r) => [r.id, ...r.routes.flatMap((x) => [x.id, ...x.steps.map((st) => st.id)])]),
-    ...s.parties.flatMap((p) => [p.id, ...p.specialPermissions.flatMap((sp) => [sp.id, ...sp.routes.flatMap((x) => [x.id, ...x.steps.map((st) => st.id)])])]),
+    ...parties.flatMap((p) => [p.id, ...p.specialPermissions.flatMap((sp) => [sp.id, ...sp.routes.flatMap((x) => [x.id, ...x.steps.map((st) => st.id)])])]),
   ];
   // An award's own trail stays on the award: here only its link to this supplier.
   const where = { organisationId: l.org.id, OR: [{ entityId: { in: ids } }, { entityLabel: { startsWith: `${s.reference} ·` } }, { entity: "Award", entityId: { in: s.awards.map((a) => a.id) }, entityLabel: { endsWith: "· Awardee's supplier" } }] };

@@ -6,6 +6,8 @@ import type { SearchEntity } from "./fields";
 
 /// The most hits a group shows; its `total` says how many matched.
 export const SEARCH_GROUP_SIZE = 10;
+/// The most exercises, and awards under each, the case group shows: the latest, said on the card (NFR-PRF-001 near-target risk, 2026-10-25).
+export const CASE_GROUP_SIZE = 50;
 
 /// The groups global search answers in: five, fixed by ST-3. A list's own search can cover more (`SearchEntity` grows with the
 /// applications tab in 7.4) without adding a group here.
@@ -54,6 +56,8 @@ export interface CaseGroup {
   exercises: { hit: SearchHit; projects: SearchHit[] }[];
   /// AC-18: projects the reader may see (contract stages) whose exercise is hidden from them. Shown without the exercise, never naming it.
   projects: SearchHit[];
+  /// True where a level held more than CASE_GROUP_SIZE and only the latest are shown.
+  capped: boolean;
 }
 
 export interface SearchResult {

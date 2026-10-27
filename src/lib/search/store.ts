@@ -6,7 +6,7 @@ import { listHref, listOrderBy, parseListQuery } from "@/lib/list-query";
 import { assembleCaseGroup } from "./case-group";
 import { exerciseHit, projectHit, requisitionHit, sittingHit, supplierHit } from "./hits";
 import { rankHits } from "./rank";
-import { SEARCH_GROUP_LABEL, SEARCH_GROUP_SIZE, type CaseGroup, type SearchGroup, type SearchGroupEntity, type SearchHit, type SearchResult } from "./types";
+import { CASE_GROUP_SIZE, SEARCH_GROUP_LABEL, SEARCH_GROUP_SIZE, type CaseGroup, type SearchGroup, type SearchGroupEntity, type SearchHit, type SearchResult } from "./types";
 import { exactKeyWhere, wordsWhere } from "./words";
 
 /**
@@ -17,7 +17,7 @@ import { exactKeyWhere, wordsWhere } from "./words";
 
 const LIST_PATH: Readonly<Record<SearchGroupEntity, string>> = { requisition: "/requisitions", exercise: "/sourcing", project: "/projects", supplier: "/suppliers", sitting: "/committees" };
 const NEWEST = { sort: null, dir: "desc" } as const;
-const OLDEST_FIRST = [{ createdAt: "asc" }, { id: "asc" }] as const;
+const NEWEST_FIRST = [{ createdAt: "desc" }, { id: "desc" }] as const;
 
 /// One group's hits: exact case-key hits first, then the newest of the rest, at most SEARCH_GROUP_SIZE; the total under the same where.
 async function groupOf<R extends { id: string }>(
@@ -99,11 +99,12 @@ async function loadCase(client: Tx, organisationId: string, requisitionId: strin
     client.requisition.findFirst({ where: { id: requisitionId, organisationId }, select: { id: true, reference: true, title: true, status: true, erpRequisitionNo: true } }),
     client.sourcingExercise.findMany({
       where: { AND: [{ organisationId, requisitionId }, exerciseNotHidden(hidden)] },
-      orderBy: [...OLDEST_FIRST],
-      select: { id: true, reference: true, title: true, status: true, awards: { where: caseVisibilityWhere(hidden), orderBy: [...OLDEST_FIRST], select: awardSelect } },
+      orderBy: [...NEWEST_FIRST],
+      take: CASE_GROUP_SIZE + 1,
+      select: { id: true, reference: true, title: true, status: true, awards: { where: caseVisibilityWhere(hidden), orderBy: [...NEWEST_FIRST], take: CASE_GROUP_SIZE + 1, select: awardSelect } },
     }),
     // AC-18: contract stages only; the exercise itself is not read.
-    hidden.length ? client.award.findMany({ where: { organisationId, exercise: { requisitionId }, exerciseId: { in: [...hidden] }, contract: { isNot: null } }, orderBy: [...OLDEST_FIRST], select: awardSelect }) : [],
+    hidden.length ? client.award.findMany({ where: { organisationId, exercise: { requisitionId }, exerciseId: { in: [...hidden] }, contract: { isNot: null } }, orderBy: [...NEWEST_FIRST], take: CASE_GROUP_SIZE + 1, select: awardSelect }) : [],
   ]);
   return requisition ? assembleCaseGroup({ requisition, exercises, contractOnly }, hidden) : null;
 }

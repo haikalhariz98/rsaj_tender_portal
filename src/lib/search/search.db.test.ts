@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
 import { search } from "./store";
+import { CASE_GROUP_SIZE } from "./types";
 
 /**
  * Global search against Postgres (plan 7.2, ADR 0044): the case group from any case key (FR-REQ-002), a restricted exercise neither shown nor
@@ -105,6 +106,24 @@ describe("the case group (FR-REQ-002)", () => {
     expect(text).not.toContain(SECRET);
     expect(text).not.toContain(ref("RX"));
     expect(text).not.toContain(ref("AW4"));
+  });
+  // Phase 0.2 item 7 (NFR-PRF-001): a level is read at most CASE_GROUP_SIZE + 1 deep and the group shows the latest CASE_GROUP_SIZE.
+  it("shows at most the latest CASE_GROUP_SIZE awards under an exercise, and says it was cut", async () => {
+    const tag = `SRCHCAP/${randomId()}`; // not `run`: the other tests count hits for `run`
+    const req = await db.requisition.create({
+      data: {
+        organisationId: orgA, reference: tag, requestingUnitCode: "SRCH_UNIT", requestingPersonId: person.named, title: "Capped case", justification: "Tests.", needStatement: "None.", costCentreCode: "SRCH_CC",
+        accountCode: "SRCH_AC", placeOfDelivery: "Nowhere", dateRequired: day("2026-12-31"), estimatedValue: "1.00", raisedOn: day("2026-10-01"),
+      },
+    });
+    const ex = await db.sourcingExercise.create({ data: { organisationId: orgA, reference: `${tag}/EX`, requisitionId: req.id, title: "Capped tender", estimatedValue: "1.00", sourcingMethodCode: "SRCH_METHOD" } });
+    await db.award.createMany({
+      data: Array.from({ length: CASE_GROUP_SIZE + 1 }, (_, i) => ({ organisationId: orgA, reference: `${tag}/AW${i}`, exerciseId: ex.id, instrumentKind: "WORK_INDENT" as const, awardeeName: "Search Contractor", awardedValue: "1.00", completionPeriod: 30, completionUnit: "DAYS" as const })),
+    });
+    const g = (await find(asNamed(), tag)).caseGroup!;
+    expect(g.capped).toBe(true);
+    expect(g.exercises[0].projects).toHaveLength(CASE_GROUP_SIZE);
+    expect((await find(asNamed(), ref("REQ"))).caseGroup!.capped).toBe(false);
   });
   it("is not given by a restricted exercise's reference to a reader not named on it", async () => {
     const r = await find(asOutsider(), ref("RX"));

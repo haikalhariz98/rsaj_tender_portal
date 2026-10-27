@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { db } from "@/lib/db";
 import { Q_MIN } from "@/lib/list-query";
 import { search } from "@/lib/search/store";
-import type { SearchHit } from "@/lib/search/types";
+import { CASE_GROUP_SIZE, type SearchHit } from "@/lib/search/types";
 
 export const metadata = { title: "Search" };
 export const dynamic = "force-dynamic";
@@ -59,6 +59,7 @@ export default async function SearchPage(props: PageProps<"/search">) {
               ))}
               {result.caseGroup.projects.map((p) => <CaseLine key={p.id} hit={p} level={1} />)}
             </ul>
+            {result.caseGroup.capped && <CardFooter className="text-[13px] text-ink-3">Showing the latest {CASE_GROUP_SIZE}</CardFooter>}
           </Card>
         )}
 
