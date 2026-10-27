@@ -376,8 +376,9 @@ export async function saveContractBehaviours(_prev: FormState, data: FormData): 
     defectsLiabilityApplies: tri(r, "defectsLiabilityApplies", "Defects liability"),
     makingGoodCertificate: tri(r, "makingGoodCertificate", "Making good"),
     nominationAllowed: tri(r, "nominationAllowed", "Nomination"),
-    interimPaymentRule: r.optionalText("interimPaymentRule"),
-    sumAdjustmentDrivers: list(String(data.get("sumAdjustmentDrivers") ?? "")),
+    // Phase 0.2 item 6: the drawer sends these only where it still offers them; a field the form never sent is kept as stored.
+    interimPaymentRule: data.has("interimPaymentRule") ? r.optionalText("interimPaymentRule") : before.interimPaymentRule,
+    sumAdjustmentDrivers: data.has("sumAdjustmentDrivers") ? list(String(data.get("sumAdjustmentDrivers") ?? "")) : before.sumAdjustmentDrivers,
     claimsApprovalCommitteeCode: r.optionalText("claimsApprovalCommitteeCode"),
     // 6.13 Part A step 1 (A7): the typed twin; a field the form never sent is kept as stored.
     sumAdjustmentTriggers: data.has("sumAdjustmentTriggers") ? list(String(data.get("sumAdjustmentTriggers") ?? "")).filter(isSumAdjustmentTrigger) : before.sumAdjustmentTriggers,

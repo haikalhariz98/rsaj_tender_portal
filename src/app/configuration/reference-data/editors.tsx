@@ -464,10 +464,10 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
         b("defectsLiabilityApplies"),
         b("makingGoodCertificate"),
         b("nominationAllowed"),
-        t("interimPaymentRule"),
-        t("sumAdjustmentDrivers", "Separate them with commas. Kept as the type's own words; the typed list below is what the adjustment certificate reads."),
-        // 6.13 Part A step 1 (A7): the typed twin of the drivers. Empty: not set.
-        { kind: "tokens", name: "sumAdjustmentTriggers", label: "Contract-sum adjustment triggers", options: SUM_ADJUSTMENT_TRIGGERS.map((k) => ({ value: k, label: SUM_ADJUSTMENT_TRIGGER_WORDS[k].en })), placeholder: "Add a trigger", hint: "Allowed adjustments. Empty refuses adjustment certificates." },
+        // Phase 0.2 item 6: the free-text rule only while "How it is paid" is not set; once it is, the route is the rule (behaviourProfile).
+        ...(values.paymentRoute ? [] : [t("interimPaymentRule", "Used until How it is paid is set.")]),
+        // The drivers are a choice of the known triggers (6.13 Part A A7), never typed. Empty: not set, and adjustment certificates are refused.
+        { kind: "tokens", name: "sumAdjustmentTriggers", label: BEHAVIOUR_LABEL.sumAdjustmentDrivers, options: SUM_ADJUSTMENT_TRIGGERS.map((k) => ({ value: k, label: SUM_ADJUSTMENT_TRIGGER_WORDS[k].en })), placeholder: "Add a driver", hint: "Empty refuses adjustment certificates." },
         { kind: "select", name: "claimsApprovalCommitteeCode", label: BEHAVIOUR_LABEL.claimsApprovalCommitteeCode, placeholder: "Not set", options: offices },
         // 6.13 Part A step 2 (FR-SUP-003): not one of the twelve; which letters a delegation on this type's contracts uses.
         { kind: "select", name: "delegationVariant", label: "Delegation letters", placeholder: "Not set", options: DELEGATION_VARIANTS.map((k) => ({ value: k, label: VARIANT_WORDS[k].en })), hint: "Unset: representative delegations are refused." },
@@ -485,7 +485,6 @@ export function ContractBehavioursDrawer({ id, name, values, offices }: { id: st
         makingGoodCertificate: tri(values.makingGoodCertificate),
         nominationAllowed: tri(values.nominationAllowed),
         interimPaymentRule: values.interimPaymentRule,
-        sumAdjustmentDrivers: values.sumAdjustmentDrivers.join(", "),
         sumAdjustmentTriggers: (values.sumAdjustmentTriggers ?? []).join("\n"),
         claimsApprovalCommitteeCode: values.claimsApprovalCommitteeCode,
         delegationVariant: values.delegationVariant ?? null,
