@@ -58,6 +58,10 @@ const POST_AWARD_GROUPS = [
   // FR-CMP-017: "5% (or as stated in the contract)"; loaded now, shown once close-out ships (plan §7 row 96b).
   group("PostAwardPolicy", "Close-out · design guarantee bond rate", { designBondPct: "5" }, { requirement: "FR-CMP-017", source: "SK009 §7.8" }, { provenance: "designBondPctProvenance" }),
   group("PostAwardPolicy", "Close-out · design guarantee bond years", { designBondYears: 5 }, { requirement: "FR-CMP-017", source: "SK009 §7.8" }, { provenance: "designBondYearsProvenance" }),
+  // Ruling 14 (close-out Q1, 2026-10-27): both released at the certificate of making good defects; FR-FIN-012 reads the final payment as the
+  // other event, which the product's switch offers. The first release stays at the as-built handover (above).
+  group("PostAwardPolicy", "Close-out · retention balance released", { retentionBalanceReleaseAt: "MAKING_GOOD" }, { requirement: "FR-PAY-021", source: "OM/P/007 §8.26; SK009 §7.7.4. FR-FIN-012 reads the balance with the final payment instead." }, { provenance: "retentionBalanceReleaseProvenance" }),
+  group("PostAwardPolicy", "Close-out · performance bond returned", { performanceBondReleaseAt: "MAKING_GOOD" }, { requirement: "FR-CMP-016", source: "SK009 §7.7.3–7.7.4. FR-FIN-012 reads the bond with the final payment instead." }, { provenance: "performanceBondReleaseProvenance" }),
 ];
 
 // ------------------------------------------------------------------ the finance system's numbers (FR-REQ-002, FR-AWD-006)
