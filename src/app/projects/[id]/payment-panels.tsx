@@ -769,11 +769,13 @@ function WaiversCard({ l, v, people, today, hidden }: { l: LoadedContract; v: Pa
         subtitle={setting == null ? "Applying them not set" : setting === "NEXT_CERTIFICATE" ? "Applied on the next interim" : "Applied in the final account"}
         actions={
           hidden.includes("CONTRACTOR_COMMUNICATION") ? undefined : (
-            <MoreActions label="Waiver actions">
+            <span className="flex items-center gap-2">
               <RecordWaiverDrawer id={c.id} decisions={decisions} people={people} blocker={blocker} />
-              <SendWaiverDrawer id={c.id} waivers={toSend} people={people} blocker={blocker} />
-              {hidden.includes("CONTRACTOR_COMMUNICATION") ? null : <ResendWaiverDrawer id={c.id} waivers={moved} people={people} blocker={blocker} />}
-            </MoreActions>
+              <MoreActions label="Waiver actions">
+                <SendWaiverDrawer id={c.id} waivers={toSend} people={people} blocker={blocker} />
+                {hidden.includes("CONTRACTOR_COMMUNICATION") ? null : <ResendWaiverDrawer id={c.id} waivers={moved} people={people} blocker={blocker} />}
+              </MoreActions>
+            </span>
           )
         }
         divided

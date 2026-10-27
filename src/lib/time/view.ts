@@ -62,12 +62,3 @@ export async function timeView(l: LoadedContract) {
   return { matters, notices, programmes, instrument, claims, periods, losses, versions, current: latest ? valuesOf(latest).dateForCompletion : null };
 }
 export type TimeView = Awaited<ReturnType<typeof timeView>>;
-
-/// A loss-and-expense claim's state in words.
-export function lossStateOf(x: TimeView["losses"][number]): "Recorded" | "Valued" | "Awaiting approval" | "Approved" | "Refused" | "Closed" {
-  if (!x.matter) return x.valued == null ? "Recorded" : "Valued";
-  if (x.matter.closedAt) return "Closed";
-  const latest = x.matter.routes.at(-1);
-  if (x.matter.approvedRouteId && latest?.id === x.matter.approvedRouteId && latest.status === "APPROVED") return "Approved";
-  return latest?.status === "PENDING" ? "Awaiting approval" : latest ? "Refused" : "Valued";
-}

@@ -160,7 +160,9 @@ describe("the SO block resolves to the contract's S.O., and the issue extends th
     expect(trail.map((a) => `${a.entity} ${a.action}`).sort()).toEqual(["ContractBaseline CREATE", "ExtensionOfTime CREATE", "ExtensionOfTime UPDATE", "NonCompletion UPDATE"]);
   });
 
-  it("both orders: a second certificate raised before the first issued is refused EOT_MOVED at its issue, and nothing is written", async () => {
+  // Review (close-out stage A): both orders, whichever of the two certificates raised on the same date issues first.
+  for (const order of ["first", "second"] as const)
+  it(`both orders (the ${order} raised issues first): the other is refused EOT_MOVED at its issue, and nothing is written`, async () => {
     const k = await contract("APPROVED");
     expect((await raise(k)).ok).toBe(true);
     const first = await certOf(k.claimId);
@@ -175,11 +177,12 @@ describe("the SO block resolves to the contract's S.O., and the issue extends th
     const later = await certOf(c2.id);
     for (const c of [first, later]) expect((await as(p.so, () => sendCertificateToSigning({ ok: false }, form({ certId: c.id })))).ok).toBe(true);
     for (const c of [first, later]) expect((await sign(c.id, p.so)).ok).toBe(true);
-    expect((await contractorSigns(first.id)).ok).toBe(true);
-    const refused = await contractorSigns(later.id);
+    const [winner, loser] = order === "first" ? [first, later] : [later, first];
+    expect((await contractorSigns(winner.id)).ok).toBe(true);
+    const refused = await contractorSigns(loser.id);
     expect(refused.ok).toBe(false);
     expect(refused.message).toMatch(/Another extension of time moved the date for completion/);
-    expect((await db.certificate.findUniqueOrThrow({ where: { id: later.id } })).status).toBe("SIGNING");
+    expect((await db.certificate.findUniqueOrThrow({ where: { id: loser.id } })).status).toBe("SIGNING");
     expect(await db.contractBaseline.count({ where: { contractId: k.contractId, version: { not: null } } })).toBe(2);
   });
 });

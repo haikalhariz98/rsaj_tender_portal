@@ -321,7 +321,7 @@ export function RecordLossDrawer({ id, claims, people, blocker }: { id: string; 
       action={recordLossExpense}
       submitLabel="Record"
       submitBlock={blocker}
-      trigger={trig("Record", true)}
+      trigger={trig("Record", false, true)}
     />
   );
 }
@@ -424,7 +424,7 @@ export function RecordWaiverDrawer({ id, decisions, people, blocker }: { id: str
       action={recordLadWaiver}
       submitLabel="Record"
       submitBlock={blocker}
-      trigger={trig("Ask for a waiver", true)}
+      trigger={trig("Ask for a waiver", false, true)}
     />
   );
 }

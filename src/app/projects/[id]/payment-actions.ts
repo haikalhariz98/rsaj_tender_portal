@@ -440,13 +440,13 @@ export async function raiseInterimCertificate(_prev: FormState, data: FormData):
     if (a.faults.length || !a.result.snapshot || !a.judgedUnder) return refuse("Not raised:", a.faults);
     const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "INTERIM_PAYMENT", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed: a.result.snapshot }, c.now, c.today);
     const moved = await c.tx.interimValuation.updateMany({ where: { id: v.id, status: "OPEN" }, data: { status: "RAISED", certificateId: certId, judgedUnder: a.judgedUnder as unknown as Prisma.InputJsonValue } });
-    if (moved.count !== 1) return CHANGED;
+    if (moved.count !== 1) throw new Refusal(CHANGED); // thrown, not returned: the certificate opened above is rolled back with it (review)
     if (a.judgedUnder.pendingDeductionIds.length) await c.tx.pendingDeduction.updateMany({ where: { id: { in: a.judgedUnder.pendingDeductionIds }, contractId: c.l.contract.id }, data: { valuationId: v.id } });
     // Each waiver applied is applied once, on this certificate.
     for (const id of a.judgedUnder.ladBasis?.waiversApplied ?? []) {
       const w = waivers.apply.find((x) => x.id === id);
       const done = await c.tx.ladWaiver.updateMany({ where: { id, organisationId: c.l.org.id, appliedOnCertificateId: null }, data: { appliedOnCertificateId: certId, appliedAt: c.now } });
-      if (done.count !== 1) return CHANGED;
+      if (done.count !== 1) throw new Refusal(CHANGED);
       await audit(c, "LadWaiver", id, `${c.label} · waiver ${w?.label ?? ""}`.trim(), "UPDATE", diffFields({ applied: null }, { applied: `on the interim certificate raised from the ${label}`, amountWaived: w ? money(w.amount) : null }));
     }
     const f = a.result.figures!;

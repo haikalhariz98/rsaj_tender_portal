@@ -13,7 +13,8 @@ import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal } from "@/lib/money";
 import type { HiddenAct } from "@/lib/supervision/authority";
 import { EOT_STATE_TONE, EOT_STATE_WORDS } from "@/lib/time/claim-state";
-import { lossStateOf, type TimeView } from "@/lib/time/view";
+import { lossSendable, lossStateOf, lossValuable, periodAgreeable, periodSendable, periodStateOf } from "@/lib/time/card-rules";
+import type { TimeView } from "@/lib/time/view";
 
 import { DelayNoticeDrawer, OpenClaimDrawer, RaiseAgreementDrawer, RecordLossDrawer, RecordPeriodDrawer, SendLossDrawer, SendPeriodDrawer, ValueLossDrawer, type Option } from "./time-editors";
 
@@ -78,8 +79,8 @@ export function TimePanel({ l, v, people, today, hidden }: { l: LoadedContract; 
     },
   }));
   const lossOpts = (pick: (x: TimeView["losses"][number]) => boolean): Option[] => v.losses.filter(pick).map((x) => ({ value: x.id, label: `${formatMoney(senFromDecimal(x.claimed))} claimed${x.claim ? ` on ${x.claim.matter.reference ?? "a claim"}` : ""}` }));
-  const toValue = lossOpts((x) => !x.matterId);
-  const toSend = lossOpts((x) => x.valued != null && (!x.matter || (!x.matter.closedAt && x.matter.routes.at(-1)?.status !== "PENDING" && !x.matter.approvedRouteId)));
+  const toValue = lossOpts(lossValuable);
+  const toSend = lossOpts(lossSendable);
   const periodOpts = (pick: (p: TimeView["periods"][number]) => boolean): Option[] => v.periods.filter(pick).map((p) => ({ value: p.x.id, label: `To ${formatDate(day(p.x.newExpiry))}${p.m.reference ? ` (${p.m.reference})` : ""}` }));
 
   return (
@@ -120,11 +121,13 @@ export function TimePanel({ l, v, people, today, hidden }: { l: LoadedContract; 
             title="Loss and expense"
             actions={
               hidden.includes("CONTRACTOR_COMMUNICATION") && hidden.includes("VALUATION") ? undefined : (
-                <MoreActions label="Loss and expense actions">
+                <span className="flex items-center gap-2">
                   {hidden.includes("CONTRACTOR_COMMUNICATION") ? null : <RecordLossDrawer id={id} people={people} claims={v.claims.map(({ m, c }) => ({ value: c.id, label: m.reference ? `Claim ${m.reference}` : `Claim of ${formatDate(day(c.recordedAt))}` }))} blocker={loss} />}
-                  {hidden.includes("VALUATION") ? null : <ValueLossDrawer id={id} losses={toValue} people={people} today={today} blocker={loss} />}
-                  {hidden.includes("CONTRACTOR_COMMUNICATION") ? null : <SendLossDrawer id={id} losses={toSend} people={people} blocker={loss} />}
-                </MoreActions>
+                  <MoreActions label="Loss and expense actions">
+                    {hidden.includes("VALUATION") ? null : <ValueLossDrawer id={id} losses={toValue} people={people} today={today} blocker={loss} />}
+                    {hidden.includes("CONTRACTOR_COMMUNICATION") ? null : <SendLossDrawer id={id} losses={toSend} people={people} blocker={loss} />}
+                  </MoreActions>
+                </span>
               )
             }
             divided={false}
@@ -144,8 +147,8 @@ export function TimePanel({ l, v, people, today, hidden }: { l: LoadedContract; 
                   <span className="flex items-center gap-2">
                     <RecordPeriodDrawer id={id} people={people} blocker={period} />
                     <MoreActions label="Contract period actions">
-                      <SendPeriodDrawer id={id} extensions={periodOpts((p) => !p.approved && !p.m.closedAt && p.m.routes.at(-1)?.status !== "PENDING")} people={people} blocker={period} />
-                      {hidden.includes("SO_ONLY") ? null : <RaiseAgreementDrawer id={id} extensions={periodOpts((p) => p.approved && !p.x.agreements.some((a) => a.certificate.status !== "VOID"))} people={people} blocker={period} />}
+                      <SendPeriodDrawer id={id} extensions={periodOpts(periodSendable)} people={people} blocker={period} />
+                      {hidden.includes("SO_ONLY") ? null : <RaiseAgreementDrawer id={id} extensions={periodOpts(periodAgreeable)} people={people} blocker={period} />}
                     </MoreActions>
                   </span>
                 )
@@ -160,10 +163,7 @@ export function TimePanel({ l, v, people, today, hidden }: { l: LoadedContract; 
               exportName="contract-period"
               emptyTitle="No extensions of the contract period"
               columns={[{ key: "to", label: "New expiry", mobile: "primary" }, { key: "state", label: "Status", width: "220px", mobile: "meta" }]}
-              rows={v.periods.map((p) => {
-                const agreement = p.x.agreements.find((a) => a.certificate.status !== "VOID");
-                return { id: p.x.id, search: "", cells: { to: { kind: "stack", title: formatDate(day(p.x.newExpiry)), sub: `From ${formatDate(day(p.x.currentExpiry))}` }, state: { kind: "chips", items: [{ text: agreement ? (agreement.certificate.status === "ISSUED" ? "Agreed" : "Agreement raised") : p.approved ? "Approved" : p.m.closedAt ? "Closed" : p.m.routes.at(-1)?.status === "PENDING" ? "Awaiting approval" : "Recorded" }] } } };
-              })}
+              rows={v.periods.map((p) => ({ id: p.x.id, search: "", cells: { to: { kind: "stack", title: formatDate(day(p.x.newExpiry)), sub: `From ${formatDate(day(p.x.currentExpiry))}` }, state: { kind: "chips", items: [{ text: periodStateOf(p) }] } } }))}
             />
           </Card>
           </ActGate>
