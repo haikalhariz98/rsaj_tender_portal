@@ -147,7 +147,8 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
             { key: "method", label: "Method and contract type", width: "18%", hideBelow: "2xl" },
             { key: "value", label: "Value", width: "132px", numeric: true, sulit: true, sulitLabel: "SULIT. Shown to people named on the exercise and chosen roles. Not exported.", mobile: "meta" },
             { key: "window", label: "Closing", width: "168px", hideBelow: "lg", mobile: "meta" },
-            { key: "status", label: "Status", width: "200px", mobile: "meta" },
+            // 224px: "Documents in preparation" holds one line (Phase 0.2 item 2).
+            { key: "status", label: "Status", width: "224px", mobile: "meta" },
             { key: "checks", label: "Band and checks", width: "168px", hideBelow: "2xl", mobile: "meta" },
           ]}
           toolbarFilters={<ListFacets facets={facets} />}

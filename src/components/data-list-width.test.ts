@@ -56,6 +56,13 @@ describe("only the Opening's offers use them (other lists unchanged)", () => {
     expect(lists).toMatch(/\{ key: "bidder", label: "Bidder as read", minWidth: "200px"/);
     expect(lists).toMatch(/\{ key: "verdict", label: "Verdict", width: "210px"/);
   });
+  // Phase 0.2 item 2: "Documents in preparation" (about 170px of badge, plus the cell's 32px of padding) wrapped onto two lines in a 200px column.
+  it("the Sourcing and Search status columns hold the longest exercise status on one line", () => {
+    for (const p of ["src/app/sourcing/page.tsx", "src/app/search/page.tsx"]) {
+      const w = Number(/\{ key: "status", label: "Status", width: "(\d+)px"/.exec(readFileSync(join(process.cwd(), p), "utf8"))?.[1]);
+      expect(w, p).toBeGreaterThanOrEqual(224);
+    }
+  });
 });
 
 describe("as rendered", () => {

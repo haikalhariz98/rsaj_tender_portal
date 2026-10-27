@@ -26,7 +26,8 @@ const toRow = (h: SearchHit): Row => ({
 });
 const COLUMNS = [
   { key: "title", label: "Record" },
-  { key: "status", label: "Status", width: "200px" },
+  // 224px: the longest status ("Documents in preparation") holds one line, as on the Sourcing list.
+  { key: "status", label: "Status", width: "224px" },
 ];
 
 export default async function SearchPage(props: PageProps<"/search">) {
