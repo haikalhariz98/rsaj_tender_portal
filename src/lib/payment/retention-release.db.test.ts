@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { StaffActor } from "@/lib/auth/types";
 import { dayPlus } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { loadPayment } from "@/lib/payment/load";
 import { randomId } from "@/lib/test-db/auth-fixtures";
 import { activeContract, contractOrg, D, form, today, type TestContract, type TestOrg } from "@/lib/test-db/contract.fixture";
 
@@ -72,5 +73,55 @@ describe("releasing retention through the act", () => {
     expect(first.ok).toBe(false);
     expect(first.message).toMatch(/Balance already released/);
     expect((await releases(k)).length).toBe(1);
+  });
+
+  it("money test 2: the balance is refused before the CMGD issues, released after it, and refused a second time", async () => {
+    const k = await activeContract(o, { dueIn: -90, dlpMonths: 1 });
+    await issuedInterim(k, "15000.00", dayPlus(today(), -60));
+    const early = await release(k, "RELEASED_BALANCE");
+    expect(early.ok).toBe(false);
+    expect(early.message).toMatch(/Certificate of Making Good Defects/);
+    await madeGood(k);
+    expect((await release(k, "RELEASED_BALANCE")).ok).toBe(true);
+    const twice = await release(k, "RELEASED_BALANCE");
+    expect(twice.ok).toBe(false);
+    expect(twice.message).toMatch(/Balance already released/);
+    expect((await releases(k)).length).toBe(1);
+  });
+
+  it("money test 3: a balance with no first release releases everything held; one where a later interim holds less than the first took is refused, naming the tier", async () => {
+    const all = await activeContract(o, { dueIn: -90, dlpMonths: 1 });
+    await issuedInterim(all, "12345.67", dayPlus(today(), -60));
+    await madeGood(all);
+    expect((await release(all, "RELEASED_BALANCE")).ok).toBe(true);
+    expect((await releases(all))[0].main.toString()).toBe("12345.67");
+
+    const less = await activeContract(o, { dueIn: -90, dlpMonths: 1 });
+    await issuedInterim(less, "20000.00", dayPlus(today(), -60));
+    await db.siteRecordsHandover.create({ data: { organisationId: o.organisationId, contractId: less.contractId, recordsSet: "AS_BUILT", handedOverOn: D(dayPlus(today(), -50)), toLabel: "Employer", receivedByName: "Clerk", personId: o.so, pinnedVersions: [], recordedAt: new Date() } });
+    expect((await release(less, "RELEASED_FIRST", dayPlus(today(), -50))).ok).toBe(true);
+    await issuedInterim(less, "8000.00", dayPlus(today(), -40));
+    await madeGood(less);
+    const r = await release(less, "RELEASED_BALANCE");
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/Main contractor: the latest certificate holds RM\s?2,000\.00 less retention than the first release took/);
+    expect((await releases(less)).map((x) => x.kind)).toEqual(["RELEASED_FIRST"]);
+  });
+
+  it("money test 4 (ruling 1a): the balance is refused while an interim is in routing or a valuation is open, naming it; a valuation is not dated before a release", async () => {
+    const k = await activeContract(o, { dueIn: -90, dlpMonths: 1 });
+    await issuedInterim(k, "10000.00", dayPlus(today(), -60));
+    await madeGood(k);
+    const routing = await db.certificate.create({ data: { organisationId: o.organisationId, contractId: k.contractId, kind: "INTERIM_PAYMENT", status: "IN_ROUTING", baselineId: k.baselineId, openedAt: new Date(), openedOn: D(dayPlus(today(), -3)) } });
+    await db.interimValuation.create({ data: { organisationId: o.organisationId, contractId: k.contractId, trigger: "VALUATION_DATE", valuationDate: D(dayPlus(today(), -3)), status: "RAISED", personId: o.so, certificateId: routing.id, judgedUnder: { version: 1 }, recordedAt: new Date(), recordedOn: D(dayPlus(today(), -3)) } });
+    const r = await release(k, "RELEASED_BALANCE");
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/Finish first: the interim certificate of the valuation of .*, with its routing sheet/);
+    await db.certificate.update({ where: { id: routing.id }, data: { status: "VOID", voidedAt: new Date(), voidReason: "Wrong valuation." } });
+    expect((await release(k, "RELEASED_BALANCE")).ok).toBe(true);
+    // Ruling 1b: an interim after the balance holds again; that is not zeroed, and the card names it, paid on the final certificate.
+    await issuedInterim(k, "10600.00", today());
+    const { retentionOf } = await import("@/lib/closeout/view");
+    expect(retentionOf(await loadPayment(k.contractId)).sinceBalance).toBe(60000n);
   });
 });

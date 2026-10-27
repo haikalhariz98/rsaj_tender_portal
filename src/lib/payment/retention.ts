@@ -153,6 +153,9 @@ export interface ReleaseInput {
   balanceEvent: BalanceEvent;
   /// What the first release took, per tier (for the balance).
   firstReleased: Tiers;
+  /// Ruling 1a (code review of close-out stage B, P2): the interim certificates in draft, routing or signing and the valuations still open,
+  /// named. The balance is refused while any exists. Absent: none (the first release does not read it).
+  inProgress?: readonly string[];
 }
 
 /**
@@ -176,8 +179,18 @@ export function releaseOf(i: ReleaseInput): { faults: Finding[]; amounts: Tiers 
   }
   if (i.already.balance) f("ALREADY_RELEASED", { kind: "balance" });
   faults.push(...balanceReleaseFaults(i.balanceEvent));
+  // Ruling 1a: an interim in progress would hold or release retention the balance does not see.
+  if (i.inProgress?.length) f("INTERIM_IN_PROGRESS", { items: i.inProgress.join("; ") });
   if (faults.length) return { faults, amounts: null };
-  return { faults, amounts: { MAIN: i.held!.MAIN - i.firstReleased.MAIN, NSC: i.held!.NSC - i.firstReleased.NSC, NS: i.held!.NS - i.firstReleased.NS } };
+  const amounts = { MAIN: i.held!.MAIN - i.firstReleased.MAIN, NSC: i.held!.NSC - i.firstReleased.NSC, NS: i.held!.NS - i.firstReleased.NS };
+  // Ruling 1c: held less the first release below nothing in a tier (a later interim holds less than the first took) refuses the whole balance,
+  // naming the tier and the amount; never clamped to nothing. The final certificate settles it.
+  const below = (["MAIN", "NSC", "NS"] as const).find((t) => amounts[t] < 0n);
+  if (below) {
+    f("BALANCE_BELOW_RELEASED", { tier: below, amount: (-amounts[below]).toString() });
+    return { faults, amounts: null };
+  }
+  return { faults, amounts };
 }
 
 /// The first release's share as the release act and the Payments tab both read it from the stored Decimal(9,4)

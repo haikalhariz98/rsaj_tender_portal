@@ -11,7 +11,7 @@ import { baselineRows, contractGate, valuesOf } from "@/lib/contract/load";
 import type { LoadedContract } from "@/lib/contract/repo";
 import type { BaselineReason } from "@/lib/contract/types";
 import { dayPlus, storedDay, dayOrNull as day } from "@/lib/dates";
-import { decimalText } from "@/lib/format";
+import { decimalText, formatDate } from "@/lib/format";
 import { db } from "@/lib/db";
 import type { Decision } from "@/lib/lad/charge";
 import { liveDecision } from "@/lib/lad/non-completion";
@@ -143,6 +143,19 @@ function valuationInterims(p: PaymentRows): IssuedInterim[] {
 
 /// A valuation of this contract still in progress (being valued, or raised with its certificate neither issued nor void).
 export const inProgress = (p: PaymentRows) => p.interimValuations.find((v) => v.status === "OPEN" || (v.status === "RAISED" && v.certificate?.status != null && v.certificate.status !== "ISSUED" && v.certificate.status !== "VOID")) ?? null;
+
+/// Ruling 1a (code review of close-out stage B, P2): every interim in progress, named, for the balance's refusal: a valuation still open, and an
+/// interim certificate in draft, routing or signing.
+export const interimsInProgressOf = (p: PaymentRows): string[] =>
+  p.interimValuations.flatMap((v) => {
+    const on = formatDate(day(v.valuationDate)!);
+    if (v.status === "OPEN") return [`the valuation of ${on}, still open`];
+    const s = v.certificate?.status;
+    return v.status === "RAISED" && (s === "DRAFT" || s === "IN_ROUTING" || s === "SIGNING") ? [`the interim certificate of the valuation of ${on}, ${s === "DRAFT" ? "in draft" : s === "IN_ROUTING" ? "with its routing sheet" : "being signed"}`] : [];
+  });
+
+/// The latest retention release's day (null: none), which a new valuation is not dated before.
+export const lastReleaseOnOf = (p: PaymentRows): string | null => p.retentionReleases.map((r) => day(r.releasedOn)!).sort().at(-1) ?? null;
 
 /// The sequence the valuation in progress was (or will be) assembled as: every interim certificate issued on the
 /// contract, from a valuation or not, plus one; null where none is in progress.

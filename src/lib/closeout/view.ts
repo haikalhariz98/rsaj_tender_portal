@@ -33,14 +33,17 @@ export function advanceRecoupedOf(p: PaymentRows, securityId: string): boolean |
   return advances.every((a) => senFromDecimal(a.amount) - recoupedOf(issued, a.id) <= 0n);
 }
 
-/// The retention held on the latest issued interim, what the first release took, and the balance still to release.
-export function retentionOf(p: PaymentRows): { held: Sen; first: Sen; balance: Sen; balanceReleased: boolean } {
+/// The retention held on the latest issued interim, what the first release took, and the balance still to release. Ruling 1b (code review of
+/// close-out stage B): what interims issued after the balance hold again (`sinceBalance`) is not zeroed; the final certificate pays it.
+export function retentionOf(p: PaymentRows): { held: Sen; first: Sen; balance: Sen; balanceReleased: boolean; sinceBalance: Sen } {
   const h = heldOnLatest(issuedInterims(p));
   const rs = releaseStateOf(p);
   const held = h ? sum(h.held) : 0n;
   const first = sum(rs.firstReleased);
   const balance = rs.already.balance ? 0n : held - first;
-  return { held, first, balance: balance > 0n ? balance : 0n, balanceReleased: rs.already.balance };
+  const b = p.retentionReleases.find((r) => r.kind === "RELEASED_BALANCE");
+  const since = b ? held - first - (senFromDecimal(b.main) + senFromDecimal(b.nsc) + senFromDecimal(b.ns)) : 0n;
+  return { held, first, balance: balance > 0n ? balance : 0n, balanceReleased: rs.already.balance, sinceBalance: since > 0n ? since : 0n };
 }
 
 export async function closeoutView(l: LoadedContract, today: string | null) {

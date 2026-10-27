@@ -28,7 +28,7 @@ import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentFaultText, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
 import { loadCloseout, releaseEventsOf } from "@/lib/closeout/load";
 import { manualCloseout } from "@/lib/integration/closeout";
-import { assembleInputOf, baselineOn, damagesOf, waiversToApplyOf, claimFactsOf, inProgress, inProgressSequenceOf, issuedInterims, kindSettingOf, liveDecisionsOf, loadPayment, nextInterimSequence, pendingAdvancesOf, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, damagesOf, waiversToApplyOf, claimFactsOf, inProgress, inProgressSequenceOf, interimsInProgressOf, issuedInterims, lastReleaseOnOf, kindSettingOf, liveDecisionsOf, loadPayment, nextInterimSequence, pendingAdvancesOf, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
 import { ladRoundingFaults } from "@/lib/payment/interim";
 import { OPENING_GROUPS, openingClosed, openingFaults, openingReconciles, type OpeningGroup, type OpeningProvenance } from "@/lib/payment/opening";
@@ -212,7 +212,7 @@ export async function openInterimValuation(_prev: FormState, data: FormData): Pr
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const p = await paymentOf(c);
     const lastIssued = p.interimValuations.filter((v) => v.certificate?.status === "ISSUED").map((v) => storedDay(v.valuationDate)).sort().at(-1) ?? null;
-    const fs = openFaults({ trigger, triggerDate: claimOn ? storedDay(claimOn) : null, valuationDate: storedDay(valuationDate), today: c.today, calendarDay: p.paymentCalendar?.dayOfMonth ?? null, inProgress: !!inProgress(p), lastIssuedOn: lastIssued, baselineInForce: !!baselineOn(c.l, c.today) });
+    const fs = openFaults({ trigger, triggerDate: claimOn ? storedDay(claimOn) : null, valuationDate: storedDay(valuationDate), today: c.today, calendarDay: p.paymentCalendar?.dayOfMonth ?? null, inProgress: !!inProgress(p), lastIssuedOn: lastIssued, baselineInForce: !!baselineOn(c.l, c.today), lastReleaseOn: lastReleaseOnOf(p) });
     // Residual MUST 3: an advance applied for and not yet issued or void holds its schedule open.
     fs.push(...pendingAdvanceFaults(pendingAdvancesOf(p)));
     if (fs.length) refuse("Not opened:", fs);
@@ -524,7 +524,7 @@ export async function releaseRetention(_prev: FormState, data: FormData): Promis
     const handover = p.siteRecordsHandovers.at(-1) ?? null;
     // Phase 2 close-out stage B (plan §4.5, flagged): the balance at the event `retentionBalanceReleaseAt` names, read with the CMGD and its final inspection.
     const balanceEvent = releaseEventsOf(await loadCloseout(c.l.contract.id, c.tx), policy).retention;
-    const rel = releaseOf({ kind: release, held: held!.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: !!handover, balanceEvent, firstReleased: rs.firstReleased });
+    const rel = releaseOf({ kind: release, held: held!.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: !!handover, balanceEvent, firstReleased: rs.firstReleased, inProgress: interimsInProgressOf(p) });
     if (rel.faults.length) refuse("Not released:", rel.faults);
     const who = await recordedFor(c, act, { principalOrSo: true }, storedDay(releasedOn));
     const a = rel.amounts!;

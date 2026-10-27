@@ -88,6 +88,21 @@ describe("release (FR-PAY-021)", () => {
     expect(codes(releaseOf({ ...base, kind: "RELEASED_BALANCE", already: { first: true, balance: true }, balanceEvent: { state: "REACHED", event: "MAKING_GOOD" } }).faults)).toEqual(["ALREADY_RELEASED"]);
     expect(codes(releaseOf({ ...base, held: null }).faults)).toEqual(["NOTHING_HELD"]);
   });
+  // Code review of close-out stage B, ruling 1a: the balance waits while an interim is in progress, naming each.
+  it("the balance is refused while an interim certificate or a valuation is in progress, naming each", () => {
+    const r = releaseOf({ ...base, kind: "RELEASED_BALANCE", already: { first: true, balance: false }, balanceEvent: { state: "REACHED", event: "MAKING_GOOD" }, firstReleased: { MAIN: s("26937.72"), NSC: 0n, NS: 0n }, inProgress: ["the valuation of 1 Oct 2026, still open"] });
+    expect(r.faults.map((f) => [f.code, f.data?.items])).toEqual([["INTERIM_IN_PROGRESS", "the valuation of 1 Oct 2026, still open"]]);
+  });
+  // Ruling 1c: a later interim holding less than the first release took refuses the whole balance, naming the tier and the amount; never clamped.
+  it("the balance below what the first release took refuses the whole release, naming the tier", () => {
+    const r = releaseOf({ ...base, kind: "RELEASED_BALANCE", held: { MAIN: s("20000.00"), NSC: s("500.00"), NS: 0n }, already: { first: true, balance: false }, balanceEvent: { state: "REACHED", event: "MAKING_GOOD" }, firstReleased: { MAIN: s("10000.00"), NSC: s("800.00"), NS: 0n } });
+    expect(r.amounts).toBeNull();
+    expect(r.faults.map((f) => [f.code, f.data?.tier, f.data?.amount])).toEqual([["BALANCE_BELOW_RELEASED", "NSC", s("300.00").toString()]]);
+  });
+  it("a balance with no first release (all held) releases everything held", () => {
+    const r = releaseOf({ ...base, kind: "RELEASED_BALANCE", already: { first: false, balance: false }, balanceEvent: { state: "REACHED", event: "MAKING_GOOD" }, firstReleased: ZERO_TIERS });
+    expect(r.amounts!.MAIN).toBe(s("53875.43"));
+  });
   // Code review of close-out stage B, F1: the balance took all that was held, so a first release recorded after it would pay retention twice.
   it("a first release after the balance is refused", () => {
     const r = releaseOf({ ...base, already: { first: false, balance: true } });

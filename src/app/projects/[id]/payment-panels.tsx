@@ -34,7 +34,7 @@ import { db } from "@/lib/db";
 import { creditorFactsOf } from "@/lib/payment/creditor-store";
 import { OPENING_GROUP_WORDS, ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, PAYEE_BANK_UNCHECKED, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
 import { loadCloseout, releaseEventsOf } from "@/lib/closeout/load";
-import { accrualOfPayment, assembleInputOf, baselineOn, damagesOf, decisionOf, liveDecisionsOf, waiversToApplyOf, waiverResendable, waiverStateOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, openingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
+import { accrualOfPayment, assembleInputOf, baselineOn, damagesOf, decisionOf, liveDecisionsOf, waiversToApplyOf, waiverResendable, waiverStateOf, inProgress, inProgressSequenceOf, interimsInProgressOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, openingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { asCorrected } from "@/lib/payment/correction";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
@@ -510,7 +510,7 @@ function RetentionSection({ l, v, people, today, hidden }: { l: LoadedContract; 
   const handed = v.p.siteRecordsHandovers.length > 0;
   const releaseBlock = (kind: "RELEASED_FIRST" | "RELEASED_BALANCE") => {
     if (!held) return paymentFaultText({ code: "NO_ISSUED_INTERIM", level: "block" });
-    const r = releaseOf({ kind, held: held.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: handed, balanceEvent: releaseEventsOf(v.closeout, v.cfg.policy).retention, firstReleased: rs.firstReleased });
+    const r = releaseOf({ kind, held: held.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: handed, balanceEvent: releaseEventsOf(v.closeout, v.cfg.policy).retention, firstReleased: rs.firstReleased, inProgress: interimsInProgressOf(v.p) });
     return zone(today) ?? say(r.faults);
   };
   const terms =

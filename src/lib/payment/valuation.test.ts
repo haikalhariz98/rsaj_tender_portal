@@ -32,6 +32,9 @@ describe("opening a valuation (FR-PAY-004)", () => {
   it("one at a time, forward only, never in the future, and only on a baseline in force", () => {
     expect(codes(openFaults({ ...base, inProgress: true }))).toEqual(["VALUATION_IN_PROGRESS"]);
     expect(codes(openFaults({ ...base, lastIssuedOn: "2026-07-25" }))).toEqual(["NOT_AFTER_LAST"]);
+    // Ruling 1a (code review of close-out stage B): not dated before the last retention release; on its day is allowed.
+    expect(codes(openFaults({ ...base, lastReleaseOn: "2026-07-26" }))).toEqual(["BEFORE_RELEASE"]);
+    expect(codes(openFaults({ ...base, lastReleaseOn: "2026-07-25" }))).toEqual([]);
     expect(codes(openFaults({ ...base, today: "2026-07-24" }))).toEqual(["FUTURE_DATE"]);
     expect(codes(openFaults({ ...base, baselineInForce: false }))).toEqual(["NO_BASELINE"]);
     expect(codes(openFaults({ ...base, calendarDay: null }))).toEqual(["CALENDAR_NOT_SET"]);

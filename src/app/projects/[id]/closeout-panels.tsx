@@ -24,7 +24,7 @@ import { formatMoney, senFromDecimal } from "@/lib/money";
 import { paymentFaultText } from "@/lib/payment/labels";
 import { releaseOf } from "@/lib/payment/retention";
 import { heldOnLatest } from "@/lib/payment/assemble";
-import { issuedInterims, releaseStateOf } from "@/lib/payment/load";
+import { interimsInProgressOf, issuedInterims, releaseStateOf } from "@/lib/payment/load";
 import type { HiddenAct } from "@/lib/supervision/authority";
 
 import { AddDefectDrawer, DefectActDrawer, RaiseCmgdDrawer, RaiseCpcDrawer, RaiseScheduleDrawer, RemoveDefectDrawer, ReturnSecurityDrawer, type Option } from "./closeout-editors";
@@ -65,7 +65,7 @@ export function CompletionPanel({ l, v, people, today, hidden, told }: Props & {
   const balanceRelease = v.p.retentionReleases.find((x) => x.kind === "RELEASED_BALANCE") ?? null;
   const held = heldOnLatest(issuedInterims(v.p));
   const rs = releaseStateOf(v.p);
-  const balanceBlock = !held ? paymentFaultText({ code: "NO_ISSUED_INTERIM", level: "block" }) : (zone(today) ?? (releaseOf({ kind: "RELEASED_BALANCE", held: held.held, already: rs.already, firstReleasePct: null, asBuiltHandedOver: true, balanceEvent: v.events.retention, firstReleased: rs.firstReleased }).faults.map(paymentFaultText).join(" ") || null));
+  const balanceBlock = !held ? paymentFaultText({ code: "NO_ISSUED_INTERIM", level: "block" }) : (zone(today) ?? (releaseOf({ kind: "RELEASED_BALANCE", held: held.held, already: rs.already, firstReleasePct: null, asBuiltHandedOver: true, balanceEvent: v.events.retention, firstReleased: rs.firstReleased, inProgress: interimsInProgressOf(v.p) }).faults.map(paymentFaultText).join(" ") || null));
   const setting = v.events.retention.state === "NOT_SET" ? "Not set" : (EVENT_SETTING_WORDS[v.cfg.policy?.retentionBalanceReleaseAt ?? ""] ?? "Not set");
   const securityRows: Row[] = v.securities.map(({ s, faults, label }) => ({
     id: s.id,
@@ -144,6 +144,8 @@ export function CompletionPanel({ l, v, people, today, hidden, told }: Props & {
                 { label: "Held", value: formatMoney(v.retention.held) },
                 { label: "First release", value: formatMoney(v.retention.first) },
                 { label: "Balance", value: balanceRelease ? `Released ${formatDate(storedDay(balanceRelease.releasedOn))}${cmgd?.certificate.status === "ISSUED" ? ` on the certificate of making good defects ${cmgd.certificate.number ?? ""}`.trimEnd() : ""}` : formatMoney(v.retention.balance) },
+                // Ruling 1b: held again by interims issued after the balance, paid on the final certificate.
+                ...(v.retention.sinceBalance > 0n ? [{ label: "Held since the balance was released", value: `${formatMoney(v.retention.sinceBalance)}, paid on the final certificate` }] : []),
               ]}
             />
           </CardBody>

@@ -45,6 +45,9 @@ export interface OpenInput {
   lastIssuedOn: Day | null;
   /// A baseline version in force today.
   baselineInForce: boolean;
+  /// Ruling 1a (code review of close-out stage B, P2): the latest retention release's day. A valuation is not dated before it, as the release counts
+  /// against valuations on or after its day. Absent or null: none.
+  lastReleaseOn?: Day | null;
 }
 
 export function openFaults(i: OpenInput): Finding[] {
@@ -57,6 +60,7 @@ export function openFaults(i: OpenInput): Finding[] {
   else {
     if (i.valuationDate > i.today) f("FUTURE_DATE", { day: i.valuationDate });
     if (i.lastIssuedOn && i.valuationDate <= i.lastIssuedOn) f("NOT_AFTER_LAST", { day: i.lastIssuedOn });
+    if (i.lastReleaseOn && i.valuationDate < i.lastReleaseOn) f("BEFORE_RELEASE", { day: i.lastReleaseOn });
     if (i.trigger === "VALUATION_DATE") {
       if (i.calendarDay == null) f("CALENDAR_NOT_SET");
       else if (valuationDayIn(i.valuationDate.slice(0, 7), i.calendarDay) !== i.valuationDate) f("NOT_THE_VALUATION_DAY", { day: valuationDayIn(i.valuationDate.slice(0, 7), i.calendarDay) });

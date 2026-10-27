@@ -179,6 +179,11 @@ export function paymentFaultWords(f: Finding): Words {
       return en("The final defects inspection is not recorded on the Certificate of Making Good Defects.");
     case "BALANCE_WITH_FINAL_PAYMENT":
       return en("The balance is released with the final certificate's payment.");
+    // Code review of close-out stage B, rulings 1a and 1c.
+    case "INTERIM_IN_PROGRESS":
+      return en(`Finish first: ${d.items ?? "an interim in progress"}. Issue or void the certificate, or withdraw the valuation under Payments.`);
+    case "BALANCE_BELOW_RELEASED":
+      return en(`${TIER_WORDS[d.tier as RetentionTier]?.en ?? "A tier"}: the latest certificate holds ${money(d.amount)} less retention than the first release took. Not released: the final certificate settles it.`);
     // ------------------------------------------------ materials, minimum, totals
     case "MATERIALS_PCT_NOT_SET":
       return w("Materials allowance percentage not set. Set it in the baseline or Configuration › Post-award.", "Bahan di tapak dinilai, tetapi tiada peratusan elaun ditetapkan sama ada di garis dasar kontrak atau di Konfigurasi › Selepas setuju terima. Bukan 0%.");
@@ -339,6 +344,8 @@ export function paymentFaultWords(f: Finding): Words {
       return w("Say what started it: the monthly valuation day, or a claim.", "Nyatakan pencetusnya.");
     case "VALUATION_DATE_REQUIRED":
       return w("Give the valuation day.", "Nyatakan hari penilaian.");
+    case "BEFORE_RELEASE":
+      return en(`A valuation is not dated before the last retention release (${day(d.day)}).`);
     case "NOT_AFTER_LAST":
       return w(`A valuation comes after the last one issued (${day(d.day)}).`, `Penilaian mesti selepas yang terakhir dikeluarkan (${day(d.day)}).`);
     case "CALENDAR_NOT_SET":
