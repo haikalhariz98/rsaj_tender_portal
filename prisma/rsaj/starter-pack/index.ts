@@ -11,11 +11,12 @@ import type { StarterPack } from "../../../src/lib/starter/types";
 
 import { APPROVALS } from "./approvals";
 import { CONTRACTS } from "./contracts";
+import { FUNDING } from "./funding";
 import { PURCHASING } from "./purchasing";
 import { SUPPLIERS } from "./suppliers";
 import { SYSTEM } from "./system";
 
-const PARTS = [APPROVALS, PURCHASING, CONTRACTS, SUPPLIERS, SYSTEM];
+const PARTS = [APPROVALS, PURCHASING, CONTRACTS, SUPPLIERS, SYSTEM, FUNDING];
 
 export const RSAJ_PACK: StarterPack = {
   name: "rsaj",

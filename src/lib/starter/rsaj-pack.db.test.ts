@@ -196,6 +196,16 @@ describe("loading rsaj,generic", () => {
     ]);
     // B3: the DAL's rows in SK006's gap load as gap rows (assumed), the gap said; the trail records ASSUMED.
     expect(await db.authorityRule.findFirstOrThrow({ where: { authorityMatrixId: matrices[0].id, ruleKey: "PX_TENDER" }, select: { isGap: true, gapNote: true } })).toMatchObject({ isGap: true, gapNote: expect.stringMatching(/^SK006 §7\.6\.2 has no rule/) });
+    // ADR 0046 (plan step 8): the four sources, the sukuk's envelope and its eligibility unset; the two measures; no project category.
+    const sources = await db.fundingSource.findMany({ where: { organisationId: orgId }, orderBy: { sortOrder: "asc" }, select: { code: true, envelope: true, categoriesRestricted: true, eligibilityProvenance: true, provenance: true } });
+    expect(sources.map((s) => [s.code, s.envelope?.toString() ?? null, s.categoriesRestricted, s.eligibilityProvenance, s.provenance])).toEqual([
+      ["SUKUK26T1", "100000000", null, null, "STATED"],
+      ["INTERNAL", null, false, "ASSUMED", "STATED"],
+      ["GRANT", null, false, "ASSUMED", "STATED"],
+      ["NA", null, false, "ASSUMED", "STATED"],
+    ]);
+    expect((await db.impactMeasure.findMany({ where: { organisationId: orgId }, orderBy: { sortOrder: "asc" }, select: { nameEn: true, unit: true, provenance: true } })).map((m) => [m.nameEn, m.unit, m.provenance])).toEqual([["Storage added", "ML", "ASSUMED"], ["Households served", "households", "ASSUMED"]]);
+    expect(await db.projectCategory.count({ where: { organisationId: orgId } })).toBe(0);
   });
 
   it("writes nothing the second time, and says the drafts already exist", async () => {

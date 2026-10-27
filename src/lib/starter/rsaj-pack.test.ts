@@ -47,7 +47,13 @@ const ASSUMED_STAGES = ["checklist", "combined", "recommendation", "phase_5"];
 const ASSUMED_COLUMNS = [
   ["direct_appointment", "documentPackKindProvenance"],
   ["selective_direct_appointment", "documentPackKindProvenance"],
+  // ADR 0046 (named exception): SF-02 limits only a sukuk source, so "any category" on the other three is a reading of the document.
+  ["INTERNAL", "eligibilityProvenance"],
+  ["GRANT", "eligibilityProvenance"],
+  ["NA", "eligibilityProvenance"],
 ];
+/// ADR 0046 (named exception): SF-04's own examples of an impact figure, labels rather than thresholds, a reading of the requirement.
+const ASSUMED_MEASURES = ["storage_added", "households_served"];
 /// The post-award rows: B.6 and B.7 are headed by the contract's value, so these name no method and carry the regime's contract band.
 const Q_VO = ["Q_VO_UP_TO_20", "Q_VO_20_TO_50", "Q_VO_ABOVE_50"];
 const T_VO = ["T_VO_A_I", "T_VO_A_II", "T_VO_B_I", "T_VO_B_II", "T_VO_B_III", "T_VO_C_I", "T_VO_C_II", "T_VO_C_III", "T_VO_C_IV"];
@@ -65,7 +71,8 @@ describe("the RSAJ pack's entries", () => {
     }
     for (const l of RSAJ_PACK.lists) {
       for (const r of l.rows) {
-        expect(r.requirement, `${l.label} ${r.code}`).toMatch(/^(FR|SR)-/);
+        // ADR 0046: the funding rows cite RSAJ's SF and PR requirements (Requisition to Project Close-out).
+        expect(r.requirement, `${l.label} ${r.code}`).toMatch(/^(FR|SR|SF|PR)-/);
         expect(r.source.length, `${l.label} ${r.code}`).toBeGreaterThan(5);
         for (const c of Object.keys(r.values)) expect(columnsOf(l.model), `${l.model}.${c}`).toContain(c);
       }
@@ -79,7 +86,7 @@ describe("the RSAJ pack's entries", () => {
     expect(dal.rules.filter((r) => r.provenance === "ASSUMED").map((r) => r.ruleKey)).toEqual([...SLASHED, ...GAP_FILLS]);
     for (const r of dal.rules.filter((x) => GAP_FILLS.includes(x.ruleKey))) expect([r.isGap, r.gapNote, r.source], r.ruleKey).toEqual([true, expect.stringMatching(/^SK006 §7\.6\.2 has no rule for an extension adding up to RM50,000\. Routed by the DAL/), expect.stringMatching(/the DAL stands in \(RSAJ answer 16 \(2026-10-27\); RSAJ question 16b\)$/)]);
     const assumedRows = RSAJ_PACK.lists.flatMap((l) => l.rows.filter((r) => r.values.provenance === "ASSUMED").map((r) => r.code));
-    expect(assumedRows).toEqual(ASSUMED_PARTS);
+    expect(assumedRows).toEqual([...ASSUMED_PARTS, ...ASSUMED_MEASURES]);
     for (const r of RSAJ_PACK.lists.flatMap((l) => l.rows)) if (r.values.provenance != null && r.values.provenance !== "ASSUMED") throw new Error(`${r.code}: ${String(r.values.provenance)}`);
     const parts = RSAJ_PACK.lists.find((l) => l.model === "TenderDocumentPart")!.rows;
     for (const r of parts.filter((x) => ASSUMED_PARTS.includes(x.code))) expect(r.values.notes, r.code).toMatch(/stated \(FR-DOC-001\/013\); its class is not|summary of tender is not classed|its place in the pack is not stated/);
@@ -440,6 +447,40 @@ describe("how each RSAJ contract type is paid (WV-14)", () => {
     const p = planPacks([RSAJ_PACK, GENERIC_PACK], { ...fresh, listSizes: { ContractType: 1 } });
     expect(p.writes.some((x) => x.model === "ContractType")).toBe(false);
     expect(p.skips).toContainEqual(expect.objectContaining({ pack: "rsaj", target: "Contract type", reason: "LIST_NOT_EMPTY" }));
+  });
+});
+
+describe("the funding sources and impact measures (ADR 0046, plan step 8)", () => {
+  const SOURCE = "RSAJ Portal Requirements (2026-10-27), D365 configuration: FundingSource values";
+  const sources = RSAJ_PACK.lists.find((l) => l.model === "FundingSource")!.rows;
+  const measures = RSAJ_PACK.lists.find((l) => l.model === "ImpactMeasure")!.rows;
+
+  it("load the four stated sources, citing SF-01, SF-03 and PR-04; only the sukuk has an envelope", () => {
+    expect(sources.map((r) => [r.code, r.values.nameEn, r.values.envelope ?? null])).toEqual([
+      ["SUKUK26T1", "Sukuk Tranche 1 2026", "100000000.00"],
+      ["INTERNAL", "Internal", null],
+      ["GRANT", "Grant", null],
+      ["NA", "Not applicable", null],
+    ]);
+    for (const r of sources) expect([r.requirement, r.source], r.code).toEqual(["SF-01, SF-03, PR-04", SOURCE]);
+  });
+
+  it("leave the sukuk's eligibility unset (SUK-LAND and SUK-TANK are D365 test groups, RSAJ question 40); the other three take any category, ASSUMED", () => {
+    const sukuk = sources.find((r) => r.code === "SUKUK26T1")!;
+    expect([sukuk.values.categoriesRestricted, sukuk.values.eligibleCategoryCodes, sukuk.values.eligibilityProvenance]).toEqual([undefined, undefined, undefined]);
+    for (const code of ["INTERNAL", "GRANT", "NA"]) expect(sources.find((r) => r.code === code)!.values, code).toMatchObject({ categoriesRestricted: false, eligibilityProvenance: "ASSUMED" });
+  });
+
+  it("are written STATED with their citation; the two measures ASSUMED; no project category is written", () => {
+    const w = planPacks([RSAJ_PACK, GENERIC_PACK], fresh).writes;
+    const rows = (model: string) => w.filter((x) => x.kind === "ROW" && x.model === model).map((x) => (x.kind === "ROW" ? [x.code, x.values.provenance, x.values.governingSource] : null));
+    expect(rows("FundingSource")).toEqual(["SUKUK26T1", "INTERNAL", "GRANT", "NA"].map((c) => [c, "STATED", SOURCE]));
+    expect(rows("ImpactMeasure")).toEqual([
+      ["storage_added", "ASSUMED", "SF-04 (the requirement's own examples)"],
+      ["households_served", "ASSUMED", "SF-04 (the requirement's own examples)"],
+    ]);
+    expect(measures.map((r) => [r.values.nameEn, r.values.unit])).toEqual([["Storage added", "ML"], ["Households served", "households"]]);
+    expect(w.some((x) => x.model === "ProjectCategory")).toBe(false);
   });
 });
 

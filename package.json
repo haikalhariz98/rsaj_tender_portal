@@ -42,6 +42,7 @@
     "demo:project-documents": "tsx prisma/demo.ts project-documents",
     "demo:contractor": "tsx prisma/demo.ts contractor",
     "demo:wave-v": "tsx prisma/demo.ts wave-v",
+    "demo:funding": "tsx prisma/demo.ts funding",
     "demo:switches": "tsx prisma/demo.ts switches"
   },
   "dependencies": {

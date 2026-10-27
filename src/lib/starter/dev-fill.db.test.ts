@@ -94,6 +94,15 @@ describe("the development fill on a demonstration database", () => {
     expect((await db.supplierContact.findUniqueOrThrow({ where: { id: "demo_vct2" } })).authorisedToSignForContractor).toBe(true);
     const contactAudit = await db.auditEntry.findFirstOrThrow({ where: { organisationId: orgId, entity: "SupplierContact", entityId: "demo_vct2" }, select: { action: true, changes: true, actorSystemLabel: true } });
     expect(contactAudit).toMatchObject({ action: "UPDATE", actorSystemLabel: ACTOR, changes: expect.arrayContaining([{ field: "authorisedToSignForContractor", before: null, after: "yes" }, { field: "whereItComesFrom", before: null, after: "Assumed" }]) });
+
+    // ADR 0046 (plan step 8): the demonstration's funding, invented and ASSUMED.
+    expect((await db.projectCategory.findMany({ where: { organisationId: orgId }, orderBy: { sortOrder: "asc" } })).map((c) => [c.code, c.nameEn, c.provenance])).toEqual([["demo_pc1", "Water storage", "ASSUMED"], ["demo_pc2", "Office works", "ASSUMED"]]);
+    const sources = await db.fundingSource.findMany({ where: { organisationId: orgId }, orderBy: { sortOrder: "asc" } });
+    expect(sources.map((s) => [s.code, s.envelope?.toString() ?? null, s.categoriesRestricted, s.eligibleCategoryCodes, s.provenance])).toEqual([
+      ["demo_fs1", "50000000", true, ["demo_pc1"], "ASSUMED"],
+      ["demo_fs2", null, false, [], "ASSUMED"],
+    ]);
+    expect(await db.impactMeasure.count({ where: { organisationId: orgId } })).toBe(2);
   });
 
   it("refuses another organisation on the same database, which holds no demonstration of its own (step 4.8 M4)", async () => {
