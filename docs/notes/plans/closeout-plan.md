@@ -514,7 +514,7 @@ The checklist also says "n withdrawn, not made good" from the CMGD's frozen line
   refuses.
 - There is no general form and no fallback. Two issued forms for the same type are refused at issue.
 
-**Report** (family PERFORMANCE_REPORT, new; allowed in MAKING_GOOD_COMPLETE and FINAL_CERTIFICATE_ISSUED, and in
+**Report** (family PERFORMANCE_REPORT, new; allowed in MAKING_GOOD_COMPLETE, and in
 PRACTICALLY_COMPLETE where the CPC is issued and there is no DLP, judged by the act; ruling 12):
 - `openPerformanceReport` pins the form and its snapshot. It opens once the CMGD is issued, or once the CPC is issued where there
   is no DLP (ruling 17). It is refused for FORM_NOT_SET (by name: the contract type has no issued form), REPORT_LIVE, and
@@ -852,7 +852,7 @@ ships as one unit; check `git status` before each schema step.
   - `src/lib/performance/{form,score}.ts` (reusing `evaluation/fixed.ts`'s 4-place arithmetic and `evaluation/bands.ts`'s
     grading, not copies);
   - `src/app/projects/[id]/performance-actions.ts`;
-  - `act-status.ts` (+PERFORMANCE_REPORT in MAKING_GOOD_COMPLETE, PRACTICALLY_COMPLETE and FINAL_CERTIFICATE_ISSUED, flagged).
+  - `act-status.ts` (+PERFORMANCE_REPORT in MAKING_GOOD_COMPLETE, and in PRACTICALLY_COMPLETE where the CPC is issued with no DLP, flagged).
   - PERFORMANCE_NOT_FILED lands in stage C's `finalRouteFaults` and `closureFaults`.
 - **Done when:** a report is scored, assessed, and verified by a second person; the same person is refused.
 

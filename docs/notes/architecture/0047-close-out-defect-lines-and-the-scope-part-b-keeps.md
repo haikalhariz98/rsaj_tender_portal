@@ -80,7 +80,7 @@ Phase 2 builds defect tracking as a module of its own, the two phases end with t
 - **No supply edge.** Supply contracts (paid on delivery order and invoice) do not close in Phase 2: they have no defined release
   event (ruling 19). The ACTIVE → CLOSED edge is not added. The Close tab says closing is not built for supply contracts, and a
   backlog row holds it.
-- **A new family, PERFORMANCE_REPORT,** is allowed in MAKING_GOOD_COMPLETE and FINAL_CERTIFICATE_ISSUED, and in
+- **A new family, PERFORMANCE_REPORT,** is allowed in MAKING_GOOD_COMPLETE, and in
   PRACTICALLY_COMPLETE where the CPC is issued and there is no DLP (the act judges the DLP).
 - The family count changes. The change is flagged in its commit.
 
