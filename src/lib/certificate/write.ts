@@ -509,6 +509,19 @@ export async function voidCertificate(c: CertCtx, reason: string) {
   if (cert.approvalInstances.some((i) => i.status === "PENDING")) refuse("Not voided:", one("VOID_ROUTE_PENDING"));
   await moveTo(c, "VOID", { voidReason: reason.trim(), voidedAt: c.now });
   await audit(c, "Certificate", cert.id, labelOf(c), "UPDATE", diffFields({ stage: STATUS_WORDS[s].en }, { stage: STATUS_WORDS.VOID.en }), reason.trim());
+  if (cert.kind === "INTERIM_PAYMENT") await unapplyWaivers(c);
+}
+
+/// Review M2: the waivers a voided interim applied are not applied any more, so the next interim applies them again (the credit is not lost).
+/// Each waiver's matter, then the waiver, by ascending matter id (as the raise takes them); both columns cleared together, as their CHECK holds them.
+async function unapplyWaivers(c: CertCtx) {
+  const ws = await c.tx.ladWaiver.findMany({ where: { appliedOnCertificateId: c.l.cert.id }, select: { id: true, matterId: true, matter: { select: { reference: true } } }, orderBy: { matterId: "asc" } });
+  for (const w of ws) {
+    await c.tx.$queryRaw`SELECT id FROM "ContractMatter" WHERE id = ${w.matterId} FOR UPDATE`;
+    await c.tx.$queryRaw`SELECT id FROM "LadWaiver" WHERE id = ${w.id} FOR UPDATE`;
+    await c.tx.ladWaiver.update({ where: { id: w.id }, data: { appliedOnCertificateId: null, appliedAt: null } });
+    await audit(c, "LadWaiver", w.id, `${labelOf(c)} · waiver ${w.matter.reference ?? ""}`.trim(), "UPDATE", diffFields({ applied: "on this interim certificate" }, { applied: null, toBeAppliedBy: "the next interim certificate" }), "The interim certificate that applied it was voided.");
+  }
 }
 
 /// Words the page shows beside a draft's date and number, kept with the acts that set them.

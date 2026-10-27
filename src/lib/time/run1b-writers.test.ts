@@ -39,7 +39,8 @@ const WRITERS: Readonly<Record<Model, readonly string[]>> = {
   LossExpenseClaim: [`${TIME}#answerEotClaim`, `${TIME}#recordLossExpense`, `${TIME}#valueLossExpense`, `${TIME}#sendLossExpense`],
   PeriodExtension: [`${TIME}#recordPeriodExtension`, `${TIME}#sendPeriodExtension`],
   PeriodAgreement: [`${TIME}#raisePeriodAgreement`, `${AT_ISSUE}#periodAtIssue`],
-  LadWaiver: [`${DAMAGES}#recordLadWaiver`, `${DAMAGES}#sendLadWaiver`, `${DAMAGES}#resendLadWaiver`, `${PAYMENT}#raiseInterimCertificate`],
+  // Review M2: a voided interim's waivers are unapplied by the void, so the next interim applies them again.
+  LadWaiver: [`${DAMAGES}#recordLadWaiver`, `${DAMAGES}#sendLadWaiver`, `${DAMAGES}#resendLadWaiver`, `${PAYMENT}#raiseInterimCertificate`, "src/lib/certificate/write.ts#unapplyWaivers"],
 };
 
 const delegateOf = (m: string) => m[0].toLowerCase() + m.slice(1);
