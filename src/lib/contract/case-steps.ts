@@ -337,5 +337,7 @@ export function defaultCaseStep(steps: readonly CaseStep[], standing: CaseStandi
 export function earlierOpenSteps(steps: readonly CaseStep[], standing: CaseStanding, viewing: CaseStepKey): CaseStep[] {
   if (standing.kind === "ENDED") return [];
   const at = CASE_STEP_KEYS.indexOf(viewing);
-  return steps.filter((s) => CASE_STEP_KEYS.indexOf(s.key) < at && s.state === "in-progress" && s.key !== "close-out");
+  // Phase 2 close-out stage B: once the works are complete the Project step stays in progress by design (its payments and time go on, F-3), so it is
+  // no leftover while Close-out is viewed.
+  return steps.filter((s) => CASE_STEP_KEYS.indexOf(s.key) < at && s.state === "in-progress" && s.key !== "close-out" && !(s.key === "project" && standing.stage === "COMPLETED"));
 }

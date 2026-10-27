@@ -77,7 +77,7 @@ export function CompletionPanel({ l, v, people, today, hidden, told }: Props & {
         ? { kind: "stack", title: `Returned ${formatDate(storedDay(s.release.returnedOn))}`, sub: s.release.certificateId ? `On the certificate of making good defects ${s.release.certificate?.number ?? ""}`.trim() : s.release.trigger === "ADVANCE_RECOUPED" ? "Advance fully recouped" : "" }
         : s.kind === "DESIGN_GUARANTEE_BOND"
           ? { kind: "chips", items: [{ text: "Survives the close", tone: "info" }] }
-          : { kind: "chips", items: [{ text: faults.length ? "Held" : "To return", tone: faults.length ? undefined : "warn" }] },
+          : { kind: "chips", items: [{ text: faults.length || securityGate ? "Held" : "To return", tone: faults.length || securityGate ? undefined : "warn" }] },
     },
   }));
   const returnable = v.securities.filter((x) => x.returnable).map((x) => ({ value: x.s.id, label: x.label }));
@@ -136,7 +136,7 @@ export function CompletionPanel({ l, v, people, today, hidden, told }: Props & {
 
       <ActGate blocker={retentionGate}>
         <Card id="retention" className="overflow-hidden">
-          <CardHeader icon={<ShieldIcon size={17} />} title="Retention" subtitle={`Balance: ${setting}`} actions={!balanceRelease && !hidden.includes("PRINCIPAL_OR_SO") ? <ReleaseDrawer id={id} release="RELEASED_BALANCE" label="Release the retention balance" people={people} today={today} blocker={balanceBlock} /> : undefined} />
+          <CardHeader icon={<ShieldIcon size={17} />} title="Retention" subtitle={`Balance: ${setting}`} actions={pcIssued && !balanceRelease && !hidden.includes("PRINCIPAL_OR_SO") ? <ReleaseDrawer id={id} release="RELEASED_BALANCE" label="Release the retention balance" people={people} today={today} blocker={balanceBlock} /> : undefined} />
           <CardBody>
             <KeyValues
               columns={3}
@@ -152,7 +152,7 @@ export function CompletionPanel({ l, v, people, today, hidden, told }: Props & {
 
       <ActGate blocker={securityGate}>
         <Card id="securities" className="overflow-hidden">
-          <CardHeader icon={<ClipboardIcon size={17} />} title="Securities" actions={!hidden.includes("PRINCIPAL_OR_SO") && v.securities.some((x) => !x.s.release) ? <ReturnSecurityDrawer id={id} securities={returnable} people={people} today={today} blocker={securityGate} /> : undefined} divided={false} />
+          <CardHeader icon={<ClipboardIcon size={17} />} title="Securities" actions={pcIssued && !hidden.includes("PRINCIPAL_OR_SO") && v.securities.some((x) => !x.s.release) ? <ReturnSecurityDrawer id={id} securities={returnable} people={people} today={today} blocker={securityGate} /> : undefined} divided={false} />
           <DataList flat selectable={false} toolbar={false} searchable={false} paging={false} exportName="securities" emptyTitle="No securities" columns={[{ key: "security", label: "Security", mobile: "primary" }, { key: "value", label: "Value", width: "160px", numeric: true, mobile: "meta" }, { key: "state", label: "Status", width: "280px", mobile: "meta" }]} rows={securityRows} />
         </Card>
       </ActGate>

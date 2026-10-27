@@ -138,6 +138,10 @@ export const ACT_PREFIX: Readonly<Record<string, string>> = {
   EotClaimNotice: "tcn",
   EotReason: "ter",
   ExtensionOfTime: "tex",
+  // Phase 2 close-out stage B (prisma/demo-closeout.ts): completion and its defects.
+  PracticalCompletion: "zpc",
+  DefectItem: "zdi",
+  DefectEvent: "zde",
   // Sittings.
   MeetingAttendance: "lat",
   Vote: "lvt",

@@ -12,6 +12,7 @@ import {
   CaseFactsError,
   caseSteps,
   defaultCaseStep,
+  earlierOpenSteps,
   type AwardStepFacts,
   type BeforeSigningFacts,
   type CaseFacts,
@@ -467,5 +468,13 @@ describe("next-line literals", () => {
     };
     visit(sf);
     expect(long).toEqual([]);
+  });
+});
+
+describe("Close-out viewed once the works are complete (Phase 2 close-out stage B)", () => {
+  it("the Project step, in progress by design (F-3), is not a leftover; the Award step still is", () => {
+    const steps: CaseStep[] = CASE_STEP_KEYS.map((key) => ({ key, state: key === "close-out" || key === "project" || key === "award" ? "in-progress" : "done", next: "x", action: null }));
+    expect(earlierOpenSteps(steps, live("COMPLETED"), "close-out").map((s) => s.key)).toEqual(["award"]);
+    expect(earlierOpenSteps(steps, live("ON_SITE"), "close-out").map((s) => s.key)).toEqual(["award", "project"]);
   });
 });

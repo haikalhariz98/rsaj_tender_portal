@@ -33,6 +33,7 @@ import { loadProjectDocumentsDemo } from "./demo-project-documents";
 import { loadWaveVDemo } from "./demo-wave-v";
 import { loadFundingDemo } from "./demo-funding";
 import { checkTimeDemo, loadTimeDemo } from "./demo-time";
+import { checkCloseoutDemo, loadCloseoutDemo } from "./demo-closeout";
 import { checkRegistrationDemo, configureRegistrationDemo, loadRegistrationDemo } from "./demo-registration";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { attributeSeededRows } from "./demo-attribution";
@@ -65,6 +66,7 @@ import { demoOrgId, demoScope } from "./demo-org";
  *   npm run demo:wave-v    add Wave V's data (prisma/demo-wave-v.ts) to a database loaded before it existed
  *   npm run demo:funding   put the development fill's funding sources on demo records (prisma/demo-funding.ts, ADR 0046)
  *   npm run demo:time      add the extension of time on demo_con13 and its next interim (prisma/demo-time.ts, Phase 2 close-out stage A)
+ *   npm run demo:closeout  add demo_con13's practical completion and its defects (prisma/demo-closeout.ts, Phase 2 close-out stage B)
  *   npm run demo:wipe      retired (Phase 1d): refuses and explains, removes nothing
  *   npm run demo:switches  retired (ruling 12c): refuses and explains, writes nothing. Configuration rows are written only by demo:load on a fresh database.
  *
@@ -828,6 +830,9 @@ async function load() {
   await seedActIds(db);
   await loadTimeDemo(db, organisationId, { configure: true });
   await checkTimeDemo(db);
+  // Phase 2 close-out stage B: demo_con13's practical completion and its defects (prisma/demo-closeout.ts), after the time demo.
+  await loadCloseoutDemo(db, organisationId, { configure: true });
+  await checkCloseoutDemo(db);
   // Phase 2b: the rows the loaders wrote straight into the tables are attributed to the demo loader, as the acts it ran already are.
   await attributeSeededRows(db, organisationId);
 
@@ -2272,6 +2277,23 @@ async function time() {
   console.log(made.notes.length ? `Added or noted: ${made.notes.join("; ")}.` : "The time demonstration is already there: nothing was written.");
 }
 
+/**
+ * Phase 2 close-out stage B: demo_con13's practical completion (prisma/demo-closeout.ts), on a database the demo is already loaded in. It writes no
+ * configuration there (rulings 12c, 20z): where the completion configuration is missing it refuses, naming it.
+ */
+async function closeout() {
+  const org = await organisation();
+  if (!(await demoIsLoaded(db))) {
+    console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
+    return;
+  }
+  await seedActIds(db);
+  const made = await loadCloseoutDemo(db, org.id, { configure: false });
+  if (made.notes.length) await checkCloseoutDemo(db);
+  await attributeSeededRows(db, org.id);
+  console.log(made.notes.length ? `Added or noted: ${made.notes.join("; ")}.` : "The completion demonstration is already there: nothing was written.");
+}
+
 const mode = process.argv[2];
 
 if (mode === "wipe") {
@@ -2283,12 +2305,12 @@ if (mode === "switches") {
   console.error(DEMO_SWITCHES_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "project-documents" && mode !== "contractor" && mode !== "wave-v" && mode !== "funding" && mode !== "time") {
-  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|project-documents|contractor|wave-v|funding|time>");
+if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "project-documents" && mode !== "contractor" && mode !== "wave-v" && mode !== "funding" && mode !== "time" && mode !== "closeout") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|project-documents|contractor|wave-v|funding|time|closeout>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "project-documents" ? projectDocuments() : mode === "contractor" ? contractor() : mode === "wave-v" ? waveV() : mode === "funding" ? funding() : mode === "time" ? time() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "project-documents" ? projectDocuments() : mode === "contractor" ? contractor() : mode === "wave-v" ? waveV() : mode === "funding" ? funding() : mode === "time" ? time() : mode === "closeout" ? closeout() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);
