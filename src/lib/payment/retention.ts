@@ -166,7 +166,8 @@ export function releaseOf(i: ReleaseInput): { faults: Finding[]; amounts: Tiers 
   const f = (code: string, data: Record<string, string | number | null> = {}) => faults.push({ code, level: "block", data });
   if (!i.held || sum(i.held) <= 0n) f("NOTHING_HELD");
   if (i.kind === "RELEASED_FIRST") {
-    if (i.already.first) f("ALREADY_RELEASED", { kind: "first" });
+    // Code review of close-out stage B, F1: a first release after the balance would pay retention twice (the balance already took all that was held).
+    if (i.already.first || i.already.balance) f("ALREADY_RELEASED", { kind: i.already.balance ? "balance" : "first" });
     if (!i.asBuiltHandedOver) f("AS_BUILT_NOT_HANDED_OVER");
     if (i.firstReleasePct == null) f("FIRST_RELEASE_PCT_NOT_SET");
     if (faults.length) return { faults, amounts: null };

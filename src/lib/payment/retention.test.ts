@@ -88,4 +88,10 @@ describe("release (FR-PAY-021)", () => {
     expect(codes(releaseOf({ ...base, kind: "RELEASED_BALANCE", already: { first: true, balance: true }, balanceEvent: { state: "REACHED", event: "MAKING_GOOD" } }).faults)).toEqual(["ALREADY_RELEASED"]);
     expect(codes(releaseOf({ ...base, held: null }).faults)).toEqual(["NOTHING_HELD"]);
   });
+  // Code review of close-out stage B, F1: the balance took all that was held, so a first release recorded after it would pay retention twice.
+  it("a first release after the balance is refused", () => {
+    const r = releaseOf({ ...base, already: { first: false, balance: true } });
+    expect(codes(r.faults)).toEqual(["ALREADY_RELEASED"]);
+    expect(r.amounts).toBeNull();
+  });
 });
