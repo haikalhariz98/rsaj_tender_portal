@@ -52,8 +52,16 @@ export async function ReturnPanel({ sulit, l, ret, people }: { sulit: Sulit<true
   );
 }
 
-async function ReturnRecordCard({ sulit, l, ret, people }: { sulit: Sulit<true>; l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
+export async function ReturnRecordCard({ sulit, l, ret, people }: { sulit: Sulit<true>; l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
   const { award } = l;
+  // WV-4: paper is not recorded while a return sent online waits, so the paper card is one line rather than every field "Not recorded" (Phase 0.2 item 5).
+  if (onlineReturnState(award.onlineReturns) === "WAITING") {
+    return (
+      <Card>
+        <CardHeader icon={<ClipboardIcon size={17} />} title={<Say words={award.instrumentKind === "LETTER_OF_ACCEPTANCE" ? P.returnedItems : P.acceptancePage} />} subtitle="Waiting on the return sent online." divided={false} />
+      </Card>
+    );
+  }
   const returnIndex = await loadAttributions(db, l.org.id, [{ entity: "AwardReturn", slot: "receivedBy", ids: award.awardReturn ? [award.awardReturn.id] : [] }]);
   const loa = award.instrumentKind === "LETTER_OF_ACCEPTANCE";
   if (!ret || !award.awardReturn) {
