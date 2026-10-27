@@ -80,8 +80,9 @@ export function awardLockedOwner(l: LoadedAward, actor: AuditActor, overrides: {
 /**
  * FR-AWD-006 (ruling B, 2026-10-24): an issued work indent whose stored received day is past its expiry, judged on that day, never today, with the validity as it stands now
  * (it may have been set after the day was saved, or the day saved before the rule). Issued awards only: a correction to an accepted award attaches as before.
+ * The award's Return tab reads the same fact to close the acceptance page's upload (Phase 0.3 item 10).
  */
-async function indentLateOf(tx: Tx, l: LoadedAward): Promise<{ expiredOn: string; receivedOn: string } | null> {
+export async function indentLateOf(tx: Tx, l: LoadedAward): Promise<{ expiredOn: string; receivedOn: string } | null> {
   const a = l.award;
   const receivedOn = dayOrNull(a.awardReturn?.signedLetterReceivedOn);
   if (a.status !== "ISSUED" || a.instrumentKind !== "WORK_INDENT" || !receivedOn) return null;

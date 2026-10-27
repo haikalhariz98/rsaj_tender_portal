@@ -178,6 +178,8 @@ export interface PanelOptions {
   classifiedAs?: SecurityClass;
   /// Purposes the owner's own act attaches (OWNER_ACT_PURPOSES), with the words naming that act.
   attachedBy?: Partial<Record<AttachmentPurpose, string>>;
+  /// Purposes the owner's attach act would refuse now on the owner's own facts (an expired indent's acceptance page), with the words: the slot says them and offers no upload.
+  closed?: Partial<Record<AttachmentPurpose, string>>;
 }
 
 /// What a panel reads of who recorded each version: the ids to ask the attributions for (`loadAttributions`), and the index read with them.
@@ -190,7 +192,9 @@ export function panelView(p: Panel, u: Upload, timeZone: string | null, opts: Pa
     .sort((a, b) => (opts.only ? opts.only.indexOf(a.purpose) - opts.only.indexOf(b.purpose) : 0))
     .map((s) => {
       const required = opts.required?.[s.purpose] ?? false;
-      return { purpose: s.purpose, label: opts.labels?.[s.purpose] ?? PURPOSE_LABEL[s.purpose], required, state: s.state, reason: s.reason, live: s.live, act: slotAct(s.purpose, s.live), status: slotStatus({ state: s.state, live: s.live, required }, opts.statuses?.[s.purpose]), findings: opts.findings?.[s.purpose] ?? [], attachedBy: opts.attachedBy?.[s.purpose] ?? null };
+      const closed = s.state === "OPEN" ? opts.closed?.[s.purpose] : undefined;
+      const state = closed ? ("FROZEN" as const) : s.state;
+      return { purpose: s.purpose, label: opts.labels?.[s.purpose] ?? PURPOSE_LABEL[s.purpose], required, state, reason: closed ?? s.reason, live: s.live, act: slotAct(s.purpose, s.live), status: slotStatus({ state, live: s.live, required }, opts.statuses?.[s.purpose]), findings: opts.findings?.[s.purpose] ?? [], attachedBy: opts.attachedBy?.[s.purpose] ?? null };
     });
   const all = p.items.filter((i) => shown(i.purpose)).map((i) => itemView(i, timeZone, acted));
   const frozenAll = slots.length > 0 && slots.every((s) => s.state === "FROZEN") && new Set(slots.map((s) => s.reason)).size === 1;

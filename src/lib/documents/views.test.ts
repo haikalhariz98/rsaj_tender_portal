@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { APPLICANT_WORDS, SUPPLIER_UPLOADER_WORDS } from "./labels";
-import { recorderWords, slotAct, slotStatus } from "./views";
+import { panelView, recorderWords, slotAct, slotStatus } from "./views";
 
 describe("slotStatus", () => {
   it("a required open slot with nothing attached is outstanding", () => {
@@ -39,5 +39,21 @@ describe("who recorded a version that names no person (ADR 0041 D3, plan 6.3.1)"
     expect(APPLICANT_WORDS).toBe("Applicant, not signed in");
     expect(recorderWords({ recordedByPortalApplicationId: null })).toBe(SUPPLIER_UPLOADER_WORDS);
     expect(recorderWords({})).toBe(SUPPLIER_UPLOADER_WORDS);
+  });
+});
+
+// Phase 0.3 item 10: a slot the owner's attach act would refuse now (an expired indent's acceptance page) is closed, with the owner's words, and offers no upload.
+describe("a slot the owner closes", () => {
+  const panel = (state: "OPEN" | "FROZEN") => ({ owner: { kind: "award", id: "a1", label: "AW/1" }, purposes: [{ purpose: "ACCEPTANCE_PAGE", state, reason: state === "FROZEN" ? "Accepted." : null, live: 0 }], items: [], statement: null }) as never;
+  const upload = { classes: [], people: [], refusals: [], allowedMediaTypes: [], cap: null, timeZoneSet: true } as never;
+  const words = "The indent expired on 1 Oct 2026; an acceptance received on 5 Oct 2026 is not taken. Cancel this award and raise a fresh indent.";
+  it("is closed with the words, and the panel leads with them", () => {
+    const v = panelView(panel("OPEN"), upload, null, { closed: { ACCEPTANCE_PAGE: words } }, new Map() as never);
+    expect(v.slots[0]).toMatchObject({ state: "FROZEN", reason: words, status: { text: "Closed" } });
+    expect(v.frozen).toEqual({ reason: words });
+  });
+  it("leaves an open slot open where the owner closes nothing, and never reopens or rewords a slot the read closed", () => {
+    expect(panelView(panel("OPEN"), upload, null, {}, new Map() as never).slots[0]).toMatchObject({ state: "OPEN", reason: null });
+    expect(panelView(panel("FROZEN"), upload, null, { closed: { ACCEPTANCE_PAGE: words } }, new Map() as never).slots[0]).toMatchObject({ state: "FROZEN", reason: "Accepted." });
   });
 });

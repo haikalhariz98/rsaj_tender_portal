@@ -14,6 +14,9 @@ import { acceptancePageFaults, RETURN_SCANS, returnState, scansAwaitingPaper, sc
 import { isLive } from "@/lib/documents/evidence";
 import type { InstrumentKind } from "@/lib/award/types";
 import { formatDate } from "@/lib/format";
+import { indentLateWords } from "@/lib/award/indent";
+import { RETURN_PURPOSES } from "@/lib/documents/attach";
+import { indentLateOf } from "@/lib/documents/owners";
 import { db } from "@/lib/db";
 import { ReturnDrawer } from "@/app/awards/editors";
 import { loadAttributions } from "@/lib/auth/attribution-read";
@@ -35,6 +38,8 @@ export async function ReturnPanel({ sulit, l, ret, people }: { sulit: Sulit<true
   const queryTold = award.queries.length > 0 ? await told(AWARD_RETURN_EVENT_KEY.AWARD_QUERY_RAISED) : null;
   // OD-5: the return counts with its scans, except for an award accepted before they were required.
   const scansAreRequired = scansRequired(award.status, award.returnScanSnapshot != null);
+  // FR-AWD-006: the attach act refuses an expired indent's acceptance page (`indentLate`); the slot says so and offers no upload (Phase 0.3 item 10).
+  const late = await indentLateOf(db, l);
   return (
     <div className="flex flex-col gap-6">
       {online && <OnlineReturnCard sulit={sulit} l={l} facts={online} nobodyTold={returnTold} />}
@@ -47,6 +52,7 @@ export async function ReturnPanel({ sulit, l, ret, people }: { sulit: Sulit<true
         required={Object.fromEntries(RETURN_SCANS[award.instrumentKind as InstrumentKind].map((p) => [p, scansAreRequired]))}
         labels={RETURN_SLOT_LABEL}
         statuses={ret && award.awardReturn ? Object.fromEntries(scansAwaitingPaper(award.instrumentKind as InstrumentKind, ret).map((p) => [p, { text: WAITING_FOR_PAPER, tone: "neutral" as const }])) : undefined}
+        closed={late ? Object.fromEntries(RETURN_PURPOSES.WORK_INDENT.map((p) => [p, indentLateWords(late.expiredOn, late.receivedOn, true)])) : undefined}
       />
     </div>
   );
