@@ -108,8 +108,10 @@ describe("one lock order (withLockedCertificate)", () => {
     const w = lex(read(WRITE));
     expect(w).not.toMatch(/new Date\(\)/);
     const src = read(WRITE);
-    const locked = [...src.matchAll(/FROM "(\w+)" WHERE id = \$\{\w+\} FOR UPDATE/g)].map((m) => m[1]);
-    expect(locked).toEqual(["IssuedCopy"]);
+    // Code review of close-out stage B, F8 (flagged, stricter): the pattern reads a member too (`${w.matterId}`), so every lock is seen. Beside the copy, the void's
+    // `unapplyWaivers` locks a waiver's matter and then the waiver, both under the contract's lock (the certificate's chain holds it), to give back what the void un-applies.
+    const locked = [...src.matchAll(/FROM "(\w+)" WHERE id = \$\{[\w.]+\} FOR UPDATE/g)].map((m) => m[1]);
+    expect(locked).toEqual(["IssuedCopy", "ContractMatter", "LadWaiver"]);
     expect(src).not.toMatch(/FROM "(Requisition|SourcingExercise|Award|Contract|Certificate|Supplier)" WHERE/);
     expect(w).not.toMatch(/\bdb\./);
   });
