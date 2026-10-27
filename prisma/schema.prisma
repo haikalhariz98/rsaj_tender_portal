@@ -508,6 +508,12 @@ model Organisation {
   sealedAccessEvents        SealedAccessEvent[]
   /// N2 (PDPA right of access): every export a supplier made of its own data.
   supplierDataExports       SupplierDataExport[]
+  /// Phase 1 Sukuk core (ADR 0046): funding sources, their eligibility and use of proceeds.
+  fundingSources            FundingSource[]
+  projectCategories         ProjectCategory[]
+  fundingAllocations        FundingAllocation[]
+  impactMeasures            ImpactMeasure[]
+  projectImpacts            ProjectImpact[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -2666,6 +2672,12 @@ model Requisition {
   externalAuthorityRef String?
   contractTypeCode     String?
 
+  /// Where the money comes from (SF-01, PR-04, ADR 0046). Optional. Not the funding route.
+  fundingSourceId     String?
+  fundingSource       FundingSource? @relation(fields: [fundingSourceId], references: [id], onDelete: Restrict)
+  /// ProjectCategory.code (SF-02). Optional; required only by a source whose eligibility is set.
+  projectCategoryCode String?
+
   status RequisitionStatus @default(DRAFT)
 
   /// The completeness return (FR-REQ-010): why, to whom, and when.
@@ -4260,6 +4272,9 @@ model Contract {
   lossExpenseClaims      LossExpenseClaim[]
   periodExtensions       PeriodExtension[]
   sumAdjustments         SumAdjustment[]
+  /// ADR 0046: its funding split (SF-05) and impact figures (SF-04).
+  fundingAllocations     FundingAllocation[]
+  impacts                ProjectImpact[]
 
   @@unique([organisationId, number])
 }
@@ -13640,4 +13655,105 @@ model SupplierDataExport {
   generatedAt    DateTime     @default(now())
 
   @@index([organisationId, supplierId, generatedAt])
+}
+
+/// Where a matter's money comes from (ADR 0046). Not how it is procured: that is FundingRoute.
+model FundingSource {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// The key the finance system knows (SUKUK26T1). Fixed once saved; never rendered.
+  code   String
+  nameEn String
+
+  /// The use-of-proceeds envelope (CHECK: zero or more). Null: none set, which is not an envelope of zero.
+  envelope Decimal? @db.Decimal(18, 2)
+
+  /// SF-02 (FS-4). Null: not set, any category passes with a warning. False: any category, no warning.
+  /// True: only `eligibleCategoryCodes` (never empty while true, the editor refuses it).
+  categoriesRestricted  Boolean?
+  /// ProjectCategory codes this source may fund. Read only while `categoriesRestricted` is true.
+  eligibleCategoryCodes String[]    @default([])
+  eligibilityProvenance Provenance?
+
+  governingSource String     @default("")
+  provenance      Provenance @default(ASSUMED)
+  notes           String     @default("")
+  sortOrder       Int        @default(0)
+  retiredOn       DateTime?
+
+  requisitions Requisition[]
+  allocations  FundingAllocation[]
+
+  @@unique([organisationId, code])
+  @@index([organisationId, sortOrder])
+}
+
+/// What a project is for, as eligibility reads it (SF-02). The customer's own list.
+model ProjectCategory {
+  id              String       @id @default(cuid())
+  organisationId  String
+  organisation    Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  /// Fixed once saved.
+  code            String
+  nameEn          String
+  governingSource String       @default("")
+  provenance      Provenance   @default(ASSUMED)
+  sortOrder       Int          @default(0)
+  retiredOn       DateTime?
+
+  @@unique([organisationId, code])
+}
+
+/// One source's share of a contract (SF-05). The rows of one contract are its whole split. None: the requisition's source at 100%.
+model FundingAllocation {
+  id              String        @id @default(cuid())
+  organisationId  String
+  organisation    Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId      String
+  contract        Contract      @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  fundingSourceId String
+  fundingSource   FundingSource @relation(fields: [fundingSourceId], references: [id], onDelete: Restrict)
+  /// CHECK: more than 0 and at most 100.
+  sharePct        Decimal       @db.Decimal(5, 2)
+  recordedAt      DateTime
+
+  @@unique([contractId, fundingSourceId])
+  @@index([fundingSourceId])
+}
+
+/// An impact figure the customer reports per project (SF-04): "Storage added", in "ML".
+model ImpactMeasure {
+  id              String          @id @default(cuid())
+  organisationId  String
+  organisation    Organisation    @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  /// Fixed once saved.
+  code            String
+  nameEn          String
+  /// Shown after the value.
+  unit            String
+  governingSource String          @default("")
+  provenance      Provenance      @default(ASSUMED)
+  sortOrder       Int             @default(0)
+  retiredOn       DateTime?
+  values          ProjectImpact[]
+
+  @@unique([organisationId, code])
+}
+
+/// One measure's figure on one contract (SF-04).
+model ProjectImpact {
+  id             String        @id @default(cuid())
+  organisationId String
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract      @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  measureId      String
+  measure        ImpactMeasure @relation(fields: [measureId], references: [id], onDelete: Restrict)
+  /// CHECK: zero or more.
+  value          Decimal       @db.Decimal(18, 4)
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([contractId, measureId])
 }
