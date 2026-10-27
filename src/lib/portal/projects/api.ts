@@ -72,6 +72,22 @@ export function parseDiaryBody(b: Record<string, unknown>): Parsed<DiaryBody> {
   return { ok: true, value: { contractId: b.contractId, entryId: b.entryId, action: b.action, disagreement, password: password(b.password) } };
 }
 
+export interface DefectBody {
+  contractId: string;
+  defectId: string;
+  note: string;
+  evidenceDocumentId: string | null;
+}
+
+/// Phase 2 close-out stage B: a defect line marked rectified, with a note and optionally one of the contractor's own documents as evidence.
+export function parseDefectBody(b: Record<string, unknown>): Parsed<DefectBody> {
+  if (!isId(b.contractId) || !isId(b.defectId)) return bad("Say which defect this is for.");
+  const note = text(b.note, NOTE_MAX);
+  if (note == null) return bad("The note is not text.");
+  if (b.evidenceDocumentId != null && b.evidenceDocumentId !== "" && !isId(b.evidenceDocumentId)) return bad("Choose a document you sent, or none.");
+  return { ok: true, value: { contractId: b.contractId, defectId: b.defectId, note, evidenceDocumentId: isId(b.evidenceDocumentId) ? b.evidenceDocumentId : null } };
+}
+
 export interface CertificateBody {
   contractId: string;
   certificateId: string;

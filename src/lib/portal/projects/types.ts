@@ -6,7 +6,8 @@ import type { Finding } from "@/lib/window/types";
  * the signed-in session's, and the stores read only the contracts whose award names it.
  */
 
-export const PROJECT_TABS = ["overview", "programme", "diary", "payments", "certificates", "submissions"] as const;
+/// Phase 2 close-out stage B: "defects", shown once the practical completion certificate is issued.
+export const PROJECT_TABS = ["overview", "programme", "diary", "payments", "certificates", "submissions", "defects"] as const;
 export type ProjectTab = (typeof PROJECT_TABS)[number];
 export const isProjectTab = (s: string | undefined): s is ProjectTab => (PROJECT_TABS as readonly string[]).includes(s ?? "");
 
@@ -70,7 +71,11 @@ export type ProjectFault =
   | "BLOCK_IS_LAST"
   | "REFUSAL_NOT_ALLOWED"
   | "REFUSAL_NOTE_REQUIRED"
-  | "REFUSAL_NOTE_TOO_LONG";
+  | "REFUSAL_NOTE_TOO_LONG"
+  // Phase 2 close-out stage B: a defect line marked rectified.
+  | "DEFECT_NOT_FOUND"
+  | "DEFECT_NOT_OPEN"
+  | "EVIDENCE_NOT_YOURS";
 
 export type ProjectFinding = Finding<ProjectFault>;
 

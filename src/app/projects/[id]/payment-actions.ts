@@ -27,6 +27,7 @@ import { applicationFaults, pendingAdvanceFaults } from "@/lib/payment/advance";
 import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentFaultText, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
 import { loadCloseout, releaseEventsOf } from "@/lib/closeout/load";
+import { manualCloseout } from "@/lib/integration/closeout";
 import { assembleInputOf, baselineOn, damagesOf, waiversToApplyOf, claimFactsOf, inProgress, inProgressSequenceOf, issuedInterims, kindSettingOf, liveDecisionsOf, loadPayment, nextInterimSequence, pendingAdvancesOf, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
 import { ladRoundingFaults } from "@/lib/payment/interim";
@@ -530,6 +531,8 @@ export async function releaseRetention(_prev: FormState, data: FormData): Promis
     const row = await c.tx.retentionRelease.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, kind: release, main: money(a.MAIN), nsc: money(a.NSC), ns: money(a.NS), heldMain: money(held!.held.MAIN), heldNsc: money(held!.held.NSC), heldNs: money(held!.held.NS), pct: release === "RELEASED_FIRST" ? pct : null, pctProvenance: release === "RELEASED_FIRST" ? (policy?.firstReleaseProvenance ?? null) : null, basisCertificateId: held!.certificateId, handoverId: release === "RELEASED_FIRST" ? handover!.id : null, releasedOn, personId: who.person.id, note: note.trim(), recordedAt: c.now } });
     await audit(c, "RetentionRelease", row.id, RELEASE_WORDS[release].en.toLowerCase(), "CREATE", diffFields(null, { release: RELEASE_WORDS[release].en, releasedMainContractor: money(a.MAIN), releasedNominatedSubcontractors: money(a.NSC), releasedNominatedSuppliers: money(a.NS), heldOnTheLatestCertificate: money(held!.held.MAIN + held!.held.NSC + held!.held.NS), share: pct ? `${pct}%` : null, paidThrough: "the next interim certificate", releasedOn: storedDay(releasedOn), recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }), note.trim());
     await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
+    // INT-07 (plan CO-11): the finance system's hand-off, manual while no adapter exists.
+    await manualCloseout.retentionReleased({ contractNumber: c.l.contract.number, what: RELEASE_WORDS[release].en.toLowerCase(), amount: money(a.MAIN + a.NSC + a.NS) });
     return { ok: true };
   });
 }

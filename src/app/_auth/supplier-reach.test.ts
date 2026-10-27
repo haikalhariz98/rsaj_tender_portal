@@ -417,11 +417,12 @@ describe("My Projects' handlers and pages (Phase 4e)", () => {
   const FILE = (f: { file: string }) => `/${f.file.replace(/^app\//, "").replace(/\/route\.ts$/, "")}`;
   const HTTP = /export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g;
   const methods = (src: string) => [...src.matchAll(HTTP)].map((m) => m[1]);
-  const STORES = ["lib/portal/projects/submission-store.ts", "lib/portal/projects/diary-store.ts", "lib/portal/projects/certificate-store.ts", "lib/portal/projects/list-store.ts", "lib/portal/projects/workspace-store.ts", "lib/portal/projects/context-store.ts", "lib/portal/projects/api.ts"];
+  const STORES = ["lib/portal/projects/submission-store.ts", "lib/portal/projects/diary-store.ts", "lib/portal/projects/defect-store.ts", "lib/portal/projects/certificate-store.ts", "lib/portal/projects/list-store.ts", "lib/portal/projects/workspace-store.ts", "lib/portal/projects/context-store.ts", "lib/portal/projects/api.ts"];
 
-  it("are exactly the three literal paths the public copy lists, and the list page and the board are there", () => {
+  // Phase 2 close-out stage B (flagged: a fourth path, a defect line marked rectified, held by every check below as the other three are).
+  it("are exactly the four literal paths the public copy lists, and the list page and the board are there", () => {
     expect(PROJECTS_HANDLERS.map(FILE).sort()).toEqual([...SUPPLIER_PROJECTS_POST_PATHS].sort());
-    expect(Object.values(SUPPLIER_PROJECTS_POSTS)).toHaveLength(3);
+    expect(Object.values(SUPPLIER_PROJECTS_POSTS)).toHaveLength(4);
     const pages = PORTAL.map((f) => `/${f.file.replace(/^app\//, "").replace(/\/page\.tsx$/, "")}`);
     expect(pages).toContain(SUPPLIER_PROJECTS_PAGE);
     expect(pages).toContain(SUPPLIER_ANNOUNCEMENTS_PAGE);

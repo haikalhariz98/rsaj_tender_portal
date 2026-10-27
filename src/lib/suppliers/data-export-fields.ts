@@ -464,6 +464,8 @@ export const OUT_MODELS: Readonly<Record<string, OutReason>> = {
   // ADR 0045 D1, D3 (wave V): the award return lodged online and the questions on an award, shown on the portal from wave V step V4. Whether the export carries them is a later decision.
   AwardOnlineReturn: "NOT_YET_EXPORTED",
   AwardQuery: "NOT_YET_EXPORTED",
+  // Phase 2 close-out stage B (ADR 0047 D1): the contractor's report that a defect line is rectified, shown on the portal's Defects tab.
+  DefectEvent: "NOT_YET_EXPORTED",
   // ADR 0042 D10 (plan step 7): the kick-off meeting and who attended it are classified above (EXPORT_COLUMNS), read and exported since the act step.
 };
 

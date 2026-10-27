@@ -185,6 +185,43 @@ describe("one lock order, run 1b's acts (ContractMatter the first domain row, th
 /// (Contract → ContractMatter → the sitting, the order tabling takes). Blind spots (declared): these read the source's
 /// text in order; a lock taken in a helper these files call is not followed (none is), and the family is read from
 /// MATTER_FAMILY by name (matter-family's own test pins that map).
+/// Phase 2 close-out stage B (stricter: the scans extended to every new act): completion, defects, making good and the return of securities.
+const CLOSEOUT = "src/app/projects/[id]/closeout-actions.ts";
+
+describe("one lock order, close-out's acts (stage B: the contract, then the domain row, then the defect lines by id, then the security)", () => {
+  it("the file asks the table in its own inContract, under withLockedContract; every act reads the clock once, before it", () => {
+    const src = read(CLOSEOUT);
+    const at = src.indexOf("async function inContract(");
+    const helper = src.slice(at, src.indexOf("\n}\n", at));
+    expect(helper).toContain("withLockedContract(");
+    expect(helper.indexOf("actStatusFault(family, l.contract.status as ContractStatus)")).toBeGreaterThan(helper.indexOf("withLockedContract("));
+    const acts = actions(src);
+    expect(acts.size).toBeGreaterThanOrEqual(11);
+    const onDefect = src.slice(src.indexOf("async function onDefect("), src.indexOf("\n}\n", src.indexOf("async function onDefect(")));
+    for (const [name, body] of acts) {
+      if (body.includes("return onDefect(")) continue;
+      expect(body, name).toContain("return inContract(");
+      expect(body.indexOf("const now = toSecond(new Date());"), name).toBeGreaterThan(-1);
+      expect(body.indexOf("const now = toSecond(new Date());"), name).toBeLessThan(body.indexOf("return inContract("));
+    }
+    expect(onDefect.indexOf("const now = toSecond(new Date());")).toBeLessThan(onDefect.indexOf("return inContract("));
+  });
+
+  it("locks the domain row before the lines, the lines by ascending id, and never the certificate or a transaction of its own", () => {
+    const src = read(CLOSEOUT);
+    expect(src).not.toMatch(/FROM "Certificate"|db\.\$transaction/);
+    for (const m of src.matchAll(/FROM "DefectItem" WHERE "contractId" = \$\{[^}]+\} (ORDER BY id )?FOR UPDATE/g)) expect(m[1], "the lines by ascending id").toBe("ORDER BY id ");
+    const hook = read("src/lib/closeout/at-issue.ts");
+    expect(hook.indexOf("async function lockLines(")).toBeGreaterThan(-1);
+    expect(hook).toMatch(/FROM "DefectItem" WHERE "contractId" = \$\{contractId\} ORDER BY id FOR UPDATE/);
+    // Each hook's after-issue writes lock the domain row, then the lines.
+    for (const fn of ["cpcAtIssue", "scheduleAtIssue", "cmgdAtIssue"]) {
+      const body = hook.slice(hook.indexOf(`export async function ${fn}(`));
+      expect(body.indexOf("await lockRow("), fn).toBeLessThan(body.indexOf("await lockLines("));
+    }
+  });
+});
+
 describe("ContractMatter's place (BD-613-117): /approvals' escalation and a sitting's outcome", () => {
   const escalate = (() => {
     const src = read("src/app/approvals/actions.ts");

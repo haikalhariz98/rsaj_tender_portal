@@ -78,6 +78,8 @@ export const SUPPLIER_PROJECTS_POSTS = {
   submit: "/supplier/projects/submit",
   diary: "/supplier/projects/diary",
   block: "/supplier/projects/certificate",
+  // Phase 2 close-out stage B: a defect line marked rectified (words, not a signature).
+  defects: "/supplier/projects/defects",
 } as const;
 export const SUPPLIER_PROJECTS_POST_PATHS: readonly string[] = Object.values(SUPPLIER_PROJECTS_POSTS);
 

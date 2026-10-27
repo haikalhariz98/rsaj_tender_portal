@@ -17,6 +17,8 @@ export interface DefectReading {
   withdrawnReason: string | null;
 }
 
+/// The events are read in the order recorded (to the second, as every act reads its clock); events of the same second keep the order given, which
+/// the loader takes by recording time and then by id.
 export function defectState(events: readonly DefectEventFact[]): DefectReading {
   let r: DefectReading = { state: "OPEN", returnNote: null, closedOn: null, withdrawnReason: null };
   for (const e of [...events].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))) {

@@ -232,6 +232,22 @@ export function projectDocumentNotices(i: {
   }));
 }
 
+/// Phase 2 close-out stage B (plan §5): the contractor reported a defect line rectified from its portal account; the S.O. office's holders and acting holders are
+/// told, once each, as for a document the contractor sends. The subject is the event, so a line reported again after a return tells them again.
+export function defectRectifiedNotices(i: { eventId: string; contractId: string; contractLabel: string; contractorName: string; defect: string; recipients: readonly string[] }): NoticeDraft[] {
+  return recipientsOf(i.recipients, null).map((r) => ({
+    recipientPersonId: r,
+    kind: "DEFECT_RECTIFIED",
+    subjectEntity: "DefectEvent",
+    subjectId: i.eventId,
+    occurrence: "",
+    exerciseId: null,
+    title: `Defect reported rectified by ${i.contractorName}`,
+    body: `${i.contractLabel}: the contractor reports "${i.defect}" rectified. Accept it or return it on the Defects tab.`,
+    href: `/projects/${i.contractId}?stage=close-out&tab=defects`,
+  }));
+}
+
 export function matterNotCarriedMemo(i: {
   decisionId: string;
   matterLabel: string;

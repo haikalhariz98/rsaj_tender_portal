@@ -103,7 +103,8 @@ describe("the scan finds what it should", () => {
     // Changed for N2 (the PDPA right of access): a supplier downloads its own data as a file through a portal route handler (it asks the portal's guard first), so 43.
     // Changed for ADR 0041 (registration step 2): the public registration's two reads, a fresh form token and the code search, are route handlers under the public `supplier/register`, so 46.
     // Changed for the Project workspace (plan step 5): a contractor sends a document, a version and a request, stages a file and downloads one through five portal route handlers (each asks the portal's guard first), so 51; the staff lookup route (dropdown sweep 2) makes 52; the Requisitions and Tenders & quotations exports (step 7.5) make 54; the Projects, Suppliers and Committees exports (step 7.6) make 57; the online award return (stage, lodge) and question routes (Wave V, V3) make 60.
-    expect(ROUTE_FILES.length).toBe(60);
+    // Changed for Phase 2 close-out stage B: the contractor marks a defect line rectified through a portal route handler (it asks the portal's guard first), so 61.
+    expect(ROUTE_FILES.length).toBe(61);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });
