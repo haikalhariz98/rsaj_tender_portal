@@ -6,6 +6,7 @@ import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker, actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import { MoreActions } from "@/components/ui/more-actions";
 import { RecordWaiverDrawer, ResendWaiverDrawer, SendWaiverDrawer } from "./time-editors";
+import { supersession } from "@/lib/lad/basis";
 import type { ContractStatus } from "@/lib/contract/types";
 import { AlertTriangle, CalendarIcon, ClipboardIcon, FileIcon, GavelIcon, ShieldIcon, WalletIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
@@ -643,8 +644,12 @@ function DamagesSection({ l, v, people, today, hidden }: { l: LoadedContract; v:
   const latestWarning = [...v.p.ladWarnings].reverse().find((w) => w.certificate.status !== "VOID") ?? null;
   // The decision act's own rule, on what does not depend on the drawer's answers (past completion; an excusable delay needs only its reasons).
   const decisionBlock = zone(today) ?? say(decisionFaults({ outcome: "EXCUSED_OR_PENDING", reason: "x", dateForCompletion: completion, today: today ?? "", scope: null, section: null, wholeRate: null, warning: null, eotClause: "", ladClause: "", insuranceExpiry: null, expectedCompletion: null, windowFrom: null, windowUntil: null, pack: [], formSet: true }));
+  // BD-613-89: a decision an extension of time superseded charges nothing more: closed by the extension up to the new date, a replacement needed past it.
+  const sup = today && liveRow?.supersededByEot && completion ? supersession({ eotNumber: liveRow.supersededByEot.certificate.number, newDate: completion }, today, "the whole works") : null;
   const readingText =
     !reading ? "Not judged without the organisation's time zone."
+    : sup?.state === "CLOSED_BY_EXTENSION" ? `Closed by the extension of time ${liveRow!.supersededByEot!.certificate.number ?? ""}: no damages to ${formatDate(completion)}.`
+    : sup?.state === "REFUSED" ? `Superseded by the extension of time ${liveRow!.supersededByEot!.certificate.number ?? ""}: past ${formatDate(completion)}, record a replacement decision.`
     : reading.state === "NOT_DUE" ? (completion ? `Not due: the date for completion is ${formatDate(completion)}.` : "Not due: no completion date yet.")
     : reading.state === "DECISION_REQUIRED" ? `Past the date for completion (${formatDate(completion)}) with no decision. Interim certificates are refused.`
     : reading.state === "CNC_NOT_ISSUED" ? "Damages apply. Certificate of Non-Completion not issued."
@@ -656,7 +661,7 @@ function DamagesSection({ l, v, people, today, hidden }: { l: LoadedContract; v:
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<GavelIcon size={17} />} title={<Say words={P.liquidatedDamages} />} subtitle="Rate from the baseline" actions={reading && reading.state !== "NOT_DUE" ? <Badge tone={reading.state === "EXCUSED" || reading.state === "NOTHING_TO_CHARGE" ? "info" : "warn"}>{reading.state === "CHARGED" ? "Damages running" : reading.state === "EXCUSED" ? "Excused or pending" : "Decision needed"}</Badge> : undefined} />
+        <CardHeader icon={<GavelIcon size={17} />} title={<Say words={P.liquidatedDamages} />} subtitle="Rate from the baseline" actions={sup?.state === "CLOSED_BY_EXTENSION" ? <Badge tone="info">Extended</Badge> : reading && reading.state !== "NOT_DUE" ? <Badge tone={reading.state === "EXCUSED" || reading.state === "NOTHING_TO_CHARGE" ? "info" : "warn"}>{reading.state === "CHARGED" ? "Damages running" : reading.state === "EXCUSED" ? "Excused or pending" : "Decision needed"}</Badge> : undefined} />
         <CardBody>
           <KeyValues
             columns={2}
@@ -776,7 +781,7 @@ function WaiversCard({ l, v, people, today, hidden }: { l: LoadedContract; v: Pa
       {accrual.length > 0 && (
         <CardBody className="border-b border-line/70">
           {accrual.map((a) => (
-            <p key={a.key} className={sub}>{`${a.label}: damages running ${a.days} days, ${formatMoney(a.charged)} charged on issued certificates. `}{a.alert.state === "NOT_SET" ? "Alert after: not set." : a.alert.state === "ALERT" ? <Chip tone="warn">{`Beyond ${a.alert.days} days`}</Chip> : `Alert after ${a.alert.days} days.`}</p>
+            <p key={a.key} className={sub}>{`${a.label.charAt(0).toUpperCase()}${a.label.slice(1)}: ${a.days ? `damages running ${a.days} days` : "no damages running"}, ${formatMoney(a.charged)} charged on issued certificates. `}{a.alert.state === "NOT_SET" ? "Alert after: not set." : a.alert.state === "ALERT" ? <Chip tone="warn">{`Beyond ${a.alert.days} days`}</Chip> : `Alert after ${a.alert.days} days.`}</p>
           ))}
         </CardBody>
       )}

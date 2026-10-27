@@ -40,7 +40,7 @@ export function TimePanel({ l, v, people, today, hidden }: { l: LoadedContract; 
     search: `${x.version} ${x.writtenBy ?? ""}`,
     cells: {
       date: { kind: "text", text: x.dateForCompletion ? formatDate(x.dateForCompletion) : "Not set" },
-      by: { kind: "stack", title: x.reason === "EXTENSION_OF_TIME" ? "Extension of time" : x.reason === "PERIOD_EXTENSION" ? "Extension of the contract period" : x.version === 1 ? "Original" : "Correction", sub: x.writtenBy ? `${x.writtenBy}${x.days ? `, ${x.days} days` : ""}` : `Version ${x.version}` },
+      by: { kind: "stack", title: x.reason === "EXTENSION_OF_TIME" ? "Extension of time" : x.reason === "PERIOD_EXTENSION" ? "Extension of the contract period" : "Original", sub: x.writtenBy ? `${x.writtenBy}${x.days ? `, ${x.days} days` : ""}` : `Version ${x.version}` },
       on: { kind: "text", text: x.recordedOn ? formatDate(x.recordedOn) : "", dim: true },
     },
   }));

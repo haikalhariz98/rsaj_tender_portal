@@ -30,12 +30,19 @@ export function claimStateFactsOf(m: MatterRow): ClaimStateFacts {
   };
 }
 
-/// The completion date's versions: the original and each extension, with what wrote it.
+const EXTENDS = new Set(["EXTENSION_OF_TIME", "PERIOD_EXTENSION"]);
+
+/// The completion date's history: the original (the last version before the first extension that holds a date) and each extension after it, with what
+/// wrote it. Corrections before possession, which hold no date, are not the original.
 export function completionVersionsOf(l: LoadedContract) {
-  return baselineRows(l.contract).versions.map((b) => {
+  const all = baselineRows(l.contract).versions.map((b) => {
     const ext = (b.snapshot as { extension?: { days?: number; writtenBy?: { number?: string | null } } } | null)?.extension ?? null;
     return { id: b.id, version: b.version!, reason: b.reason, dateForCompletion: valuesOf(b).dateForCompletion, recordedOn: day(b.recordedOn), days: ext?.days ?? null, writtenBy: ext?.writtenBy?.number ?? null };
   });
+  const firstExt = all.findIndex((x) => EXTENDS.has(x.reason ?? ""));
+  const before = firstExt < 0 ? all : all.slice(0, firstExt);
+  const original = [...before].reverse().find((x) => x.dateForCompletion) ?? null;
+  return [...(original ? [original] : []), ...all.filter((x) => EXTENDS.has(x.reason ?? ""))];
 }
 
 export async function timeView(l: LoadedContract) {

@@ -90,7 +90,8 @@ describe("how it is applied", () => {
     // is still the last of the demo's own data, and the attribution of the rows already there is the one step after it.
     // AC-20 (wave C step C10): the registers are moved past the later-stage cases and every stage of the case list is read back after the fixture, still before the attribution.
     // ADR 0046 (plan step 8): the funding demo follows Wave V's, before the attribution.
-    expect(load).toMatch(/await loadResultsDemo\(db, organisationId, \{ determine: determineExercises \}\);\n {2}await checkResultsDemo\(db\);\n(?: {2}\/\/ [^\n]*\n)* {2}await finishCaseStages\(db\);\n {2}await checkCaseStages\([^\n]*\);\n {2}\/\/ [^\n]*\n {2}await loadWaveVDemo\(db, organisationId\);\n {2}\/\/ [^\n]*\n {2}await loadFundingDemo\(db, organisationId\);\n {2}\/\/ [^\n]*\n {2}await attributeSeededRows\(db, organisationId\);\n\n {2}$/);
+    // Phase 2 close-out stage A (flagged, faithful): the time demo follows the funding demo, read back, still before the attribution.
+    expect(load).toMatch(/await loadResultsDemo\(db, organisationId, \{ determine: determineExercises \}\);\n {2}await checkResultsDemo\(db\);\n(?: {2}\/\/ [^\n]*\n)* {2}await finishCaseStages\(db\);\n {2}await checkCaseStages\([^\n]*\);\n {2}\/\/ [^\n]*\n {2}await loadWaveVDemo\(db, organisationId\);\n {2}\/\/ [^\n]*\n {2}await loadFundingDemo\(db, organisationId\);\n {2}\/\/ [^\n]*\n {2}await seedActIds\(db\);\n {2}await loadTimeDemo\(db, organisationId\);\n {2}await checkTimeDemo\(db\);\n {2}\/\/ [^\n]*\n {2}await attributeSeededRows\(db, organisationId\);\n\n {2}$/);
   });
   it("demo:results adds it to a loaded database without a wipe, writes nothing where it is issued, and refuses part-made", () => {
     const results = demo.slice(demo.indexOf("async function results()"), demo.indexOf("const mode = process.argv[2];"));

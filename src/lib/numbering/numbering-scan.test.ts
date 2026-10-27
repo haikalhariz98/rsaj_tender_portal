@@ -45,6 +45,8 @@ const SEEDERS: Readonly<Record<string, { verbs: readonly string[]; why: string }
   "prisma/demo-evaluation.ts": { verbs: ["create"], why: "seeds the demo's evaluation-report series" },
   "prisma/demo-suppliers.ts": { verbs: ["create"], why: "seeds the demo's supplier series" },
   "prisma/demo-lifecycle.ts": { verbs: ["create", "update"], why: "seeds the variation series, then raises serials the demo took past what the portal would issue (never back, raiseSeries)" },
+  // Phase 2 close-out stage A: the contract matters' series, created once where the demo has none (prisma/demo-time.ts).
+  "prisma/demo-time.ts": { verbs: ["create"], why: "seeds the demo's contract-matter series" },
   "prisma/demo-series.ts": { verbs: ["update", "alias"], why: "raiseSeries: moves a series on to a serial a loaded part took, never back; its parameter is typed Pick<PrismaClient, \"numberingSeries\"> (the alias)" },
   "scripts/check-numbering-concurrency.ts": { verbs: ["create", "delete"], why: "makes and removes its own temporary series" },
   "src/lib/starter/apply.ts": { verbs: ["create"], why: "a starter pack seeds series only into an organisation with none (ADR 0043 D1); it never advances one" },

@@ -131,6 +131,13 @@ export const ACT_PREFIX: Readonly<Record<string, string>> = {
   TextCorrectionForm: "htf",
   Term: "htm",
   TermAlias: "hta",
+  // Phase 2 close-out stage A (prisma/demo-time.ts): time.
+  DelayNotice: "tdn",
+  ContractMatter: "tcm",
+  EotClaim: "tec",
+  EotClaimNotice: "tcn",
+  EotReason: "ter",
+  ExtensionOfTime: "tex",
   // Sittings.
   MeetingAttendance: "lat",
   Vote: "lvt",

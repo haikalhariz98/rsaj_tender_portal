@@ -2,6 +2,7 @@ import "dotenv/config";
 // 6.13 Part A step 5: first, so the product's client is the one the demo's acts run through (prisma/demo-acts.ts).
 import { raiseSeries } from "./demo-series";
 import "./demo-acts";
+import { seedActIds } from "./demo-acts";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
@@ -31,6 +32,7 @@ import { loadMyProjectsDemo } from "./demo-my-projects";
 import { loadProjectDocumentsDemo } from "./demo-project-documents";
 import { loadWaveVDemo } from "./demo-wave-v";
 import { loadFundingDemo } from "./demo-funding";
+import { checkTimeDemo, loadTimeDemo } from "./demo-time";
 import { checkRegistrationDemo, configureRegistrationDemo, loadRegistrationDemo } from "./demo-registration";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { attributeSeededRows } from "./demo-attribution";
@@ -62,6 +64,7 @@ import { demoOrgId, demoScope } from "./demo-org";
  *   npm run demo:inbox     add the reporting lines and the not-approved memo rule (Phase 3c) to a database loaded before they existed
  *   npm run demo:wave-v    add Wave V's data (prisma/demo-wave-v.ts) to a database loaded before it existed
  *   npm run demo:funding   put the development fill's funding sources on demo records (prisma/demo-funding.ts, ADR 0046)
+ *   npm run demo:time      add the extension of time on demo_con13 and its next interim (prisma/demo-time.ts, Phase 2 close-out stage A)
  *   npm run demo:wipe      retired (Phase 1d): refuses and explains, removes nothing
  *   npm run demo:switches  retired (ruling 12c): refuses and explains, writes nothing. Configuration rows are written only by demo:load on a fresh database.
  *
@@ -821,6 +824,10 @@ async function load() {
   await loadWaveVDemo(db, organisationId);
   // ADR 0046: the funding sources on demo records, where the development fill has loaded them (on a fresh load it has not yet: demo:funding after it).
   await loadFundingDemo(db, organisationId);
+  // Phase 2 close-out stage A: the extension of time on demo_con13 and its next interim (prisma/demo-time.ts), after every act dated before it.
+  await seedActIds(db);
+  await loadTimeDemo(db, organisationId);
+  await checkTimeDemo(db);
   // Phase 2b: the rows the loaders wrote straight into the tables are attributed to the demo loader, as the acts it ran already are.
   await attributeSeededRows(db, organisationId);
 
@@ -2249,6 +2256,22 @@ async function funding() {
   console.log(made.notes.length ? `Added or noted: ${made.notes.join("; ")}.` : "The demonstration's funding is already there: nothing was written.");
 }
 
+/**
+ * Phase 2 close-out stage A: the extension of time on demo_con13 (prisma/demo-time.ts), on a database the demo is already loaded in. Nothing where it stands.
+ */
+async function time() {
+  const org = await organisation();
+  if (!(await demoIsLoaded(db))) {
+    console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
+    return;
+  }
+  await seedActIds(db);
+  const made = await loadTimeDemo(db, org.id);
+  if (made.notes.length) await checkTimeDemo(db);
+  await attributeSeededRows(db, org.id);
+  console.log(made.notes.length ? `Added or noted: ${made.notes.join("; ")}.` : "The time demonstration is already there: nothing was written.");
+}
+
 const mode = process.argv[2];
 
 if (mode === "wipe") {
@@ -2260,12 +2283,12 @@ if (mode === "switches") {
   console.error(DEMO_SWITCHES_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "project-documents" && mode !== "contractor" && mode !== "wave-v" && mode !== "funding") {
-  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|project-documents|contractor|wave-v|funding>");
+if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "project-documents" && mode !== "contractor" && mode !== "wave-v" && mode !== "funding" && mode !== "time") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|project-documents|contractor|wave-v|funding|time>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "project-documents" ? projectDocuments() : mode === "contractor" ? contractor() : mode === "wave-v" ? waveV() : mode === "funding" ? funding() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "project-documents" ? projectDocuments() : mode === "contractor" ? contractor() : mode === "wave-v" ? waveV() : mode === "funding" ? funding() : mode === "time" ? time() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);

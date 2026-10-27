@@ -43,6 +43,7 @@
     "demo:contractor": "tsx prisma/demo.ts contractor",
     "demo:wave-v": "tsx prisma/demo.ts wave-v",
     "demo:funding": "tsx prisma/demo.ts funding",
+    "demo:time": "tsx prisma/demo.ts time",
     "demo:switches": "tsx prisma/demo.ts switches"
   },
   "dependencies": {

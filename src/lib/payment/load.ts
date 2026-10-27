@@ -10,7 +10,7 @@ import { baselineFor } from "@/lib/contract/baseline";
 import { baselineRows, contractGate, valuesOf } from "@/lib/contract/load";
 import type { LoadedContract } from "@/lib/contract/repo";
 import type { BaselineReason } from "@/lib/contract/types";
-import { storedDay, dayOrNull as day } from "@/lib/dates";
+import { dayPlus, storedDay, dayOrNull as day } from "@/lib/dates";
 import { decimalText } from "@/lib/format";
 import { db } from "@/lib/db";
 import type { Decision } from "@/lib/lad/charge";
@@ -432,7 +432,12 @@ export function waiversToApplyOf(p: PaymentRows, baseline: Baseline, setting: "N
 /// FR-LAD-012: the damages accrual per live decision charging damages, against the policy's day count (unset: "Not set", no alert).
 export function accrualOfPayment(p: PaymentRows, baseline: Baseline, policy: { ladAntiOppressionDays: number | null; ladAntiOppressionProvenance: string | null } | null, today: string) {
   const charged = issuedDamagesOf(p).issued;
-  const scopes = [...liveDecisionsOf(p)].filter(([, d]) => d.outcome === "LAD_APPLIES").map(([key, d]) => ({ key, label: scopeLabelOf(baseline, key), from: day(d.windowFrom), until: day(d.windowUntil), charged: charged.filter((l) => l.scopeKey === key).reduce((a, l) => a + l.gross, 0n) }));
+  // No day on or before the scope's date for completion now (an extension of time moves it) is damages: the accrual starts after it.
+  const fromOf = (windowFrom: string | null, key: string) => {
+    const after = scopeDateOf(baseline, key);
+    return windowFrom && after && dayPlus(after, 1) > windowFrom ? dayPlus(after, 1) : windowFrom;
+  };
+  const scopes = [...liveDecisionsOf(p)].filter(([, d]) => d.outcome === "LAD_APPLIES").map(([key, d]) => ({ key, label: scopeLabelOf(baseline, key), from: fromOf(day(d.windowFrom), key), until: day(d.windowUntil), charged: charged.filter((l) => l.scopeKey === key).reduce((a, l) => a + l.gross, 0n) }));
   return accrualOf({ scopes, today, days: { value: policy?.ladAntiOppressionDays ?? null, provenance: (policy?.ladAntiOppressionProvenance ?? null) as Provenance | null } });
 }
 
