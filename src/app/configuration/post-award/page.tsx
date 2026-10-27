@@ -21,7 +21,7 @@ import { BASE_WORDS, BASIS_WORDS, SCHEDULE_FORM_WORDS } from "@/lib/variation/la
 import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/variation/types";
 
 
-import { EditClockRule, EditContractorPortalSigning, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditTimePolicy, EditVariationPolicy } from "./editors";
+import { EditClockRule, EditContractorPortalSigning, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditReleasePolicy, EditTimePolicy, EditVariationPolicy } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
 /// The certificates the payment and damages chain raises, each on its configured form (the acts' own list).
@@ -30,6 +30,8 @@ const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON
 const VARIATION_KINDS = ["VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT"] as const;
 /// Phase 2 close-out stage A: the certificates the extensions raise, approved on their matter's own route.
 const TIME_KINDS = ["EOT", "CONTRACT_PERIOD_AGREEMENT"] as const;
+/// Phase 2 close-out stage B: the completion certificates.
+const COMPLETION_KINDS = ["PRACTICAL_COMPLETION", "SCHEDULE_OF_DEFECTS", "MAKING_GOOD_DEFECTS"] as const;
 /// What an unset clock does, in words.
 const CLOCK_UNSET: Readonly<Record<ContractClock, string>> = {
   ORAL_CONFIRM: "An instruction first given orally shows no day the contractor's confirmation is due by: the screen says the clock is not set (advisory).",
@@ -40,6 +42,7 @@ const CLOCK_UNSET: Readonly<Record<ContractClock, string>> = {
   DEFECTS_RECTIFICATION: "A Schedule of Defects may give any day to make good by: the longest period is not checked, and the schedule says so.",
 };
 const UNIT_WORDS = { DAYS: "calendar days", WEEKS: "weeks", MONTHS: "months" } as const;
+const RELEASE_WORDS: Readonly<Record<string, string>> = { MAKING_GOOD: "At the certificate of making good defects", FINAL_PAYMENT: "With the final certificate's payment" };
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Post-award controls" };
@@ -130,7 +133,7 @@ export default async function PostAwardControlsPage() {
         {(rule || provenance === "OBSERVED" || provenance === "ASSUMED") && <RuleInfo rule={rule} source={provenance} label="How this is read" />}
       </span>
     );
-  const certificateLines = (kindsList: readonly (typeof PAYMENT_KINDS)[number][] | readonly (typeof VARIATION_KINDS)[number][] | readonly (typeof TIME_KINDS)[number][]) =>
+  const certificateLines = (kindsList: readonly (typeof PAYMENT_KINDS)[number][] | readonly (typeof VARIATION_KINDS)[number][] | readonly (typeof TIME_KINDS)[number][] | readonly (typeof COMPLETION_KINDS)[number][]) =>
     kindsList.map((k) => {
       const x = kindOf(k);
       const sheetsFor = sheets.filter((t) => t.certificateKind == null || t.certificateKind === k).map((t) => ({ value: t.id, label: t.labelEn }));
@@ -208,6 +211,19 @@ export default async function PostAwardControlsPage() {
           </CardBody>
         </Card>
 
+        <Card>
+          <CardHeader icon={<ClockIcon size={17} />} title="Completion and release" />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={[
+                settingLine("The retention balance is released", read(RELEASE_WORDS[p?.retentionBalanceReleaseAt ?? ""] ?? null, "Never twice. With no defects liability period, with the final payment.", p?.retentionBalanceReleaseProvenance, "The balance is not released."), <EditReleasePolicy values={{ retentionBalanceReleaseAt: p?.retentionBalanceReleaseAt ?? null, retentionBalanceReleaseProvenance: p?.retentionBalanceReleaseProvenance ?? null, performanceBondReleaseAt: p?.performanceBondReleaseAt ?? null, performanceBondReleaseProvenance: p?.performanceBondReleaseProvenance ?? null }} />),
+                settingLine("The performance bond is returned", read(RELEASE_WORDS[p?.performanceBondReleaseAt ?? ""] ?? null, "Once.", p?.performanceBondReleaseProvenance, "The bond is not returned.")),
+              ]}
+            />
+          </CardBody>
+        </Card>
+
         <Disclosure id="advanced" title="Advanced" summary="Delegation letters, certificate forms, portal signing, clocks">
           <div className="flex flex-col gap-6">
             <Card>
@@ -240,6 +256,12 @@ export default async function PostAwardControlsPage() {
               <CardHeader icon={<FileIcon size={17} />} title="Extension certificates" />
               <CardBody>
                 <KeyValues columns={2} items={certificateLines(TIME_KINDS)} />
+              </CardBody>
+            </Card>
+            <Card>
+              <CardHeader icon={<FileIcon size={17} />} title="Completion certificates" />
+              <CardBody>
+                <KeyValues columns={2} items={certificateLines(COMPLETION_KINDS)} />
               </CardBody>
             </Card>
             <Card>

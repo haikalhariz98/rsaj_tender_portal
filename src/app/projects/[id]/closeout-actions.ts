@@ -12,6 +12,7 @@ import { defectFactsOf, dlpOfRow, liveLadWindows, loadCloseout, openLineCount, r
 import { cmgdRaiseFaults, cmgdSnapshotOf } from "@/lib/closeout/making-good";
 import { returnTriggerOf, securityReturnFaults, type SecurityReturnInput } from "@/lib/closeout/release";
 import { scheduleRaiseFaults } from "@/lib/closeout/schedule";
+import { advanceRecoupedOf, retentionOf } from "@/lib/closeout/view";
 import type { Finding } from "@/lib/closeout/types";
 import { refusalText } from "@/lib/certificate/fault-text";
 import { noFormFault } from "@/lib/certificate/form-needs";
@@ -24,9 +25,8 @@ import type { ContractStatus } from "@/lib/contract/types";
 import { dayPlus, dayToDate, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { actCtx, type ActCtx, ActRefusal, afterAct, fieldError, NO_ZONE_STATE, recordedFor, tableRefusal, thrownState } from "@/lib/matter/act";
-import { formatMoney, senFromDecimal, type Sen } from "@/lib/money";
-import { heldOnLatest, recoupedOf } from "@/lib/payment/assemble";
-import { baselineOn, issuedInterims, loadPayment, releaseStateOf } from "@/lib/payment/load";
+import { formatMoney, senFromDecimal } from "@/lib/money";
+import { baselineOn, loadPayment } from "@/lib/payment/load";
 import { capacityText } from "@/lib/supervision/authority";
 import { FormReader } from "@/lib/validate";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
@@ -305,11 +305,7 @@ export async function raiseDefectSchedule(_prev: FormState, data: FormData): Pro
 /// What the contract holds today (ruling 6): its securities not returned and not rejected, and the retention balance still held.
 async function heldOf(c: ActCtx) {
   const [p, securities] = await Promise.all([loadPayment(c.l.contract.id, c.tx), c.tx.securityInstrument.findMany({ where: { contractId: c.l.contract.id, status: { not: "REJECTED" }, release: null }, orderBy: [{ lodgedOn: "asc" }, { id: "asc" }] })]);
-  const held = heldOnLatest(issuedInterims(p));
-  const rs = releaseStateOf(p);
-  const sum = (t: { MAIN: Sen; NSC: Sen; NS: Sen }) => t.MAIN + t.NSC + t.NS;
-  const balance = held && !rs.already.balance ? sum(held.held) - sum(rs.firstReleased) : 0n;
-  return { p, securities, balance: balance > 0n ? balance : 0n };
+  return { p, securities, balance: retentionOf(p).balance };
 }
 
 export async function raiseMakingGood(_prev: FormState, data: FormData): Promise<FormState> {
@@ -376,10 +372,7 @@ export async function returnSecurity(_prev: FormState, data: FormData): Promise<
     if (!s) throw new ActRefusal({ ok: false, message: "That security is not on this contract." });
     const policy = await c.tx.postAwardPolicy.findUnique({ where: { organisationId: c.l.org.id }, select: { retentionBalanceReleaseAt: true, performanceBondReleaseAt: true } });
     const events = releaseEventsOf(rows, policy);
-    const p = await loadPayment(c.l.contract.id, c.tx);
-    const advances = p.advancePayments.filter((a) => a.security?.id === s.id && a.certificate.status === "ISSUED");
-    const issued = issuedInterims(p);
-    const input: SecurityReturnInput = { kind: s.kind, form: s.form, status: s.status, returned: !!s.release, officialReceiptRef: receipt, performanceEvent: events.performance, retentionEvent: events.retention, advanceRecouped: advances.length ? advances.every((a) => senFromDecimal(a.amount) - recoupedOf(issued, a.id) <= 0n) : null };
+    const input: SecurityReturnInput = { kind: s.kind, form: s.form, status: s.status, returned: !!s.release, officialReceiptRef: receipt, performanceEvent: events.performance, retentionEvent: events.retention, advanceRecouped: advanceRecoupedOf(await loadPayment(c.l.contract.id, c.tx), s.id) };
     const fs = securityReturnFaults(input);
     if (fs.length) refuse("Not returned:", fs);
     const trigger = returnTriggerOf(input)!;

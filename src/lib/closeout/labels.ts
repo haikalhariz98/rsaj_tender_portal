@@ -71,7 +71,8 @@ export const closeoutFaultText = (f: Finding): string => CLOSEOUT_FAULT_WORDS[f.
 export const closeoutRefusal = (lead: string, fs: readonly Finding[]) => `${lead} ${fs.map(closeoutFaultText).join(" ")}`.trim();
 
 export const DEFECT_STATE_WORDS: Readonly<Record<DefectState, string>> = { OPEN: "Open", REPORTED_RECTIFIED: "Reported rectified", MADE_GOOD: "Made good", WITHDRAWN: "Withdrawn" };
-export const DEFECT_STATE_TONE: Readonly<Record<DefectState, "neutral" | "info" | "ok" | "warn">> = { OPEN: "warn", REPORTED_RECTIFIED: "info", MADE_GOOD: "ok", WITHDRAWN: "neutral" };
+/// The chip's tone (none: neutral).
+export const DEFECT_STATE_TONE: Readonly<Record<DefectState, "info" | "ok" | "warn" | undefined>> = { OPEN: "warn", REPORTED_RECTIFIED: "info", MADE_GOOD: "ok", WITHDRAWN: undefined };
 
 export const SECURITY_KIND_WORDS: Readonly<Record<string, string>> = { PERFORMANCE_BOND: "Performance bond", ADVANCE_PAYMENT_GUARANTEE: "Advance payment guarantee", DESIGN_GUARANTEE_BOND: "Design guarantee bond", RETENTION_BOND: "Retention bond" };
 export const SECURITY_FORM_WORDS: Readonly<Record<string, string>> = { BANK_GUARANTEE: "bank guarantee", INSURANCE_GUARANTEE: "insurance guarantee", CASH: "cash", BANKERS_DRAFT: "banker's draft" };

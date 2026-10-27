@@ -107,8 +107,9 @@ describe("the address names the view", () => {
     const v = open({ ...base, tab: "nope", stage: "nope" });
     expect(v.stage).toBe(defaultCaseStep(steps, standing));
   });
-  it("Close-out opens with no tab", () => {
-    expect(open({ ...base, stage: "close-out" })).toMatchObject({ stage: "close-out", tab: null });
+  // Phase 2 close-out stage B (flagged, faithful): Close-out has its tabs now, and opens on the first.
+  it("Close-out opens on Completion", () => {
+    expect(open({ ...base, stage: "close-out" })).toMatchObject({ stage: "close-out", tab: "completion" });
   });
   it("a contract stage on a case with no contract yet is flagged, the award stage is not", () => {
     expect(open({ awardStatus: "DRAFT", contract: null, facts: {}, stage: "signing" }).noContractYet).toBe(true);

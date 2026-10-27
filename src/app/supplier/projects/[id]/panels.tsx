@@ -22,9 +22,14 @@ import { loadPortalTeam } from "@/lib/project-docs/team-read";
 import { delayWords, ENTRY_STATE_TONE, ENTRY_STATE_WORDS, PROGRAMME_DECISION_WORDS } from "@/lib/supervision/labels";
 
 import { loadAwardCard } from "@/lib/portal/projects/award-card-store";
+import { defectFactsOf, dlpOfRow, loadCloseout, scheduleRectifyBy } from "@/lib/closeout/load";
+import { defectState, overdue } from "@/lib/closeout/defects";
+import { DEFECT_STATE_TONE, DEFECT_STATE_WORDS } from "@/lib/closeout/labels";
+import { DataList, type Row } from "@/components/data-list";
+import { dayPlus } from "@/lib/dates";
 
 import { AwardQuestionsCard, AwardReturnCard } from "./award-return-card";
-import { AttestControl, DisputeDiaryControl, SignCertificateControl } from "./controls";
+import { AttestControl, DisputeDiaryControl, MarkRectifiedControl, SignCertificateControl } from "./controls";
 import { PortalDocumentsPanel } from "./documents-panel";
 import { InvoicesCard } from "./invoices-card";
 import { PortalKickOffCard, PortalTeamCard } from "./kick-off-portal";
@@ -45,6 +50,7 @@ export async function OverviewPanel({ actor, ctx, token }: Props) {
   // The team and the meeting are read here, in the panel, never in `overviewTab`: each takes the supplier and organisation from the actor and the held contract.
   const team = await loadPortalTeam(db, actor, ctx);
   const kickOff = await loadPortalKickOff(db, actor, ctx);
+  const dlpEnds = (await portalCompletion(ctx)).dlpEnds;
   const todo = [
     ...(award && (award.action === "ACCEPT" || award.action === "PAPER") ? ["The award is waiting for your acceptance."] : []),
     ...(o.counts.toAttest ? [`${o.counts.toAttest} diary ${o.counts.toAttest === 1 ? "entry" : "entries"} to attest.`] : []),
@@ -98,6 +104,8 @@ export async function OverviewPanel({ actor, ctx, token }: Props) {
                 { label: "Contract sum", value: o.facts.contractSum },
                 { label: "Possession of the site", value: o.facts.possessionOn ?? "Not yet recorded" },
                 { label: "Date for completion", value: o.facts.dateForCompletion ?? "Not set on the baseline" },
+                // Phase 2 close-out stage B (plan §5): once the practical completion certificate is issued.
+                ...(dlpEnds ? [{ label: "Defects liability ends", value: dlpEnds }] : []),
                 { label: "Superintending Officer", value: o.facts.soOffice ?? "Not assigned. Documents sent to the office reach nobody." },
               ]}
             />
@@ -358,5 +366,54 @@ export async function SubmissionsPanel({ actor, ctx, token, docsAfter, earlier }
       {record && <EarlierRecordCard record={record} label={EARLIER_RECORD} backHref={portalDocumentsHref(ctx.contract.id, docsAfter)} />}
       <PortalDocumentsPanel actor={actor} ctx={ctx} token={token} after={docsAfter} />
     </div>
+  );
+}
+
+// ------------------------------------------------------------------ Phase 2 close-out stage B: the defects
+
+/// Whether the practical completion certificate is issued, and when the defects liability period ends (shown as its last day).
+export async function portalCompletion(ctx: ProjectContext) {
+  const rows = await loadCloseout(ctx.contract.id);
+  const pc = rows.cpc?.certificate.status === "ISSUED" ? rows.cpc : null;
+  const dlp = pc ? dlpOfRow(pc) : null;
+  return { rows, issued: !!pc, dlpEnds: dlp?.applies === true ? formatDate(dayPlus(dlp.endExclusive, -1)) : null };
+}
+
+/// The contractor's Defects tab (plan §5): every line not withdrawn, its due day, its state and the officer's return note; an open line is marked rectified here.
+export async function DefectsPanel({ actor, ctx, token }: Props) {
+  const { rows } = await portalCompletion(ctx);
+  const today = ctx.org.today;
+  const rectifyBy = scheduleRectifyBy(rows);
+  const documents = await db.projectDocument.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, side: "CONTRACTOR" }, select: { id: true, title: true }, orderBy: { createdAt: "desc" } });
+  const lines = defectFactsOf(rows).filter((d) => defectState(d.events).state !== "WITHDRAWN");
+  const list: Row[] = lines.map((d) => {
+    const r = defectState(d.events);
+    const late = today ? overdue(d, today, rectifyBy) : false;
+    return {
+      id: d.id,
+      search: `${d.description} ${d.location}`,
+      cells: {
+        defect: { kind: "stack", title: d.description, sub: [d.location, r.state === "OPEN" && r.returnNote ? `Returned: ${r.returnNote}` : null].filter(Boolean).join(" · ") || undefined },
+        due: { kind: "text", text: formatDate(rectifyBy ?? d.dueOn) },
+        state: { kind: "chips", items: [{ text: DEFECT_STATE_WORDS[r.state], tone: DEFECT_STATE_TONE[r.state] }, ...(late ? [{ text: "Overdue", tone: "err" as const }] : [])] },
+      },
+    };
+  });
+  const open = lines.filter((d) => defectState(d.events).state === "OPEN");
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader icon={<ClipboardIcon size={17} />} title="Defects" subtitle={rectifyBy ? `Make good by ${formatDate(rectifyBy)}` : undefined} divided={false} />
+      <DataList flat selectable={false} toolbar={false} searchable={false} exportName="defects" emptyTitle="No defects" columns={[{ key: "defect", label: "Defect", mobile: "primary" }, { key: "due", label: "Due", width: "130px", mobile: "meta" }, { key: "state", label: "Status", width: "200px", mobile: "meta" }]} rows={list} />
+      {open.length > 0 && (
+        <CardBody className="flex flex-col gap-3 border-t border-line">
+          {open.map((d) => (
+            <div key={d.id} className="flex items-center justify-between gap-4">
+              <span className="min-w-0 text-[14px] text-ink">{d.description}</span>
+              <MarkRectifiedControl contractId={ctx.contract.id} defectId={d.id} token={token} defect={d.description.slice(0, 120)} documents={documents} />
+            </div>
+          ))}
+        </CardBody>
+      )}
+    </Card>
   );
 }

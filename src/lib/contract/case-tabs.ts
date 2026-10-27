@@ -11,7 +11,8 @@
 
 import type { CaseStepKey } from "./case-steps";
 
-export type CaseTabStep = Exclude<CaseStepKey, "close-out">;
+/// Phase 2 close-out stage B: Close-out has its tabs, so every step does.
+export type CaseTabStep = CaseStepKey;
 
 export const CASE_TABS: Readonly<Record<CaseTabStep, readonly string[]>> = {
   // "instrument" is labelled "Letter".
@@ -22,6 +23,8 @@ export const CASE_TABS: Readonly<Record<CaseTabStep, readonly string[]>> = {
   // overview: the contract's Overview opens the Project stage (F-1).
   // Phase 2 close-out stage A: "time" after "variations" (EOT is allowed once practically complete, so it stays open then).
   project: ["overview", "team", "site", "payments", "variations", "time", "documents", "submissions"],
+  // Phase 2 close-out stage B (plan §3.2): Completion and Defects; stage C adds the final account and the close.
+  "close-out": ["completion", "defects"],
 };
 
 /// The case-level tab: it has no stage.
@@ -66,7 +69,7 @@ export function caseTabToStep(tab: string | undefined, hasContract: boolean): { 
   return stage ? { stage, tab } : null;
 }
 
-/// `?stage=` with a tab not in that stage opens the stage's first tab (F0-5). Close-out has no tabs.
+/// `?stage=` with a tab not in that stage opens the stage's first tab (F0-5).
 export function stageTab(stage: CaseTabStep, tab: string | undefined): string {
   return tab !== undefined && CASE_TABS[stage].includes(tab) ? tab : CASE_TABS[stage][0];
 }

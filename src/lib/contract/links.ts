@@ -46,4 +46,11 @@ export const CASE_ACTION_AT: Readonly<Partial<Record<CaseAction, { stage: CaseSt
   RECORD_SIGNATURE: { stage: "signing", tab: "formation", section: "signing" },
   RECORD_STAMPING: { stage: "signing", tab: "formation", section: "signing" },
   RECORD_POSSESSION: { stage: "project", tab: "site", section: "start" },
+  // Phase 2 close-out stage B: each act's drawer is on its card (OPEN_CERTIFICATE goes to the certificate's own page instead).
+  RAISE_CPC: { stage: "close-out", tab: "completion", section: "completion" },
+  ADD_DEFECT: { stage: "close-out", tab: "defects" },
+  RAISE_SCHEDULE: { stage: "close-out", tab: "defects", section: "schedule" },
+  RAISE_CMGD: { stage: "close-out", tab: "completion", section: "making-good" },
+  RELEASE_RETENTION: { stage: "close-out", tab: "completion", section: "retention" },
+  RETURN_SECURITY: { stage: "close-out", tab: "completion", section: "securities" },
 };

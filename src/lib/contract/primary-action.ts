@@ -9,10 +9,10 @@ export function primaryAction(viewing: CaseStepKey, steps: readonly CaseStep[]):
   return steps.find((s) => s.key === viewing)?.action ?? null;
 }
 
-/// What the "Next:" line says, or null when it would only repeat the status: a finished or parked step, or the Project step with
+/// What the "Next:" line says, or null when it would only repeat the status: a finished step, or the Project step with
 /// nothing to do (the works are on site; the tabs say the rest).
 export function nextLine(step: CaseStep): string | null {
-  if (step.state === "done" || step.state === "parked") return null;
+  if (step.state === "done") return null;
   if (step.key === "project" && step.action == null && step.state === "in-progress") return null;
   return step.next;
 }

@@ -13,7 +13,7 @@ import { loadProjectContext } from "@/lib/portal/projects/context-store";
 import { isProjectTab, type ProjectTab } from "@/lib/portal/projects/types";
 
 import { requireSupplier } from "../../../_auth/supplier";
-import { CertificatesPanel, DiaryPanel, OverviewPanel, PaymentsPanel, ProgrammePanel, SubmissionsPanel } from "./panels";
+import { CertificatesPanel, DefectsPanel, DiaryPanel, OverviewPanel, PaymentsPanel, portalCompletion, ProgrammePanel, SubmissionsPanel } from "./panels";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const ctx = await loadProjectContext(db, actor, id);
   if (!ctx) notFound();
   const tab: ProjectTab = isProjectTab(asked) ? asked : "overview";
-  const acting = tab === "diary" || tab === "certificates" || tab === "submissions";
+  // Phase 2 close-out stage B: the Defects tab shows once the practical completion certificate is issued.
+  const completed = (await portalCompletion(ctx)).issued;
+  const acting = tab === "diary" || tab === "certificates" || tab === "submissions" || tab === "defects";
   const token = acting || tab === "overview" ? issueFormToken("projects") : null;
   const status = CONTRACT_STATUS_WORDS[ctx.contract.status].en;
 
@@ -42,6 +44,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     { id: "payments", label: "Payments", icon: <WalletIcon size={15} />, lazy: true, panel: tab === "payments" ? <PaymentsPanel actor={actor} ctx={ctx} /> : null },
     { id: "certificates", label: "Certificates", icon: <CheckIcon size={15} />, lazy: true, panel: tab === "certificates" ? <CertificatesPanel actor={actor} ctx={ctx} token={token} /> : null },
     { id: "submissions", label: "Documents", icon: <InboxIcon size={15} />, lazy: true, panel: tab === "submissions" ? <SubmissionsPanel actor={actor} ctx={ctx} token={token} docsAfter={docsAfter || null} earlier={earlier || null} /> : null },
+    ...(completed ? [{ id: "defects", label: "Defects", icon: <ClipboardIcon size={15} />, lazy: true, panel: tab === "defects" ? <DefectsPanel actor={actor} ctx={ctx} token={token} /> : null }] : []),
   ];
 
   return (

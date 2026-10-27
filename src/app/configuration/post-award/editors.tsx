@@ -3,7 +3,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
-import { saveClockRule, saveContractorPortalSigning, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveTimePolicy, saveVariationPolicy } from "./actions";
+import { saveClockRule, saveContractorPortalSigning, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveReleasePolicy, saveTimePolicy, saveVariationPolicy } from "./actions";
 
 /**
  * The Post-award controls drawer. No field carries a default: an unset field is not set, and the screen says
@@ -166,6 +166,34 @@ export function EditVariationPolicy({ values, bases, sums, forms, committees }: 
       reason={{ label: "Why the controls are changed" }}
       submitLabel="Save controls"
       trigger={{ label: "Edit", className: buttonClass("ghost", "sm"), ariaLabel: "Edit variation controls" }}
+    />
+  );
+}
+
+const RELEASE_OPTIONS = [
+  { value: "MAKING_GOOD", label: "At the certificate of making good defects" },
+  { value: "FINAL_PAYMENT", label: "With the final certificate's payment" },
+];
+
+/// Completion and release (Phase 2 close-out stage B, OD-B8). Each ships unset; the release it governs is refused until it is set.
+export function EditReleasePolicy({ values }: { values: Record<string, string | null> }) {
+  return (
+    <RecordEditor
+      title="Completion and release"
+      description="Each setting starts unset."
+      size="lg"
+      columns={2}
+      fields={[
+        { kind: "select", name: "retentionBalanceReleaseAt", label: "The retention balance is released", placeholder: "Not set", options: RELEASE_OPTIONS },
+        provenance("retentionBalanceReleaseProvenance", "Basis (retention)"),
+        { kind: "select", name: "performanceBondReleaseAt", label: "The performance bond is returned", placeholder: "Not set", options: RELEASE_OPTIONS },
+        provenance("performanceBondReleaseProvenance", "Basis (bond)"),
+      ]}
+      values={values}
+      action={saveReleasePolicy}
+      reason={{ label: "Why the controls are changed" }}
+      submitLabel="Save controls"
+      trigger={{ label: "Edit", className: buttonClass("ghost", "sm"), ariaLabel: "Edit completion and release controls" }}
     />
   );
 }

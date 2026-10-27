@@ -42,3 +42,8 @@ export async function saveTimePolicy(prev: FormState, data: FormData): Promise<F
   const proposed = await stageEdit("post-award.saveTimePolicy", prev, data);
   return proposed;
 }
+
+export async function saveReleasePolicy(prev: FormState, data: FormData): Promise<FormState> {
+  const proposed = await stageEdit("post-award.saveReleasePolicy", prev, data);
+  return proposed;
+}

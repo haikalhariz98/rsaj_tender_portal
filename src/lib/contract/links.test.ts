@@ -45,6 +45,7 @@ describe("CASE_ACTION_AT", () => {
   });
   it("covers every act whose drawer is not in a header the bar can draw", () => {
     const linked = Object.keys(CASE_ACTION_AT).sort();
-    expect(linked).toEqual(["LODGE_SECURITY", "RECORD_DESPATCH", "RECORD_POSSESSION", "RECORD_RETURN", "RECORD_SIGNATURE", "RECORD_STAMPING", "SUBMIT_TO_LEGAL", "VERIFY_SECURITY"]);
+    // Phase 2 close-out stage B (flagged, stricter: the close-out acts each link to the card that holds their drawer; OPEN_CERTIFICATE goes to the certificate).
+    expect(linked).toEqual(["ADD_DEFECT", "LODGE_SECURITY", "RAISE_CMGD", "RAISE_CPC", "RAISE_SCHEDULE", "RECORD_DESPATCH", "RECORD_POSSESSION", "RECORD_RETURN", "RECORD_SIGNATURE", "RECORD_STAMPING", "RELEASE_RETENTION", "RETURN_SECURITY", "SUBMIT_TO_LEGAL", "VERIFY_SECURITY"]);
   });
 });

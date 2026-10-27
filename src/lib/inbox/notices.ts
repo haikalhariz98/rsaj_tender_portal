@@ -248,6 +248,22 @@ export function defectRectifiedNotices(i: { eventId: string; contractId: string;
   }));
 }
 
+/// Phase 2 close-out stage B (plan §4.3): a contract's defects liability period ends within an offset of the organisation's rule. The offset is the occurrence,
+/// so each is told once however often the contract is read; a later contract is another notice.
+export function dlpEndingNotices(i: { practicalCompletionId: string; contractId: string; contractLabel: string; endsWords: string; offset: number; recipients: readonly string[] }): NoticeDraft[] {
+  return recipientsOf(i.recipients, null).map((r) => ({
+    recipientPersonId: r,
+    kind: "DLP_ENDING",
+    subjectEntity: "PracticalCompletion",
+    subjectId: i.practicalCompletionId,
+    occurrence: String(i.offset),
+    exerciseId: null,
+    title: `Defects liability period ends ${i.endsWords}`,
+    body: `${i.contractLabel}: the defects liability period ends ${i.endsWords}. The Schedule of Defects lists what is open then.`,
+    href: `/projects/${i.contractId}?stage=close-out&tab=completion`,
+  }));
+}
+
 export function matterNotCarriedMemo(i: {
   decisionId: string;
   matterLabel: string;

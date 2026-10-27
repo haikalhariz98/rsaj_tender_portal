@@ -24,7 +24,7 @@ export interface CaseViewInput {
 export interface CaseView {
   /// The step the bar marks as the one being viewed.
   stage: CaseStepKey;
-  /// The tab open under it: null on Close-out (it has none) and on History (case-level).
+  /// The tab open under it: null on History (case-level).
   tab: string | null;
   /// The case-level History tab is open.
   history: boolean;
@@ -47,7 +47,7 @@ export function resolveCaseView(i: CaseViewInput): CaseView {
     history = true;
   } else if (named) {
     stage = named;
-    tab = named === "close-out" ? null : stageTab(named, i.tab);
+    tab = stageTab(named, i.tab);
   } else {
     const mapped = caseTabToStep(i.tab, i.hasContract);
     if (mapped && "stage" in mapped) {
@@ -55,7 +55,7 @@ export function resolveCaseView(i: CaseViewInput): CaseView {
       tab = mapped.tab;
     } else {
       stage = fallback;
-      tab = stage === "close-out" ? null : stageTab(stage, undefined);
+      tab = stageTab(stage, undefined);
     }
   }
   const awardRefused = !history && stage === "award" && i.visibility === "CONTRACT_STAGES_ONLY";

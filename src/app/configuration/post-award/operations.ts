@@ -8,4 +8,5 @@ export const postAwardOperations = defineOperations("post-award", "Post-award", 
   saveContractorPortalSigning: { label: "Save whether a contractor's portal account may sign", load: () => import("./core").then((m) => m.saveContractorPortalSigning) },
   saveVariationPolicy: { label: "Save the variation controls", load: () => import("./core").then((m) => m.saveVariationPolicy) },
   saveTimePolicy: { label: "Save the time and damages controls", load: () => import("./core").then((m) => m.saveTimePolicy) },
+  saveReleasePolicy: { label: "Save when retention and the performance bond are released", load: () => import("./core").then((m) => m.saveReleasePolicy) },
 });

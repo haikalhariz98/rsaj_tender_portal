@@ -16,7 +16,7 @@ import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /// The certificate kinds the payment and damages chain, and the variations and adjustments, raise (each needs its
 /// form; a routing sheet is optional).
-const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION", "VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT", "EOT", "CONTRACT_PERIOD_AGREEMENT"] as const;
+const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION", "VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT", "EOT", "CONTRACT_PERIOD_AGREEMENT", "PRACTICAL_COMPLETION", "SCHEDULE_OF_DEFECTS", "MAKING_GOOD_DEFECTS"] as const;
 /// Phase 2 close-out stage A: approved on their contract matter's own route, so on no routing sheet.
 const MATTER_KINDS = ["EOT", "CONTRACT_PERIOD_AGREEMENT"] as const;
 /// The kinds that take no routing sheet: approved on the variation's own routes, or going by none.
@@ -184,6 +184,45 @@ export async function saveTimePolicy(_prev: FormState, data: FormData): Promise<
     return { ok: true };
   });
 }
+
+/**
+ * Completion and release (Phase 2 close-out stage B, plan CO-6; OD-B8): when the retention balance and the performance bond are released, at the
+ * certificate of making good defects or with the final certificate's payment. Each ships unset (the release refuses, naming it) and is saved
+ * with where it came from.
+ */
+export async function saveReleasePolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const o = await exerciseOrg(actor.organisationId);
+  if (!o) return NO_ORG;
+  const r = new FormReader(data);
+  const v = {
+    retentionBalanceReleaseAt: r.choice("retentionBalanceReleaseAt", "When the retention balance is released", RELEASE_EVENTS),
+    retentionBalanceReleaseProvenance: r.choice("retentionBalanceReleaseProvenance", "Basis", PROVENANCE),
+    performanceBondReleaseAt: r.choice("performanceBondReleaseAt", "When the performance bond is returned", RELEASE_EVENTS),
+    performanceBondReleaseProvenance: r.choice("performanceBondReleaseProvenance", "Basis", PROVENANCE),
+  };
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
+    const before = await tx.postAwardPolicy.findUnique({ where: { organisationId: o.id } });
+    const row = await tx.postAwardPolicy.upsert({ where: { organisationId: o.id }, update: v, create: { organisationId: o.id, ...v } });
+    const words = (x: { retentionBalanceReleaseAt: string | null; retentionBalanceReleaseProvenance: string | null; performanceBondReleaseAt: string | null; performanceBondReleaseProvenance: string | null }) => ({
+      retentionBalanceReleased: x.retentionBalanceReleaseAt ? RELEASE_EVENT_WORDS[x.retentionBalanceReleaseAt] : null,
+      retentionProvenance: x.retentionBalanceReleaseProvenance,
+      performanceBondReturned: x.performanceBondReleaseAt ? RELEASE_EVENT_WORDS[x.performanceBondReleaseAt] : null,
+      performanceBondProvenance: x.performanceBondReleaseProvenance,
+    });
+    const changes = diffFields(before ? words(before) : null, words(v));
+    if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "PostAwardPolicy", entityId: row.id, entityLabel: "Post-award controls", reason }, before ? "UPDATE" : "CREATE", changes);
+    revalidatePath(PATH);
+    revalidatePath("/projects");
+    return { ok: true };
+  });
+}
+
+const RELEASE_EVENTS = ["MAKING_GOOD", "FINAL_PAYMENT"] as const;
+const RELEASE_EVENT_WORDS: Readonly<Record<string, string>> = { MAKING_GOOD: "At the certificate of making good defects", FINAL_PAYMENT: "With the final certificate's payment" };
 
 /// The form a certificate kind prints on and the routing sheet it goes on (CertificateKindSetting). Empty: unset.
 export async function saveKindSetting(_prev: FormState, data: FormData): Promise<FormState> {

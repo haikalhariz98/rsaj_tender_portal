@@ -61,7 +61,8 @@ describe("worked example: a works contract from approval to site", () => {
       ["before-signing", "waiting", null],
       ["signing", "waiting", null],
       ["project", "waiting", null],
-      ["close-out", "parked", null],
+      // Phase 2 close-out stage B (flagged, faithful: close-out is unparked and waits until the contract is in force).
+      ["close-out", "waiting", null],
     ]);
     expect(defaultCaseStep(steps, live("AWARDING"))).toBe("award");
   });
@@ -86,14 +87,14 @@ describe("worked example: a works contract from approval to site", () => {
       ["before-signing", "in-progress", "VERIFY_SECURITY", "1 security lodged, waiting for verification"],
       ["signing", "in-progress", "SUBMIT_TO_LEGAL", CASE_ACTION_NEXT.SUBMIT_TO_LEGAL],
       ["project", "waiting", null, "Opens once the contract is in force"],
-      ["close-out", "parked", null, "Parked until after go-live"],
+      ["close-out", "waiting", null, "Opens once the contract is in force"],
     ]);
     expect(defaultCaseStep(steps, live("SIGNING"))).toBe("before-signing");
   });
 
   it("active: Award, Before signing and Signing done; Project in progress", () => {
     const steps = caseSteps(facts({ standing: live("ON_SITE"), award: award("ACCEPTED"), beforeSigning: before({ readiness: gate("MET", "MET", "MET") }), signing: signing("ACTIVE") }));
-    expect(steps.map((s) => s.state)).toEqual(["done", "done", "done", "in-progress", "parked"]);
+    expect(steps.map((s) => s.state)).toEqual(["done", "done", "done", "in-progress", "waiting"]);
     expect(defaultCaseStep(steps, live("ON_SITE"))).toBe("project");
   });
 });
@@ -185,7 +186,7 @@ describe("the default step for an unknown tab is the earliest with something to 
   });
 
   it("nothing in progress or done: Award", () => {
-    const steps: CaseStep[] = CASE_STEP_KEYS.map((key) => ({ key, state: key === "close-out" ? "parked" : "waiting", next: "x", action: null }));
+    const steps: CaseStep[] = CASE_STEP_KEYS.map((key) => ({ key, state: "waiting", next: "x", action: null }));
     expect(defaultCaseStep(steps, live("AWARDING"))).toBe("award");
   });
 });
@@ -421,7 +422,8 @@ describe("invariants over every award status × contract status × instrument ×
             const label = `${status}/${contract ?? "none"}/${kind}/${commencedOn ?? "-"}/${visibility}`;
             it(label, () => {
               expect(steps.map((s) => s.key)).toEqual(CASE_STEP_KEYS);
-              expect(step(steps, "close-out")).toEqual({ key: "close-out", state: "parked", next: "Parked until after go-live", action: null });
+              // Phase 2 close-out stage B: with no close-out facts given, the step waits (it is never parked any more).
+              expect(step(steps, "close-out")).toMatchObject({ key: "close-out", state: "waiting", action: null });
               for (const s of steps) {
                 expect(s.next.length).toBeGreaterThan(0);
                 expect(s.next).not.toMatch(CODE);

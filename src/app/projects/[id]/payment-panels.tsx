@@ -567,7 +567,7 @@ function RetentionSection({ l, v, people, today, hidden }: { l: LoadedContract; 
               <li key={r.id} className={row}>
                 <span className="min-w-0">
                   <span className={head}>{`${RELEASE_WORDS[r.kind].en} · ${formatMoney(senFromDecimal(r.main) + senFromDecimal(r.nsc) + senFromDecimal(r.ns))}`}</span>
-                  <span className={sub}>{`${formatDate(day(r.releasedOn))}, from interim certificate ${r.basisCertificate.sequence ?? ""} (${r.basisCertificate.number ?? "not numbered"})${r.pct ? `, ${decimalText(r.pct)}% of what it held` : ""}; recorded for ${r.person.name}`}</span>
+                  <span className={sub}>{`${formatDate(day(r.releasedOn))}, from interim certificate ${r.basisCertificate.sequence ?? ""} (${r.basisCertificate.number ?? "not numbered"})${r.pct ? `, ${decimalText(r.pct)}% of what it held` : ""}${r.kind === "RELEASED_BALANCE" && v.closeout.cmgd?.certificate.status === "ISSUED" ? `; on the certificate of making good defects ${v.closeout.cmgd.certificate.number ?? ""}`.trimEnd() : ""}; recorded for ${r.person.name}`}</span>
                 </span>
               </li>
             ))}

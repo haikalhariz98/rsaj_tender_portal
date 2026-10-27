@@ -20,6 +20,7 @@
  */
 
 import type { CommencementState } from "@/lib/award/commencement";
+import type { CloseoutAction, CloseoutNext } from "@/lib/closeout/types";
 import { GATE_LABEL, GATE_STATE_LABEL, awardFindingTextFor } from "@/lib/award/labels";
 import type { readinessGate } from "@/lib/award/readiness";
 import type { AwardStatus, Finding, InstrumentKind } from "@/lib/award/types";
@@ -29,7 +30,8 @@ import type { CaseVisibility } from "./case-visibility";
 import type { ContractStatus } from "./types";
 
 export type CaseStepKey = "award" | "before-signing" | "signing" | "project" | "close-out";
-export type CaseStepState = "done" | "in-progress" | "waiting" | "parked";
+/// Phase 2 close-out stage B: "parked" is gone, nothing is parked any longer (plan §3.2).
+export type CaseStepState = "done" | "in-progress" | "waiting";
 export type CaseAction =
   | "SEND_FOR_APPROVAL"
   | "ISSUE"
@@ -42,7 +44,9 @@ export type CaseAction =
   | "SUBMIT_TO_LEGAL"
   | "RECORD_SIGNATURE"
   | "RECORD_STAMPING"
-  | "RECORD_POSSESSION";
+  | "RECORD_POSSESSION"
+  // Phase 2 close-out stage B: the close-out step's actions (`closeoutNext`).
+  | CloseoutAction;
 
 /// The five steps, in the order the bar shows them.
 export const CASE_STEP_KEYS: readonly CaseStepKey[] = ["award", "before-signing", "signing", "project", "close-out"];
@@ -64,6 +68,13 @@ export const CASE_ACTION_NEXT: Readonly<Record<CaseAction, string>> = {
   RECORD_SIGNATURE: "Record the signatures",
   RECORD_STAMPING: "Record the stamping",
   RECORD_POSSESSION: "Record possession of site",
+  RAISE_CPC: "Practical completion not certified",
+  OPEN_CERTIFICATE: "A certificate is in progress",
+  ADD_DEFECT: "Record defects as they are reported",
+  RAISE_SCHEDULE: "Raise the Schedule of Defects",
+  RAISE_CMGD: "Ready for the certificate of making good defects",
+  RELEASE_RETENTION: "Retention balance to release",
+  RETURN_SECURITY: "A security to return",
 };
 
 export interface CaseStep {
@@ -126,6 +137,8 @@ export interface CaseFacts {
   beforeSigning: BeforeSigningFacts | null;
   /// null without a Contract row.
   signing: SigningFacts | null;
+  /// Phase 2 close-out stage B: the close-out step's next line and action (`closeoutNext`), null where the contract is not in force yet.
+  closeOut?: CloseoutNext | null;
 }
 
 /// A set of facts no page computes. It names the rule it breaks.
@@ -146,7 +159,6 @@ const NOT_ISSUED_YET = "Opens once the award is issued";
 const CONDITIONS_AFTER_ISSUE = "Conditions are checked once the award is issued";
 const RESTRICTED_AWARD = "The award stage is restricted to those named on its exercise";
 const RESTRICTED_CONDITIONS = "Adding and settling conditions is restricted; the contract's securities are shown";
-export const CLOSE_OUT_PARKED = "Parked until after go-live";
 /// Where an ended case ended (F0-6), on the step it ended at.
 export const CASE_ENDED_WORDS: Readonly<Record<CaseEnded, string>> = {
   CANCELLED_BEFORE_ISSUE: "The award was cancelled before issue",
@@ -259,6 +271,12 @@ const COMPLETED_WORDS: Readonly<Partial<Record<ContractStatus, string>>> = {
   FINAL_CERTIFICATE_ISSUED: "The final certificate is issued",
 };
 
+/// Phase 2 close-out stage B: the close-out step as `closeoutNext` reads it (plan §3.2); waiting until the contract is in force.
+function closeOutStep(f: CaseFacts): Draft {
+  const c = f.closeOut ?? null;
+  return c ? { state: c.state, next: c.next, action: c.action } : { state: "waiting", next: "Opens once the contract is in force", action: null };
+}
+
 /// Where an ended case ended (F0-6): the step that carries its words and opens by default.
 export const CASE_ENDED_STEP: Readonly<Record<CaseEnded, CaseStepKey>> = {
   CANCELLED_BEFORE_ISSUE: "award",
@@ -275,7 +293,7 @@ export function caseSteps(f: CaseFacts): CaseStep[] {
     "before-signing": beforeSigningStep(f),
     signing: signingStep(f),
     project: projectStep(f),
-    "close-out": { state: "parked", next: CLOSE_OUT_PARKED, action: null },
+    "close-out": closeOutStep(f),
   };
   return CASE_STEP_KEYS.map((key) => {
     let step: CaseStep = { key, ...drafts[key] };
@@ -284,7 +302,7 @@ export function caseSteps(f: CaseFacts): CaseStep[] {
       step = { ...step, action: null, next: key === "before-signing" ? RESTRICTED_CONDITIONS : RESTRICTED_AWARD };
     }
     // F0-6: an ended case offers nothing, and nothing is in progress.
-    if (f.standing.kind === "ENDED" && step.state !== "done" && step.state !== "parked") {
+    if (f.standing.kind === "ENDED" && step.state !== "done") {
       const ended = f.standing.ended;
       step = { ...step, state: "waiting", action: null, next: CASE_ENDED_STEP[ended] === key ? CASE_ENDED_WORDS[ended] : NOT_REACHED };
     }
@@ -306,7 +324,8 @@ export function defaultCaseStep(steps: readonly CaseStep[], standing: CaseStandi
   // Without a contract (signing waiting) the later stages have nothing to show, so the floor stays at Award.
   const floorKey = steps.find((s) => s.key === "signing")?.state === "waiting" ? "award" : LIVE_FLOOR[standing.stage];
   const live = steps.slice(Math.max(0, steps.findIndex((s) => s.key === floorKey)));
-  const withAction = live.find((s) => s.action);
+  // Phase 2 close-out stage B: a step still waiting (close-out before practical completion) offers its act on its own page and is not landed on.
+  const withAction = live.find((s) => s.action && s.state !== "waiting");
   if (withAction) return withAction.key;
   const inProgress = live.filter((s) => s.state === "in-progress").at(-1);
   if (inProgress) return inProgress.key;

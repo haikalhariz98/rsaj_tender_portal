@@ -56,7 +56,7 @@ import { contractHistory } from "@/lib/contract/load";
 import { readFormationSnapshot } from "@/lib/contract/preparation";
 import { loadContract, type LoadedContract } from "@/lib/contract/repo";
 import { briefingMissing } from "@/lib/contract/sign";
-import { isExecuted } from "@/lib/contract/status";
+import { isExecuted, possessionTaken } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOrNull as day, dayToDate } from "@/lib/dates";
 import { raiseCaseClockNotices } from "@/lib/award/clock-notices";
@@ -86,6 +86,8 @@ import { delegationFactsOf } from "@/lib/supervision/load";
 import { SUPERVISION_ACTS } from "@/lib/supervision/types";
 import { VariationsPanel, VariationSummaryCard } from "./variation-panels";
 import { TimePanel } from "./time-panels";
+import { CompletionPanel, DefectsPanel } from "./closeout-panels";
+import { closeoutView, dlpNotice } from "@/lib/closeout/view";
 import { variationView, type VariationView } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden } from "@/app/_auth/sulit";
@@ -123,7 +125,7 @@ const TAB_ICON: Readonly<Record<string, ReactNode>> = {
 };
 
 
-const STEP_STATE = { done: "done", "in-progress": "current", waiting: "waiting", parked: "parked" } as const;
+const STEP_STATE = { done: "done", "in-progress": "current", waiting: "waiting" } as const;
 
 /// The label of a main button that is a link to the panel holding the act's drawer (see `CASE_ACTION_AT`).
 const LINK_ACTION_WORDS: Readonly<Partial<Record<CaseAction, Words>>> = CASE_LINK_ACTION_WORDS;
@@ -184,6 +186,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
     hiddenActs = hiddenOf(v);
     possession = { blocker: await possessionBlockerOf(lc, v, today), hidden: hiddenActs.includes("PRINCIPAL_OR_SO") };
   }
+  // Phase 2 close-out stage B: the close-out step reads its facts once the contract is in force (plan §3.2).
+  const closeout = lc && status && possessionTaken(status) ? await closeoutView(lc, today) : null;
   const standing = caseStage({ award: { status: award.status as AwardStatus, instrumentKind: award.instrumentKind as InstrumentKind }, contract: status ? { status } : null, commencement: { commencedOn: day(award.commencedOn) } });
   const caseFacts: CaseFacts = {
     visibility,
@@ -192,6 +196,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
     // Under CONTRACT_STAGES_ONLY the conditions are the award's, so they are not judged (F0-4).
     beforeSigning: !c ? null : av ? av.before : { readiness: null, securitiesToVerify: 0, lodgeOffered: false },
     signing: lc ? { status: status!, act: signingActOf(lc, facts, today, start, possession) } : null,
+    closeOut: closeout?.next ?? null,
   };
   const steps = caseSteps(caseFacts);
   const view = resolveCaseView({ stage: first("stage"), tab, steps, standing, hasContract: !!c, visibility });
@@ -213,11 +218,12 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
     await raiseCaseClockNotices({ organisationId: l.org.id, awardId: award.id, awardLabel: award.reference, exerciseId: award.exerciseId, href: `/projects/${c?.id ?? award.id}`, clocks: await av.clockTellings() });
   }
   const contractTab = lc && !view.history ? view.tab : null;
-  const needsPeople = !!lc && !view.history && !!contractTab && ["formation", "team", "site", "payments", "variations", "time", "securities"].includes(contractTab);
+  const needsPeople = !!lc && !view.history && !!contractTab && ["formation", "team", "site", "payments", "variations", "time", "securities", "completion", "defects"].includes(contractTab);
   const people: Option[] = needsPeople ? (await db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })).map((p) => ({ value: p.id, label: p.name })) : [];
   const supervisionTabs = ["overview", "team", "site", "payments", "variations", "time"];
   const projectTab = lc && stage === "project" && !view.history ? contractTab : null;
-  if (lc && projectTab && supervisionTabs.includes(projectTab)) {
+  const closeoutTab = lc && stage === "close-out" && !view.history ? contractTab : null;
+  if (lc && ((projectTab && supervisionTabs.includes(projectTab)) || closeoutTab)) {
     const v = await supervisionOf();
     if (!hiddenActs.length) hiddenActs = hiddenOf(v);
   }
@@ -226,6 +232,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const supply = lc && projectTab === "payments" && (await paymentRouteOf(db, lc)) === "DELIVERY_ORDER_INVOICE" ? await loadSupplyClaims(db, { organisationId: lc.org.id, orgName: lc.org.name, contractId: lc.contract.id }) : null;
   const variations = lc && projectTab && (projectTab === "overview" || projectTab === "variations") ? await variationView(lc, today) : null;
   const time = lc && projectTab === "time" ? await timeView(lc) : null;
+  // Plan §4.3: the DLP's notice is told when the Completion tab is read, as the award's clocks are.
+  const dlpTold = lc && closeout && closeoutTab === "completion" ? await dlpNotice(lc, closeout, today) : null;
   const documentFacts = lc && projectTab === "documents" ? await contractDocumentFacts(l.org.id, lc.contract.id, today) : null;
   // The contract's gate (the priced working, the figures a certificate's override trail names) is asked only where a panel of the contract shows them.
   const needsContractGate = !!lc && ((projectTab === "overview") || (stage === "signing" && !view.history && view.tab === "formation") || (view.history && sources.includes("contract")));
@@ -272,6 +280,10 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         return supervision && variations ? <VariationsPanel l={lc} v={variations} people={people} today={today} page={pageNo} hidden={hiddenActs} /> : null;
       case "time":
         return time ? <TimePanel l={lc} v={time} people={people} today={today} hidden={hiddenActs} /> : null;
+      case "completion":
+        return closeout ? <CompletionPanel l={lc} v={closeout} people={people} today={today} hidden={hiddenActs} told={dlpTold} /> : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
+      case "defects":
+        return closeout ? <DefectsPanel l={lc} v={closeout} people={people} today={today} hidden={hiddenActs} /> : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
       case "documents":
         return documentFacts ? <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} /> : null;
       case "submissions":
@@ -289,7 +301,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
     </div>
   );
 
-  const stageTabs = stage === "close-out" ? [] : CASE_TABS[stage];
+  const stageTabs = CASE_TABS[stage];
   const tabs: TabSpec[] = [
     ...stageTabs.map((tabId): TabSpec => {
       return { id: tabId, label: t(CASE_TAB_WORDS[tabId]), icon: TAB_ICON[tabId], lazy: true, panel: !view.history && view.tab === tabId ? panelFor(tabId) : null };
@@ -323,7 +335,9 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       : act === "START_PREPARATION" && lc && start
         ? <ActGate blocker={formationShut}><StartPreparationDrawer id={lc.contract.id} blocker={start.blocker} frozen={start.frozen} /></ActGate>
         : null;
-  const mainLink = linkAt && act ? <ButtonLink href={caseHref(ref, linkAt)} size="sm" variant="primary">{LINK_ACTION_WORDS[act] ? t(LINK_ACTION_WORDS[act]!) : null}</ButtonLink> : null;
+  // Phase 2 close-out stage B: a close-out certificate in progress opens on its own page.
+  const certHref = act === "OPEN_CERTIFICATE" && c && closeout?.next.certificateId ? `/projects/${c.id}/certificates/${closeout.next.certificateId}` : null;
+  const mainLink = certHref ? <ButtonLink href={certHref} size="sm" variant="primary">{t(LINK_ACTION_WORDS.OPEN_CERTIFICATE!)}</ButtonLink> : linkAt && act ? <ButtonLink href={caseHref(ref, linkAt)} size="sm" variant="primary">{LINK_ACTION_WORDS[act] ? t(LINK_ACTION_WORDS[act]!) : null}</ButtonLink> : null;
   // On the Award stage the award's own drawers (C-3) sit in the menu; a step with no act of its own shows the blocked one, with its reason.
   // A stage with nothing of its own to do (the live Project stage with the award still open) points back at the step that holds the work.
   const mainBack = !mainNode && !mainLink && !fin?.chrome?.fallback && leftovers[0] ? <ButtonLink href={caseHref(ref, { stage: leftovers[0].key })} size="sm" variant="primary">Finish {t(CASE_STEP_WORDS[leftovers[0].key])}</ButtonLink> : null;
@@ -397,8 +411,6 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         notice(t(R.awardStageRestrictedTitle), t(R.awardStageRestrictedBody))
       ) : view.noContractYet ? (
         notice(t(CASE_STEP_WORDS[stage]), viewed.next)
-      ) : stage === "close-out" ? (
-        notice(t(CASE_STEP_WORDS["close-out"]), t(R.closeOutParked))
       ) : (
         <Tabs initial={view.history ? HISTORY_TAB : (view.tab ?? undefined)} label={t(H.caseTabs)} tabs={tabs} keep={{ stage }} />
       )}

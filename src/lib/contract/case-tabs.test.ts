@@ -22,7 +22,8 @@ describe("the tab ids are today's (scanned from the pages)", () => {
   // C-2 (wave C step C5): /projects/[id] is the case page. It lists no tab ids of its own: it draws CASE_TABS' (and History), so the
   // eleven tabs the contract page had are all still reachable, each under its stage.
   it("/projects/[id] draws its tabs from CASE_TABS, and every tab the contract page had is in a stage or is History", () => {
-    expect(readFileSync(join(process.cwd(), "src/app/projects/[id]/page.tsx"), "utf8")).toMatch(/const stageTabs = stage === "close-out" \? \[\] : CASE_TABS\[stage\];/);
+    // Phase 2 close-out stage B (flagged, faithful): every stage draws its tabs, close-out included.
+    expect(readFileSync(join(process.cwd(), "src/app/projects/[id]/page.tsx"), "utf8")).toMatch(/const stageTabs = CASE_TABS\[stage\];/);
     const staged = new Set<string>([...Object.values(CASE_TABS).flat(), HISTORY_TAB]);
     for (const id of CONTRACT_TAB_IDS) expect(staged.has(id), id).toBe(true);
   });
@@ -111,7 +112,7 @@ describe("stageTab: a ?stage= with a tab not its own opens its first tab (F0-5)"
   it("another stage's tab: the first", () => expect(stageTab("signing", "payments")).toBe("formation"));
   it("none: the first", () => expect(stageTab("project", undefined)).toBe("overview"));
   it("each stage's first tab", () => {
-    expect((Object.keys(CASE_TABS) as CaseTabStep[]).map((s) => stageTab(s, undefined))).toEqual(["overview", "conditions", "formation", "overview"]);
+    expect((Object.keys(CASE_TABS) as CaseTabStep[]).map((s) => stageTab(s, undefined))).toEqual(["overview", "conditions", "formation", "overview", "completion"]);
   });
 });
 
@@ -121,5 +122,13 @@ describe("parseCaseStepKey", () => {
   });
   it("anything else", () => {
     for (const k of [undefined, "", "Award", "history", "overview"]) expect(parseCaseStepKey(k)).toBeUndefined();
+  });
+});
+
+describe("the Close-out stage's tabs (Phase 2 close-out stage B, plan §3.2)", () => {
+  it("are Completion and Defects, each reached from a stage-less link", () => {
+    expect(CASE_TABS["close-out"]).toEqual(["completion", "defects"]);
+    for (const tab of ["completion", "defects"]) for (const c of [true, false]) expect(caseTabToStep(tab, c)).toEqual({ stage: "close-out", tab });
+    expect(stageTab("close-out", undefined)).toBe("completion");
   });
 });

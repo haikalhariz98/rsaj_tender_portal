@@ -4,7 +4,8 @@ import { CASE_STEP_KEYS, defaultCaseStep, earlierOpenSteps, type CaseStep, type 
 import { nextLine, primaryAction } from "./primary-action";
 
 const steps = (o: Partial<Record<CaseStepKey, Partial<CaseStep>>>): CaseStep[] =>
-  CASE_STEP_KEYS.map((key) => ({ key, state: key === "close-out" ? "parked" : "waiting", next: `${key} next`, action: null, ...o[key] }));
+  // Phase 2 close-out stage B (flagged, faithful): close-out is no longer parked; it waits, as the others do here.
+  CASE_STEP_KEYS.map((key) => ({ key, state: "waiting", next: `${key} next`, action: null, ...o[key] }));
 
 describe("a project opens on its live stage (plan 6.6)", () => {
   // con13: Award left open (return not recorded), Signing and Project past.

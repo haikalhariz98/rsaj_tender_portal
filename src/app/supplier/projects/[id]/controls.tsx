@@ -7,7 +7,7 @@ import { CheckIcon, FileIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { CONFIRM_SCRIM, DRAWER_SCRIM, DrawerHeader, confirmPanelClass, drawerPanelClass } from "@/components/ui/drawer";
 import { Callout } from "@/components/ui/feedback";
-import { Field, Input, Textarea } from "@/components/ui/field";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { SUPPLIER_PROJECTS_POSTS } from "@/lib/auth/routes";
 
 import { answerWords, postBids as post } from "../../bids/post-json";
@@ -134,6 +134,67 @@ export function DisputeDiaryControl({ contractId, entryId, token, dayText }: { c
             <div className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
               <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
               <Button variant="primary" onClick={send} disabled={busy || !token || !words.trim()}>{busy ? "Sending…" : "Record the disagreement"}</Button>
+            </div>
+          </aside>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ------------------------------------------------------------------ a defect line (Phase 2 close-out stage B)
+
+/// Mark a defect line rectified: a note and, optionally, one of the contractor's own documents on this contract as evidence. Words, not a signature.
+export function MarkRectifiedControl({ contractId, defectId, token, defect, documents }: { contractId: string; defectId: string; token: string | null; defect: string; documents: readonly { id: string; title: string }[] }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [evidence, setEvidence] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const heading = useId();
+  const field = useId();
+  const pick = useId();
+  useEscape(open, busy, () => setOpen(false));
+
+  async function send() {
+    setBusy(true);
+    setError(null);
+    const res = await post(SUPPLIER_PROJECTS_POSTS.defects, token, { contractId, defectId, note, evidenceDocumentId: evidence || null });
+    setBusy(false);
+    if (ok(res.status, res.body)) {
+      setOpen(false);
+      setNote("");
+      setEvidence("");
+      router.refresh();
+    } else setError(answerWords(res.status, res.body));
+  }
+
+  return (
+    <>
+      <Button variant="primary" size="sm" icon={<CheckIcon size={15} />} onClick={() => { setError(null); setOpen(true); }} disabled={!token} aria-haspopup="dialog">
+        Mark rectified
+      </Button>
+      {open && (
+        <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && setOpen(false)}>
+          <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
+            <span id={heading} className="sr-only">Mark the defect rectified: {defect}</span>
+            <DrawerHeader icon={<CheckIcon size={17} />} title="Mark rectified" subtitle={defect} onClose={() => !busy && setOpen(false)} />
+            <div className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-6 py-5">
+              {error && <Callout tone="err">{error}</Callout>}
+              <Field label="Note" htmlFor={field}>
+                <Textarea id={field} value={note} maxLength={2000} rows={4} autoFocus onChange={(e) => setNote(e.target.value)} />
+              </Field>
+              <Field label="Evidence" htmlFor={pick} hint={documents.length ? undefined : "Send one under Documents first."}>
+                <Select id={pick} value={evidence} onChange={(e) => setEvidence(e.target.value)} disabled={!documents.length}>
+                  <option value="">None</option>
+                  {documents.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
+                </Select>
+              </Field>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
+              <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
+              <Button variant="primary" onClick={send} disabled={busy || !token}>{busy ? "Sending…" : "Mark rectified"}</Button>
             </div>
           </aside>
         </div>
