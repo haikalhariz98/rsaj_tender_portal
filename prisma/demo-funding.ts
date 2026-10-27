@@ -4,7 +4,8 @@
  * demo loader, and skipped where already set, so a second run writes nothing:
  * - DEMO/KP/T/005/2026 (demo_con13, with issued interim and advance certificates and a payment) and the case of demo_rq23 take the demo sukuk, for water storage;
  * - the supply contract's requisition (demo_rq24) is funded internally;
- * - demo_con13's split is 60% the demo sukuk and 40% internal, recorded as if before its first certificate (the act refuses one after it, FS-7);
+ * - demo_con13's split is 60% the demo sukuk and 40% internal, recorded on its execution day, before its first certificate (the act refuses one after it, FS-7), so
+ *   History never shows a split after certification; where the execution day is not before the first certificate, no split is written;
  * - an approved requisition with no award yet (demo_rq1) takes the demo sukuk, so the Use of proceeds tab counts one awaiting award;
  * - demo_con13 carries two impact figures.
  */
@@ -24,8 +25,8 @@ export async function loadFundingDemo(db: Db, organisationId: string, now = new 
   const internal = sources.find((s) => s.code === DEMO_FUNDING.internal);
   if (!sukuk || !internal) return { notes: ["no funding was added: the demo funding sources are not there. Run the development fill (npm run pack -- dev-fill --apply), then this again"] };
   const notes: string[] = [];
-  const audit = (id: string, entity: string, entityId: string, entityLabel: string, changes: object[]) =>
-    db.auditEntry.createMany({ data: [{ id, organisationId, entity, entityId, entityLabel, action: "UPDATE" as const, at: now, changes, reason: REASON, ...DEMO_ACTOR }] as never, skipDuplicates: true });
+  const audit = (id: string, entity: string, entityId: string, entityLabel: string, changes: object[], at = now) =>
+    db.auditEntry.createMany({ data: [{ id, organisationId, entity, entityId, entityLabel, action: "UPDATE" as const, at, changes, reason: REASON, ...DEMO_ACTOR }] as never, skipDuplicates: true });
 
   // The requisitions' source and category, only where none is set.
   const picks: [string, { id: string; nameEn: string }, string | null][] = [
@@ -45,16 +46,24 @@ export async function loadFundingDemo(db: Db, organisationId: string, now = new 
 
   // demo_con13's split, only where none is recorded.
   const con13 = `${P}con13`;
-  const contract = await db.contract.findFirst({ where: { id: con13, organisationId }, select: { number: true, award: { select: { awardeeName: true } }, _count: { select: { fundingAllocations: true } } } });
-  if (contract && contract._count.fundingAllocations === 0) {
+  const contract = await db.contract.findFirst({
+    where: { id: con13, organisationId },
+    select: { number: true, contractDateRecordedAt: true, award: { select: { awardeeName: true } }, _count: { select: { fundingAllocations: true } }, certificates: { where: { status: "ISSUED" }, orderBy: { issuedAt: "asc" }, take: 1, select: { issuedAt: true } } },
+  });
+  // Its execution, as recorded: the split and its audit row are dated then, never after money is certified.
+  const executed = contract?.contractDateRecordedAt ?? null;
+  const firstIssued = contract?.certificates[0]?.issuedAt ?? null;
+  const beforeMoney = executed != null && (firstIssued == null || executed < firstIssued);
+  if (contract && contract._count.fundingAllocations === 0 && !beforeMoney) notes.push(`${contract.number} not split: its execution is not recorded before its first certificate`);
+  if (contract && contract._count.fundingAllocations === 0 && executed && beforeMoney) {
     await db.fundingAllocation.createMany({
       data: [
-        { id: `${con13}_fa1`, organisationId, contractId: con13, fundingSourceId: sukuk.id, sharePct: "60", recordedAt: now },
-        { id: `${con13}_fa2`, organisationId, contractId: con13, fundingSourceId: internal.id, sharePct: "40", recordedAt: now },
+        { id: `${con13}_fa1`, organisationId, contractId: con13, fundingSourceId: sukuk.id, sharePct: "60", recordedAt: executed },
+        { id: `${con13}_fa2`, organisationId, contractId: con13, fundingSourceId: internal.id, sharePct: "40", recordedAt: executed },
       ],
       skipDuplicates: true,
     });
-    await audit(`${con13}_au_funding`, "Contract", con13, `Contract ${contract.number} · ${contract.award.awardeeName}`, diffFields({ funding: sukuk.nameEn }, { funding: `${sukuk.nameEn} 60% · ${internal.nameEn} 40%` }));
+    await audit(`${con13}_au_funding`, "Contract", con13, `Contract ${contract.number} · ${contract.award.awardeeName}`, diffFields({ funding: sukuk.nameEn }, { funding: `${sukuk.nameEn} 60% · ${internal.nameEn} 40%` }), executed);
     notes.push(`${contract.number} split 60/40`);
   }
 
