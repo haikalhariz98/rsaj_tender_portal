@@ -25,8 +25,7 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   "Evaluation.cancelledBy": { why: "No act cancels an evaluation yet.", writer: /cancelledByPersonId/ },
   // ADR 0041: the three slots step 1 registered (sending an online application, checking its certificates and its bank details) are wired since step 4 (`portal-actions.ts`), so they leave this list.
   // Phase 2 close-out stage A: raising the EOT certificate, the period extension and its agreement, and valuing a loss-and-expense claim are wired
-  // (`src/app/projects/[id]/time-actions.ts`), so they left this list.
-  "LadWaiver.person": { why: "Waiving liquidated damages is a later 6.13 Part B increment: no act writes it.", writer: /\.ladWaiver\.(?:create|update|upsert)/ },
+  // (`src/app/projects/[id]/time-actions.ts`), and the LAD waiver (`damages-actions.ts`), so they left this list.
   // Wave 3b (SR-13): the two attestations of the bid sealing policy are wired since step 7 (`bid-sealing/core.ts`), so they leave this list.
   // ADR 0042 (plan step 4): the Project workspace's six staff slots are wired (`document-actions.ts`, `project-docs/store.ts`) and have left this list.
   // ADR 0042 D10 (plan step 7): the kick-off meeting's two slots are wired since the act step (`kick-off-actions.ts`, `project-docs/kick-off-store.ts`), so they leave this list.

@@ -22,9 +22,10 @@ import type { LadBasis } from "@/lib/lad/frozen";
 import type { ScopeDecision, ScopeIn } from "@/lib/lad/scopes";
 import { lineScopeOf } from "@/lib/lad/scopes";
 import { rateSegments, segmentsKey } from "@/lib/lad/segments";
+import { applicationOf, ladAmountAt, type WaiverBasis } from "@/lib/lad/waiver";
 import { approvalOfRecord } from "@/lib/matter/matter";
 import { scopeDate } from "@/lib/time/extension";
-import { formatSen, parseSen, senFromDecimal, type Sen } from "@/lib/money";
+import { formatSen, parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
 import type { ContractPartyKind } from "@/lib/supervision/types";
 
 import { CORRECTIONS } from "./correction";
@@ -61,7 +62,7 @@ export const paymentInclude = {
       certificate: { select: certSelect },
       // 6.13 Part B run 1b (613A-C2): the EOT certificate that superseded it, and the waivers of its damages.
       supersededByEot: { select: { id: true, certificate: { select: { id: true, number: true, status: true } } } },
-      waivers: { select: { id: true, ladAmount: true, waived: true, asOf: true, basis: true, appliedOnCertificateId: true, matter: { select: { id: true, reference: true, closedAt: true, approvedRouteId: true, routes: { select: { id: true, status: true }, orderBy: { openedAt: "asc" as const } } } } }, orderBy: { recordedAt: "asc" as const } },
+      waivers: { select: { id: true, ladAmount: true, waived: true, asOf: true, basis: true, appliedOnCertificateId: true, waiverLetterRef: true, reason: true, recordedAt: true, matter: { select: { id: true, reference: true, closedAt: true, approvedRouteId: true, routes: { select: { id: true, status: true }, orderBy: { openedAt: "asc" as const } } } } }, orderBy: { recordedAt: "asc" as const } },
     },
     orderBy: [{ decidedOn: "asc" as const }, { recordedAt: "asc" as const }],
   },
@@ -381,4 +382,48 @@ function scopeDecisionOf(d: PaymentRows["nonCompletions"][number], dateNow: stri
     superseded: d.supersededByEot && dateNow ? { eotNumber: d.supersededByEot.certificate.number, newDate: dateNow } : null,
     occupation: null,
   };
+}
+
+// ------------------------------------------------------------------ Phase 2 close-out stage A: the LAD waiver's basis and its application
+
+/// What a waiver's LAD amount reads, for one decision, to `asOf` (design note 6.13B §6.9): the decision's window and rate, the scope's date now,
+/// its supersession, and the days the issued lines on its scope charged. Null where the decision is not on the contract.
+export function waiverBasisOf(p: PaymentRows, baseline: Baseline, decisionId: string, asOf: string): (WaiverBasis & { charging: boolean; scopeKey: string; label: string }) | null {
+  const d = p.nonCompletions.find((x) => x.id === decisionId);
+  if (!d) return null;
+  const key = scopeKey(d.scope as Scope | null, d.sectionRef);
+  const live = liveDecisionsOf(p).get(key);
+  const label = `the decision on ${scopeLabelOf(baseline, key)}${d.certificate?.number ? ` (${d.certificate.number})` : ""}`;
+  const charging = d.outcome === "LAD_APPLIES" && live?.id === d.id && d.rate != null && d.windowFrom != null;
+  const dateNow = scopeDateOf(baseline, key);
+  const segments = d.rate == null ? [] : rateSegments(senFromDecimal(d.rate), null);
+  const charged = issuedDamagesOf(p).issued.filter((l) => l.scopeKey === key).flatMap((l) => l.segments.map((g) => ({ from: g.from, until: g.until, rate: g.rate })));
+  const amount = charging ? ladAmountAt({ window: { from: storedDay(d.windowFrom!), until: day(d.windowUntil) }, asOf, scopeDate: dateNow, superseded: d.supersededByEot && dateNow ? { newDate: dateNow } : null, charged, segments }) : 0n;
+  const extensions = p.eotClaims.filter((c) => c.scope === "WHOLE" || key === scopeKey("SECTION", c.sectionRef)).flatMap((c) => c.extensions.filter((e) => e.certificate.status === "ISSUED").map((e) => ({ id: e.id, number: e.certificate.number })));
+  return { amount, extensions, supersededBy: d.supersededByEot ? (d.supersededByEot.certificate.number ?? d.supersededByEot.id) : null, segments: segmentsKey(segments), charging, scopeKey: key, label };
+}
+
+/// A waiver's frozen basis, as stored at its send (`LadWaiver.basis`); null where it cannot be read.
+export function readWaiverBasis(j: unknown): WaiverBasis | null {
+  const b = j as { amount?: string; extensions?: { id: string; number: string | null }[]; supersededBy?: string | null; segments?: string } | null;
+  return b && typeof b.amount === "string" && Array.isArray(b.extensions) && typeof b.segments === "string" ? { amount: parseSen(b.amount), extensions: b.extensions, supersededBy: b.supersededBy ?? null, segments: b.segments } : null;
+}
+export const waiverBasisJson = (b: WaiverBasis) => ({ amount: senToDecimalString(b.amount), extensions: b.extensions, supersededBy: b.supersededBy, segments: b.segments });
+
+/// The approved waivers the next interim applies (the switch NEXT_CERTIFICATE), and the ones refused LAD_BASIS_MOVED (the raise goes on without
+/// them and says so). Each waiver's LAD amount is read again for its own `asOf`.
+export function waiversToApplyOf(p: PaymentRows, baseline: Baseline, setting: "NEXT_CERTIFICATE" | "FINAL_ACCOUNT" | null): { apply: DamagesIn["waiversToApply"]; moved: Finding[] } {
+  const apply: { id: string; scopeKey: string; amount: Sen; label: string }[] = [];
+  const moved: Finding[] = [];
+  for (const d of p.nonCompletions) {
+    for (const w of d.waivers) {
+      const now = waiverBasisOf(p, baseline, d.id, storedDay(w.asOf));
+      const frozen = readWaiverBasis(w.basis);
+      if (!now || !frozen) continue;
+      const a = applicationOf({ setting, approved: waiverApproved(w), applied: w.appliedOnCertificateId != null, frozen, now });
+      if (a.state === "APPLY") apply.push({ id: w.id, scopeKey: now.scopeKey, amount: senFromDecimal(w.waived), label: w.matter.reference ?? "a waiver" });
+      if (a.state === "MOVED") moved.push({ code: "WAIVER_NOT_APPLIED_MOVED", level: "warn", data: { waiver: w.matter.reference ?? "", moved: String(a.fault.data?.moved ?? "") } });
+    }
+  }
+  return { apply, moved };
 }

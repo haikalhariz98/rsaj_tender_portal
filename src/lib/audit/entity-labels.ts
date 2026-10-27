@@ -71,6 +71,17 @@ export const RECORD_TYPE_WORDS: Readonly<Record<string, Words>> = {
   DayworkRecord: w("Daywork"),
   VariationCertificate: w("Variation Order Certificate"),
   SumAdjustment: w("Adjustment of the contract sum"),
+  // Phase 2 close-out stage A: time and damages.
+  ContractMatter: w("Contract matter"),
+  DelayNotice: w("Delay notice"),
+  EotClaim: w("Extension-of-time claim"),
+  EotReason: w("Reason for an extension"),
+  ExtensionOfTime: w("Extension of time"),
+  LossExpenseClaim: w("Loss and expense"),
+  PeriodExtension: w("Extension of the contract period"),
+  PeriodAgreement: w("Contract period agreement"),
+  LadWaiver: w("Waiver of damages"),
+  ContractBaseline: w("Baseline version"),
 };
 
 /// The record types 6.13's supervision writes to the contract's trail (each registered above).
@@ -78,7 +89,10 @@ export const SUPERVISION_ENTITIES = ["ContractSoAssignment", "SoDelegation", "Po
 
 /// The record types 6.13's interim payment and damages chain write to the contract's trail (each registered above),
 /// with a certificate's approval route and its steps (614-C4), written under the certificate's label.
-export const PAYMENT_ENTITIES = ["PaymentCalendar", "OpeningPosition", "InterimValuation", "MaterialLine", "PartyLine", "ValuationDeduction", "RetentionRelease", "AdvancePayment", "FinancePayment", "LadWarning", "NonCompletion", "ApprovalInstance", "ApprovalStep"] as const;
+export const PAYMENT_ENTITIES = ["PaymentCalendar", "OpeningPosition", "InterimValuation", "MaterialLine", "PartyLine", "ValuationDeduction", "RetentionRelease", "AdvancePayment", "FinancePayment", "LadWarning", "NonCompletion", "ApprovalInstance", "ApprovalStep", "LadWaiver"] as const;
+
+/// Phase 2 close-out stage A: the record types the time acts and the extensions' issue write to the contract's trail (each registered above).
+export const TIME_ENTITIES = ["ContractMatter", "DelayNotice", "EotClaim", "EotReason", "ExtensionOfTime", "LossExpenseClaim", "PeriodExtension", "PeriodAgreement", "LadWaiver", "ContractBaseline", "NonCompletion", "ApprovalInstance", "ApprovalStep", "CommitteeDecision"] as const;
 
 /// The record types 6.13's variations and adjustments write to the contract's trail (each registered above), with a
 /// variation's approval route and its steps and the matters tabled from it, written under the contract's label.

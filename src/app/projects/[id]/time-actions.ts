@@ -10,7 +10,7 @@ import { withLockedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOrNull as day, dayToDate, storedDay } from "@/lib/dates";
 import { formatMoney, parseSen } from "@/lib/money";
-import { actCtx, type ActCtx, ActRefusal, afterAct, asMatterRecorder, fieldError, lockMatter, NO_ZONE_STATE, recordedFor, tableRefusal, thrownState } from "@/lib/matter/act";
+import { actCtx, type ActCtx, ActRefusal, afterAct, asMatterRecorder, fieldError, lockLossClaim, lockMatter, NO_ZONE_STATE, recordedFor, tableRefusal, thrownState } from "@/lib/matter/act";
 import { matterFactsOf } from "@/lib/matter/load";
 import { matterApproved, sendFaults } from "@/lib/matter/matter";
 import { refusalText } from "@/lib/certificate/fault-text";
@@ -401,11 +401,9 @@ export async function raiseEotCertificate(_prev: FormState, data: FormData): Pro
 
 /// The loss-and-expense claim, locked (its matter first, where it has one).
 async function lockLoss(c: ActCtx, lossId: string) {
-  const pre = await c.tx.lossExpenseClaim.findFirst({ where: { id: lossId, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true, matterId: true } });
-  if (!pre) throw new ActRefusal({ ok: false, message: "That loss-and-expense claim is not on this contract." });
-  if (pre.matterId) await c.tx.$queryRaw`SELECT id FROM "ContractMatter" WHERE id = ${pre.matterId} FOR UPDATE`;
-  await c.tx.$queryRaw`SELECT id FROM "LossExpenseClaim" WHERE id = ${pre.id} FOR UPDATE`;
-  return c.tx.lossExpenseClaim.findFirstOrThrow({ where: { id: pre.id, organisationId: c.l.org.id }, include: { claim: { select: { matter: { select: { reference: true } } } } } });
+  const x = await lockLossClaim(c.tx, { contractId: c.l.contract.id, organisationId: c.l.org.id }, lossId);
+  if (!x) throw new ActRefusal({ ok: false, message: "That loss-and-expense claim is not on this contract." });
+  return x;
 }
 const lossLabel = (c: ActCtx, l: { claim: { matter: { reference: string | null } } | null }) => `${c.label} · loss and expense${l.claim ? ` on ${l.claim.matter.reference ?? "an extension-of-time claim"}` : ""}`;
 

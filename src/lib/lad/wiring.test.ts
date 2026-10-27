@@ -43,3 +43,34 @@ describe("the interim's issue refuses a moved damages basis (ADR 0030 §6)", () 
     expect(readFileSync("src/lib/payment/load.ts", "utf8")).toMatch(/damages: damagesOf\(p, baseline\),/);
   });
 });
+
+describe("Phase 2 close-out stage A2: the loss-and-expense and waiver acts call their rules (source)", () => {
+  const time = readFileSync("src/app/projects/[id]/time-actions.ts", "utf8");
+  const damages = readFileSync("src/app/projects/[id]/damages-actions.ts", "utf8");
+  const of = (src: string, name: string) => {
+    const at = src.indexOf(`export async function ${name}(`);
+    return src.slice(at, src.indexOf("\n}\n", at));
+  };
+  it("record, value and send a loss-and-expense claim; the claims committee is checked on the resolved chain", () => {
+    expect(of(time, "recordLossExpense")).toMatch(/lossRecordFaults\(/);
+    expect(of(time, "valueLossExpense")).toMatch(/lossValueFaults\(\{ sent: x\.matterId != null,/);
+    expect(of(time, "sendLossExpense")).toMatch(/lossSendFaults\(\{ valued \}\)/);
+    expect(of(time, "sendLossExpense")).toMatch(/chainCheck: \(codes, nameOf\) => claimsCommitteeFaults\(codes, claims, nameOf\)/);
+  });
+  it("a 1.2 line takes an approved claim, once, never above its value", () => {
+    expect(of(readFileSync("src/app/projects/[id]/variation-actions.ts", "utf8"), "raiseSumAdjustment")).toMatch(/lossLineFaults\(\{ approved, label, adjustedOn:/);
+  });
+  it("a waiver is judged at record, at send and at re-send, and routed at the exact ratio", () => {
+    for (const a of ["recordLadWaiver", "sendLadWaiver", "resendLadWaiver"]) expect(of(damages, a), a).toMatch(/waiverRecordFaults\(/);
+    expect(of(damages, "sendLadWaiver")).toMatch(/ratio: waiverRatio\(waived, b\.amount\)/);
+    expect(damages).toMatch(/actStatusFault\(family, l\.contract\.status as ContractStatus\)/);
+    for (const a of ["recordLadWaiver", "sendLadWaiver", "resendLadWaiver"]) expect(of(damages, a), a).toMatch(/"LAD_WAIVER"/);
+  });
+  it("the interim's raise applies the approved waivers the switch names, locked before the valuation", () => {
+    const raise = body("raiseInterimCertificate");
+    expect(raise.indexOf("lockUnappliedWaivers(")).toBeGreaterThan(-1);
+    expect(raise.indexOf("lockUnappliedWaivers(")).toBeLessThan(raise.indexOf("openValuationOf("));
+    expect(raise).toMatch(/const waivers = waiversToApplyOf\(p, baseline, setting\);/);
+    expect(raise).toMatch(/appliedOnCertificateId: null \}, data: \{ appliedOnCertificateId: certId/);
+  });
+});

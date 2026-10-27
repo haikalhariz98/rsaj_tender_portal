@@ -20,11 +20,13 @@ import { contractLabel, withLockedContract, type LoadedContract } from "@/lib/co
 import { dayOf, dayOrNull as day, dayToDate, storedDay } from "@/lib/dates";
 import { decisionFaults, postFaults, warningFaults, type PackAnswer } from "@/lib/lad/non-completion";
 import { decisionBasisFaults, replacementFaultsOnScope, scopeKey } from "@/lib/lad/basis";
+import { ladFaultWords } from "@/lib/lad/labels";
+import { lockUnappliedWaivers } from "@/lib/matter/act";
 import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
 import { applicationFaults, pendingAdvanceFaults } from "@/lib/payment/advance";
 import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentFaultText, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, claimFactsOf, inProgress, inProgressSequenceOf, issuedInterims, kindSettingOf, liveDecisionsOf, loadPayment, nextInterimSequence, pendingAdvancesOf, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, damagesOf, waiversToApplyOf, claimFactsOf, inProgress, inProgressSequenceOf, issuedInterims, kindSettingOf, liveDecisionsOf, loadPayment, nextInterimSequence, pendingAdvancesOf, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
 import { ladRoundingFaults } from "@/lib/payment/interim";
 import { OPENING_GROUPS, openingClosed, openingFaults, openingReconciles, type OpeningGroup, type OpeningProvenance } from "@/lib/payment/opening";
@@ -422,20 +424,34 @@ export async function raiseInterimCertificate(_prev: FormState, data: FormData):
   const valuationId = r.text("valuationId", "Valuation", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
+    // Design note 6.13B §1: the waivers' matters and rows are taken before the valuation (stricter than Part A's order, flagged).
+    await lockUnappliedWaivers(c.tx, c.l.contract.id);
     const { p, v, label } = await openValuationOf(c, valuationId);
     const cfg = await configOf(c);
     const form = formFor(cfg, "INTERIM_PAYMENT");
     const input = assembleInputOf(c.l, p, cfg, v, c.today, await preExecutionFacts(c.l, c.tx));
     if (!input) return refuse("Not raised:", [{ code: "NO_BASELINE", level: "block" }]);
+    // FR-LAD-009 (OD-B7): the approved waivers the switch applies here; one whose basis moved since it was sent is not applied, and the raise says so.
+    const baseline = baselineOn(c.l, c.today)!;
+    const setting = (await c.tx.postAwardPolicy.findUnique({ where: { organisationId: c.l.org.id }, select: { ladWaiverApplication: true } }))?.ladWaiverApplication ?? null;
+    const waivers = waiversToApplyOf(p, baseline, setting);
+    if (waivers.apply.length && input.damages) input.damages = damagesOf(p, baseline, waivers.apply);
     const a = assembleInterim(input);
     if (a.faults.length || !a.result.snapshot || !a.judgedUnder) return refuse("Not raised:", a.faults);
     const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "INTERIM_PAYMENT", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed: a.result.snapshot }, c.now, c.today);
     const moved = await c.tx.interimValuation.updateMany({ where: { id: v.id, status: "OPEN" }, data: { status: "RAISED", certificateId: certId, judgedUnder: a.judgedUnder as unknown as Prisma.InputJsonValue } });
     if (moved.count !== 1) return CHANGED;
     if (a.judgedUnder.pendingDeductionIds.length) await c.tx.pendingDeduction.updateMany({ where: { id: { in: a.judgedUnder.pendingDeductionIds }, contractId: c.l.contract.id }, data: { valuationId: v.id } });
+    // Each waiver applied is applied once, on this certificate.
+    for (const id of a.judgedUnder.ladBasis?.waiversApplied ?? []) {
+      const w = waivers.apply.find((x) => x.id === id);
+      const done = await c.tx.ladWaiver.updateMany({ where: { id, organisationId: c.l.org.id, appliedOnCertificateId: null }, data: { appliedOnCertificateId: certId, appliedAt: c.now } });
+      if (done.count !== 1) return CHANGED;
+      await audit(c, "LadWaiver", id, `${c.label} · waiver ${w?.label ?? ""}`.trim(), "UPDATE", diffFields({ applied: null }, { applied: `on the interim certificate raised from the ${label}`, amountWaived: w ? money(w.amount) : null }));
+    }
     const f = a.result.figures!;
     await audit(c, "InterimValuation", v.id, label, "UPDATE", diffFields({ valuationStage: "being valued" }, { valuationStage: "certificate raised", asInterimCertificate: a.sequence, grossValueToDate: money(f.gross), carriedForward: money(f.carryForward), totalDeductions: money(f.deductions), paymentRecommended: money(f.recommended), baselineVersion: `version ${input.baseline.version}`, materialsAllowance: a.judgedUnder.materialsPct.state === "SET" ? `${a.judgedUnder.materialsPct.pct}%` : null, liquidatedDamages: a.judgedUnder.lad.state === "CHARGED" ? `${a.judgedUnder.lad.days} days, ${a.judgedUnder.lad.amount}` : a.judgedUnder.lad.state === "EXCUSED" ? "none: excusable or pending" : null, beforeSigning: a.warnings.length ? "it may not issue before the contract is signed" : null }));
-    return { ok: true };
+    return { ok: true, message: waivers.moved.length ? waivers.moved.map((m) => ladFaultWords(m)?.en ?? "").join(" ").trim() || undefined : undefined };
   });
 }
 

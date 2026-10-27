@@ -42,5 +42,10 @@ describe("loss and expense", () => {
   it("only an approved claim enters a 1.2 loss-and-expense line", () => {
     expect(lossLineFaults({ approved: true, label: "Loss and expense CM/1" })).toEqual([]);
     expect(lossLineFaults({ approved: false, label: "Loss and expense CM/1" })).toEqual([{ code: "LOSS_NOT_APPROVED", level: "block", data: { claim: "Loss and expense CM/1" } }]);
+    // Phase 2 close-out stage A: paid once, and never above the value approved.
+    const codes = (fs: readonly { code: string }[]) => fs.map((f) => f.code);
+    expect(codes(lossLineFaults({ approved: true, label: "CM/1", adjustedOn: "ADJ/2" }))).toEqual(["LOSS_ALREADY_ADJUSTED"]);
+    expect(codes(lossLineFaults({ approved: true, label: "CM/1", amount: 1_000_001n, valued: 1_000_000n }))).toEqual(["LOSS_ABOVE_APPROVED"]);
+    expect(lossLineFaults({ approved: true, label: "CM/1", amount: 1_000_000n, valued: 1_000_000n, adjustedOn: null })).toEqual([]);
   });
 });

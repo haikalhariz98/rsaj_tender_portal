@@ -134,6 +134,10 @@ describe("one named writer per run 1b table (design note §9)", () => {
       `PeriodExtension ${TIME}#recordPeriodExtension`,
       `PeriodAgreement ${TIME}#raisePeriodAgreement`,
       `PeriodAgreement ${AT_ISSUE}#periodAtIssue`,
+      `LadWaiver ${DAMAGES}#recordLadWaiver`,
+      `LadWaiver ${DAMAGES}#sendLadWaiver`,
+      `LadWaiver ${DAMAGES}#resendLadWaiver`,
+      `LadWaiver ${PAYMENT}#raiseInterimCertificate`,
     ])
       expect(built.has(w), w).toBe(true);
   });

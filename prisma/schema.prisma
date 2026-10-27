@@ -12245,6 +12245,9 @@ model LossExpenseClaim {
   person           Person          @relation("LossExpenseRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
   recordedAt       DateTime
 
+  /// The 1.2 lines of adjustments of the contract sum that pay it.
+  adjustmentLines SumAdjustmentLine[]
+
   @@index([contractId])
 }
 
@@ -12591,8 +12594,13 @@ model SumAdjustmentLine {
   amount                 Decimal               @db.Decimal(18, 2)
   basis                  String                @default("")
   sortOrder              Int
+  /// Phase 2 close-out stage A (FR-EOT-006; design note 6.13B §6.8): the approved loss-and-expense claim a 1.2 LOSS_AND_EXPENSE line pays
+  /// (CHECK SumAdjustmentLine_loss_expense: only on such a line). Lines entered before claims were linked stay unlinked.
+  lossExpenseClaimId     String?
+  lossExpenseClaim       LossExpenseClaim?     @relation(fields: [lossExpenseClaimId], references: [id], onDelete: Restrict)
 
   @@index([sumAdjustmentId])
+  @@index([lossExpenseClaimId])
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

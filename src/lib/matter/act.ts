@@ -109,6 +109,32 @@ export async function recordedFor(c: ActCtx, who: ActWho, need: ActNeed, on: str
   return { person, capacity: r.capacity, soLabel: so!.office.roleLabel, soRoleCode: so!.assignment.roleCode };
 }
 
+/// A loss-and-expense claim, locked: its matter first where it has one (sent), then the claim. Read on the locked transaction.
+export async function lockLossClaim(tx: Tx, scope: { contractId: string; organisationId: string }, lossId: string) {
+  const pre = await tx.lossExpenseClaim.findFirst({ where: { id: lossId, contractId: scope.contractId, organisationId: scope.organisationId }, select: { id: true, matterId: true } });
+  if (!pre) return null;
+  if (pre.matterId) await tx.$queryRaw`SELECT id FROM "ContractMatter" WHERE id = ${pre.matterId} FOR UPDATE`;
+  await tx.$queryRaw`SELECT id FROM "LossExpenseClaim" WHERE id = ${pre.id} FOR UPDATE`;
+  return tx.lossExpenseClaim.findFirstOrThrow({
+    where: { id: pre.id, organisationId: scope.organisationId },
+    include: {
+      claim: { select: { matter: { select: { reference: true } } } },
+      matter: { select: { kind: true, reference: true, closedAt: true, closeReason: true, approvedRouteId: true, routes: { select: { id: true, status: true }, orderBy: [{ openedAt: "asc" }, { id: "asc" }] } } },
+      adjustmentLines: { select: { sumAdjustment: { select: { certificate: { select: { status: true, number: true } } } } } },
+    },
+  });
+}
+
+/// Every waiver of the contract not yet applied, locked as the interim's raise takes them (design note 6.13B §1): each waiver's matter, then the
+/// waiver, by ascending matter id, before the valuation.
+export async function lockUnappliedWaivers(tx: Tx, contractId: string): Promise<void> {
+  const rows = await tx.ladWaiver.findMany({ where: { decision: { contractId }, appliedOnCertificateId: null }, select: { id: true, matterId: true }, orderBy: { matterId: "asc" } });
+  for (const w of rows) {
+    await tx.$queryRaw`SELECT id FROM "ContractMatter" WHERE id = ${w.matterId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "LadWaiver" WHERE id = ${w.id} FOR UPDATE`;
+  }
+}
+
 /// The matter's record table, locked after the matter (the first domain row).
 const RECORD_TABLE: Readonly<Record<string, string>> = { EOT: "EotClaim", PERIOD_EXTENSION: "PeriodExtension", LOSS_EXPENSE: "LossExpenseClaim", LAD_WAIVER: "LadWaiver" };
 
@@ -129,3 +155,4 @@ export async function lockMatter(c: ActCtx, matterId: string): Promise<{ matters
 /// The act, as the writer of the matter it opens: its attribution goes on the matter's own slot (`ContractMatter.person`),
 /// beside the record's, when the act was begun for the record (a waiver, a period extension, a loss-and-expense send).
 export const asMatterRecorder = (act: ActWriter): ActWriter => ({ ...act, write: (tx, entityId, extra) => act.writeAlso(tx, "ContractMatter.person", entityId, extra) });
+

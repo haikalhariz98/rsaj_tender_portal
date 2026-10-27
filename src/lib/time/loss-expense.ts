@@ -7,7 +7,7 @@
  * a 1.2 loss-and-expense line of the adjustment certificate.
  */
 
-import type { Sen } from "@/lib/money";
+import { senToDecimalString, type Sen } from "@/lib/money";
 
 import type { Day, Finding } from "./types";
 
@@ -37,6 +37,12 @@ export function claimsCommitteeFaults(chainCommittees: readonly string[], claims
   return other ? [{ code: "CLAIMS_COMMITTEE_MISMATCH", level: "block", data: { committee: nameOf(other), claims: claims.name } }] : [];
 }
 
-export function lossLineFaults(i: { approved: boolean; label: string }): Finding[] {
-  return i.approved ? [] : [{ code: "LOSS_NOT_APPROVED", level: "block", data: { claim: i.label } }];
+/// Phase 2 close-out stage A: the claim is paid once (`adjustedOn`: the live adjustment that already names it), and never above the value
+/// approved (`amount` against `valued`, where both are given).
+export function lossLineFaults(i: { approved: boolean; label: string; adjustedOn?: string | null; amount?: Sen; valued?: Sen | null }): Finding[] {
+  if (!i.approved) return [{ code: "LOSS_NOT_APPROVED", level: "block", data: { claim: i.label } }];
+  const out: Finding[] = [];
+  if (i.adjustedOn) out.push({ code: "LOSS_ALREADY_ADJUSTED", level: "block", data: { claim: i.label, adjustment: i.adjustedOn } });
+  if (i.amount != null && i.valued != null && i.amount > i.valued) out.push({ code: "LOSS_ABOVE_APPROVED", level: "block", data: { claim: i.label, valued: senToDecimalString(i.valued) } });
+  return out;
 }

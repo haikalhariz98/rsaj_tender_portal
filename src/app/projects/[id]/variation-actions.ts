@@ -2,7 +2,11 @@
 
 import { billItemFault } from "@/lib/contract/bill-item-choices";
 import { billItemOptions } from "@/lib/contract/bill-items";
+import { lockLossClaim } from "@/lib/matter/act";
+import { matterApproved, type ContractMatterKind } from "@/lib/matter/matter";
 import { tablingOf } from "@/lib/matter/tabling";
+import { lossLineFaults } from "@/lib/time/loss-expense";
+import { timeRefusal } from "@/lib/time/labels";
 import { actStatusFault, actStatusText, type ContractAct } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { revalidatePath } from "next/cache";
@@ -119,6 +123,10 @@ async function audit(c: Ctx, entity: string, entityId: string, label: string, ac
 
 const refuse = (lead: string, fs: readonly Finding[]): never => {
   throw new Refusal({ ok: false, message: variationRefusal(lead, fs) });
+};
+/// A loss-and-expense line refused, in time's words (the claim's rule is time's).
+const refuseLoss = (fs: readonly Finding[]): never => {
+  throw new Refusal({ ok: false, message: timeRefusal("Not raised:", fs) });
 };
 const fieldError = (field: string, message: string): never => {
   throw new Refusal({ ok: false, errors: { [field]: message } });
@@ -1016,6 +1024,8 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
   // The tokens field rides out as one newline-joined value (the shared Select).
   const orderIds = [...new Set(data.getAll("orderIds").flatMap((v) => String(v).split("\n")).map((v) => v.trim()).filter(Boolean))];
   const others: AdjustmentLineIn[] = [];
+  // Phase 2 close-out stage A (FR-EOT-006): a loss-and-expense line names the approved claim it pays, picked from a dropdown.
+  const lossOf: (string | null)[] = [];
   for (let n = 1; n <= OTHER_LINES; n++) {
     const amountRaw = r.money(`other${n}Amount`, `Line ${n}: amount`);
     if (!amountRaw) continue;
@@ -1024,7 +1034,11 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
     const reference = r.text(`other${n}Reference`, `Line ${n}: reference`, { required: true, max: 60 });
     const description = r.text(`other${n}Description`, `Line ${n}: description`, { required: true, max: 400 });
     const basis = r.text(`other${n}Basis`, `Line ${n}: basis of calculation`, { required: true, max: 4000 });
-    if (trigger && direction) others.push({ section: "OTHER", trigger, reference, description, direction, amount: parseSen(amountRaw), basis, orderId: null });
+    const loss = trigger === "LOSS_AND_EXPENSE" ? r.text(`other${n}LossClaim`, `Line ${n}: the claim it pays`, { required: true }) : null;
+    if (trigger && direction) {
+      others.push({ section: "OTHER", trigger, reference, description, direction, amount: parseSen(amountRaw), basis, orderId: null });
+      lossOf.push(loss || null);
+    }
   }
   if (r.failed) return { ok: false, errors: r.errors };
   const begun = await beginAct(actor, data, "SumAdjustment.person", { personField: "personId" });
@@ -1052,6 +1066,17 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
     const inProg = adjustmentInProgress(rows);
     const fs = adjustmentFaults({ triggers: (type?.sumAdjustmentTriggers ?? []) as AdjustmentTrigger[], lines, ordersAdjusted: ordersAdjusted(rows), ordersIssued: orders.filter((x) => x.o.certificate.status === "ISSUED").map((x) => x.o.id), inProgress: inProg ? `The adjustment${inProg.certificate.number ? ` ${inProg.certificate.number}` : ""}` : null, original: baseline.values.contractSum, prior: issued.map((a) => a.net) });
     if (fs.length) refuse("Not raised:", fs);
+    // Each loss-and-expense line's claim, locked after the adjustment's reads (its matter, then the claim): approved, paid once, not above its value.
+    for (const [i, lossId] of lossOf.entries()) {
+      if (!lossId) continue;
+      const claim = await lockLossClaim(c.tx, { contractId: c.l.contract.id, organisationId: c.l.org.id }, lossId);
+      const m = claim?.matter ?? null;
+      const label = `Loss and expense ${m?.reference ?? `on line ${i + 1}`}`;
+      const approved = !!m && matterApproved({ kind: m.kind as ContractMatterKind, reference: m.reference, closed: m.closedAt ? { reason: m.closeReason } : null, seriesSet: true, routes: m.routes, approvedRouteId: m.approvedRouteId });
+      const live = claim?.adjustmentLines.find((a) => a.sumAdjustment.certificate.status !== "VOID");
+      const fs = lossLineFaults({ approved, label, adjustedOn: live ? (live.sumAdjustment.certificate.number ?? "in progress") : null, amount: others[i].amount, valued: claim?.valued == null ? null : senFromDecimal(claim.valued) });
+      if (fs.length) return refuseLoss(fs);
+    }
     const kind = await formOf(c, "SUM_ADJUSTMENT");
     const { snapshot, figures } = adjustmentSnapshot(c.today, baseline.values.contractSum, issued.map((a) => a.net), lines);
     const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "SUM_ADJUSTMENT", templateId: kind.templateId, routingTypeId: kind.routingTypeId, sectionId: null, computed: snapshot }, c.now, c.today);
@@ -1059,7 +1084,7 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
       data: {
         organisationId: c.l.org.id, contractId: c.l.contract.id, certificateId: certId, personId: who.person.id, recordedAt: c.now,
         judgedUnder: { version: 1, priorRead: issued.map((a) => a.id), triggers: type?.sumAdjustmentTriggers ?? [] } as Prisma.InputJsonValue,
-        lines: { create: lines.map((l, n) => ({ section: l.section, trigger: l.trigger, variationCertificateId: l.section === "VARIATION" ? l.orderId : null, reference: l.reference, description: l.description, direction: l.direction, amount: money(l.amount), basis: l.basis, sortOrder: n + 1 })) },
+        lines: { create: lines.map((l, n) => ({ section: l.section, trigger: l.trigger, variationCertificateId: l.section === "VARIATION" ? l.orderId : null, lossExpenseClaimId: l.section === "OTHER" ? (lossOf[n - (lines.length - others.length)] ?? null) : null, reference: l.reference, description: l.description, direction: l.direction, amount: money(l.amount), basis: l.basis, sortOrder: n + 1 })) },
       },
     });
     await audit(c, "SumAdjustment", row.id, `${c.label} · adjustment of the contract sum`, "CREATE", diffFields(null, {

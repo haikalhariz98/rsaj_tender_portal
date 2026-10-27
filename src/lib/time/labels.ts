@@ -5,6 +5,7 @@
  */
 
 import { formatDate } from "@/lib/format";
+import { formatMoney, parseSen } from "@/lib/money";
 import { matterFaultWords, MATTER_FAULT_WORDS } from "@/lib/matter/labels";
 
 import type { EotPackItem, Finding } from "./types";
@@ -98,6 +99,8 @@ export const TIME_FAULT_WORDS: Readonly<Record<string, (d: Data) => Words>> = {
   CLAIMS_COMMITTEE_MISMATCH: (d) => w(`The route's committee step is ${s(d.committee, "another committee")}, and the contract type names ${s(d.claims, "another")} for its loss-and-expense claims. Correct the matrix row or the contract type.`),
   CLAIMS_COMMITTEE_NOT_SET: () => w("The contract type names no committee for its loss-and-expense claims, so the route's committee step is not compared."),
   LOSS_NOT_APPROVED: (d) => w(`A loss-and-expense line takes an approved claim; ${s(d.claim, "this claim")} is not approved.`),
+  LOSS_ALREADY_ADJUSTED: (d) => w(`${s(d.claim, "This claim")} is already paid on the adjustment ${s(d.adjustment, "in progress")}.`),
+  LOSS_ABOVE_APPROVED: (d) => w(`The line is more than ${s(d.claim, "the claim")}'s approved value (${d.valued ? formatMoney(parseSen(String(d.valued))) : "its value"}).`),
 };
 
 /// The finding in words: time's own, else a contract matter's (fails closed in words: "Refused.").
