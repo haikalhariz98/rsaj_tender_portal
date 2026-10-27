@@ -12,7 +12,7 @@ import { paidFigureOf, snapshotFigure } from "@/lib/payment/finance";
 import { requisitionListWhere } from "@/lib/requisition/repo";
 
 import { caseFunding, splitLocked } from "./case-funding";
-import { inForce } from "./eligibility";
+import { eligibilityOf, inForce } from "./eligibility";
 import { proceedsBySource, type ContractMoney, type Read, type SourceProceeds } from "./proceeds";
 import { bpToPercent } from "./split";
 import type { CaseFunding, SourceRef } from "./types";
@@ -45,10 +45,13 @@ export async function fundingTextForRequisition(client: Tx, organisationId: stri
   return fundingText(caseFunding([], r?.fundingSourceId ?? null), await names(client, organisationId));
 }
 
+/// A split's rows, largest share first; equal shares by the source's sort order, then its code, so the same split always reads the same.
+const SHARE_ORDER = [{ sharePct: "desc" }, { fundingSource: { sortOrder: "asc" } }, { fundingSource: { code: "asc" } }] satisfies Prisma.FundingAllocationOrderByWithRelationInput[];
+
 export async function contractFunding(client: Tx, organisationId: string, contractId: string): Promise<CaseFunding> {
   const c = await client.contract.findFirst({
     where: { id: contractId, organisationId },
-    select: { fundingAllocations: { select: { fundingSourceId: true, sharePct: true }, orderBy: { sharePct: "desc" } }, award: { select: { exercise: { select: { requisition: { select: { fundingSourceId: true } } } } } } },
+    select: { fundingAllocations: { select: { fundingSourceId: true, sharePct: true }, orderBy: SHARE_ORDER }, award: { select: { exercise: { select: { requisition: { select: { fundingSourceId: true } } } } } } },
   });
   return c ? caseFunding(c.fundingAllocations, c.award.exercise.requisition.fundingSourceId) : { state: "NOT_SET" };
 }
@@ -73,7 +76,8 @@ export async function splitLockedOn(client: Tx, organisationId: string, contract
 
 export interface FundingCardView {
   state: CaseFunding["state"];
-  rows: { label: string; percent: string }[];
+  /// `eligibilityUnset`: the source has no eligibility set, so the project's category is not checked against it (FS-4: never a silent pass).
+  rows: { label: string; percent: string; eligibilityUnset: boolean }[];
   locked: boolean;
   /// The split as it stands, for the drawer: source id and percent.
   current: { sourceId: string; percent: string }[];
@@ -83,12 +87,21 @@ export interface FundingCardView {
 
 /// The project overview's Funding card (plan §4.5): each source with its share, "From the requisition" when no split is recorded, and whether it is fixed.
 export async function fundingCard(client: Tx, organisationId: string, contractId: string, on: Date): Promise<FundingCardView> {
-  const [funding, sources, locked] = await Promise.all([contractFunding(client, organisationId, contractId), sourcesOf(client, organisationId), splitLockedOn(client, organisationId, contractId)]);
-  const label = (id: string) => sources.find((s) => s.id === id)?.label ?? "A source no longer configured";
+  const [funding, sources, locked, c] = await Promise.all([
+    contractFunding(client, organisationId, contractId),
+    sourcesOf(client, organisationId),
+    splitLockedOn(client, organisationId, contractId),
+    client.contract.findFirst({ where: { id: contractId, organisationId }, select: { award: { select: { exercise: { select: { requisition: { select: { projectCategoryCode: true } } } } } } } }),
+  ]);
+  const source = (id: string) => sources.find((s) => s.id === id);
+  const category = c?.award.exercise.requisition.projectCategoryCode ?? null;
   const shares = funding.state === "NOT_SET" ? [] : funding.shares;
   return {
     state: funding.state,
-    rows: shares.map((s) => ({ label: label(s.sourceId), percent: bpToPercent(s.bp) })),
+    rows: shares.map((s) => {
+      const x = source(s.sourceId);
+      return { label: x?.label ?? "A source no longer configured", percent: bpToPercent(s.bp), eligibilityUnset: x != null && eligibilityOf(x, category).state === "NOT_SET" };
+    }),
     locked,
     current: shares.map((s) => ({ sourceId: s.sourceId, percent: bpToPercent(s.bp) })),
     sources: sources.filter((s) => inForce(s, on)).map((s) => ({ value: s.id, label: s.label })),
@@ -142,7 +155,7 @@ const MONEY_SELECT = {
   status: true,
   contractSum: true,
   award: { select: { awardeeName: true, exercise: { select: { contractTypeCode: true, requisition: { select: { fundingSourceId: true } } } } } },
-  fundingAllocations: { select: { fundingSourceId: true, sharePct: true }, orderBy: { sharePct: "desc" } },
+  fundingAllocations: { select: { fundingSourceId: true, sharePct: true }, orderBy: SHARE_ORDER },
   sumAdjustments: { select: { id: true, certificate: { select: { id: true, number: true, status: true, issuedAt: true, issueSnapshot: true } } } },
   certificates: { where: { status: "ISSUED", kind: { in: [...PAYABLE_KINDS] } }, select: { kind: true, number: true, sequence: true, issueSnapshot: true, financePayment: { select: { paidOn: true, batchNo: true, amount: true, ...CORRECTIONS } } } },
   supplyInvoicePayments: { select: { paidOn: true, batchNo: true, amount: true, ...CORRECTIONS } },

@@ -251,7 +251,6 @@ export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): 
   };
 }
 
-/// A figure of an issued certificate, by key, from its issue snapshot (money as a decimal string). Null: not there or not computed.
 // ------------------------------------------------------------------ certificates to sign
 
 export interface CertificateRow {

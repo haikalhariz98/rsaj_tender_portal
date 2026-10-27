@@ -3,6 +3,8 @@
  * status, verdict, fault and key is rendered through here.
  */
 
+import { eligibilityNotSetText } from "@/lib/funding/labels";
+
 import type { FieldFault } from "./fields";
 import type { EndorsementFault } from "./endorsement";
 import type { FundingFault } from "./funding";
@@ -231,7 +233,7 @@ export function fieldFaultText(f: FieldFault): string {
     case "CATEGORY_REQUIRED":
       return "Choose a project category. This funding source funds only some.";
     case "ELIGIBILITY_NOT_SET":
-      return "Eligibility not set for this funding source, so the category is not checked.";
+      return eligibilityNotSetText(f.source);
   }
 }
 

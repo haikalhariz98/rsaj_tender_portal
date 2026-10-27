@@ -52,6 +52,8 @@ import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { approvalCommitment, identityHolds, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { eligibleEndorsers, endorsementFaults, endorsersFor } from "@/lib/requisition/endorsement";
 import { blocking, requisitionFaults } from "@/lib/requisition/fields";
+import { eligibilityOf } from "@/lib/funding/eligibility";
+import { eligibilityNotSetText } from "@/lib/funding/labels";
 import { fundingGate } from "@/lib/requisition/funding";
 import { ableToAct, deciderFaults, holdersFor, NO_EARLIER_RECORDERS, requesterHoldsApprover } from "@/lib/requisition/holders";
 import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
@@ -214,8 +216,13 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   // ADR 0046 FS-6: once a live contract stands under the requisition, its source no longer moves here.
   const liveContracts = await db.contract.count({ where: { organisationId: l.org.id, status: { not: "CANCELLED" }, award: { exercise: { requisitionId: r.id } } } });
   const inUse = <T extends { retiredOn: Date | null }>(x: T) => x.retiredOn == null || x.retiredOn > on;
+  const pickedSource = lookups.fundingSources.find((s) => s.id === r.fundingSourceId);
   const funding = {
-    source: r.fundingSourceId ? (lookups.fundingSources.find((s) => s.id === r.fundingSourceId)?.nameEn ?? "A source no longer configured") : null,
+    // Additive (ADR 0046): an organisation that keeps no funding source sees neither the fact nor the drawer.
+    shown: lookups.fundingSources.length > 0 || r.fundingSourceId != null,
+    source: r.fundingSourceId ? (pickedSource?.nameEn ?? "A source no longer configured") : null,
+    // FS-4: an unset eligibility is never a silent pass.
+    eligibilityUnset: pickedSource != null && eligibilityOf(pickedSource, r.projectCategoryCode).state === "NOT_SET",
     category: r.projectCategoryCode ? (lookups.projectCategories.find((c) => c.code === r.projectCategoryCode)?.nameEn ?? "A category no longer configured") : null,
     sources: lookups.fundingSources.filter(inUse).map((s) => ({ value: s.id, label: s.nameEn })),
     categories: lookups.projectCategories.filter(inUse).map((c) => ({ value: c.code, label: c.nameEn })),
@@ -1738,7 +1745,7 @@ function ChecksPanel({
   route: { name: string; requires: boolean | undefined; label: string | null | undefined; commitsBudget: boolean | null } | null;
   routes: { value: string; label: string }[];
   routeNameOf: (code: string) => string | null;
-  funding: { source: string | null; category: string | null; sources: { value: string; label: string }[]; categories: { value: string; label: string }[]; sourceLocked: boolean };
+  funding: { shown: boolean; source: string | null; eligibilityUnset: boolean; category: string | null; sources: { value: string; label: string }[]; categories: { value: string; label: string }[]; sourceLocked: boolean };
 }) {
   const r = l.req;
   const inst = r.approvalInstances[0] ?? null;
@@ -1763,7 +1770,21 @@ function ChecksPanel({
             columns={2}
             items={[
               { label: "Funding route", value: r.fundingRouteCode ? (routeNameOf(r.fundingRouteCode) ?? "A route no longer configured") : <Badge tone="warn">Not set</Badge> },
-              { label: "Funding source", value: funding.source ?? <span className="text-ink-3">Not set</span> },
+              ...(funding.shown
+                ? [
+                    {
+                      label: "Funding source",
+                      value: funding.source ? (
+                        <span className="flex flex-wrap items-center gap-2">
+                          {funding.source}
+                          {funding.eligibilityUnset && <Badge tone="warn" title={eligibilityNotSetText(funding.source)}>Eligibility not set</Badge>}
+                        </span>
+                      ) : (
+                        <span className="text-ink-3">Not set</span>
+                      ),
+                    },
+                  ]
+                : []),
               ...(funding.categories.length > 0 || funding.category ? [{ label: "Project category", value: funding.category ?? <span className="text-ink-3">Not set</span> }] : []),
               { label: "What it means", value: postureText },
               {
@@ -1793,7 +1814,7 @@ function ChecksPanel({
                 <ExternalAuthorityDrawer id={r.id} label={label} current={r.externalAuthorityRef} />
               ))}
             {!["DRAFT", "CANCELLED", "CLOSED", "FULFILLED", "PENDING_APPROVAL"].includes(r.status) && <ChangeFundingDrawer id={r.id} current={r.fundingRouteCode} routes={routes} />}
-            {!["DRAFT", "CANCELLED", "CLOSED", "FULFILLED", "PENDING_APPROVAL"].includes(r.status) && !(funding.sourceLocked && (r.projectCategoryCode || funding.categories.length === 0)) && (
+            {funding.shown && !["DRAFT", "CANCELLED", "CLOSED", "FULFILLED", "PENDING_APPROVAL"].includes(r.status) && !(funding.sourceLocked && (r.projectCategoryCode || funding.categories.length === 0)) && (
               <ChangeFundingSourceDrawer id={r.id} current={{ fundingSourceId: r.fundingSourceId, projectCategoryCode: r.projectCategoryCode }} sources={funding.sources} categories={funding.categories} sourceLocked={funding.sourceLocked} />
             )}
           </div>

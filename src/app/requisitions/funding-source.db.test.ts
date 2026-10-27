@@ -28,7 +28,7 @@ const form = (fields: Record<string, string>) => {
 
 let organisationId = "";
 let requester = "";
-const source = { sukuk: "", internal: "" };
+const source = { sukuk: "", internal: "", retired: "", retiredSukuk: "" };
 
 async function requisition(status: "APPROVED" | "PENDING_APPROVAL" | "DRAFT", over: { fundingSourceId?: string | null; projectCategoryCode?: string | null } = {}) {
   return (
@@ -65,6 +65,8 @@ beforeAll(async () => {
   await db.projectCategory.createMany({ data: [{ organisationId, code: "WATER", nameEn: "Water storage" }, { organisationId, code: "OFFICE", nameEn: "Office works" }] });
   source.sukuk = (await db.fundingSource.create({ data: { organisationId, code: "SUK", nameEn: "Sukuk", categoriesRestricted: true, eligibleCategoryCodes: ["WATER"] } })).id;
   source.internal = (await db.fundingSource.create({ data: { organisationId, code: "INT", nameEn: "Internal", categoriesRestricted: false } })).id;
+  source.retired = (await db.fundingSource.create({ data: { organisationId, code: "OLD", nameEn: "Old fund", categoriesRestricted: false, retiredOn: day("2026-01-01") } })).id;
+  source.retiredSukuk = (await db.fundingSource.create({ data: { organisationId, code: "OLDSUK", nameEn: "Old sukuk", categoriesRestricted: true, eligibleCategoryCodes: ["WATER"], retiredOn: day("2026-01-01") } })).id;
 });
 
 describe("changing the funding source after Draft (FS-6)", () => {
@@ -107,5 +109,21 @@ describe("changing the funding source after Draft (FS-6)", () => {
     expect(await change(id, { fundingSourceId: source.internal, projectCategoryCode: "WATER", reason: "Moving it" })).toMatchObject({ ok: false, message: expect.stringMatching(/Change the funding on the project/) });
     expect(await change(id, { fundingSourceId: source.sukuk, projectCategoryCode: "OFFICE", reason: "Moving it" })).toMatchObject({ ok: false, message: expect.stringMatching(/Change the funding on the project/) });
     expect(await funding(id)).toEqual({ fundingSourceId: source.internal, projectCategoryCode: "OFFICE" });
+  });
+
+  it("with a live contract under a source retired since, an unset category may still be recorded; an ineligible one is still refused (amendment 14, review)", async () => {
+    const id = await requisition("APPROVED", { fundingSourceId: source.retired });
+    await contractUnder(id);
+    expect(await change(id, { fundingSourceId: source.retired, projectCategoryCode: "OFFICE", reason: "Filling the gap" })).toEqual({ ok: true });
+    expect(await funding(id)).toEqual({ fundingSourceId: source.retired, projectCategoryCode: "OFFICE" });
+
+    const restricted = await requisition("APPROVED", { fundingSourceId: source.retiredSukuk });
+    await contractUnder(restricted);
+    expect(await change(restricted, { fundingSourceId: source.retiredSukuk, projectCategoryCode: "OFFICE", reason: "Filling the gap" })).toMatchObject({ ok: false, errors: { fundingSourceId: expect.any(String) } });
+    expect(await change(restricted, { fundingSourceId: source.retiredSukuk, projectCategoryCode: "WATER", reason: "Filling the gap" })).toEqual({ ok: true });
+
+    // Moving to a retired source is still refused: only a kept source skips the in-force check.
+    const moving = await requisition("APPROVED", { fundingSourceId: source.internal });
+    expect(await change(moving, { fundingSourceId: source.retired, reason: "Back to the old fund" })).toMatchObject({ ok: false, errors: { fundingSourceId: expect.any(String) } });
   });
 });

@@ -92,6 +92,16 @@ describe("recording a contract's funding split (FS-7)", () => {
     expect(JSON.stringify(trail)).not.toContain("SUK\"");
   });
 
+  it("refuses a recorded split saved again unchanged, writing no audit row; the requisition's source recorded as 100% is a change (review)", async () => {
+    const id = await contract("WATER");
+    expect(await split(id, [[src.sukuk, "100"]], "Fixing the source on the contract")).toEqual({ ok: true });
+    expect(await split(id, [[src.sukuk, "100.00"]], "Again")).toEqual({ ok: false, message: "Nothing differs from the split as it stands." });
+    expect(await split(id, [[src.sukuk, "60"], [src.internal, "40"]], "Shared")).toEqual({ ok: true });
+    expect(await split(id, [[src.internal, "40"], [src.sukuk, "60.0"]], "Again")).toEqual({ ok: false, message: "Nothing differs from the split as it stands." });
+    const trail = await db.auditEntry.findMany({ where: { organisationId, entity: "Contract", entityId: id }, orderBy: { at: "asc" } });
+    expect(trail.map((t) => t.reason)).toEqual(["Fixing the source on the contract", "Shared"]);
+  });
+
   it("is fixed once an interim certificate is issued", async () => {
     const id = await contract("WATER");
     const baseline = await db.contractBaseline.create({ data: { organisationId, contractId: id, version: 1, reason: "EXECUTED", contractSum: "1000.00", completionPeriod: 90, completionUnit: "DAYS", entered: {}, snapshot: {}, recordedAt: new Date(), recordedOn: day("2026-02-06") } });

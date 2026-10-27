@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bpToPercent, percentToBp, splitFaults, splitSen } from "./split";
+import { bpToPercent, percentToBp, sameShares, splitFaults, splitSen } from "./split";
 import type { SourceRef } from "./types";
 
 const src = (id: string, sortOrder: number, extra: Partial<SourceRef> = {}): SourceRef => ({ id, code: id.toUpperCase(), label: id, sortOrder, envelope: null, categoriesRestricted: false, eligibleCategoryCodes: [], retiredOn: null, ...extra });
@@ -93,5 +93,14 @@ describe("splitFaults (FS-7)", () => {
   });
   it("locked refuses whatever the rows", () => {
     expect(splitFaults({ ...base, locked: true, rows: rows(["a", "100"]) })).toEqual(["LOCKED"]);
+  });
+});
+
+describe("sameShares", () => {
+  it("is the same sources at the same shares, in any order", () => {
+    const a = [{ sourceId: "s", bp: 6000 }, { sourceId: "i", bp: 4000 }];
+    expect(sameShares(a, [{ sourceId: "i", bp: 4000 }, { sourceId: "s", bp: 6000 }])).toBe(true);
+    expect(sameShares(a, [{ sourceId: "s", bp: 5000 }, { sourceId: "i", bp: 5000 }])).toBe(false);
+    expect(sameShares(a, [{ sourceId: "s", bp: 10000 }])).toBe(false);
   });
 });

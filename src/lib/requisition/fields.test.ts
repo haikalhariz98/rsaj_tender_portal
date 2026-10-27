@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { CodeFormat, OrgUnit } from "@/lib/organisation/types";
 
-import { blocking, erpRefFaults, requisitionFaults, type Lookups, type RequisitionDraft } from "./fields";
+import { blocking, erpRefFaults, fundingSourceFaults, requisitionFaults, type Lookups, type RequisitionDraft } from "./fields";
+import { fieldFaultText } from "./labels";
 
 const from = new Date("2024-01-01T00:00:00Z");
 const on = new Date("2026-09-30T00:00:00Z");
@@ -117,10 +118,11 @@ describe("the funding source (SF-02, ADR 0046 FS-4)", () => {
   const SOURCES: Lookups = {
     ...LOOKUPS,
     fundingSources: [
-      { id: "sukuk", categoriesRestricted: true, eligibleCategoryCodes: ["WATER"], retiredOn: null },
-      { id: "internal", categoriesRestricted: false, eligibleCategoryCodes: [], retiredOn: null },
-      { id: "grant", categoriesRestricted: null, eligibleCategoryCodes: [], retiredOn: null },
-      { id: "old", categoriesRestricted: false, eligibleCategoryCodes: [], retiredOn: on },
+      { id: "sukuk", nameEn: "Sukuk", categoriesRestricted: true, eligibleCategoryCodes: ["WATER"], retiredOn: null },
+      { id: "internal", nameEn: "Internal", categoriesRestricted: false, eligibleCategoryCodes: [], retiredOn: null },
+      { id: "grant", nameEn: "Grant", categoriesRestricted: null, eligibleCategoryCodes: [], retiredOn: null },
+      { id: "old", nameEn: "Old", categoriesRestricted: false, eligibleCategoryCodes: [], retiredOn: on },
+      { id: "oldSukuk", nameEn: "Old sukuk", categoriesRestricted: true, eligibleCategoryCodes: ["WATER"], retiredOn: on },
     ],
     projectCategories: [{ code: "WATER", retiredOn: null }, { code: "OFFICE", retiredOn: null }, { code: "GONE", retiredOn: on }],
   };
@@ -142,6 +144,17 @@ describe("the funding source (SF-02, ADR 0046 FS-4)", () => {
     const faults = requisitionFaults(draft({ fundingSourceId: "grant", projectCategoryCode: "OFFICE" }), SOURCES, FORMATS, on);
     expect(faults.map((f) => f.code)).toEqual(["ELIGIBILITY_NOT_SET"]);
     expect(blocking(faults)).toEqual([]);
+    // Review finding 3: the words name the source.
+    expect(fieldFaultText(faults[0])).toBe("Eligibility not set for Grant, so the project category is not checked.");
+  });
+
+  it("a source the act keeps is not refused for being retired since, and its eligibility is still judged (amendment 14)", () => {
+    const kept = (over: Partial<RequisitionDraft>) => fundingSourceFaults(draft(over), SOURCES, on, true, { sourceKept: true }).map((f) => `${f.field}:${f.code}`);
+    expect(kept({ fundingSourceId: "old", projectCategoryCode: "OFFICE" })).toEqual([]);
+    expect(kept({ fundingSourceId: "oldSukuk", projectCategoryCode: "WATER" })).toEqual([]);
+    expect(kept({ fundingSourceId: "oldSukuk", projectCategoryCode: "OFFICE" })).toEqual(["fundingSourceId:NOT_ELIGIBLE"]);
+    expect(kept({ fundingSourceId: "nope" })).toEqual(["fundingSourceId:NOT_IN_FORCE"]);
+    expect(fundingSourceFaults(draft({ fundingSourceId: "old" }), SOURCES, on, true).map((f) => f.code)).toEqual(["NOT_IN_FORCE"]);
   });
 
   it("a retired or unknown source or category is not in force", () => {

@@ -109,7 +109,7 @@ function SourceDetail({ s }: { s: NonNullable<ProceedsFigures["selected"]> }) {
         <CardBody className="flex flex-col gap-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2 text-[13px] text-ink-2">
             <span>Committed of the envelope</span>
-            <span className="tabular-nums">{`${formatMoney(s.committed)} of ${formatMoney(s.envelope)}`}</span>
+            <span className="tabular-nums">{s.refused.length > 0 ? "Cannot be read" : `${formatMoney(s.committed)} of ${formatMoney(s.envelope)}`}</span>
           </div>
           <Meter percent={percent} tone={percent != null && percent > 100 ? "err" : "brand"} label="Committed of the envelope" />
           {s.unallocated != null && s.unallocated < 0n && s.refused.length === 0 && <Callout tone="warn" title={`Committed exceeds the envelope by ${formatMoney(-s.unallocated)}`} />}

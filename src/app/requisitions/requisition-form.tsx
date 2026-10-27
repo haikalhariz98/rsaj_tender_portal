@@ -11,6 +11,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
+import { eligibilityNotSetText } from "@/lib/funding/labels";
 import { lineAmount } from "@/lib/requisition/lines";
 import type { ImportedLine } from "@/lib/requisition/line-import";
 import { officerDefaults, prefillFromOfficer, type PrefillField, type PrefillResult, type UnitRow } from "@/lib/requisition/officer-defaults";
@@ -131,6 +132,7 @@ export function RequisitionForm({
   const [costCentre, setCostCentre] = useState(start?.result.values.costCentre ?? values.costCentreCode ?? "");
   const [account, setAccount] = useState(values.accountCode ?? "");
   const [fundingSource, setFundingSource] = useState(values.fundingSourceId ?? "");
+  const pickedSource = options.fundingSources.find((s) => s.id === fundingSource);
   // What choosing the officer filled in, per field: a value still equal to it was never the user's own, so
   // a later officer may replace it. A field the user then chooses leaves this record.
   const [filled, setFilled] = useState<{ unit?: string; section?: string; costCentre?: string }>(start?.result.filledBy ?? {});
@@ -300,12 +302,14 @@ export function RequisitionForm({
             },
           })}
           {select("fundingRouteCode", "Funding route", options.fundingRoutes.map((r) => ({ value: r.code, label: r.name })), { required: true })}
-          {select("fundingSourceId", "Funding source", options.fundingSources.map((s) => ({ value: s.id, label: s.name })), {
-            placeholder: "None",
-            value: fundingSource,
-            onChange: setFundingSource,
-            hint: options.fundingSources.find((s) => s.id === fundingSource)?.unset ? "Eligibility not set for this source." : undefined,
-          })}
+          {/* Additive (ADR 0046): an organisation that keeps no funding source sees no such field. */}
+          {(options.fundingSources.length > 0 || !!values.fundingSourceId) &&
+            select("fundingSourceId", "Funding source", options.fundingSources.map((s) => ({ value: s.id, label: s.name })), {
+              placeholder: "None",
+              value: fundingSource,
+              onChange: setFundingSource,
+              hint: pickedSource?.unset ? eligibilityNotSetText(pickedSource.name) : undefined,
+            })}
           {options.projectCategories.length > 0 && select("projectCategoryCode", "Project category", options.projectCategories.map((c) => ({ value: c.code, label: c.name })), { placeholder: "None" })}
           {select("accountCode", "Account code", coded(options.accounts), { required: true, searchable: true, onChange: setAccount })}
           {/* Founder, 2026-10-05: required. Only the budget codes on the chosen account are offered, so the pair always agrees. */}

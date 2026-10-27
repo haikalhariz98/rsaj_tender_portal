@@ -11,7 +11,7 @@ import { contractLabel, withLockedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf, dayToDate } from "@/lib/dates";
 import { SPLIT_FAULT_TEXT } from "@/lib/funding/labels";
-import { bpToPercent, percentToBp, splitFaults } from "@/lib/funding/split";
+import { bpToPercent, percentToBp, sameShares, splitFaults } from "@/lib/funding/split";
 import { contractFunding, fundingText, sourcesOf, splitLockedOn } from "@/lib/funding/store";
 import { FormReader } from "@/lib/validate";
 
@@ -52,8 +52,11 @@ export async function recordFundingSplit(_prev: FormState, data: FormData): Prom
     const locked = await splitLockedOn(tx, l.org.id, contractId);
     const faults = splitFaults({ rows, sources, categoryCode: requisition?.projectCategoryCode ?? null, locked, on: dayToDate(today) });
     if (faults.length > 0) return { ok: false, message: faults.map((f) => SPLIT_FAULT_TEXT[f]).join(" ") };
+    const current = await contractFunding(tx, l.org.id, contractId);
+    // A recorded split saved again unchanged is no change. The requisition's source recorded as 100% is one: it fixes the source on the contract (FS-5).
+    if (current.state === "SPLIT" && sameShares(current.shares, rows.map((x) => ({ sourceId: x.sourceId, bp: percentToBp(x.pct)! })))) return { ok: false, message: "Nothing differs from the split as it stands." };
     const names = new Map(sources.map((s) => [s.id, s.label]));
-    const before = fundingText(await contractFunding(tx, l.org.id, contractId), names);
+    const before = fundingText(current, names);
     const now = new Date();
     await tx.fundingAllocation.deleteMany({ where: { organisationId: l.org.id, contractId } });
     await tx.fundingAllocation.createMany({ data: rows.map((x) => ({ organisationId: l.org.id, contractId, fundingSourceId: x.sourceId, sharePct: bpToPercent(percentToBp(x.pct)!), recordedAt: now })) });
@@ -93,9 +96,11 @@ export async function recordImpact(_prev: FormState, data: FormData): Promise<Fo
         errors[`value_${m.id}`] = "A figure of zero or more, to at most 4 decimals.";
         continue;
       }
-      const was = stored.find((s) => s.measureId === m.id)?.value.toString() ?? null;
+      const kept = stored.find((s) => s.measureId === m.id)?.value ?? null;
+      const was = kept?.toString() ?? null;
       const now = text || null;
-      if ((was == null && now == null) || (was != null && now != null && Number(was) === Number(now))) continue;
+      // Compared as decimals ("4.50" is 4.5), never through a float.
+      if (now == null ? was == null : kept != null && kept.equals(now)) continue;
       before[m.nameEn] = was == null ? null : `${was} ${m.unit}`;
       after[m.nameEn] = now == null ? null : `${now} ${m.unit}`;
       writes.push({ measureId: m.id, value: now });

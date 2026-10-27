@@ -606,7 +606,7 @@ export async function changeFundingSource(_prev: FormState, data: FormData): Pro
     if (live > 0 && (sourceMoves || (categoryMoves && before.projectCategoryCode != null))) return { ok: false, message: "A contract exists. Change the funding on the project." };
     if (!l.org.today) return NO_ZONE;
     const { lookups } = await loadLookups(l.org.id, tx);
-    const faults = blocking(fundingSourceFaults(next, lookups, dayToDate(l.org.today), true));
+    const faults = blocking(fundingSourceFaults(next, lookups, dayToDate(l.org.today), true, { sourceKept: !sourceMoves }));
     if (faults.length > 0) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, fieldFaultText(f)])) };
     await tx.requisition.update({ where: { id, organisationId: actor.organisationId }, data: next });
     await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields(before, next), reason);

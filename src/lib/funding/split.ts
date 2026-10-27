@@ -50,6 +50,12 @@ export function splitSen(amount: Sen, shares: readonly Share[], order: readonly 
   return new Map(parts.map((p) => [p.sourceId, negative ? -p.sen : p.sen]));
 }
 
+/// The same split: the same sources at the same shares, in any order.
+export function sameShares(a: readonly Share[], b: readonly Share[]): boolean {
+  const key = (xs: readonly Share[]) => xs.map((x) => `${x.sourceId}:${x.bp}`).sort().join("|");
+  return key(a) === key(b);
+}
+
 export type SplitFault = "EMPTY" | "TOO_MANY" | "BAD_PERCENT" | "DUPLICATE_SOURCE" | "NOT_100" | "NOT_IN_FORCE" | "NOT_ELIGIBLE" | "CATEGORY_MISSING" | "LOCKED";
 
 /// FS-7: one to five sources, each a percentage greater than 0 with at most 2 decimals, summing to exactly 100, none repeated, each in force and eligible for the category, and not locked.

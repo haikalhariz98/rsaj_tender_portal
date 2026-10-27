@@ -13,6 +13,8 @@ import { Select } from "@/components/ui/select";
 import { KeyValues } from "@/components/ui/stat";
 import { actStatusBlocker } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
+import { eligibilityNotSetText } from "@/lib/funding/labels";
+import { bpToPercent, MAX_SPLIT_SOURCES, percentToBp } from "@/lib/funding/split";
 import type { FundingCardView } from "@/lib/funding/store";
 
 import { recordFundingSplit } from "./funding-actions";
@@ -21,9 +23,6 @@ import { recordFundingSplit } from "./funding-actions";
  * The project overview's Funding card (ADR 0046, plan §4.5): each source with its share, "From the requisition" while no split is recorded, and the split's
  * drawer until money is certified (FS-7). The rules are the act's; the running total only helps.
  */
-
-/// A technical ceiling for the drawer (MAX_SPLIT_SOURCES), not policy.
-const MAX_ROWS = 5;
 
 export function FundingCard({ contractId, status, view }: { contractId: string; status: ContractStatus; view: FundingCardView }) {
   // The Project workspace's row of the act x status table, in its own words, for the drawer beneath.
@@ -49,6 +48,7 @@ export function FundingCard({ contractId, status, view }: { contractId: string; 
                 <span className="flex items-center gap-2">
                   <span className="tabular-nums">{x.percent}%</span>
                   {view.state === "FROM_REQUISITION" && <Chip tone="neutral">From the requisition</Chip>}
+                  {x.eligibilityUnset && <Chip tone="warn" title={eligibilityNotSetText(x.label)}>Eligibility not set</Chip>}
                 </span>
               ),
             }))}
@@ -79,18 +79,12 @@ function SplitDrawer({ contractId, view }: { contractId: string; view: FundingCa
   );
 }
 
-/// Sen-free: shares are read as hundredths of a percent, never through a float.
-const hundredths = (pct: string): number | null => {
-  const m = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(pct.trim());
-  return m ? Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0")) : null;
-};
-
 function SplitRows({ initial, sources }: { initial: Row[]; sources: { value: string; label: string }[] }) {
   // Under the card's gate: a shut workspace leaves the rows as they are.
   const shut = useActGate() != null;
   const [rows, setRows] = useState<Row[]>(initial);
   const set = (i: number, change: Partial<Row>) => setRows((xs) => xs.map((x, n) => (n === i ? { ...x, ...change } : x)));
-  const parts = rows.map((x) => hundredths(x.pct));
+  const parts = rows.map((x) => percentToBp(x.pct));
   const total = parts.every((p) => p != null) ? parts.reduce((a: number, p) => a + p!, 0) : null;
   return (
     <div className="flex flex-col gap-3">
@@ -115,11 +109,11 @@ function SplitRows({ initial, sources }: { initial: Row[]; sources: { value: str
         </div>
       ))}
       <div className="flex items-center justify-between gap-3">
-        <Button variant="ghost" size="sm" icon={<PlusIcon size={15} />} disabled={shut || rows.length >= MAX_ROWS} onClick={() => setRows((xs) => [...xs, { sourceId: "", pct: "" }])}>
+        <Button variant="ghost" size="sm" icon={<PlusIcon size={15} />} disabled={shut || rows.length >= MAX_SPLIT_SOURCES} onClick={() => setRows((xs) => [...xs, { sourceId: "", pct: "" }])}>
           Add source
         </Button>
         <span className={`text-[13px] tabular-nums ${total === 10000 ? "text-ink-2" : "text-amber-700"}`} aria-live="polite">
-          Total {total == null ? "—" : `${(total / 100).toFixed(2).replace(/\.?0+$/, "")}%`}
+          Total {total == null ? "—" : `${bpToPercent(total)}%`}
         </span>
       </div>
     </div>

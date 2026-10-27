@@ -232,9 +232,10 @@ const VIEW_STATUSES: Record<RequisitionView, readonly RequisitionStatus[]> = { p
 
 /// I-6: the dashboard's facets, from its own where-builders. A day range is "raised in the range"; stage "approved" narrows it to those whose route was approved.
 function facetsWhere(organisationId: string, q: Pick<ListQuery<RequisitionView>, "unit" | "route" | "method" | "source" | "stage" | "from" | "to">): Prisma.RequisitionWhereInput {
+  // ANDed, never spread: the awaiting stage's own status and exercises would otherwise replace the base's.
   const awaiting = q.stage === "awaiting" ? requisitionAwaitingAward : {};
-  if (q.from && q.to) return { ...(q.stage === "approved" ? insightsWhere.requisitionsApproved : insightsWhere.requisitionsRaised)(organisationId, q, { from: q.from, to: q.to }), ...awaiting };
-  return { ...facetWhere.requisition(q), ...(q.stage === "approved" ? requisitionApprovedAny : {}), ...awaiting };
+  if (q.from && q.to) return { AND: [(q.stage === "approved" ? insightsWhere.requisitionsApproved : insightsWhere.requisitionsRaised)(organisationId, q, { from: q.from, to: q.to }), awaiting] };
+  return { AND: [facetWhere.requisition(q), q.stage === "approved" ? requisitionApprovedAny : {}, awaiting] };
 }
 
 /// The list's where for a query: the organisation, the search words, the view's status set and the dashboard's facets, all ANDed.

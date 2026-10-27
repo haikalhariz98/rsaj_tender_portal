@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
-import { fundingFact, fundingTextForContract, fundingTextForRequisition, sourcesOf } from "./store";
+import { fundingCard, fundingFact, fundingTextForContract, fundingTextForRequisition, sourcesOf } from "./store";
 
 /**
  * The headers' funding text (ADR 0046 FS-5, plan step 5): a single source, a split, the requisition's source carried to a contract with no split, and not
@@ -16,7 +16,7 @@ const EST = `estimated${"Value"}` as const;
 let organisationId = "";
 let bareOrganisationId = "";
 let person = "";
-const src = { sukuk: "", internal: "" };
+const src = { sukuk: "", internal: "", grant: "" };
 
 async function chain(fundingSourceId: string | null) {
   const requisition = await db.requisition.create({
@@ -37,6 +37,7 @@ beforeAll(async () => {
   person = (await makePerson(organisationId)).id;
   src.sukuk = (await db.fundingSource.create({ data: { organisationId, code: "SUKUK26T1", nameEn: "Sukuk Tranche 1 2026", envelope: "100000000.00", sortOrder: 1 } })).id;
   src.internal = (await db.fundingSource.create({ data: { organisationId, code: "INTERNAL", nameEn: "Internal", sortOrder: 2, retiredOn: day("2026-01-01") } })).id;
+  src.grant = (await db.fundingSource.create({ data: { organisationId, code: "GRANT", nameEn: "Grant", sortOrder: 3, categoriesRestricted: false } })).id;
 });
 
 describe("the funding text the headers show", () => {
@@ -50,6 +51,20 @@ describe("the funding text the headers show", () => {
     const c = await chain(src.sukuk);
     await db.fundingAllocation.createMany({ data: [{ organisationId, contractId: c.contractId, fundingSourceId: src.sukuk, sharePct: "60", recordedAt: new Date() }, { organisationId, contractId: c.contractId, fundingSourceId: src.internal, sharePct: "40", recordedAt: new Date() }] });
     expect(await fundingTextForContract(db, organisationId, c.contractId)).toBe("Sukuk Tranche 1 2026 60% · Internal 40%");
+  });
+
+  it("equal shares read in the sources' sort order, whatever order they were written in (review)", async () => {
+    const c = await chain(src.sukuk);
+    await db.fundingAllocation.create({ data: { organisationId, contractId: c.contractId, fundingSourceId: src.internal, sharePct: "50", recordedAt: new Date() } });
+    await db.fundingAllocation.create({ data: { organisationId, contractId: c.contractId, fundingSourceId: src.sukuk, sharePct: "50", recordedAt: new Date() } });
+    expect(await fundingTextForContract(db, organisationId, c.contractId)).toBe("Sukuk Tranche 1 2026 50% · Internal 50%");
+  });
+
+  it("the Funding card notes a source whose eligibility is not set (FS-4), and not one set to any category", async () => {
+    const c = await chain(src.sukuk);
+    await db.fundingAllocation.createMany({ data: [{ organisationId, contractId: c.contractId, fundingSourceId: src.sukuk, sharePct: "70", recordedAt: new Date() }, { organisationId, contractId: c.contractId, fundingSourceId: src.grant, sharePct: "30", recordedAt: new Date() }] });
+    const card = await fundingCard(db, organisationId, c.contractId, day("2026-06-01"));
+    expect(card.rows).toEqual([{ label: "Sukuk Tranche 1 2026", percent: "70", eligibilityUnset: true }, { label: "Grant", percent: "30", eligibilityUnset: false }]);
   });
 
   it("not set reads as such, and never a code", async () => {
@@ -67,6 +82,6 @@ describe("the funding text the headers show", () => {
 
   it("sourcesOf keeps retired sources, in sort order, with the envelope in sen", async () => {
     const s = await sourcesOf(db, organisationId);
-    expect(s.map((x) => [x.label, x.envelope, x.retiredOn != null])).toEqual([["Sukuk Tranche 1 2026", 10_000_000_000n, false], ["Internal", null, true]]);
+    expect(s.map((x) => [x.label, x.envelope, x.retiredOn != null])).toEqual([["Sukuk Tranche 1 2026", 10_000_000_000n, false], ["Internal", null, true], ["Grant", null, false]]);
   });
 });

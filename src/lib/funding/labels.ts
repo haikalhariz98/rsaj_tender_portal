@@ -5,6 +5,9 @@ export const ELIGIBILITY_WORDS = { NOT_SET: "Not set", ANY: "Any category", ONLY
 
 export const eligibilityKey = (restricted: boolean | null): keyof typeof ELIGIBILITY_WORDS => (restricted == null ? "NOT_SET" : restricted ? "ONLY" : "ANY");
 
+/// FS-4's warning, naming the source: an unset eligibility is never a silent pass.
+export const eligibilityNotSetText = (source: string) => `Eligibility not set for ${source}, so the project category is not checked.`;
+
 /// FS-7's refusals, in words.
 export const SPLIT_FAULT_TEXT: Record<SplitFault, string> = {
   LOCKED: "Funding is fixed once a payment is certified.",

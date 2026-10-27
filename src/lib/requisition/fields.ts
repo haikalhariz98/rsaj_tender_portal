@@ -63,7 +63,7 @@ export interface Lookups {
   people: readonly { id: string; isActive: boolean }[];
   fundingRoutes: readonly { code: string; retiredOn: Date | null }[];
   contractTypes?: readonly { code: string; retiredOn: Date | null }[];
-  fundingSources?: readonly Pick<SourceRef, "id" | "categoriesRestricted" | "eligibleCategoryCodes" | "retiredOn">[];
+  fundingSources?: readonly (Pick<SourceRef, "id" | "categoriesRestricted" | "eligibleCategoryCodes" | "retiredOn"> & { nameEn: string })[];
   projectCategories?: readonly { code: string; retiredOn: Date | null }[];
 }
 
@@ -86,8 +86,8 @@ export type FieldFault =
   | { field: "fundingSourceId"; code: "NOT_ELIGIBLE" }
   /// The source names its eligible categories, so the requisition must name one.
   | { field: "projectCategoryCode"; code: "CATEGORY_REQUIRED" }
-  /// A warning, never a block: the source's eligibility is not set, so none can be judged.
-  | { field: "fundingSourceId"; code: "ELIGIBILITY_NOT_SET" };
+  /// A warning, never a block: the source's eligibility is not set, so none can be judged. `source`: its name, for the words.
+  | { field: "fundingSourceId"; code: "ELIGIBILITY_NOT_SET"; source: string };
 
 export const WARNING_CODES: ReadonlySet<FieldFault["code"]> = new Set(["NO_FORMAT", "ELIGIBILITY_NOT_SET"]);
 
@@ -208,19 +208,28 @@ export function requisitionFaults(
   return faults;
 }
 
-/// SF-02 (FS-4): the source in force, the category in force, and the source eligible for the category. Judged when a requisition leaves Draft and when its source is changed.
-export function fundingSourceFaults(draft: Pick<RequisitionDraft, "fundingSourceId" | "projectCategoryCode">, lookups: Pick<Lookups, "fundingSources" | "projectCategories">, on: Date, complete: boolean): FieldFault[] {
+/**
+ * SF-02 (FS-4): the source in force, the category in force, and the source eligible for the category. Judged when a requisition leaves Draft and when its source is changed.
+ * `sourceKept`: the act keeps the source it already holds (amendment 14 records only a category), so a source retired since is not refused for that; its eligibility is still judged.
+ */
+export function fundingSourceFaults(
+  draft: Pick<RequisitionDraft, "fundingSourceId" | "projectCategoryCode">,
+  lookups: Pick<Lookups, "fundingSources" | "projectCategories">,
+  on: Date,
+  complete: boolean,
+  opts: { sourceKept?: boolean } = {},
+): FieldFault[] {
   const faults: FieldFault[] = [];
   if (draft.projectCategoryCode && lookups.projectCategories && !lookups.projectCategories.some((c) => c.code === draft.projectCategoryCode && inForce(c, on))) {
     faults.push({ field: "projectCategoryCode", code: "NOT_IN_FORCE" });
   }
   if (!draft.fundingSourceId || !lookups.fundingSources) return faults;
   const source = lookups.fundingSources.find((s) => s.id === draft.fundingSourceId);
-  if (!source || !inForce(source, on)) return [...faults, { field: "fundingSourceId", code: "NOT_IN_FORCE" }];
+  if (!source || (!opts.sourceKept && !inForce(source, on))) return [...faults, { field: "fundingSourceId", code: "NOT_IN_FORCE" }];
   const e = eligibilityOf(source, draft.projectCategoryCode ?? null);
   if (e.state === "NOT_ELIGIBLE") faults.push({ field: "fundingSourceId", code: "NOT_ELIGIBLE" });
   if (e.state === "CATEGORY_MISSING" && complete) faults.push({ field: "projectCategoryCode", code: "CATEGORY_REQUIRED" });
-  if (e.state === "NOT_SET") faults.push({ field: "fundingSourceId", code: "ELIGIBILITY_NOT_SET" });
+  if (e.state === "NOT_SET") faults.push({ field: "fundingSourceId", code: "ELIGIBILITY_NOT_SET", source: source.nameEn });
   return faults;
 }
 
