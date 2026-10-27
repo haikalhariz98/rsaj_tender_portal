@@ -3,7 +3,6 @@ import { InboxIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { MoreText } from "@/components/ui/more-text";
 import { STATE_TONE } from "@/app/projects/[id]/document-words";
 import type { StaffActor } from "@/lib/auth/types";
 import { CASES_LIST_WORDS } from "@/lib/contract/case-page-words";
@@ -43,7 +42,7 @@ export function DocumentsWaitingList({ rows, next, filter, after }: { rows: Docu
         <CardHeader
           icon={<InboxIcon size={17} />}
           title="Waiting on the organisation"
-          subtitle={<MoreText label="About documents waiting" text="Documents the contractor has sent and not yet had an answer, versions waiting for approval, and requests made to the organisation. Open one to answer it. Earlier records are what the contractor sent before documents." />}
+          info={{ label: "About documents waiting", text: "Documents the contractor has sent and not yet had an answer, versions waiting for approval, and requests made to the organisation. Open one to answer it. Earlier records are what the contractor sent before documents." }}
           divided={false}
         />
         <DataList

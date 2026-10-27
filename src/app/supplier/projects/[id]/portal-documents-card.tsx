@@ -3,7 +3,6 @@ import { FilesIcon } from "@/components/icons";
 import { Blocked } from "@/components/ui/blocked";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
-import { MoreText } from "@/components/ui/more-text";
 import { formatDate } from "@/lib/format";
 import type { PortalRow, PortalStart } from "@/lib/project-docs/portal-read";
 
@@ -30,7 +29,7 @@ export function PortalDocumentsCard({ contractId, rows, next, after, start, toke
       <CardHeader
         icon={<FilesIcon size={17} />}
         title="Documents"
-        subtitle={<MoreText label="About documents" text={`Send files, or ask ${start.organisationName} for a document. If one is sent back, the remarks come with it. Notices and claims are sent here too: pick the kind. Send a new version until it is approved or taken up.`} />}
+        info={{ label: "About documents", text: `Send files, or ask ${start.organisationName} for a document. If one is sent back, the remarks come with it. Notices and claims are sent here too: pick the kind. Send a new version until it is approved or taken up.` }}
         divided={false}
         actions={reason ? <Blocked label="New document" reason={reason} noteId={NOTE_ID} /> : <NewDocumentDrawer contractId={contractId} token={token} organisationName={start.organisationName} kinds={start.kinds} />}
       />

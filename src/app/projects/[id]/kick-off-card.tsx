@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Blocked } from "@/components/ui/blocked";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { MoreText } from "@/components/ui/more-text";
 import { KeyValues } from "@/components/ui/stat";
 import type { KickOffCardView } from "@/lib/project-docs/kick-off-read";
 
@@ -57,7 +56,7 @@ export function KickOffCard({ card, contractId, briefingHref }: { card: KickOffC
       <CardHeader
         icon={<CalendarIcon size={17} />}
         title="Kick-off meeting"
-        subtitle={<MoreText label="About the kick-off meeting" text={MORE} />}
+        info={{ label: "About the kick-off meeting", text: MORE }}
         divided={!!meeting || card.briefingMissing}
         actions={
           <>

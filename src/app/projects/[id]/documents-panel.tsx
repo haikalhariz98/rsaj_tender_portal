@@ -1,4 +1,3 @@
-import { MoreText } from "@/components/ui/more-text";
 import { Say } from "@/components/i18n/language-context";
 import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import Link from "next/link";
@@ -31,7 +30,7 @@ export async function DocumentsPanel({ contractId, page, facts }: { contractId: 
   const copiesText = `${facts.notSent} ${facts.notSent === 1 ? "copy" : "copies"} not sent`;
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<FilesIcon size={17} />} title={<Say words={P.certificates} />} subtitle={<MoreText label="What raises a certificate" text="A delegation under Team raises its letters. Payments raises the advance, interim, warning and non-completion certificates. Variations raises a variation's application, instruction and order, and the adjustments of the contract sum." />} divided={false} />
+      <CardHeader icon={<FilesIcon size={17} />} title={<Say words={P.certificates} />} info={{ label: "What raises a certificate", text: "A delegation under Team raises its letters. Payments raises the advance, interim, warning and non-completion certificates. Variations raises a variation's application, instruction and order, and the adjustments of the contract sum." }} divided={false} />
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 pb-4 text-[13.5px] text-ink-2 sm:px-6">
         {facts.firstUnsentCertificateId ? <Link href={`/projects/${contractId}/certificates/${facts.firstUnsentCertificateId}?tab=distribution`} className="font-semibold hover:underline">{copiesText}</Link> : <span>{copiesText}</span>}
         {facts.firstOpenCertificateId ? <Link href={`/projects/${contractId}/certificates/${facts.firstOpenCertificateId}?tab=routing`} className="font-semibold hover:underline">{sheetsText}</Link> : <span>{sheetsText}</span>}

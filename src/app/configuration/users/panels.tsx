@@ -12,7 +12,6 @@ import { CreateAccount, DisableAccount, EnableAccount, IssueCode, UnlockAccount 
 import type { AccountActs, Standing } from "@/lib/auth/account-acts";
 import { MoreActions } from "@/components/ui/more-actions";
 import { Disclosure } from "@/components/ui/disclosure";
-import { MoreText } from "@/components/ui/more-text";
 
 import {
   CalendarIcon,
@@ -502,7 +501,7 @@ function PermissionsPanel({ offices, capabilities, grants, product }: UsersData)
       <CardHeader
         icon={<GridIcon size={17} />}
         title="Permissions"
-        subtitle={<MoreText text="Approval routing is separate from these permissions." label="About permissions" />}
+        info={{ label: "About permissions", text: "Approval routing is separate from these permissions." }}
         actions={
           <div className="w-60">
             <Input
@@ -858,7 +857,7 @@ function ReportingLinesPanel({ people, lines }: UsersData) {
         <CardHeader
           icon={<UserIcon size={17} />}
           title="Reporting lines"
-          subtitle={<MoreText text="Not derived from unit heads." label="About reporting lines" />}
+          info={{ label: "About reporting lines", text: "Not derived from unit heads." }}
           actions={<AddReportingLine people={people} />}
           divided={false}
         />

@@ -19,7 +19,7 @@ export function ContractorAccountsCard({ accounts }: { accounts: ContractorAccou
       <CardHeader
         icon={<UsersIcon size={17} />}
         title="Contractor's portal accounts"
-        subtitle={<MoreText label="About the contractor's accounts" text={namesWithheld ? `${MORE} ${namesWithheld}` : MORE} />}
+        info={{ label: "About the contractor's accounts", text: namesWithheld ? `${MORE} ${namesWithheld}` : MORE }}
         divided={rows.length > 0}
         actions={manageHref ? <ButtonLink href={manageHref} size="sm" variant="secondary">Manage accounts</ButtonLink> : undefined}
       />

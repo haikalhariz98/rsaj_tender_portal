@@ -3,6 +3,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { ChevronDown } from "@/components/icons";
 
 import { cx } from "./cx";
+import { MoreText } from "./more-text";
 import { OpenOnHash } from "./open-on-hash";
 
 /// The one surface everything sits on: white, softly rounded, barely lifted.
@@ -31,6 +32,7 @@ export function CardHeader({
   icon,
   title,
   subtitle,
+  info,
   actions,
   className,
   divided = true,
@@ -43,6 +45,9 @@ export function CardHeader({
   icon?: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
+  /// What the card covers, behind an information button beside the title (as PageHeader's `info`). Not on a collapsible card: a button
+  /// inside its `summary` would fold it.
+  info?: { label: string; text: string };
   actions?: ReactNode;
   className?: string;
   /// A rule under the header. Off when the body flows straight on.
@@ -71,11 +76,21 @@ export function CardHeader({
         </span>
       )}
       <div className="min-w-[9rem] flex-1 basis-40">
-        <h3
-          className="text-[15px] text-balance break-words font-bold tracking-tight text-ink"
-                  >
-          {title}
-        </h3>
+        {info && !collapsible ? (
+          // The button stays beside the title, never wrapped below it (Phase 0.2 item 3).
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h3 className="min-w-0 text-[15px] text-balance break-words font-bold tracking-tight text-ink">{title}</h3>
+            <span className="shrink-0">
+              <MoreText label={info.label} text={info.text} />
+            </span>
+          </div>
+        ) : (
+          <h3
+            className="text-[15px] text-balance break-words font-bold tracking-tight text-ink"
+                    >
+            {title}
+          </h3>
+        )}
         {/* Wraps in full. One line cut sentences mid-way on narrow cards (6.3 UX review),
             and the sibling check at 390 found two lines still cut them there, where no
             hover can show the rest (BD-21). */}

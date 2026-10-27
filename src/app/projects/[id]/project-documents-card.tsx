@@ -39,7 +39,7 @@ export function ProjectDocumentsCard({ contractId, orgName, rows, filter, next, 
       <CardHeader
         icon={<FilesIcon size={17} />}
         title="Documents"
-        subtitle={<MoreText label="About documents" text={`Start a document by uploading files, or ask the contractor for it. A document can have approvers. A rejection goes back with remarks until a new version is approved. Notices and claims the contractor sends are here too: mark each taken up, or return it with remarks. Earlier records are what the contractor sent before documents; they are read only.`} />}
+        info={{ label: "About documents", text: `Start a document by uploading files, or ask the contractor for it. A document can have approvers. A rejection goes back with remarks until a new version is approved. Notices and claims the contractor sends are here too: mark each taken up, or return it with remarks. Earlier records are what the contractor sent before documents; they are read only.` }}
         divided={false}
         actions={blocked ? <Blocked label="New document" reason={start.create.reasons.join(" ")} noteId={NOTE_ID} /> : <NewDocumentDrawer contractId={contractId} picker={start.picker} />}
       />
