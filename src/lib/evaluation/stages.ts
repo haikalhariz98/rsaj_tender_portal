@@ -17,7 +17,7 @@ import { cprBand } from "./cpr";
 import { evaluatedPrice, scoreKey, type BidderFacts, type EvaluationFacts, type ResultFacts } from "./facts";
 import { averageBalance, capitalBand, capitalBase, capitalRatio, minimumCapital } from "./financial";
 import { fixedOf, formatFixed, parseFixed, type Fixed } from "./fixed";
-import { bandSetOf, bandsOf, compositeParts, scoredCriteria, stageFigures, type CriterionSnap, type StageSnap } from "./model";
+import { bandedValue, bandSetOf, bandsOf, compositeParts, scoredCriteria, stageFigures, type CriterionSnap, type StageSnap } from "./model";
 import { composite, markFault, passes, shownFigure, stagePercent, type ScoreFault } from "./score";
 import { personFaults, type PersonFault } from "./team";
 import type { Finding } from "./types";
@@ -85,26 +85,26 @@ export function bandedRead(f: EvaluationFacts, s: StageSnap, c: CriterionSnap, b
       const ratio = capitalRatio(avg, base.base);
       if (ratio == null) return fault("BASE_ZERO");
       const minimum = minimumCapital(base.base, pct);
-      return r({ value: ratio, placement: capitalBand(ratio, pct, bands, { average: avg, minimum }), fault: null, detail: { base: money(base.base), factor: factor.labelEn, factorPct: formatFixed(pct), minimum: money(minimum), average: money(avg), ratio: formatFixed(ratio) } });
+      return r({ value: ratio, placement: capitalBand(bandedValue(set, ratio), pct, bands, { average: avg, minimum }), fault: null, detail: { base: money(base.base), factor: factor.labelEn, factorPct: formatFixed(pct), minimum: money(minimum), average: money(avg), ratio: formatFixed(ratio) } });
     }
     case "VARIANCE_VS_ESTIMATE": {
       if ("sealed" in f.estimate) return fault("ESTIMATE_SEALED");
       if ("notRequired" in f.estimate) return r({ value: null, placement: null, detail: {}, fault: null, notApplicable: "No company estimate" });
       const v = variance(evaluatedPrice(b), f.estimate.value);
       if (v.pct == null) return fault("BASE_ZERO");
-      return r({ value: v.pct, placement: placeInBands(v.pct, bands), fault: null, detail: { reference: money(f.estimate.value), difference: money(v.difference), pct: formatFixed(v.pct) } });
+      return r({ value: v.pct, placement: placeInBands(bandedValue(set, v.pct), bands), fault: null, detail: { reference: money(f.estimate.value), difference: money(v.difference), pct: formatFixed(v.pct) } });
     }
     case "VARIANCE_VS_LOWEST": {
       const lowest = lowestPrice(inRunningAt(f, s).map(evaluatedPrice));
       if (lowest == null) return r({ value: null, placement: null, detail: {}, fault: null, notApplicable: "No price in the running" });
       const v = variance(evaluatedPrice(b), lowest);
       if (v.pct == null) return fault("BASE_ZERO");
-      return r({ value: v.pct, placement: placeInBands(v.pct, bands), fault: null, detail: { reference: money(lowest), difference: money(v.difference), pct: formatFixed(v.pct) } });
+      return r({ value: v.pct, placement: placeInBands(bandedValue(set, v.pct), bands), fault: null, detail: { reference: money(lowest), difference: money(v.difference), pct: formatFixed(v.pct) } });
     }
     case "CPR_PERCENT": {
       if (b.cprPercent == null) return fault("CPR_NOT_ENTERED");
       if (b.cprReports === 0) return fault("CPR_EVIDENCE_REQUIRED");
-      const p = cprBand(b.cprPercent, bands.length ? bands : null);
+      const p = cprBand(bandedValue(set, b.cprPercent), bands.length ? bands : null);
       if ("fault" in p) return fault("BANDS_NOT_SET");
       return r({ value: b.cprPercent, placement: p, fault: null, detail: { cpr: formatFixed(b.cprPercent) } });
     }

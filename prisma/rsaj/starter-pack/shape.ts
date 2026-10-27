@@ -13,6 +13,7 @@ interface Models {
   NotApprovedOutcome: Prisma.NotApprovedOutcomeUncheckedCreateInput;
   RoutingSheetType: Prisma.RoutingSheetTypeUncheckedCreateInput;
   RoutingTarget: Prisma.RoutingTargetUncheckedCreateInput;
+  CertificateKindSetting: Prisma.CertificateKindSettingUncheckedCreateInput;
   FundingRoute: Prisma.FundingRouteUncheckedCreateInput;
   ContractType: Prisma.ContractTypeUncheckedCreateInput;
   ContractBasis: Prisma.ContractBasisUncheckedCreateInput;

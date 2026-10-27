@@ -39,14 +39,16 @@ const TYPE = { requirement: "FR-MTD-011, FR-CON-002", source: "KP002/003/004 5.1
 /// How each type is paid (`paymentRoute`, WV-14, ADR 0045 D5). The route has no provenance tag of its own and leaves the type's source above as it is; its citations are
 /// here and in rsaj-pack.test.ts only:
 /// - Work, certified claim: §6.13.2 (works paid on certified valuations); SK011.
-/// - Service, certified claim: KP003, through the spec §4.5 interim-payment row ("monthly; value of work executed"); the founder's brief of 2026-10-24.
-/// - Supply, delivery order and invoice: KP004, through the spec §4.5 interim-payment row ("Local Order plus bills/invoices plus Delivery Order"); scope register row 26.
-/// - Consultancy: unset. No RSAJ document says how a consultancy contract is paid.
+/// - Service, certified claim, monthly on interim payments: KP003 §5.10.2 (RSAJ answer 35, 2026-10-27).
+/// - Supply, delivery order and invoice: KP004 §5.10.2, a claim with the local order, invoice and delivery order, no interim payment certificate (RSAJ answer 34, 2026-10-27).
+/// - Consultancy, certified claim: SK011 covers it (RSAJ answer 35, 2026-10-27).
+/// Every type's loss and expense claims go to the Tender Board (KP002 §5.12.5, RSAJ answer 4, 2026-10-27), so it is each type's claims committee.
+const CLAIMS = { claimsCommitteeId: ref("Committee", "TBC") };
 export const CONTRACT_TYPES = list("ContractType", "Contract type", [
-  { code: "work", values: { nameEn: "Work", contractSeriesKey: "contract_tender", paymentRoute: "CERTIFIED_CLAIM" }, ...TYPE },
-  { code: "service", values: { nameEn: "Service", contractSeriesKey: "contract_tender", paymentRoute: "CERTIFIED_CLAIM" }, ...TYPE },
-  { code: "supply", values: { nameEn: "Supply", contractSeriesKey: "contract_tender", paymentRoute: "DELIVERY_ORDER_INVOICE" }, ...TYPE },
-  { code: "consultancy", values: { nameEn: "Consultancy services", contractSeriesKey: "contract_consultancy" }, requirement: "FR-MTD-011, FR-CON-002", source: "SK004 §7.2.1; DAL §3.1.4.2 (\"consultancy and advisory\"); RSAJ answer 21 (2026-10-24)" },
+  { code: "work", values: { nameEn: "Work", contractSeriesKey: "contract_tender", paymentRoute: "CERTIFIED_CLAIM", ...CLAIMS }, ...TYPE },
+  { code: "service", values: { nameEn: "Service", contractSeriesKey: "contract_tender", paymentRoute: "CERTIFIED_CLAIM", ...CLAIMS }, ...TYPE },
+  { code: "supply", values: { nameEn: "Supply", contractSeriesKey: "contract_tender", paymentRoute: "DELIVERY_ORDER_INVOICE", ...CLAIMS }, ...TYPE },
+  { code: "consultancy", values: { nameEn: "Consultancy services", contractSeriesKey: "contract_consultancy", paymentRoute: "CERTIFIED_CLAIM", ...CLAIMS }, requirement: "FR-MTD-011, FR-CON-002", source: "SK004 §7.2.1; DAL §3.1.4.2 (\"consultancy and advisory\"); RSAJ answers 21 (2026-10-24) and 29 (2026-10-27)" },
 ]);
 
 const BASIS = { requirement: "FR-MTD-013, FR-DOC-002", source: "SK001 3.1(a),(b), 7.3.1(a),(b); SK004 §3.2" };
@@ -413,7 +415,7 @@ const ALL_PHASES = "Petender yang lulus semua Fasa (answer 11)";
 const QUOTATION_MODEL: PackModelDraft = {
   requirement: "FR-EVL-006, FR-EVL-009, FR-EVL-010, FR-EVL-011, FR-EVL-012",
   source: LPS,
-  notes: "To complete before it is put in force: the side of Phase 5; where the four aspects of FR-EVL-003 are assessed; the marks of each Phase 2 criterion (the form gives a maximum of 90%); and how a figure between two bands is rounded (a CPR of 79.5 falls in none).",
+  notes: "To complete before it is put in force: the side of Phase 5; where the four aspects of FR-EVL-003 are assessed; and the marks of each Phase 2 criterion (full marks 90%).",
   content: {
     code: "quotation_five_phase",
     nameEn: "Quotation evaluation, five phases",
@@ -448,11 +450,13 @@ const QUOTATION_MODEL: PackModelDraft = {
         ],
       },
       {
-        // FR-EVL-012: 80–100, 60–79, 50–59, 40–49, 0–39, as written.
+        // FR-EVL-012: 80–100, 60–79, 50–59, 40–49, 0–39, as written. A percentage is rounded half up to a whole number first, so 79.5 is Best
+        // (RSAJ answer 11, 2026-10-27).
         code: "cpr",
         nameEn: "Contractor Performance Report bands",
+        roundPlaces: 0,
         provenance: OBS,
-        governingSource: LPS,
+        governingSource: `${LPS}; rounded half up to a whole number (RSAJ answer 11, 2026-10-27)`,
         bands: [
           band(1, "Best", "NONE", { lower: "80", upper: "100", upperInclusive: true }),
           band(2, "Good", "NONE", { lower: "60", upper: "79", upperInclusive: true }),
@@ -484,6 +488,7 @@ const QUOTATION_MODEL: PackModelDraft = {
         labelEn: "Phase 2: technical evaluation",
         kind: "SCORED",
         side: "IMPLEMENTING_DEPARTMENT",
+        // Full marks 90% (the evaluation workbook, RSAJ answer 11, 2026-10-27).
         maxMarks: "90",
         mustPass: true,
         governingSource: `${LPS} with CPD (answer 11); a joint side is not modelled; ${ALL_PHASES}`,

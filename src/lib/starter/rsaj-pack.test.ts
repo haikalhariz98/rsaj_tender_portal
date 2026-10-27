@@ -8,7 +8,7 @@ import RSAJ_PACK from "../../../prisma/rsaj/starter-pack";
 import { CONTRACTS } from "../../../prisma/rsaj/starter-pack/contracts";
 import { SUPPLIERS } from "../../../prisma/rsaj/starter-pack/suppliers";
 import { SYSTEM } from "../../../prisma/rsaj/starter-pack/system";
-import { applyChoice, choiceFaults, routeChoices } from "@/lib/authority/choice";
+import { choicesNotMade, routeChoices } from "@/lib/authority/choice";
 import { DAL_FIXTURE } from "@/lib/authority/dal-fixture";
 import { resolveApproval, rulesTiedWith } from "@/lib/authority/resolve";
 import type { Matrix, ResolveQuery, Role } from "@/lib/authority/types";
@@ -33,6 +33,11 @@ import { columnsOf, planPacks } from "./plan";
  */
 /// Deliberate change (RSAJ answer 1): no DAL rule is a reading any more. The three that were are stacked cells, now STATED.
 const SLASHED: string[] = [];
+/// The DAL standing in for SK006 §7.6.2's gap, RM0.01 to RM50,000 (RSAJ answer 16 of 2026-10-27; question 16b): ASSUMED, the gap said.
+const GAP_FILLS = ["PX_TENDER", "PX_QUOTATION"];
+/// SK006 §7.6.1 governs extension of time (RSAJ answer 16, 2026-10-27): the fixture's two DAL rows are re-cited, cover every contract and, as every
+/// mandatory recommendation is, are non-delegable. Their approvers, committee and recommenders stay the fixture's.
+const SK006_RECITED = ["EOT_FIN_NOT_AUTHORITY", "EOT_FIN_AUTHORITY"];
 const ANSWERED = ["DP_ABOVE_5M", "TERMINATION", "ADVANCE_PAYMENT"];
 /// The document parts whose class FR-DOC-003 and SK001 7.3.4 do not state, and the quotation declaration placed last (FR-DOC-008).
 const ASSUMED_PARTS = ["t_invitation", "t_bond_forms", "t_summary_and_rates", "t_registration_background", "t_declaration", "t_instructions", "q_notice", "q_corrigendum", "q_instructions", "q_tenderer_background", "q_declaration"];
@@ -46,7 +51,7 @@ const ASSUMED_COLUMNS = [
 /// The post-award rows: B.6 and B.7 are headed by the contract's value, so these name no method and carry the regime's contract band.
 const Q_VO = ["Q_VO_UP_TO_20", "Q_VO_20_TO_50", "Q_VO_ABOVE_50"];
 const T_VO = ["T_VO_A_I", "T_VO_A_II", "T_VO_B_I", "T_VO_B_II", "T_VO_B_III", "T_VO_C_I", "T_VO_C_II", "T_VO_C_III", "T_VO_C_IV"];
-const REGIME_BANDED = [...Q_VO, ...T_VO, "EOT_FIN_NOT_AUTHORITY", "EOT_FIN_AUTHORITY", "LAD_WAIVER_ABOVE_30", "LAD_WAIVER_UP_TO_30", "TERMINATION", "ADVANCE_PAYMENT", "IPC_UP_TO_100K", "IPC_100K_TO_500K", "IPC_ABOVE_500K"];
+const REGIME_BANDED = [...Q_VO, ...T_VO, "LAD_WAIVER_ABOVE_30", "LAD_WAIVER_UP_TO_30", "TERMINATION", "ADVANCE_PAYMENT", "IPC_UP_TO_100K", "IPC_100K_TO_500K", "IPC_ABOVE_500K"];
 const dal = RSAJ_PACK.drafts!.matrices![0];
 const models = RSAJ_PACK.drafts!.evaluationModels!;
 const fresh = { now: new Date("2026-10-23T02:00:00Z"), rows: { Organisation: { id: "o1", timeZone: null }, SecurityPolicy: null }, listSizes: {}, demoIsLoaded: false };
@@ -71,7 +76,8 @@ describe("the RSAJ pack's entries", () => {
 
   it("is STATED, and the only ASSUMED entries are named one by one", () => {
     expect(RSAJ_PACK.provenance).toBe("STATED");
-    expect(dal.rules.filter((r) => r.provenance === "ASSUMED").map((r) => r.ruleKey)).toEqual(SLASHED);
+    expect(dal.rules.filter((r) => r.provenance === "ASSUMED").map((r) => r.ruleKey)).toEqual([...SLASHED, ...GAP_FILLS]);
+    for (const r of dal.rules.filter((x) => GAP_FILLS.includes(x.ruleKey))) expect([r.isGap, r.gapNote, r.source], r.ruleKey).toEqual([true, expect.stringMatching(/^SK006 §7\.6\.2 has no rule for an extension adding up to RM50,000\. Routed by the DAL/), expect.stringMatching(/the DAL stands in \(RSAJ answer 16 \(2026-10-27\); RSAJ question 16b\)$/)]);
     const assumedRows = RSAJ_PACK.lists.flatMap((l) => l.rows.filter((r) => r.values.provenance === "ASSUMED").map((r) => r.code));
     expect(assumedRows).toEqual(ASSUMED_PARTS);
     for (const r of RSAJ_PACK.lists.flatMap((l) => l.rows)) if (r.values.provenance != null && r.values.provenance !== "ASSUMED") throw new Error(`${r.code}: ${String(r.values.provenance)}`);
@@ -120,6 +126,11 @@ describe("the DAL draft", () => {
     const figuresOf = (r: Parameters<typeof figures>[0]) => (ANSWERED.includes(r.ruleKey) ? { ...figures(r), proposer: null, recommenders: null } : figures(r));
     for (const f of shared) {
       const r = dal.rules.find((x) => x.ruleKey === f.ruleKey)!;
+      if (SK006_RECITED.includes(f.ruleKey)) {
+        expect({ ...figuresOf(r), band: null, nonDelegable: null }, f.ruleKey).toEqual({ ...figuresOf(f), band: null, nonDelegable: null });
+        expect([r.contractValueMin, r.contractValueMax, r.minValue, r.maxValue, r.method, r.nonDelegable, r.clause, r.source], f.ruleKey).toEqual([null, null, null, null, null, true, "SK006 §7.6.1 (as amended 12.01.2026), 7.5.3", "SK006 §7.6.1 (as amended 12.01.2026), 7.5.3; RSAJ answer 16 (2026-10-27)"]);
+        continue;
+      }
       if (!REGIME_BANDED.includes(f.ruleKey) || T_VO.includes(f.ruleKey)) {
         expect(figuresOf(r), f.ruleKey).toEqual(figuresOf(f));
         if (T_VO.includes(f.ruleKey)) expect(r.method, f.ruleKey).toBeNull();
@@ -199,12 +210,14 @@ describe("the DAL draft, put in force, routes a contract's matters whatever its 
     expect(r.warnings.filter((w) => w.level === "err")).toEqual([]);
   });
 
-  // Part 2 loaded B.6 item 7, so a waiver of LAD on a RM200,000 contract now routes. Deliberate change (stage 2, B2): termination there is a route
-  // choice not made, no longer the gap; the gap case moves to a matter the DAL has no row for (loss and expense).
-  it("routes a waiver of LAD on a RM200,000 contract to the CEO; its termination waits for the route choice, and loss and expense finds no rule", () => {
+  // Part 2 loaded B.6 item 7, so a waiver of LAD on a RM200,000 contract now routes. Deliberate change (RSAJ answers 4 and 16, 2026-10-27):
+  // termination there routes by the DAL's B.6 item 8, and loss and expense goes to the Tender Board (KP002 §5.12.5); the gap case moves to a
+  // matter the pack has no row for (a nominated sub-contractor).
+  it("routes a waiver of LAD on a RM200,000 contract to the CEO, its termination by the DAL, its loss and expense to the Tender Board, and a nomination to no rule", () => {
     expect(route({ domain: "lad_waiver", method: "open_selective", pctRatio: pct("10"), contractValue: 200_000 })).toEqual({ rule: "LAD_WAIVER_QUOTATION", approver: "CEO", errors: [] });
-    expect(route({ domain: "termination", method: "open_selective", contractValue: 200_000 })).toEqual({ rule: null, approver: null, errors: ["CHOICE_NOT_MADE"] });
-    expect(route({ domain: "loss_expense", method: "open_selective", value: 10_000, contractValue: 200_000 })).toEqual({ rule: null, approver: null, errors: ["NO_RULE"] });
+    expect(route({ domain: "termination", method: "open_selective", contractValue: 200_000 })).toEqual({ rule: "TERMINATION_QUOTATION", approver: "CEO", errors: [] });
+    for (const contractValue of [200_000, 5_000_000]) expect(route({ domain: "loss_expense", method: "open_selective", value: 10_000, contractValue }), String(contractValue)).toEqual({ rule: "LOSS_EXPENSE", approver: "TBC", errors: [] });
+    expect(route({ domain: "nomination", method: "open_selective", value: 10_000, contractValue: 200_000 })).toEqual({ rule: null, approver: null, errors: ["NO_RULE"] });
   });
 
   it("resolves the Superintending Officer by the contract's value (B.6 item 6, B.7 item 5)", () => {
@@ -217,27 +230,22 @@ describe("the DAL draft, put in force, routes a contract's matters whatever its 
   });
 });
 
-describe("the route choices of decision D2 (RSAJ answer 16): both readings load, none chosen", () => {
+describe("the routes of decision D2, settled (RSAJ answer 16, 2026-10-27): no choice left", () => {
   const offices = RSAJ_PACK.lists.find((l) => l.model === "AuthorityRole")!.rows;
   const roles: Record<string, Role> = Object.fromEntries(offices.map((o) => [o.code, { code: o.code, ...(o.values as Omit<Role, "code">) }]));
-  const matrixOf = (rules = dal.rules): Matrix => ({ policy: dal.policy, roles, rules, coreRouting: dal.coreRouting });
-  const pick = (domain: string, option: string) => matrixOf(applyChoice(dal.rules, domain, option));
-  const chainOf = (m: Matrix, q: ResolveQuery) => {
-    const r = resolveApproval(m, q);
+  const matrix: Matrix = { policy: dal.policy, roles, rules: dal.rules, coreRouting: dal.coreRouting };
+  const chainOf = (q: ResolveQuery) => {
+    const r = resolveApproval(matrix, q);
     return r.rule ? [r.rule.ruleKey, ...r.chain.map((s) => `${s.roleCode} ${s.act}`)] : r.warnings.filter((w) => w.level === "err").map((w) => w.code);
   };
 
-  it("are three, each with two options, none chosen, well formed, STATED and citing its own document", () => {
-    expect(routeChoices(dal.rules)).toEqual([
-      { domain: "termination", options: ["DAL Appendix B", "SK008 §7.5.1"], chosen: null },
-      { domain: "eot", options: ["DAL Appendix B", "SK006 §7.6.1"], chosen: null },
-      { domain: "contract_period_extension", options: ["DAL Appendix B", "SK006 §7.6.2"], chosen: null },
-    ]);
-    expect(choiceFaults(dal.rules)).toEqual([]);
-    const options = dal.rules.filter((r) => r.choiceOptionEn);
-    expect(options.every((r) => r.chosen === null && r.provenance === "STATED")).toBe(true);
-    for (const r of options.filter((x) => x.choiceOptionEn !== "DAL Appendix B")) expect([r.clause, r.source], r.ruleKey).toEqual([expect.stringMatching(/^SK00[68] §/), `${r.clause}; route choice per RSAJ answer 16 (2026-10-24)`]);
-    for (const r of options.filter((x) => x.choiceOptionEn === "DAL Appendix B")) expect(r.source, r.ruleKey).toMatch(/^DAL Issue A/);
+  it("carry no route choice, so the matrix shows no choice to make; the SK rows cite their own document", () => {
+    expect(dal.rules.filter((r) => r.choiceOptionEn != null || r.chosen != null).map((r) => r.ruleKey)).toEqual([]);
+    expect(routeChoices(dal.rules)).toEqual([]);
+    expect(choicesNotMade(dal.rules)).toEqual([]);
+    for (const k of ["TERMINATION_SO_QUOTATION", "TERMINATION_SO_300K_TO_1M", "EOT_NOFIN_300K_TO_1M", "EOT_NOFIN_Q", "EOT_Q_FIN_AUTHORITY", "EOT_Q_FIN_NOT_AUTHORITY"]) expect(dal.rules.map((r) => r.ruleKey), k).not.toContain(k);
+    for (const r of dal.rules.filter((x) => /^SK00/.test(x.clause))) expect(r.source, r.ruleKey).toBe(`${r.clause}; RSAJ answer 16 (2026-10-27)`);
+    expect(dal.rules.find((r) => r.ruleKey === "LOSS_EXPENSE")).toMatchObject({ clause: "KP002 §5.12.5", source: "KP002 §5.12.5; RSAJ answer 4 (2026-10-27)", approverCode: "TBC", committeeCode: "TBC", committeeAct: "A" });
     // Every row with a mandatory recommendation is fixed.
     for (const r of dal.rules.filter((x) => x.recommenders.some((s) => s.act === "MR") && x.ruleKey !== "DP_ABOVE_5M" && !DAL_FIXTURE.rules.some((f) => f.ruleKey === x.ruleKey))) expect(r.nonDelegable, r.ruleKey).toBe(true);
   });
@@ -246,52 +254,41 @@ describe("the route choices of decision D2 (RSAJ answer 16): both readings load,
     for (const r of dal.rules) expect(rulesTiedWith(r, dal.rules).map((x) => x.ruleKey), r.ruleKey).toEqual([]);
   });
 
-  it("termination: not chosen, refused; the DAL's B.6 item 8 or B.7 item 13; SK008's S.O./P.D. by the contract's value", () => {
+  it("termination: the DAL's B.6 item 8 or B.7 item 13, by the contract's value", () => {
     const q = (contractValue: number): ResolveQuery => ({ domain: "termination", method: "open_selective", contractValue });
-    expect(chainOf(matrixOf(), q(200_000))).toEqual(["CHOICE_NOT_MADE"]);
-    expect(resolveApproval(matrixOf(), q(200_000)).warnings[0].messageEn).toBe("No route is chosen yet for “Termination / Arbitration”: “DAL Appendix B” or “SK008 §7.5.1”. Choose one on the approval matrix.");
-    const dalM = pick("termination", "DAL Appendix B");
-    expect(chainOf(dalM, q(200_000))).toEqual(["TERMINATION_QUOTATION", "HOD P", "CP JR", "HODIV R", "FD MR", "CEO A"]);
-    expect(chainOf(dalM, q(300_000.01))).toEqual(["TERMINATION", "HOD P", "CP JR", "HODIV R", "CEO A"]);
-    const sk = pick("termination", "SK008 §7.5.1");
-    expect([200_000, 300_000, 300_000.01, 1_000_000.01, 3_000_000.01].map((v) => chainOf(sk, q(v)))).toEqual([
-      ["TERMINATION_SO_QUOTATION", "HODIV A"],
-      ["TERMINATION_SO_QUOTATION", "HODIV A"],
-      ["TERMINATION_SO_300K_TO_1M", "HODIV A"],
-      ["TERMINATION_SO_1M_TO_3M", "FD A"],
-      ["TERMINATION_SO_ABOVE_3M", "CEO A"],
-    ]);
+    expect(chainOf(q(200_000))).toEqual(["TERMINATION_QUOTATION", "HOD P", "CP JR", "HODIV R", "FD MR", "CEO A"]);
+    expect(chainOf(q(300_000.01))).toEqual(["TERMINATION", "HOD P", "CP JR", "HODIV R", "CEO A"]);
   });
 
-  it("extension of time with no financial impact: the DAL's S.O./P.D. after the committee, or SK006's committee approving", () => {
-    const q = (contractValue: number): ResolveQuery => ({ domain: "eot", cond: "no_financial_impact", method: "open_selective", contractValue });
-    expect(chainOf(matrixOf(), q(2_000_000))).toEqual(["CHOICE_NOT_MADE"]);
-    const dalM = pick("eot", "DAL Appendix B");
-    expect(chainOf(dalM, q(2_000_000))).toEqual(["EOT_NOFIN_1M_TO_3M", "VOC MR", "FD A"]);
-    expect(chainOf(dalM, q(200_000))).toEqual(["EOT_NOFIN_Q", "CP JR", "HOD R", "HODIV A"]);
-    const sk = pick("eot", "SK006 §7.6.1");
-    for (const v of [200_000, 2_000_000]) expect(chainOf(sk, q(v)), String(v)).toEqual(["EOT_NOFIN_SK006", "VOC A"]);
-    // The choice is the no-financial-impact matter's only: an EOT with a financial impact routes as before, chosen or not.
-    expect(chainOf(matrixOf(), { ...q(2_000_000), cond: "financial_not_authority" })).toEqual(["EOT_FIN_NOT_AUTHORITY", "VOC MR", "TBC A"]);
+  it("extension of time: SK006 §7.6.1's three routes on every contract, quotation or tender", () => {
+    const q = (cond: string, contractValue: number): ResolveQuery => ({ domain: "eot", cond, method: "open_selective", contractValue });
+    for (const v of [200_000, 2_000_000]) {
+      expect(chainOf(q("no_financial_impact", v)), String(v)).toEqual(["EOT_NOFIN_SK006", "VOC A"]);
+      expect(chainOf(q("financial_authority", v)), String(v)).toEqual(["EOT_FIN_AUTHORITY", "VOC MR", "CEO A"]);
+      expect(chainOf(q("financial_not_authority", v)), String(v)).toEqual(["EOT_FIN_NOT_AUTHORITY", "VOC MR", "TBC A"]);
+    }
   });
 
-  it("extension of the contract period: the DAL by the contract's value, or SK006 by the extension's own (RM0, more than RM50,000, and no row between)", () => {
-    const ctx = (dal: Matrix) => ({ dal, override: null, supersedes: false });
-    const send = (m: Matrix, value: string | null, contractValue = "2000000.00") => {
-      const r = resolveMatterRoute(ctx(m), { kind: "PERIOD_EXTENSION", value: value == null ? null : parseSen(value), ratio: null, contractValue: parseSen(contractValue), method: "open_selective", contractTypeCode: null }, "draft", () => false);
-      return r.ok ? [r.resolution.rule!.ruleKey, ...r.resolution.chain.map((s) => `${s.roleCode} ${s.act}`)] : r.faults.map((f) => `${f.code}${/No route is chosen/.test(String(f.data?.why)) ? " (choice not made)" : ""}`);
+  it("extension of the contract period: SK006 at RM0 and above RM50,000, the DAL in SK006's gap, each value in exactly one band", () => {
+    const ctx = { dal: matrix, override: null, supersedes: false };
+    const send = (value: string | null, contractValue = "2000000.00") => {
+      const r = resolveMatterRoute(ctx, { kind: "PERIOD_EXTENSION", value: value == null ? null : parseSen(value), ratio: null, contractValue: parseSen(contractValue), method: "open_selective", contractTypeCode: null }, "draft", () => false);
+      return r.ok ? [r.resolution.rule!.ruleKey, ...r.resolution.chain.map((s) => `${s.roleCode} ${s.act}`)] : r.faults.map((f) => f.code);
     };
-    expect(send(matrixOf(), null)).toEqual(["NO_RULE (choice not made)"]);
-    const dalM = pick("contract_period_extension", "DAL Appendix B");
-    expect(send(dalM, null)).toEqual(["PX_TENDER", "CP JR", "HOD R", "TBC A"]);
-    expect(send(dalM, "80000.00", "200000.00")).toEqual(["PX_QUOTATION", "QC MR", "FD A"]);
-    const sk = pick("contract_period_extension", "SK006 §7.6.2");
-    // Raised with no value: routed as RM0, so SK006's "RM0" row finds it (the stage 1 note).
-    expect(send(sk, null)).toEqual(["PX_SK006_NO_VALUE", "VOC A"]);
-    expect(send(sk, "0.00")).toEqual(["PX_SK006_NO_VALUE", "VOC A"]);
-    expect(send(sk, "0.01")).toEqual(["NO_RULE"]);
-    expect(send(sk, "50000.00")).toEqual(["NO_RULE"]);
-    expect(send(sk, "50000.01")).toEqual(["PX_SK006_ABOVE_50K", "VOC MR", "TBC A"]);
+    // Raised with no value: routed as RM0, so SK006's "RM0" row finds it.
+    expect(send(null)).toEqual(["PX_SK006_NO_VALUE", "VOC A"]);
+    expect(send("0.00")).toEqual(["PX_SK006_NO_VALUE", "VOC A"]);
+    expect(send("0.01")).toEqual(["PX_TENDER", "CP JR", "HOD R", "TBC A"]);
+    expect(send("50000.00")).toEqual(["PX_TENDER", "CP JR", "HOD R", "TBC A"]);
+    expect(send("0.01", "200000.00")).toEqual(["PX_QUOTATION", "QC MR", "FD A"]);
+    expect(send("50000.00", "200000.00")).toEqual(["PX_QUOTATION", "QC MR", "FD A"]);
+    for (const cv of ["200000.00", "2000000.00"]) expect(send("50000.01", cv), cv).toEqual(["PX_SK006_ABOVE_50K", "VOC MR", "TBC A"]);
+    // The gap rows say so on every route they give.
+    const gap = resolveApproval(matrix, { domain: "contract_period_extension", value: 20_000, contractValue: 2_000_000 });
+    expect(gap.warnings.map((w) => [w.code, w.messageEn])).toEqual(expect.arrayContaining([["GAP_RULE", "Route assumed: no rule covers this matter."], ["RULE_NOTE", "SK006 §7.6.2 has no rule for an extension adding up to RM50,000. Routed by the DAL until RSAJ says who approves."]]));
+    expect(resolveApproval(matrix, { domain: "contract_period_extension", value: 60_000, contractValue: 2_000_000 }).warnings.map((w) => w.code)).not.toContain("GAP_RULE");
+    // A contract of RM15,000 or less has no DAL row for the gap: still no rule, as before.
+    expect(send("20000.00", "10000.00")).toEqual(["NO_RULE"]);
   });
 });
 
@@ -367,16 +364,32 @@ describe("part 2: contracts, suppliers and system (plan step 4.6)", () => {
     // SP-9 and SP-16 in part (ST-13 amends it for the one reminder rule, below); the contract document parts and the letter variants are open questions for RSAJ (contracts.ts).
     const models = [...RSAJ_PACK.groups, ...RSAJ_PACK.lists].map((x) => x.model);
     for (const m of ["DeclarationText", "ContractDocumentPart", "AppointmentLetterVariant", "DocumentTemplate"]) expect(models, m).not.toContain(m);
-    expect(listOf("NotificationRule").every((r) => (r.values.recipientRoleCodes as string[]).length === 0)).toBe(true);
+    // RSAJ answer 33 (2026-10-27): the two award-return events name Contract & Procurement, as SK003 §7.9.3 states; every other rule names none.
+    expect(listOf("NotificationRule").filter((r) => (r.values.recipientRoleCodes as string[]).length > 0).map((r) => [r.values.eventKey, r.values.recipientRoleCodes, r.source])).toEqual([
+      ["award.return.lodged", ["CP"], "SK003 §7.9.3; RSAJ answer 33 (2026-10-27)"],
+      ["award.query.raised", ["CP"], "SK003 §7.9.3; RSAJ answer 33 (2026-10-27)"],
+    ]);
   });
 
   // ST-13 (2026-10-24): one notification rule, the expiry reminders, STATED and naming no office; shown in the portal, sending waits for the mail integration.
   it("loads the document expiry reminders at exactly 90, 60, 30 and 7 days, STATED, naming no office", () => {
-    expect(listOf("NotificationRule")).toEqual([
+    expect(listOf("NotificationRule").filter((r) => r.values.eventKey === SUPPLIER_EXPIRY_EVENT)).toEqual([
       { code: "supplier_document_expiring", values: { eventKey: SUPPLIER_EXPIRY_EVENT, nameEn: "Supplier document expiring", recipientRoleCodes: [], reminderOffsetDays: [90, 60, 30, 7] }, requirement: "FR-VND-008", source: "Specification FR-VND-008" },
     ]);
     const w = planPacks([RSAJ_PACK, GENERIC_PACK], fresh).writes.filter((x) => x.kind === "ROW" && x.model === "NotificationRule");
-    expect(w.map((x) => [x.provenance, (x as { values: Record<string, unknown> }).values.provenance])).toEqual([["STATED", "STATED"]]);
+    expect(w.map((x) => (x.kind === "ROW" ? [x.code, x.provenance, x.values.provenance] : null))).toEqual([
+      ["award.return.lodged", "STATED", "STATED"],
+      ["award.query.raised", "STATED", "STATED"],
+      ["supplier_document_expiring", "STATED", "STATED"],
+    ]);
+  });
+
+  // RSAJ answer 33 (2026-10-27): each award-return rule is its own list, scoped by its event, so it loads beside rules the organisation has.
+  it("loads C&P's award-return rules beside an organisation's other rules, each scoped by its event", () => {
+    const rules = RSAJ_PACK.lists.filter((l) => l.model === "NotificationRule" && l.scope);
+    expect(rules.map((l) => l.scope)).toEqual([{ eventKey: "award.return.lodged" }, { eventKey: "award.query.raised" }]);
+    const p = planPacks([RSAJ_PACK, GENERIC_PACK], { ...fresh, listSizes: { NotificationRule: 3 } });
+    expect(p.writes.filter((x) => x.kind === "ROW" && x.model === "NotificationRule").map((x) => (x.kind === "ROW" ? x.code : null))).toEqual(["award.return.lodged", "award.query.raised"]);
   });
 
   it("loads RSAJ's contract number series beside the generic pack's, each scoped by its key", () => {
@@ -395,12 +408,19 @@ describe("part 2: contracts, suppliers and system (plan step 4.6)", () => {
 
 describe("how each RSAJ contract type is paid (WV-14)", () => {
   // Citations (here and in purchasing.ts only; the route has no provenance tag of its own):
-  // work: §6.13.2 + SK011; service: KP003 via spec §4.5 ("monthly; value of work executed") + the founder's brief of 2026-10-24;
-  // supply: KP004 via spec §4.5 ("Local Order plus bills/invoices plus Delivery Order") + scope register row 26; consultancy: unset.
+  // work: §6.13.2 + SK011; service: KP003 §5.10.2, monthly on interim payments (RSAJ answer 35, 2026-10-27); supply: KP004 §5.10.2, the local
+  // order, invoice and delivery order (RSAJ answer 34, 2026-10-27); consultancy: SK011, certified claims (RSAJ answer 35, 2026-10-27).
   const types = RSAJ_PACK.lists.find((l) => l.model === "ContractType")!.rows;
 
-  it("work and service by certified claim, supply by delivery order and invoice, consultancy unset", () => {
-    expect(Object.fromEntries(types.map((r) => [r.code, r.values.paymentRoute]))).toEqual({ work: "CERTIFIED_CLAIM", service: "CERTIFIED_CLAIM", supply: "DELIVERY_ORDER_INVOICE", consultancy: undefined });
+  it("work, service and consultancy by certified claim, supply by delivery order and invoice", () => {
+    expect(Object.fromEntries(types.map((r) => [r.code, r.values.paymentRoute]))).toEqual({ work: "CERTIFIED_CLAIM", service: "CERTIFIED_CLAIM", supply: "DELIVERY_ORDER_INVOICE", consultancy: "CERTIFIED_CLAIM" });
+  });
+
+  // RSAJ answer 4 (2026-10-27): loss and expense goes to the Tender Board (KP002 §5.12.5), so it is every type's claims committee, and the pack has
+  // no Claims Committee.
+  it("name the Tender Board as every type's claims committee", () => {
+    for (const r of types) expect(r.values.claimsCommitteeId, r.code).toEqual({ ref: "Committee:TBC" });
+    expect(RSAJ_PACK.lists.find((l) => l.model === "Committee")!.rows.map((r) => r.values.nameEn)).not.toContain("Claims Committee");
   });
 
   it("leaves each type's own source and provenance as they were: the route is not cited on the row", () => {
@@ -412,7 +432,7 @@ describe("how each RSAJ contract type is paid (WV-14)", () => {
       ["work", "CERTIFIED_CLAIM", "STATED", TYPE_SOURCE],
       ["service", "CERTIFIED_CLAIM", "STATED", TYPE_SOURCE],
       ["supply", "DELIVERY_ORDER_INVOICE", "STATED", TYPE_SOURCE],
-      ["consultancy", null, "STATED", expect.stringMatching(/^SK004 §7\.2\.1/)],
+      ["consultancy", "CERTIFIED_CLAIM", "STATED", expect.stringMatching(/^SK004 §7\.2\.1/)],
     ]);
   });
 

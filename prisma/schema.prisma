@@ -8131,6 +8131,9 @@ model EvaluationBandSet {
 
   code   String
   nameEn String
+  /// The places a value is rounded half up to before it is banded, 0 to 4 (a CHECK in the migration): at 0, a CPR of 79.5 is 80. Null: banded as
+  /// worked out, to four places, so a value between two bands stays NOT_BANDED (OD-5 A).
+  roundPlaces Int?
 
   provenance      Provenance @default(ASSUMED)
   governingSource String     @default("")

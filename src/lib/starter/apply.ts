@@ -15,6 +15,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import type { AuditActor } from "@/lib/auth/types";
 import type { db as Db } from "@/lib/db";
+import { roundedWords } from "@/lib/evaluation/labels";
 import { ACT_LABEL } from "@/lib/labels";
 
 import { columnsOf, planPacks, type PackWrite, type PlannedPacks } from "./plan";
@@ -202,10 +203,10 @@ async function writeModelDraft(tx: Tx, organisationId: string, d: PackModelDraft
   await audit("EvaluationModel", model.id, label, { nameEn: c.nameEn, version: 1, status: "Draft", stages: c.stages.length, bandSets: c.bandSets.length, notes: d.notes ?? null, ...draftOrigin(c.provenance, c.governingSource) });
   for (const set of c.bandSets) {
     const row = await tx.evaluationBandSet.create({
-      data: { organisationId, modelId: model.id, code: set.code, nameEn: set.nameEn, provenance: set.provenance, governingSource: set.governingSource, bands: { create: set.bands.map((b) => ({ ...own(b), organisationId })) } },
+      data: { organisationId, modelId: model.id, code: set.code, nameEn: set.nameEn, roundPlaces: set.roundPlaces ?? null, provenance: set.provenance, governingSource: set.governingSource, bands: { create: set.bands.map((b) => ({ ...own(b), organisationId })) } },
       select: { id: true },
     });
-    await audit("EvaluationBandSet", row.id, `${label} · ${set.nameEn}`, { nameEn: set.nameEn, bands: set.bands.map((b) => b.labelEn).join(", "), ...draftOrigin(set.provenance, set.governingSource) });
+    await audit("EvaluationBandSet", row.id, `${label} · ${set.nameEn}`, { nameEn: set.nameEn, rounding: set.roundPlaces == null ? null : roundedWords(set.roundPlaces), bands: set.bands.map((b) => b.labelEn).join(", "), ...draftOrigin(set.provenance, set.governingSource) });
   }
   for (const s of c.stages) {
     const { criteria, factors, ...fields } = s;

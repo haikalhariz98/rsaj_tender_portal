@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { draftFindings, loadModel, stageChoices } from "@/lib/evaluation/config-read";
-import { CAPITAL_BASE_LABEL, INPUT_LABEL, MODEL_STATUS_LABEL, MODEL_STATUS_TONE, modelFindingText, OUTCOME_LABEL, ROUTE_LABEL, SCALE_LABEL, SHORTLIST_RULE_LABEL, SIDE_LABEL, STAGE_KIND_LABEL } from "@/lib/evaluation/labels";
+import { CAPITAL_BASE_LABEL, INPUT_LABEL, MODEL_STATUS_LABEL, MODEL_STATUS_TONE, modelFindingText, OUTCOME_LABEL, roundedWords, ROUTE_LABEL, SCALE_LABEL, SHORTLIST_RULE_LABEL, SIDE_LABEL, STAGE_KIND_LABEL } from "@/lib/evaluation/labels";
 import { formatOrgDay } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 
@@ -245,12 +245,12 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
         <Card key={set.id} className="mb-6 overflow-hidden">
           <CardHeader
             title={set.nameEn}
-            subtitle={set.governingSource || undefined}
+            subtitle={[set.roundPlaces != null && `Rounded ${roundedWords(set.roundPlaces).toLowerCase()} before banding`, set.governingSource].filter(Boolean).join(" · ") || undefined}
             actions={
               draft ? (
                 <RowActions>
                   <BandDrawer modelId={m.id} setId={set.id} setLabel={set.nameEn} />
-                  <BandSetDrawer modelId={m.id} set={{ id: set.id, label: set.nameEn, values: { nameEn: set.nameEn, provenance: set.provenance, governingSource: set.governingSource } }} />
+                  <BandSetDrawer modelId={m.id} set={{ id: set.id, label: set.nameEn, values: { nameEn: set.nameEn, roundPlaces: set.roundPlaces == null ? null : String(set.roundPlaces), provenance: set.provenance, governingSource: set.governingSource } }} />
                   <RemoveBandSetDrawer modelId={m.id} setId={set.id} label={set.nameEn} />
                 </RowActions>
               ) : undefined

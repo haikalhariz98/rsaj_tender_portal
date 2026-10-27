@@ -6,12 +6,13 @@ import { inBand, resolveApproval } from "@/lib/authority/resolve";
 import type { Matrix, Role } from "@/lib/authority/types";
 import { placeInBands } from "@/lib/evaluation/bands";
 import { parseFixed } from "@/lib/evaluation/fixed";
-import { bandsOf, modelFaults, type AspectConfig } from "@/lib/evaluation/model";
+import { bandedValue, bandsOf, modelFaults, type AspectConfig } from "@/lib/evaluation/model";
 import { exerciseRoutePreview, resolveNameApproval, type FunderContext } from "@/lib/method/approval";
 import { methodConfigFaults } from "@/lib/method/config";
 import { TENDERING_APPROVAL_DOMAIN, type Method } from "@/lib/method/types";
 import { NEGOTIATION_DOMAIN } from "@/lib/evaluation/types";
 import { parseSen } from "@/lib/money";
+import { formatReference, type Series } from "@/lib/numbering/series";
 import { resolveCertificateRoute } from "@/lib/payment/route";
 import { tableDocumentFaults } from "@/lib/tender-docs/conditions";
 import type { PackPartFacts } from "@/lib/tender-docs/types";
@@ -35,7 +36,8 @@ const method = (code: string) => {
   return { code, ...r.values } as unknown as Method;
 };
 const errors = (w: readonly { level: string; code: string }[]) => w.filter((x) => x.level === "err").map((x) => x.code);
-const NEW_RULES = ["TA_QUOTATION", "TA_TENDER", "NEG_QUOTATION", "NEG_TENDER", "NAME_QUOTATION", "NAME_TENDER", "SIGN_INDENT", "IPC_QUOTATION", "FINAL_QUOTATION", "MGD_QUOTATION", "EOT_Q_FIN_NOT_AUTHORITY", "EOT_Q_FIN_AUTHORITY"];
+/// Deliberate change (RSAJ answer 16, 2026-10-27): the two quotation-contract EOT rows (DAL B.6 item 6) are gone; SK006 §7.6.1 routes every contract's EOT.
+const NEW_RULES = ["TA_QUOTATION", "TA_TENDER", "NEG_QUOTATION", "NEG_TENDER", "NAME_QUOTATION", "NAME_TENDER", "SIGN_INDENT", "IPC_QUOTATION", "FINAL_QUOTATION", "MGD_QUOTATION"];
 const fresh = { now: new Date("2026-10-23T02:00:00Z"), rows: { Organisation: { id: "o1", timeZone: null }, SecurityPolicy: null }, listSizes: {}, demoIsLoaded: false };
 
 describe("A1: the offices", () => {
@@ -93,7 +95,8 @@ describe("A3: the new DAL rows", () => {
       expect([r.resolution.rule?.ruleKey, r.resolution.chain.map((s) => `${s.roleCode} ${s.act}`)], m).toEqual(["IPC_QUOTATION", ["CP JR", "HOD R", "HODIV A"]]);
     }
     const q = (domain: string, contractValue: number, cond?: string) => resolveApproval(matrix, { domain, contractValue, ...(cond ? { cond } : {}) }).rule?.ruleKey ?? null;
-    expect([q("final_payment", 200_000), q("making_good", 200_000), q("eot", 200_000, "financial_not_authority"), q("eot", 200_000, "financial_authority")]).toEqual(["FINAL_QUOTATION", "MGD_QUOTATION", "EOT_Q_FIN_NOT_AUTHORITY", "EOT_Q_FIN_AUTHORITY"]);
+    // An EOT with financial impact on a quotation contract now routes by SK006 §7.6.1, as on a tender contract (RSAJ answer 16, 2026-10-27).
+    expect([q("final_payment", 200_000), q("making_good", 200_000), q("eot", 200_000, "financial_not_authority"), q("eot", 200_000, "financial_authority")]).toEqual(["FINAL_QUOTATION", "MGD_QUOTATION", "EOT_FIN_NOT_AUTHORITY", "EOT_FIN_AUTHORITY"]);
   });
 
   it("route the tender certificates and final payment to whichever office acts as Superintending Officer at the contract's value", () => {
@@ -129,7 +132,7 @@ describe("A3: the new DAL rows", () => {
 describe("A5: the committees' notes", () => {
   const committee = (code: string) => listOf("Committee").find((c) => c.code === code)!.values;
   it("record the Variation Orders Committee's and Tender Opening Committee's composition as STATED, and the Tender Board chair's stand-in, with no member", () => {
-    expect(committee("VOC")).toMatchObject({ compositionProvenance: "STATED", notes: expect.stringMatching(/^Chaired by the COO and CFO; .*\(KP002 flowchart 6\.2\)\. SK006 7\.5\.3 also/) });
+    expect(committee("VOC")).toMatchObject({ compositionProvenance: "STATED", notes: expect.stringMatching(/^Chaired by the COO and CFO; .*\(KP002 flowchart 6\.2\)\. SK006 7\.5\.3 and 7\.6 have it approve extensions of time and of the contract period/) });
     expect(committee("TOC")).toMatchObject({ compositionProvenance: "STATED", panelSize: 2, notes: expect.stringContaining("SK002 7.7.2") });
     expect(committee("TBC")).toMatchObject({ notes: "An absent Chairman may appoint the CEO as chairman (SK003 7.6.3)." });
     expect(RSAJ_PACK.lists.map((l) => l.model)).not.toContain("CommitteeMember");
@@ -158,7 +161,7 @@ describe("A6: the quotation model (RSAJ answer 11)", () => {
     expect(modelFaults({ ...q, version: 1 }, []).filter((f) => f.level === "warn").every((f) => f.code === "BANDS_GAP")).toBe(true);
   });
 
-  it("reads band edges inclusively: a CPR of 80 is Best, a variance of exactly ±15% Competitive, and 79.5 falls in no band (not rounded)", () => {
+  it("reads band edges inclusively: a CPR of 80 is Best, a variance of exactly ±15% Competitive; unrounded, 79.5 falls in no band", () => {
     const set = (code: string) => bandsOf(q.bandSets.find((b) => b.code === code)!);
     const label = (code: string, v: string) => {
       const p = placeInBands(parseFixed(v), set(code));
@@ -168,19 +171,36 @@ describe("A6: the quotation model (RSAJ answer 11)", () => {
     expect([label("variance", "15"), label("variance", "-15"), label("variance", "15.01")]).toEqual(["Competitive", "Competitive", "High"]);
     expect(label("cpr", "79.5")).toBeNull();
   });
+
+  // RSAJ answer 11 (2026-10-27): a CPR is rounded half up to a whole number before it is banded. Only the CPR set rounds.
+  it("rounds a CPR half up before banding it: 79.5 is Best, 79.4 Good, 59.5 Good; the variance and capital sets band as worked out", () => {
+    const cpr = q.bandSets.find((b) => b.code === "cpr")!;
+    const label = (v: string) => {
+      const p = placeInBands(bandedValue(cpr, parseFixed(v)), bandsOf(cpr));
+      return p.placed ? p.band.labelEn : null;
+    };
+    expect(cpr.roundPlaces).toBe(0);
+    expect([label("79.5"), label("79.4"), label("79.4999"), label("59.5"), label("39.5"), label("100")]).toEqual(["Best", "Good", "Good", "Good", "Unsatisfactory", "Best"]);
+    for (const code of ["variance", "capital"]) expect(q.bandSets.find((b) => b.code === code)!.roundPlaces, code).toBeUndefined();
+    expect(bandedValue(q.bandSets.find((b) => b.code === "variance")!, parseFixed("15.4"))).toBe(parseFixed("15.4"));
+  });
 });
 
 describe("A7: the interim payment's two routing sheets", () => {
-  it("are STATED with their targets and the split in their notes, and no kind setting picks one", () => {
+  // Deliberate change (RSAJ answer 12, 2026-10-27): the kind setting now picks sheet (i), through C&P; (ii) is not used unless RSAJ enables it.
+  it("are STATED with their targets and the split in their notes, and the kind setting picks (i), through C&P", () => {
     const sheets = listOf("RoutingSheetType").filter((r) => r.values.certificateKind === "INTERIM_PAYMENT");
     expect(sheets.map((s) => [s.values.labelEn, s.source])).toEqual([
       ["Interim payment, through Contract & Procurement", expect.stringContaining("FR-CRT-008")],
       ["Interim payment, Superintending Officer approval", expect.stringContaining("FR-CRT-008")],
     ]);
-    expect(sheets.map((s) => s.values.notes)).toEqual([expect.stringMatching(/^21 days .*, 21 .*, 10 Finance\. When \(ii\) applies is not stated \(RSAJ question 12\)\.$/), expect.stringMatching(/^21 days .*, 5 .*, 15 Finance;.*When \(ii\) applies is not stated \(RSAJ question 12\)\.$/)]);
+    expect(sheets.map((s) => s.values.notes)).toEqual([expect.stringMatching(/^21 days .*, 21 .*, 10 Finance\. The default\.$/), expect.stringMatching(/^21 days .*, 5 .*, 15 Finance; Contract & Procurement is skipped\. Not used unless RSAJ enables it\.$/)]);
     const targets = listOf("RoutingTarget").filter((t) => sheets.some((s) => (t.values.typeId as { ref: string }).ref === `RoutingSheetType:${s.code}`));
     expect(targets.map((t) => t.values.targetDays)).toEqual([52, 41]);
-    expect(RSAJ_PACK.lists.map((l) => l.model)).not.toContain("CertificateKindSetting");
+    const kinds = RSAJ_PACK.lists.filter((l) => l.model === "CertificateKindSetting");
+    expect(kinds.map((l) => [l.scope, l.rows.map((r) => [r.values.routingTypeId, r.values.templateId, r.source])])).toEqual([[{ kind: "INTERIM_PAYMENT" }, [[{ ref: "RoutingSheetType:interim_payment_cp" }, undefined, expect.stringContaining("RSAJ answer 12 (2026-10-24, 2026-10-27)")]]]]);
+    const w = planPacks([RSAJ_PACK, GENERIC_PACK], fresh).writes.filter((x) => x.kind === "ROW" && x.model === "CertificateKindSetting");
+    expect(w.map((x) => (x.kind === "ROW" ? [x.values.kind, x.values.provenance] : null))).toEqual([["INTERIM_PAYMENT", "STATED"]]);
   });
 });
 
@@ -272,7 +292,11 @@ describe("A11 and A12: methods, contract types and series", () => {
       ["consultancy", "Consultancy services", "contract_consultancy"],
     ]);
     const series = Object.fromEntries(listOf("NumberingSeries").map((s) => [s.code, s.values]));
-    for (const key of ["contract_tender", "contract_consultancy", "exercise_tender", "direct_appointment"]) expect(series[key], key).toMatchObject({ padding: 2, resetOn: "CALENDAR_YEAR" });
+    for (const key of ["contract_tender", "contract_consultancy", "direct_appointment"]) expect(series[key], key).toMatchObject({ padding: 2, resetOn: "CALENDAR_YEAR" });
+    // RSAJ answer 22 (2026-10-27): the tender serial is unpadded and passes 99 (RSAJ/TA/24/2025, TA 109 2024).
+    expect(series.exercise_tender).toMatchObject({ padding: 1, resetOn: "CALENDAR_YEAR" });
+    const tender = { ...(series.exercise_tender as unknown as Series), key: "exercise_tender", financialYearStartMonth: 1, nextSerial: 1, serialPeriod: "2024" };
+    expect([formatReference(tender, new Date("2025-03-01T00:00:00Z"), 24), formatReference(tender, new Date("2024-11-01T00:00:00Z"), 109), formatReference(tender, new Date("2026-01-05T00:00:00Z"), 7)]).toEqual(["RSAJ/TA/24/2025", "RSAJ/TA/109/2024", "RSAJ/TA/7/2026"]);
     expect([series.exercise_tender.pattern, series.direct_appointment.pattern]).toEqual(["RSAJ/TA/{SERIAL}/{YEAR}", "RSAJ/KP/ST/{SERIAL}/{SHORTYEAR}"]);
     // B4: the two tender methods number their exercises RSAJ/TA; every other method keeps the standard exercise series.
     expect(listOf("SourcingMethod").filter((m) => m.values.exerciseSeriesKey).map((m) => [m.code, m.values.exerciseSeriesKey])).toEqual([

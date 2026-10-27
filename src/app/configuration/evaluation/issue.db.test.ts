@@ -47,7 +47,7 @@ vi.mock("@/app/_auth/act", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
-import { adoptModelDraft, discardDraft, issueModel, newModelVersion, saveModel, saveStage } from "./actions";
+import { adoptModelDraft, discardDraft, issueModel, newModelVersion, saveBandSet, saveModel, saveStage } from "./actions";
 
 let organisationId = "";
 beforeAll(async () => {
@@ -116,6 +116,27 @@ describe("the makers of an evaluation model's draft", () => {
     expect(await discardDraft(state, form({ id: draft.id, reason: "Not needed" }))).toMatchObject({ ok: true });
     expect(await makersOf(draft.id)).toEqual([]);
     expect(await db.evaluationModel.count({ where: { id: draft.id } })).toBe(0);
+  });
+});
+
+// RSAJ answer 11 (2026-10-27): a band set may round a figure half up before banding it. Saved, audited and carried to the next version.
+describe("a band set's rounding before banding", () => {
+  it("is saved from the drawer's choices only, audited in words, and copied to a new version", async () => {
+    const a = await signedIn();
+    as(a);
+    const code = `r_${randomId()}`;
+    const issued = await db.evaluationModel.create({ data: { organisationId, code, version: 1, nameEn: "Rounded", route: "TRADITIONAL", provenance: "ASSUMED", status: "ISSUED", issuedAt: new Date(), contentSnapshot: {} } });
+    await db.evaluationBandSet.create({ data: { organisationId, modelId: issued.id, code: "cpr", nameEn: "CPR bands", roundPlaces: 0 } });
+    expect(await newModelVersion(state, form({ id: issued.id }))).toMatchObject({ ok: true });
+    const draft = await db.evaluationModel.findFirstOrThrow({ where: { organisationId, code, version: 2 }, include: { bandSets: true } });
+    expect(draft.bandSets.map((b) => [b.code, b.roundPlaces])).toEqual([["cpr", 0]]);
+    const set = draft.bandSets[0];
+    const save = (roundPlaces: string) => saveBandSet(state, form({ modelId: draft.id, setId: set.id, nameEn: "CPR bands", roundPlaces, provenance: "STATED", governingSource: "answer 11" }));
+    expect(await save("4")).toMatchObject({ ok: false, errors: { roundPlaces: expect.any(String) } });
+    expect(await save("")).toMatchObject({ ok: true });
+    expect((await db.evaluationBandSet.findUniqueOrThrow({ where: { id: set.id } })).roundPlaces).toBeNull();
+    const trail = await db.auditEntry.findFirstOrThrow({ where: { organisationId, entityId: draft.id, action: "UPDATE", entityLabel: { endsWith: "CPR bands" } }, orderBy: { at: "desc" } });
+    expect(trail.changes).toContainEqual(expect.objectContaining({ field: "rounding", before: "To a whole number", after: "Not rounded" }));
   });
 });
 

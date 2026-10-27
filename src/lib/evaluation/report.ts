@@ -19,7 +19,7 @@ import { saving as savingOf } from "./saving";
 import { resultOf } from "./stages";
 import { CPR_SOURCE_TEXT } from "./cpr";
 import { placeInBands } from "./bands";
-import { bandSetOf, bandsOf, scoredCriteria } from "./model";
+import { bandedValue, bandSetOf, bandsOf, scoredCriteria } from "./model";
 import type { Finding, PeriodUnit } from "./types";
 
 export type AnnexKey = "A" | "B" | "C" | "D" | "E" | "F";
@@ -212,7 +212,7 @@ export function buildReport(i: ReportInput): ReportSnapshot {
   const cprBands = cprCriterion ? bandSetOf(f.model, cprCriterion.bandSetCode) : null;
   const annexD = {
     source: CPR_SOURCE_TEXT,
-    bidders: f.bidders.map((b) => ({ ...bidderLine(b), cpr: b.cprPercent == null ? null : formatFixed(b.cprPercent), band: b.cprPercent != null && cprBands ? ((p) => (p.placed ? p.band.labelEn : "Not banded"))(placeInBands(b.cprPercent, bandsOf(cprBands))) : null, reports: b.cprReports })),
+    bidders: f.bidders.map((b) => ({ ...bidderLine(b), cpr: b.cprPercent == null ? null : formatFixed(b.cprPercent), band: b.cprPercent != null && cprBands ? ((p) => (p.placed ? p.band.labelEn : "Not banded"))(placeInBands(bandedValue(cprBands, b.cprPercent), bandsOf(cprBands))) : null, reports: b.cprReports })),
   };
   const rb = f.bidders.find((b) => b.id === i.recommendation.bidderId)!;
   const s = savingOf(f.estimate, i.recommendation.price);

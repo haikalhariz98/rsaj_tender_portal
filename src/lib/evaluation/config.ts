@@ -106,7 +106,7 @@ export interface ModelRows {
     criteria: { id: string; parentId: string | null; order: number; code: string; labelEn: string; labelMs: string | null; maxMarks: Dec; scale: CriterionScale; computedInput: ComputedInput; bandSetCode: string | null; needsNamedContractor: boolean; provenance: Provenance }[];
     factorOptions: { code: string; labelEn: string; labelMs: string | null; factorPct: Dec; provenance: Provenance }[];
   }[];
-  bandSets: { code: string; nameEn: string; provenance: Provenance; governingSource: string; bands: { labelEn: string; labelMs: string | null; lower: Dec; lowerInclusive: boolean; lowerIsFloor: boolean; upper: Dec; upperInclusive: boolean; upperIsFloor: boolean; outcome: BandOutcome; sortOrder: number }[] }[];
+  bandSets: { code: string; nameEn: string; roundPlaces: number | null; provenance: Provenance; governingSource: string; bands: { labelEn: string; labelMs: string | null; lower: Dec; lowerInclusive: boolean; lowerIsFloor: boolean; upper: Dec; upperInclusive: boolean; upperIsFloor: boolean; outcome: BandOutcome; sortOrder: number }[] }[];
 }
 
 /// A model's rows as the content `modelFaults` judges and `modelSnapshot` freezes (decimals as four-place strings).
@@ -121,7 +121,7 @@ export function contentOf(m: ModelRows): ModelContent {
       const factors: FactorSnap[] = s.factorOptions.map((x) => ({ code: x.code, labelEn: x.labelEn, labelMs: x.labelMs, factorPct: d4(x.factorPct)!, provenance: x.provenance }));
       return { order: s.order, code: s.code, labelEn: s.labelEn, labelMs: s.labelMs, kind: s.kind, side: s.side, unlocksAfterOrder: s.unlocksAfterOrder, maxMarks: d4(s.maxMarks), passMark: d4(s.passMark), passInclusive: s.passInclusive, mustPass: s.mustPass, compositeWeight: d4(s.compositeWeight), committeeCode: s.committeeCode, shortlistRule: s.shortlistRule, shortlistMin: s.shortlistMin, shortlistMax: s.shortlistMax, shortlistOfficeCode: s.shortlistOfficeCode, capitalBase: s.capitalBase, provenance: s.provenance, governingSource: s.governingSource, criteria, factors };
     });
-  const bandSets: BandSetSnap[] = m.bandSets.map((b) => ({ code: b.code, nameEn: b.nameEn, provenance: b.provenance, governingSource: b.governingSource, bands: [...b.bands].sort((x, y) => x.sortOrder - y.sortOrder).map((x) => ({ labelEn: x.labelEn, labelMs: x.labelMs, lower: d4(x.lower), lowerInclusive: x.lowerInclusive, lowerIsFloor: x.lowerIsFloor, upper: d4(x.upper), upperInclusive: x.upperInclusive, upperIsFloor: x.upperIsFloor, outcome: x.outcome, sortOrder: x.sortOrder })) }));
+  const bandSets: BandSetSnap[] = m.bandSets.map((b) => ({ code: b.code, nameEn: b.nameEn, roundPlaces: b.roundPlaces, provenance: b.provenance, governingSource: b.governingSource, bands: [...b.bands].sort((x, y) => x.sortOrder - y.sortOrder).map((x) => ({ labelEn: x.labelEn, labelMs: x.labelMs, lower: d4(x.lower), lowerInclusive: x.lowerInclusive, lowerIsFloor: x.lowerIsFloor, upper: d4(x.upper), upperInclusive: x.upperInclusive, upperIsFloor: x.upperIsFloor, outcome: x.outcome, sortOrder: x.sortOrder })) }));
   return { code: m.code, version: m.version, nameEn: m.nameEn, nameMs: m.nameMs, route: m.route, provenance: m.provenance, governingSource: m.governingSource, stages, bandSets };
 }
 

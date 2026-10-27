@@ -5,9 +5,9 @@ import { parseSen } from "@/lib/money";
 import { bidder, facts, result, score, submission, TEAM, techScores } from "./fixture";
 import { formatFixed, parseFixed } from "./fixed";
 import { stageOf } from "./model";
-import { inRunningAt, resultRows, runningAt, runningFaults, scoreFaults, stageAccess, stageResult, submitStage } from "./stages";
+import { bandedRead, inRunningAt, resultRows, runningAt, runningFaults, scoreFaults, stageAccess, stageResult, submitStage } from "./stages";
 import { personFaults, teamFaults } from "./team";
-import { FIVE_PHASE, stage, TA109 } from "./ta109-fixture";
+import { band, FIVE_PHASE, stage, TA109 } from "./ta109-fixture";
 import type { ModelContent } from "./model";
 
 /**
@@ -169,5 +169,30 @@ describe("submitting a stage", () => {
   it("only the shortlisted go on", () => {
     const f = facts({ submissions: [submission("FASA1", "CONTRACT_PROCUREMENT"), submission("FASA2", "CONTRACT_PROCUREMENT")], results: [result("b1", "FASA2"), result("b2", "FASA2", { outOfRunning: true, passed: false })] }, FIVE_PHASE);
     expect(inRunningAt(f, stageOf(f.model, "FASA3")!).map((b) => b.id)).toEqual(["b1"]);
+  });
+});
+
+// RSAJ answer 11 (2026-10-27): a band set may round a figure half up before banding it. Bands as the form writes them, with gaps (80–100, 60–79).
+describe("a band set's rounding before banding", () => {
+  const gapped = (roundPlaces?: number | null): ModelContent => ({
+    ...FIVE_PHASE,
+    bandSets: FIVE_PHASE.bandSets.map((b) =>
+      b.code !== "CPR" ? b : { ...b, ...(roundPlaces === undefined ? {} : { roundPlaces }), bands: [band({ labelEn: "Good", outcome: "NONE", sortOrder: 1, lower: "60", upper: "79", upperInclusive: true }), band({ labelEn: "Best", outcome: "NONE", sortOrder: 2, lower: "80", upper: "100", upperInclusive: true })] },
+    ),
+  });
+  const cprLabel = (m: ModelContent, cpr: string) => {
+    const f = facts({ bidders: [bidder(1, { cprPercent: F(cpr), cprReports: 1 })] }, m);
+    const s = stageOf(f.model, "FASA4")!;
+    const r = bandedRead(f, s, s.criteria.find((c) => c.code === "CPR")!, f.bidders[0]);
+    return r.placement?.placed ? r.placement.band.labelEn : (r.placement?.reason ?? null);
+  };
+  it("at 0 places, 79.5 is Best and 79.4 Good; the figure recorded is the one entered", () => {
+    expect([cprLabel(gapped(0), "79.5"), cprLabel(gapped(0), "79.4"), cprLabel(gapped(0), "80")]).toEqual(["Best", "Good", "Best"]);
+    const f = facts({ bidders: [bidder(1, { cprPercent: F("79.5"), cprReports: 1 })] }, gapped(0));
+    const s = stageOf(f.model, "FASA4")!;
+    expect(formatFixed(bandedRead(f, s, s.criteria.find((c) => c.code === "CPR")!, f.bidders[0]).value!)).toBe("79.5000");
+  });
+  it("not set, or absent from a snapshot frozen before it existed: 79.5 is in no band (OD-5 A)", () => {
+    expect([cprLabel(gapped(null), "79.5"), cprLabel(gapped(), "79.5")]).toEqual(["NOT_BANDED", "NOT_BANDED"]);
   });
 });

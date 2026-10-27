@@ -3,12 +3,13 @@
  * executed contract and their stamp, the in-delay line, the retention released at as-built, the design guarantee bond and the finance system's
  * number formats. Transcribed from the specification; each entry cites its requirement and clause, and every one is STATED.
  *
- * Left out, though RSAJ answered them on 2026-10-24 (docs/notes/rsaj-questions.md):
- * - the contract document parts (FR-CON-003): SK004 §7.3.1 gives the parts and their order for three bases (answer 19), but SK004 itself has
- *   not been supplied, so there is no list to transcribe;
- * - the appointment-letter variants (FR-AWD-007): six, split by procurement route and value rather than by contract type (answer 20); what marks
- *   a job as IT & QA, which methods are "One Shot" and the six templates are still to come (question 28). Loaded with no route, every work
- *   indent below RM50,000 would find equal variants and be refused.
+ * Left out, though RSAJ answered them (docs/notes/rsaj-questions.md):
+ * - the contract document parts (FR-CON-003): SK004 §7.3.1 gives the parts and their order for three bases (answer 19). SK004 was supplied on
+ *   2026-10-27 (docs/requirements) and is not transcribed yet;
+ * - the appointment-letter variants (FR-AWD-007): six, split by procurement route and value rather than by contract type (answer 20). The
+ *   officer picks the letter (answer 28, 2026-10-27): IT & QA letters leave out the SPAN permit and insurance clauses; One Shot is a one-off
+ *   quotation, as against a Schedule of Rates term contract; a letter over RM50,000 adds retention and a defects period (the DAL draft's terms
+ *   bands). The six samples are in docs/requirements/rsaj-templates; no letter template is loaded.
  */
 
 import { group, list } from "./shape";
@@ -30,6 +31,12 @@ export const COPY_RECIPIENTS = list("DistributionRecipient", "Letter of Acceptan
   { code: "lhdn", values: { instrumentKind: LOA, nameEn: "LHDN" }, ...COPY },
   { code: "span", values: { instrumentKind: LOA, nameEn: "SPAN", onlyWhenRegulated: true }, ...COPY },
 ]);
+
+/// SK003 §7.9.3: the Letter of Acceptance is issued from and returned to Contract & Procurement, so C&P is told of an award returned online
+/// and of a contractor's question on one (RSAJ answer 33, 2026-10-27). One list per event, so each loads beside rules the organisation has.
+const AWARD_RETURN = { requirement: "FR-AWD-009", source: "SK003 §7.9.3; RSAJ answer 33 (2026-10-27)" };
+const notice = (eventKey: string, nameEn: string) => list("NotificationRule", "Notification rule", [{ code: eventKey, values: { eventKey, nameEn, recipientRoleCodes: ["CP"], reminderOffsetDays: [] }, ...AWARD_RETURN }], { eventKey });
+export const AWARD_RETURN_NOTICES = [notice("award.return.lodged", "Award returned online"), notice("award.query.raised", "Question on an award")];
 
 // ------------------------------------------------------------------ the executed contract's controlled copies (FR-CON-012)
 
@@ -66,6 +73,6 @@ export const ERP_FORMATS = [
 ];
 
 export const CONTRACTS = {
-  lists: [COPY_RECIPIENTS, CONTROLLED_COPIES, ...ERP_FORMATS],
+  lists: [COPY_RECIPIENTS, ...AWARD_RETURN_NOTICES, CONTROLLED_COPIES, ...ERP_FORMATS],
   groups: [...AWARD_GROUPS, ...CONTRACT_GROUPS, ...POST_AWARD_GROUPS],
 };

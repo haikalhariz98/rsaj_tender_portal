@@ -8,7 +8,7 @@
  */
 
 import { bandSetFaults, type Band } from "./bands";
-import { compareFixed, fixedFromWhole, parseFixed, sumFixed, type Fixed } from "./fixed";
+import { compareFixed, fixedFromWhole, parseFixed, roundHalfUp, sumFixed, type Fixed } from "./fixed";
 import { REQUIRED_ASPECT_KINDS, type AspectKind, type BandOutcome, type CapitalBase, type ComputedInput, type CriterionScale, type EvaluationRoute, type Finding, type Provenance, type ShortlistRule, type Side, type StageKind } from "./types";
 
 // ------------------------------------------------------------------ the frozen content (JSON)
@@ -29,6 +29,8 @@ export interface BandSnap {
 export interface BandSetSnap {
   code: string;
   nameEn: string;
+  /// The places a value is rounded half up to before it is banded. Null, or absent from a snapshot frozen before it existed: not rounded.
+  roundPlaces?: number | null;
   provenance: Provenance;
   governingSource: string;
   bands: BandSnap[];
@@ -186,6 +188,9 @@ export const aspectsRequiredOn = (aspects: readonly AspectConfig[], route: Evalu
 
 /// The bands of a set snapshot, as fixed point.
 export const bandsOf = (s: BandSetSnap): Band[] => s.bands.map((b) => ({ ...b, lower: f(b.lower), upper: f(b.upper) }));
+
+/// The figure a set bands: rounded half up to its places where it sets them (at 0, a CPR of 79.5 is 80), else as worked out.
+export const bandedValue = (s: BandSetSnap | null, v: Fixed): Fixed => (s?.roundPlaces == null ? v : roundHalfUp(v, s.roundPlaces));
 
 /**
  * Every reason a draft cannot be issued (block), and what it may be issued with (warn: a gap in a

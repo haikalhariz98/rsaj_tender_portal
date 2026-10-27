@@ -63,6 +63,9 @@ export const ASPECT_KIND_LABEL: Readonly<Record<AspectKind, string>> = {
 export const VERDICT_LABEL: Readonly<Record<AspectVerdict, string>> = { SATISFACTORY: "Satisfactory", NOT_SATISFACTORY: "Not satisfactory" };
 export const VERDICT_TONE: Readonly<Record<AspectVerdict, "ok" | "err">> = { SATISFACTORY: "ok", NOT_SATISFACTORY: "err" };
 export const OUTCOME_LABEL: Readonly<Record<BandOutcome, string>> = { PASS: "Passes", FAIL: "Fails", NONE: "Shown only" };
+/// A band set's rounding before banding: its places (the column allows 0 to 4; 4 is the figure as worked out, so it is not offered).
+export const ROUND_PLACES = ["0", "1", "2", "3"] as const;
+export const roundedWords = (p: number | null | undefined): string => (p == null ? "Not rounded" : p === 0 ? "To a whole number" : `To ${p} decimal place${p === 1 ? "" : "s"}`);
 export const MEETING_KIND_LABEL: Readonly<Record<MeetingKind, string>> = { CLARIFICATION: "Clarification", NEGOTIATION: "Negotiation" };
 export const STATE_LABEL: Readonly<Record<EvaluationState, string>> = { OPEN: "In progress", ISSUED: "Report issued", SUPERSEDED: "Superseded", CANCELLED: "Closed: cancelled" };
 export const STATE_TONE: Readonly<Record<EvaluationState, "brand" | "ok" | "neutral">> = { OPEN: "brand", ISSUED: "ok", SUPERSEDED: "neutral", CANCELLED: "neutral" };

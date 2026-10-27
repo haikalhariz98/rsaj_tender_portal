@@ -3,7 +3,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { actorField } from "@/lib/auth/actor-field";
 import { buttonClass } from "@/components/ui/button";
 import { READER_OFFICE_LABEL } from "@/lib/evaluation/readers";
-import { ASPECT_KIND_LABEL, CAPITAL_BASE_LABEL, INPUT_LABEL, OUTCOME_LABEL, ROUTE_LABEL, SCALE_LABEL, SHORTLIST_RULE_LABEL, SIDE_LABEL, STAGE_KIND_LABEL } from "@/lib/evaluation/labels";
+import { ASPECT_KIND_LABEL, CAPITAL_BASE_LABEL, INPUT_LABEL, OUTCOME_LABEL, ROUND_PLACES, roundedWords, ROUTE_LABEL, SCALE_LABEL, SHORTLIST_RULE_LABEL, SIDE_LABEL, STAGE_KIND_LABEL } from "@/lib/evaluation/labels";
 import { ASPECT_KINDS, BAND_OUTCOMES, CAPITAL_BASES, COMPUTED_INPUTS, CRITERION_SCALES, EVALUATION_ROUTES, SHORTLIST_RULES, SIDES, STAGE_KINDS } from "@/lib/evaluation/types";
 
 import {
@@ -293,7 +293,14 @@ export function BandSetDrawer({ modelId, set }: { modelId: string; set?: { id: s
     <RecordEditor
       title={set ? `Edit ${set.label}` : "Add a band set"}
       description="Bands a worked figure falls in. Each model has its own."
-      fields={[hidden("modelId"), hidden("setId"), ...(set ? [] : [codeField()]), { kind: "text", name: "nameEn", label: "Name", required: true }, ...sourceFields]}
+      fields={[
+        hidden("modelId"),
+        hidden("setId"),
+        ...(set ? [] : [codeField()]),
+        { kind: "text", name: "nameEn", label: "Name", required: true },
+        { kind: "select", name: "roundPlaces", label: "Rounded before banding", placeholder: roundedWords(null), options: ROUND_PLACES.map((p) => ({ value: p, label: roundedWords(Number(p)) })), hint: "Rounded half up." },
+        ...sourceFields,
+      ]}
       values={{ modelId, setId: set?.id ?? null, ...(set?.values ?? {}) }}
       action={saveBandSet}
       submitLabel={set ? "Save" : "Add the band set"}

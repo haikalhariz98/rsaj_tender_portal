@@ -92,6 +92,7 @@ export interface PlannedPacks extends PackPlan {
 export const ALLOWED_MODELS: readonly string[] = [
   "AuthorityRole",
   "AwardPolicy",
+  "CertificateKindSetting",
   "CodeFormat",
   "Committee",
   "ContractBasis",

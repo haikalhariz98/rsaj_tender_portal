@@ -7,7 +7,7 @@ import { toSecond } from "@/lib/bids/lateness";
 import { db } from "@/lib/db";
 import { CONFIG_TEXT, decimalField, draftFault, newVersionFault, nextVersion, parentFault, retireFault, type ConfigFault } from "@/lib/evaluation/config";
 import { draftFindings, loadModel, type ModelRow } from "@/lib/evaluation/config-read";
-import { ASPECT_KIND_LABEL, CAPITAL_BASE_LABEL, modelFindingText, INPUT_LABEL, OUTCOME_LABEL, ROUTE_LABEL, SCALE_LABEL, SHORTLIST_RULE_LABEL, SIDE_LABEL, STAGE_KIND_LABEL } from "@/lib/evaluation/labels";
+import { ASPECT_KIND_LABEL, CAPITAL_BASE_LABEL, modelFindingText, INPUT_LABEL, OUTCOME_LABEL, ROUND_PLACES, roundedWords, ROUTE_LABEL, SCALE_LABEL, SHORTLIST_RULE_LABEL, SIDE_LABEL, STAGE_KIND_LABEL } from "@/lib/evaluation/labels";
 import { modelSnapshot } from "@/lib/evaluation/model";
 import { ASPECT_KINDS, BAND_OUTCOMES, CAPITAL_BASES, COMPUTED_INPUTS, CRITERION_SCALES, EVALUATION_ROUTES, SHORTLIST_RULES, SIDES, STAGE_KINDS, type Finding } from "@/lib/evaluation/types";
 import { FormReader } from "@/lib/validate";
@@ -283,7 +283,7 @@ export async function newModelVersion(_prev: FormState, data: FormData): Promise
     const version = nextVersion(versions);
     const next = await tx.evaluationModel.create({ data: { organisationId: orgId, code: from.code, version, nameEn: from.nameEn, nameMs: from.nameMs, route: from.route, provenance: from.provenance, governingSource: from.governingSource, notes: from.notes } });
     for (const set of from.bandSets) {
-      const s = await tx.evaluationBandSet.create({ data: { organisationId: orgId, modelId: next.id, code: set.code, nameEn: set.nameEn, provenance: set.provenance, governingSource: set.governingSource } });
+      const s = await tx.evaluationBandSet.create({ data: { organisationId: orgId, modelId: next.id, code: set.code, nameEn: set.nameEn, roundPlaces: set.roundPlaces, provenance: set.provenance, governingSource: set.governingSource } });
       for (const b of set.bands) await tx.evaluationBand.create({ data: { organisationId: orgId, setId: s.id, labelEn: b.labelEn, labelMs: b.labelMs, lower: b.lower, lowerInclusive: b.lowerInclusive, lowerIsFloor: b.lowerIsFloor, upper: b.upper, upperInclusive: b.upperInclusive, upperIsFloor: b.upperIsFloor, outcome: b.outcome, sortOrder: b.sortOrder } });
     }
     for (const st of from.stages) {
@@ -530,6 +530,7 @@ export async function saveBandSet(_prev: FormState, data: FormData): Promise<For
   const r = new FormReader(data);
   const v = {
     nameEn: r.text("nameEn", "Name", { required: true, max: 200 }),
+    roundPlaces: r.choice("roundPlaces", "Rounded before banding", ROUND_PLACES),
     provenance: r.choice("provenance", "Where this came from", PROVENANCE, { required: true }),
     governingSource: r.text("governingSource", "Source", { max: 400 }),
   };
@@ -539,8 +540,8 @@ export async function saveBandSet(_prev: FormState, data: FormData): Promise<For
     if (setId && !self) return GONE;
     const code = self ? self.code : r.code("code", "Code", { taken: m.bandSets.map((b) => b.code) });
     if (!self && r.failed) return { ok: false, errors: r.errors };
-    const row = { ...v, provenance: v.provenance! };
-    const words = (x: typeof row) => ({ bandSet: x.nameEn, provenance: x.provenance, source: x.governingSource || null });
+    const row = { ...v, roundPlaces: v.roundPlaces == null ? null : Number(v.roundPlaces), provenance: v.provenance! };
+    const words = (x: typeof row) => ({ bandSet: x.nameEn, rounding: roundedWords(x.roundPlaces), provenance: x.provenance, source: x.governingSource || null });
     if (self) {
       await tx.evaluationBandSet.update({ where: { id: self.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, m.id, `${modelLabel(m)} · ${row.nameEn}`, "UPDATE", diffFields(words(self), words(row)));
