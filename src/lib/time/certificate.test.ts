@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { snapshotFaults } from "@/lib/certificate/snapshot";
 
-import { eotSnapshot } from "./certificate";
+import { eotSnapshot, scopeWords } from "./certificate";
 
 /** The EOT certificate's figures (design note §6.6): sound, no money, nothing overridable. */
 
@@ -21,5 +21,12 @@ describe("eotSnapshot", () => {
     expect(snapshotFaults(s)).toEqual([]);
     expect(s.lines[0].value).toBe("Section S2");
     expect(s.lines.at(-1)).toMatchObject({ key: "eotUnextended", value: "Four days of the contractor's own delay." });
+  });
+});
+
+describe("scopeWords (review S3: the claim page names the claim's scope)", () => {
+  it("names a section by its reference, and the whole works otherwise", () => {
+    expect(scopeWords("SECTION", "B")).toBe("Section B");
+    expect(scopeWords("WHOLE", null)).toBe("The whole works");
   });
 });

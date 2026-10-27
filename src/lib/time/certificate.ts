@@ -19,10 +19,13 @@ export interface EotFigures {
   unextendedNote: string;
 }
 
+/// What a claim or an extension covers, in words: the whole works, or the section by its reference (review S3: the claim page reads this too).
+export const scopeWords = (scope: string, sectionRef: string | null): string => (scope === "SECTION" ? `Section ${sectionRef ?? ""}`.trim() : "The whole works");
+
 export function eotSnapshot(f: EotFigures): ComputedSnapshot {
   const line = (key: string, labelEn: string, type: FigureLine["type"], value: string): FigureLine => ({ key, labelEn, type, value, overridable: false });
   const lines = [
-    line("eotScope", "Extended", "TEXT", f.scope === "SECTION" ? `Section ${f.sectionRef}` : "The whole works"),
+    line("eotScope", "Extended", "TEXT", scopeWords(f.scope, f.sectionRef)),
     line("eotPreviousCompletion", "Previous date for completion", "DATE", f.previous),
     line("eotGrantedDays", "Extension granted (days)", "DAYS", String(f.granted)),
     line("eotComputedDays", "The reasons' extension, computed (days)", "DAYS", String(f.computed)),

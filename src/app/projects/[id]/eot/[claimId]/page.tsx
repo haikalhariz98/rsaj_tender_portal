@@ -35,6 +35,7 @@ import { hiddenFor } from "@/lib/supervision/authority";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 import { SUPERVISION_ACTS } from "@/lib/supervision/types";
 import { EOT_STATE_TONE, EOT_STATE_WORDS, eotClaimState, eotNext } from "@/lib/time/claim-state";
+import { scopeWords } from "@/lib/time/certificate";
 import { computedExtension } from "@/lib/time/extension";
 import { timeFaultText } from "@/lib/time/labels";
 import { claimStateFactsOf, timeView } from "@/lib/time/view";
@@ -136,7 +137,7 @@ export default async function EotClaimPage(props: PageProps<"/projects/[id]/eot/
         title={title}
         badge={<Badge tone={EOT_STATE_TONE[state] ?? undefined} dot>{EOT_STATE_WORDS[state]}</Badge>}
         subtitle={c.cause}
-        meta={["The whole works", `${c.proposedDays} days claimed`, live ? `${live.grantedDays} days granted` : "None granted", IMPACT[c.financialImpact as keyof typeof IMPACT]]}
+        meta={[scopeWords(c.scope, c.sectionRef), `${c.proposedDays} days claimed`, live ? `${live.grantedDays} days granted` : "None granted", IMPACT[c.financialImpact as keyof typeof IMPACT]]}
         actions={
           <span className="flex flex-wrap items-center gap-2">
             <ActGate blocker={gate}>
