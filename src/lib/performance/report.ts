@@ -9,7 +9,7 @@
 import type { Finding } from "./form";
 
 export type PerformanceState = "NONE" | "OPEN" | "ASSESSED" | "VERIFIED";
-export type ReportFault = "FORM_NOT_SET" | "NOT_YET_OPEN" | "REPORT_LIVE" | "ASSESSED" | "NOT_ASSESSED" | "SAME_PERSON" | "VERIFIED" | "PERFORMANCE_NOT_FILED";
+export type ReportFault = "PERFORMANCE_FORM_NOT_SET" | "NOT_YET_OPEN" | "REPORT_LIVE" | "ASSESSED" | "NOT_ASSESSED" | "SAME_PERSON" | "VERIFIED" | "PERFORMANCE_NOT_FILED";
 
 export interface ReportRow {
   assessedByPersonId: string | null;
@@ -32,12 +32,12 @@ export interface OpenFacts {
 }
 export const reportOpens = (f: OpenFacts): boolean => f.cmgdIssued || (f.cpcIssued && !f.dlpApplies);
 
-/// Why a report may not be opened. `typeName`: the contract type's label, for FORM_NOT_SET by name (null: the contract has no type).
+/// Why a report may not be opened. `typeName`: the contract type's label, for the form not set by name (ruling 10's FORM_NOT_SET; coded PERFORMANCE_FORM_NOT_SET, as FORM_NOT_SET is a retired certificate code). Null: no type.
 export function openFaults(f: OpenFacts & { formIssued: boolean; typeName: string | null; live: boolean }): Finding<ReportFault>[] {
   if (f.live) return [{ code: "REPORT_LIVE", level: "block" }];
   const out: Finding<ReportFault>[] = [];
   if (!reportOpens(f)) out.push({ code: "NOT_YET_OPEN", level: "block", data: { dlp: f.dlpApplies ? "yes" : "no" } });
-  if (!f.formIssued) out.push({ code: "FORM_NOT_SET", level: "block", data: { type: f.typeName } });
+  if (!f.formIssued) out.push({ code: "PERFORMANCE_FORM_NOT_SET", level: "block", data: { type: f.typeName } });
   return out;
 }
 

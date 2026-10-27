@@ -92,7 +92,7 @@ describe("the report's life", () => {
   });
   it("refuses FORM_NOT_SET by name, NOT_YET_OPEN, and a second report", () => {
     const f = openFaults({ cpcIssued: true, dlpApplies: false, cmgdIssued: false, formIssued: false, typeName: "Works", live: false });
-    expect(codes(f)).toEqual(["FORM_NOT_SET"]);
+    expect(codes(f)).toEqual(["PERFORMANCE_FORM_NOT_SET"]);
     expect(performanceFaultText(f[0])).toBe("Works contracts have no issued performance form. Issue one in Settings › Performance forms.");
     expect(codes(openFaults({ ...none, cpcIssued: true, formIssued: true, typeName: "Works", live: false }))).toEqual(["NOT_YET_OPEN"]);
     expect(codes(openFaults({ ...none, cmgdIssued: true, formIssued: true, typeName: "Works", live: true }))).toEqual(["REPORT_LIVE"]);

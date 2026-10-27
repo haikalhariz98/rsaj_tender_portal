@@ -22,7 +22,7 @@ export const PERFORMANCE_FAULT_WORDS: Readonly<Record<string, (d: Data) => strin
   BANDS_EMPTY: () => "Add the grades.",
   BAND_EDGES_REVERSED: (d) => `Grade ${d.band ?? ""} ends before it starts.`,
   // The report
-  FORM_NOT_SET: (d) => `${d.type ? `${d.type} contracts have` : "This contract has no contract type, so it has"} no issued performance form. Issue one in Settings › Performance forms.`,
+  PERFORMANCE_FORM_NOT_SET: (d) => `${d.type ? `${d.type} contracts have` : "This contract has no contract type, so it has"} no issued performance form. Issue one in Settings › Performance forms.`,
   NOT_YET_OPEN: (d) => (d.dlp === "yes" ? "Opens once the certificate of making good defects is issued." : "Opens once the practical completion certificate is issued."),
   REPORT_LIVE: () => "This contract already has its report.",
   SCORE_MISSING: (d) => `Score ${d.criterion ?? "every criterion"}.`,
