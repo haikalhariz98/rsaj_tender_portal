@@ -309,6 +309,8 @@ export function awardFindingText(f: Finding): string {
       return "The indent number does not match the finance system's format.";
     case "INDENT_EXPIRED":
       return `The indent expired on ${typeof d.expiresOn === "string" ? formatDate(d.expiresOn) : "its expiry day"}. The user department must ask Contract & Procurement to cancel it; cancel this award and raise a fresh indent.`;
+    case "INDENT_VALIDITY_NOT_SET":
+      return "Set the indent validity under Award controls first.";
     case "RECIPIENTS_NOT_SET":
       return "No distribution list. Set it under Award controls.";
     case "REGULATED_NOT_ANSWERED":

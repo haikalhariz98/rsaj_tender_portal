@@ -5,6 +5,7 @@ import { parseSen } from "@/lib/money";
 import { contractNumberSource } from "./contract-number";
 import { formatDay, mergeFieldsFor, templateText, type MergeContext } from "./fields";
 import { issueFaults, type IssueInput } from "./gate";
+import { awardFindingText } from "./labels";
 import { renderTemplate, renderedText } from "./merge";
 
 const LOA = { kind: "LETTER_OF_ACCEPTANCE" as const, commitmentNo: null, commitmentKind: null };
@@ -57,20 +58,28 @@ describe("the issue gate (FR-AWD-001 and what issue depends on)", () => {
 
   it("an indent needs its number, in its format, and not expired", () => {
     const indent = { instrument: { kind: "WORK_INDENT" as const }, variant: { state: "SELECTED" as const, variant: {} as never }, terms: { retentionAsked: false, dlpAsked: false, retentionSet: false, dlpSet: false }, appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [] } };
-    expect(codes({ ...indent, indent: { number: null, formatOk: null, state: { state: "NOT_RECEIVED" } } })).toEqual(["INDENT_NUMBER_REQUIRED"]);
-    expect(codes({ ...indent, indent: { number: "X1", formatOk: false, state: { state: "VALID", expiresOn: "2026-10-10" } } })).toEqual(["INDENT_NUMBER_FORMAT"]);
-    expect(codes({ ...indent, indent: { number: "XI202600812", formatOk: true, state: { state: "EXPIRED", expiresOn: "2026-09-28" } } })).toEqual(["INDENT_EXPIRED"]);
+    expect(codes({ ...indent, indent: { number: null, formatOk: null, state: { state: "NOT_RECEIVED" }, validitySet: true } })).toEqual(["INDENT_NUMBER_REQUIRED"]);
+    expect(codes({ ...indent, indent: { number: "X1", formatOk: false, state: { state: "VALID", expiresOn: "2026-10-10" }, validitySet: true } })).toEqual(["INDENT_NUMBER_FORMAT"]);
+    expect(codes({ ...indent, indent: { number: "XI202600812", formatOk: true, state: { state: "EXPIRED", expiresOn: "2026-09-28" }, validitySet: true } })).toEqual(["INDENT_EXPIRED"]);
+  });
+
+  // Phase 0.3 item 9 (FR-AWD-006 "enforce"; gaps stay honest): an unset validity is not a valid indent, received or not.
+  it("an indent is not issued while its validity is not set, and the words name the setting", () => {
+    const indent = { instrument: { kind: "WORK_INDENT" as const }, variant: { state: "SELECTED" as const, variant: {} as never }, terms: { retentionAsked: false, dlpAsked: false, retentionSet: false, dlpSet: false }, appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [] } };
+    expect(codes({ ...indent, indent: { number: "XI202600812", formatOk: true, state: { state: "NOT_SET" }, validitySet: false } })).toEqual(["INDENT_VALIDITY_NOT_SET"]);
+    expect(codes({ ...indent, indent: { number: "XI202600812", formatOk: true, state: { state: "NOT_RECEIVED" }, validitySet: false } })).toEqual(["INDENT_VALIDITY_NOT_SET"]);
+    expect(awardFindingText({ code: "INDENT_VALIDITY_NOT_SET", level: "block" })).toBe("Set the indent validity under Award controls first.");
   });
 
   it("an indent that expires before the stated start date refuses issue", () => {
     const indent = { instrument: { kind: "WORK_INDENT" as const }, variant: { state: "SELECTED" as const, variant: {} as never }, terms: { retentionAsked: false, dlpAsked: false, retentionSet: false, dlpSet: false }, appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [] } };
-    const valid = { number: "XI202600812", formatOk: true, state: { state: "VALID" as const, expiresOn: "2026-10-10" } };
+    const valid = { number: "XI202600812", formatOk: true, state: { state: "VALID" as const, expiresOn: "2026-10-10" }, validitySet: true };
     expect(codes({ ...indent, indent: valid, startDate: "2026-10-11" })).toEqual(["INDENT_EXPIRES_BEFORE_START"]);
     expect(codes({ ...indent, indent: valid, startDate: "2026-10-10" })).toEqual([]);
   });
 
   it("an indent's variant and the terms its band asks for", () => {
-    const indent = { instrument: { kind: "WORK_INDENT" as const }, indent: { number: "X", formatOk: true, state: { state: "VALID" as const, expiresOn: "2026-10-10" } }, appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [] } };
+    const indent = { instrument: { kind: "WORK_INDENT" as const }, indent: { number: "X", formatOk: true, state: { state: "VALID" as const, expiresOn: "2026-10-10" }, validitySet: true }, appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [] } };
     expect(codes({ ...indent, variant: { state: "TERMS_NOT_SET" }, terms: { retentionAsked: null, dlpAsked: null, retentionSet: false, dlpSet: false } })).toEqual(["TERMS_NOT_SET", "TERMS_UNDECIDED"]);
     expect(codes({ ...indent, variant: { state: "SELECTED", variant: {} as never }, terms: { retentionAsked: true, dlpAsked: true, retentionSet: false, dlpSet: true } })).toEqual(["RETENTION_REQUIRED"]);
   });
@@ -113,7 +122,7 @@ describe("the issue gate (FR-AWD-001 and what issue depends on)", () => {
   });
 
   it("an indent whose band asks for a defects liability period refuses without one", () => {
-    const indent = { instrument: { kind: "WORK_INDENT" as const }, indent: { number: "X", formatOk: true, state: { state: "VALID" as const, expiresOn: "2026-10-10" } }, appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [] }, variant: { state: "SELECTED" as const, variant: {} as never } };
+    const indent = { instrument: { kind: "WORK_INDENT" as const }, indent: { number: "X", formatOk: true, state: { state: "VALID" as const, expiresOn: "2026-10-10" }, validitySet: true }, appointment: { status: "APPROVED", pendingStep: null, committeeSteps: [] }, variant: { state: "SELECTED" as const, variant: {} as never } };
     expect(codes({ ...indent, terms: { retentionAsked: false, dlpAsked: true, retentionSet: false, dlpSet: false } })).toEqual(["DLP_REQUIRED"]);
     expect(codes({ ...indent, terms: { retentionAsked: false, dlpAsked: true, retentionSet: false, dlpSet: true } })).toEqual([]);
   });

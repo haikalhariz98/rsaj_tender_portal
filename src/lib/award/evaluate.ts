@@ -352,7 +352,7 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
       committeeSteps: steps.filter((s) => s.committeeCode).map((s) => ({ committee: s.roleLabel, act: s.act, outcome: s.cited?.record?.outcome ?? null })),
     },
     signatory: signatory ?? { ok: false, fault: "SIGNATORY_UNRESOLVED" },
-    indent: kind === "WORK_INDENT" ? { number: a.erpCommitmentNo, formatOk: indentFormatOk, state: indent ?? { state: "NOT_RECEIVED" } } : null,
+    indent: kind === "WORK_INDENT" ? { number: a.erpCommitmentNo, formatOk: indentFormatOk, state: indent ?? { state: "NOT_RECEIVED" }, validitySet: f.policy.indentValidityDays != null } : null,
     distribution,
     documents,
     variant,

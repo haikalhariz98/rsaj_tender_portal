@@ -143,7 +143,8 @@ export interface IssueInput {
   dossierFaults: readonly Finding[];
   appointment: { status: string | null; pendingStep: string | null; committeeSteps: readonly (CommitteeStepState & { act: string })[] };
   signatory: Signatory;
-  indent: { number: string | null; formatOk: boolean | null; state: IndentState } | null;
+  /// `validitySet`: whether `AwardPolicy.indentValidityDays` is set (FR-AWD-006); an indent is not issued while it is not.
+  indent: { number: string | null; formatOk: boolean | null; state: IndentState; validitySet: boolean } | null;
   distribution: { fault: ListFault } | { rows: unknown[] };
   documents: readonly DocumentState[];
   variant: VariantResult | null;
@@ -179,6 +180,7 @@ export type IssueFault =
   | "INDENT_NUMBER_REQUIRED"
   | "INDENT_NUMBER_FORMAT"
   | "INDENT_EXPIRED"
+  | "INDENT_VALIDITY_NOT_SET"
   | "RECIPIENTS_NOT_SET"
   | "REGULATED_NOT_ANSWERED"
   | "TEMPLATE_NOT_SET"
@@ -242,7 +244,9 @@ export function issueFaults(i: IssueInput): Finding[] {
   if (kind === "WORK_INDENT" && i.indent) {
     if (!i.indent.number) f("INDENT_NUMBER_REQUIRED");
     else if (i.indent.formatOk === false) f("INDENT_NUMBER_FORMAT");
-    if (i.indent.state.state === "EXPIRED") f("INDENT_EXPIRED", { expiresOn: i.indent.state.expiresOn });
+    // FR-AWD-006 "enforce", gaps stay honest (Phase 0.3 item 9): an indent whose validity cannot be judged is not issued.
+    if (!i.indent.validitySet) f("INDENT_VALIDITY_NOT_SET");
+    else if (i.indent.state.state === "EXPIRED") f("INDENT_EXPIRED", { expiresOn: i.indent.state.expiresOn });
     // An indent that lapses before the stated start cannot carry the work it orders.
     else if ("expiresOn" in i.indent.state && i.startDate && i.startDate > i.indent.state.expiresOn) f("INDENT_EXPIRES_BEFORE_START", { expiresOn: i.indent.state.expiresOn, startDate: i.startDate });
   }
