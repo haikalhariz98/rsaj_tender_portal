@@ -20,7 +20,7 @@ import { closeMatter, matterLabel, openMatter } from "@/lib/matter/write";
 import type { Finding } from "@/lib/method/types";
 import { formatMoney, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 import type { OrgScope } from "@/lib/org-scope";
-import { baselineOn, loadPayment, readWaiverBasis, waivedOnDecision, waiverBasisJson, waiverBasisOf } from "@/lib/payment/load";
+import { baselineOn, loadPayment, waivedOnDecision, waiverBasisJson, waiverBasisOf, waiverResendable } from "@/lib/payment/load";
 import { timeRefusal } from "@/lib/time/labels";
 import { FormReader } from "@/lib/validate";
 import { beginAct } from "@/app/_auth/act";
@@ -151,8 +151,10 @@ export async function resendLadWaiver(_prev: FormState, data: FormData): Promise
     const who = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     if (!matterApproved(matterFactsOf(m)) || w.appliedOnCertificateId) throw new ActRefusal({ ok: false, message: "Only an approved waiver not yet applied is sent again." });
     const b = await basisOn(c, w.decisionId, w.id);
-    const frozen = readWaiverBasis(w.basis);
-    if (frozen && frozen.amount === b.amount) throw new ActRefusal({ ok: false, message: "Its LAD amount has not moved: it is applied as approved." });
+    // Review S1: the raise's own judgement of a moved basis, over the waiver's own day.
+    const p = await loadPayment(c.l.contract.id, c.tx);
+    const read = p.nonCompletions.find((d) => d.id === w.decisionId)?.waivers.find((x) => x.id === w.id);
+    if (!read || !waiverResendable(p, baselineOn(c.l, c.today)!, w.decisionId, read)) throw new ActRefusal({ ok: false, message: "Its basis has not moved since it was sent: it is applied as approved." });
     const fs = waiverRecordFaults({ decision: { charging: b.charging, label: b.label }, waived: senFromDecimal(w.waived), ladAmount: b.amount, reason: w.reason, asOf: c.today, today: c.today, alreadyWaived: b.alreadyWaived });
     if (fs.length) refuse("Not sent again:", fs);
     await closeMatter(c.tx, toAuditActor(actor), c.l, m, "Re-sent at the new LAD amount", c.now);

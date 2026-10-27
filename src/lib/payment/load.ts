@@ -436,6 +436,14 @@ export function waiversToApplyOf(p: PaymentRows, baseline: Baseline, setting: "N
   return { apply, moved };
 }
 
+/// Review S1: an approved waiver not yet applied is sent again only where its basis moved since it was sent, judged as the raise judges it
+/// (`applicationOf` over the waiver's own `asOf`, whatever the switch says about when it reaches the money). The act and the Waivers card both ask this.
+export function waiverResendable(p: PaymentRows, baseline: Baseline, decisionId: string, w: PaymentRows["nonCompletions"][number]["waivers"][number]): boolean {
+  const frozen = readWaiverBasis(w.basis);
+  const now = waiverBasisOf(p, baseline, decisionId, storedDay(w.asOf));
+  return !!frozen && !!now && applicationOf({ setting: "NEXT_CERTIFICATE", approved: waiverApproved(w), applied: w.appliedOnCertificateId != null, frozen, now }).state === "MOVED";
+}
+
 /// FR-LAD-012: the damages accrual per live decision charging damages, against the policy's day count (unset: "Not set", no alert).
 export function accrualOfPayment(p: PaymentRows, baseline: Baseline, policy: { ladAntiOppressionDays: number | null; ladAntiOppressionProvenance: string | null } | null, today: string) {
   const charged = issuedDamagesOf(p).issued;

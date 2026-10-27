@@ -33,7 +33,7 @@ import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type As
 import { db } from "@/lib/db";
 import { creditorFactsOf } from "@/lib/payment/creditor-store";
 import { OPENING_GROUP_WORDS, ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, PAYEE_BANK_UNCHECKED, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
-import { accrualOfPayment, assembleInputOf, baselineOn, damagesOf, decisionOf, liveDecisionsOf, waiversToApplyOf, waiverStateOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, openingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
+import { accrualOfPayment, assembleInputOf, baselineOn, damagesOf, decisionOf, liveDecisionsOf, waiversToApplyOf, waiverResendable, waiverStateOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, openingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { asCorrected } from "@/lib/payment/correction";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
@@ -757,7 +757,7 @@ function WaiversCard({ l, v, people, today, hidden }: { l: LoadedContract; v: Pa
   const waivers = v.p.nonCompletions.flatMap((d) => d.waivers.map((w) => ({ d, w, state: waiverStateOf(w) })));
   const decisions = [...liveDecisionsOf(v.p).values()].filter((d) => d.outcome === "LAD_APPLIES").map((d) => ({ value: d.id, label: `${OUTCOME_WORDS[d.outcome].en}, decided ${formatDate(day(d.decidedOn))}` }));
   const toSend = waivers.filter((x) => x.state === "Recorded" || x.state === "Refused").map((x) => ({ value: x.w.id, label: `${formatMoney(senFromDecimal(x.w.waived))} waived${x.w.matter.reference ? ` (${x.w.matter.reference})` : ""}` }));
-  const moved = waivers.filter((x) => x.state === "Approved").map((x) => ({ value: x.w.id, label: `${formatMoney(senFromDecimal(x.w.waived))} waived (${x.w.matter.reference ?? "approved"})` }));
+  const moved = waivers.filter((x) => x.state === "Approved" && !!v.baseline && waiverResendable(v.p, v.baseline, x.d.id, x.w)).map((x) => ({ value: x.w.id, label: `${formatMoney(senFromDecimal(x.w.waived))} waived (${x.w.matter.reference ?? "approved"})` }));
   const accrual = v.baseline && today ? accrualOfPayment(v.p, v.baseline, v.cfg.policy, today) : [];
   const setting = v.cfg.policy?.ladWaiverApplication ?? null;
   return (
