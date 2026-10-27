@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { certificateFaultWords } from "./fault-text";
 import { draftSigningFaults, isMoneyBearing, KIND_ROUTE_RULE } from "./kinds";
 import { CERTIFICATE_KINDS, type CertificateKind } from "./types";
+import type { ContractMatterKind, MatterFacts } from "@/lib/matter/matter";
 
 /**
  * 614-C1 (BD-614-9, placed at 6.13 Part A step 1): which kinds need an approved route before signing is a tested
@@ -19,6 +20,8 @@ const MONEY: readonly CertificateKind[] = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT",
 const BY_TYPE: readonly CertificateKind[] = ["DELEGATION_LETTER", "DELEGATION_NOTICE", "LAD_WARNING", "NON_COMPLETION", "SO_INSTRUCTION", "PARTIAL_OCCUPATION", "SCHEDULE_OF_DEFECTS", "TERMINATION_INTENT", "NOMINATION_LETTER"];
 // Run 1a fix round (review S5, stricter): approved on a contract matter, refused at signing until the matter answers.
 const MATTER: readonly CertificateKind[] = ["EOT", "CONTRACT_PERIOD_AGREEMENT", "TERMINATION"];
+// BD-613-121 (Phase 2 close-out, stage A): the matter each signs on. TERMINATION has no record in Phase 2 (ruling 24): none.
+const MATTER_OF: Partial<Record<CertificateKind, ContractMatterKind>> = { EOT: "EOT", CONTRACT_PERIOD_AGREEMENT: "PERIOD_EXTENSION" };
 
 describe("the map is exhaustive and decided for every kind", () => {
   it("covers exactly the schema's kinds", () => {
@@ -28,27 +31,35 @@ describe("the map is exhaustive and decided for every kind", () => {
   for (const k of MONEY) {
     it(`${k}: money-bearing, needs an approved route`, () => {
       expect(isMoneyBearing(k)).toBe(true);
-      for (const route of [null, "PENDING", "REJECTED", "RECALLED"]) expect(draftSigningFaults(k, route).map((f) => f.code), String(route)).toEqual(["MONEY_NEEDS_APPROVED_ROUTE"]);
-      expect(draftSigningFaults(k, "APPROVED")).toEqual([]);
+      for (const route of [null, "PENDING", "REJECTED", "RECALLED"]) expect(draftSigningFaults(k, route, null).map((f) => f.code), String(route)).toEqual(["MONEY_NEEDS_APPROVED_ROUTE"]);
+      expect(draftSigningFaults(k, "APPROVED", null)).toEqual([]);
     });
   }
   for (const k of MATTER) {
-    it(`${k}: approved on a contract matter, refused at signing whatever its route`, () => {
+    it(`${k}: approved on a contract matter, refused at signing whatever its route until that matter is approved (BD-613-121)`, () => {
       expect(isMoneyBearing(k)).toBe(false);
-      for (const route of [null, "PENDING", "REJECTED", "APPROVED"]) expect(draftSigningFaults(k, route).map((f) => f.code), String(route)).toEqual(["MATTER_NOT_APPROVED"]);
+      // No matter found (a termination has no record in Phase 2), or its matter not approved: refused, whatever its own route.
+      for (const route of [null, "PENDING", "REJECTED", "APPROVED"]) expect(draftSigningFaults(k, route, null).map((f) => f.code), String(route)).toEqual(["MATTER_NOT_APPROVED"]);
+      const by = MATTER_OF[k];
+      if (!by) return;
+      const pending: MatterFacts = { kind: by, reference: "M/1", closed: null, seriesSet: true, routes: [{ id: "r1", status: "PENDING" }], approvedRouteId: null };
+      for (const route of [null, "APPROVED"]) expect(draftSigningFaults(k, route, pending).map((f) => f.code), String(route)).toEqual(["MATTER_NOT_APPROVED"]);
+      const approved: MatterFacts = { ...pending, routes: [{ id: "r1", status: "APPROVED" }], approvedRouteId: "r1" };
+      for (const route of [null, "PENDING", "REJECTED", "APPROVED"]) expect(draftSigningFaults(k, route, approved), String(route)).toEqual([]);
+      expect(draftSigningFaults(k, null, { ...approved, closed: { reason: "withdrawn" } }).map((f) => f.code)).toEqual(["MATTER_NOT_APPROVED"]);
     });
   }
   for (const k of BY_TYPE) {
     it(`${k}: follows its routing type`, () => {
       expect(isMoneyBearing(k)).toBe(false);
-      for (const route of [null, "PENDING", "REJECTED", "APPROVED"]) expect(draftSigningFaults(k, route)).toEqual([]);
+      for (const route of [null, "PENDING", "REJECTED", "APPROVED"]) expect(draftSigningFaults(k, route, null)).toEqual([]);
     });
   }
 });
 
 describe("the refusal says what to do", () => {
   it("names the route's state, in both languages", () => {
-    const t = (route: string | null) => certificateFaultWords(draftSigningFaults("INTERIM_PAYMENT", route)[0]);
+    const t = (route: string | null) => certificateFaultWords(draftSigningFaults("INTERIM_PAYMENT", route, null)[0]);
     expect(t(null).en).toMatch(/signed only once its approval route is approved: none is open yet\. The module that raised it opens the route on the approval matrix\.$/);
     expect(t("PENDING").en).toMatch(/still waiting for a decision \(Approvals\)/);
     expect(t("REJECTED").en).toMatch(/was refused, and goes on only on a resubmitted route/);
@@ -62,7 +73,7 @@ describe("the act and the page apply it (source)", () => {
   it("proceedToSigning refuses a money-bearing draft without an approved latest route; from routing it needs APPROVED", () => {
     const w = read("src/lib/certificate/write.ts");
     const body = w.slice(w.indexOf("export async function proceedToSigning("), w.indexOf("// ------------------------------------------------------------------ signatures and issue"));
-    expect(body).toMatch(/draftSigningFaults\(cert\.kind as CertificateKind, routes\.length \? routes\[routes\.length - 1\]\.status : null\)/);
+    expect(body).toMatch(/draftSigningFaults\(cert\.kind as CertificateKind, routes\.length \? routes\[routes\.length - 1\]\.status : null, matterFacts\)/); // BD-613-121 (stage A): the matter of its record passed
     expect(body).toMatch(/if \(sheet\.routeState === "PENDING"\)/);
     expect(body).toMatch(/if \(sheet\.routeState === "NONE"\)/);
   });

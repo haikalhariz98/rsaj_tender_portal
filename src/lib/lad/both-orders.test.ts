@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseSen } from "@/lib/money";
 import { matterSigning } from "@/lib/matter/matter";
 import { issueMovedFaults } from "@/lib/time/extension";
+import { periodMovedFaults } from "@/lib/time/period";
 
 import { decisionBasisFaults } from "./basis";
 import { ladBasisMoved, type LadBasis } from "./frozen";
@@ -114,5 +115,12 @@ describe("matter approved / the EOT certificate's signing", () => {
   it("approved first: signs; not yet: refused MATTER_NOT_APPROVED", () => {
     expect(matterSigning("EOT", { ...m, routes: [{ id: "r1", status: "APPROVED" }] })).toEqual([]);
     expect(codes(matterSigning("EOT", { ...m, approvedRouteId: null, routes: [{ id: "r1", status: "PENDING" }] }))).toEqual(["MATTER_NOT_APPROVED"]);
+  });
+});
+
+describe("two period agreements (Phase 2 close-out, stage A)", () => {
+  it("the second raised after the first issued reads its expiry; raised before, its issue refused PERIOD_MOVED", () => {
+    expect(periodMovedFaults("2027-03-31", "2027-03-31")).toEqual([]);
+    expect(codes(periodMovedFaults("2026-12-31", "2027-03-31"))).toEqual(["PERIOD_MOVED"]);
   });
 });

@@ -10,9 +10,21 @@ import { withLockedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOrNull as day, dayToDate, storedDay } from "@/lib/dates";
 import { formatMoney, parseSen } from "@/lib/money";
-import { actCtx, type ActCtx, ActRefusal, afterAct, fieldError, lockMatter, NO_ZONE_STATE, recordedFor, tableRefusal, thrownState } from "@/lib/matter/act";
+import { actCtx, type ActCtx, ActRefusal, afterAct, asMatterRecorder, fieldError, lockMatter, NO_ZONE_STATE, recordedFor, tableRefusal, thrownState } from "@/lib/matter/act";
 import { matterFactsOf } from "@/lib/matter/load";
-import { sendFaults } from "@/lib/matter/matter";
+import { matterApproved, sendFaults } from "@/lib/matter/matter";
+import { refusalText } from "@/lib/certificate/fault-text";
+import { noFormFault } from "@/lib/certificate/form-needs";
+import type { CertificateKind } from "@/lib/certificate/types";
+import { openCertificate } from "@/lib/certificate/write";
+import { latestVersion } from "@/lib/contract/baseline";
+import { baselineRows, valuesOf } from "@/lib/contract/load";
+import { formatDate } from "@/lib/format";
+import { senFromDecimal } from "@/lib/money";
+import { eotSnapshot } from "@/lib/time/certificate";
+import { grantedExtension, lapsedPolicies, newCompletion, raiseFaults, scopeDate } from "@/lib/time/extension";
+import { claimsCommitteeFaults, lossRecordFaults, lossSendFaults, lossValueFaults } from "@/lib/time/loss-expense";
+import { PERIOD_PRECONDITIONS, periodMovedFaults, periodRecordFaults, periodSendFaults } from "@/lib/time/period";
 import { matterSeriesSet, sendMatterRoute } from "@/lib/matter/route-write";
 import { closeMatter, matterLabel, openMatter } from "@/lib/matter/write";
 import { baselineOn } from "@/lib/payment/load";
@@ -330,3 +342,253 @@ export async function sendEotClaim(_prev: FormState, data: FormData): Promise<Fo
   });
 }
 
+// ------------------------------------------------------------------ FR-EOT-003, 008, 009: the EOT certificate
+
+/// The latest version's values (what the version writer extends at issue; EOT_MOVED compares against the same).
+const latestValues = (c: ActCtx) => {
+  const v = latestVersion(baselineRows(c.l.contract).versions);
+  return v ? valuesOf(v) : null;
+};
+const sectionsOf = (v: NonNullable<ReturnType<typeof latestValues>>) => ({ dateForCompletion: v.dateForCompletion, sections: v.sections.map((x) => ({ ref: x.ref, extensionDays: x.extensionDays ?? 0 })) });
+
+/// The form a kind prints on: refused where it is not set (TEMPLATE_NOT_SET, naming where it is chosen). No routing type:
+/// the approval of record is the matter's own route.
+async function formOf(c: ActCtx, kind: CertificateKind): Promise<string> {
+  const s = await c.tx.certificateKindSetting.findUnique({ where: { organisationId_kind: { organisationId: c.l.org.id, kind } }, select: { templateId: true } });
+  if (!s?.templateId) throw new ActRefusal({ ok: false, message: refusalText("Not raised:", [noFormFault(kind)]) });
+  return s.templateId;
+}
+
+/// FR-EOT-003, 008: raise the EOT certificate on an approved claim (design note §6.6). The officer states the days granted
+/// (OD-B6 A); the reasons' computed days are shown beside them, assumed, and a difference only warns.
+export async function raiseEotCertificate(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const claimId = r.text("claimId", "Claim", { required: true });
+  const grantedDays = r.int("grantedDays", "Days granted", { required: true, min: 0 });
+  const unextendedNote = r.text("unextendedNote", "Period not extended", { max: 2000 });
+  if (r.failed || grantedDays == null) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ExtensionOfTime.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
+    const { m, claim } = await lockClaim(c, claimId);
+    const who = await recordedFor(c, act, { soOnly: true }, c.today);
+    const v = latestValues(c);
+    const previous = v ? scopeDate(sectionsOf(v), claim.scope as "WHOLE" | "SECTION", claim.sectionRef) : null;
+    const live = claim.extensions.find((x) => x.certificate.status !== "VOID") ?? null;
+    const fs = raiseFaults({ entitled: claim.entitlement === "ENTITLED" && !m.closedAt, matterApproved: matterApproved(matterFactsOf(m)), live: live ? { number: live.certificate.number } : null, grantedDays, bestEndeavours: claim.bestEndeavours, unextendedNote, previousCompletion: previous });
+    if (fs.length) refuse("Not raised:", fs);
+    const templateId = await formOf(c, "EOT");
+    const g = grantedExtension(claim.reasons, grantedDays);
+    const next = newCompletion(previous!, grantedDays);
+    // FR-EOT-009: the verified policies whose cover ends before the new date, offered for the S.O.'s self-help (frozen here).
+    const policies = await c.tx.insurancePolicy.findMany({ where: { contractId: c.l.contract.id }, select: { id: true, kind: true, policyNo: true, periodEnd: true, status: true, sumInsured: true } });
+    const offered = lapsedPolicies(policies.map((p) => ({ ...p, periodEnd: storedDay(p.periodEnd), sumInsured: senFromDecimal(p.sumInsured) })), next).map((p) => ({ id: p.id, kind: p.kind, policyNo: p.policyNo, periodEnd: p.periodEnd }));
+    const computed = eotSnapshot({ today: c.today, scope: claim.scope as "WHOLE" | "SECTION", sectionRef: claim.sectionRef, previous: previous!, granted: grantedDays, computed: g.computed, next, unextendedNote });
+    const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "EOT", templateId, routingTypeId: null, sectionId: null, computed }, c.now, c.today);
+    const row = await c.tx.extensionOfTime.create({ data: { organisationId: c.l.org.id, certificateId: certId, claimId: claim.id, grantedDays, computedDays: g.computed, previousCompletion: dayToDate(previous!), newCompletion: dayToDate(next), unextendedNote: unextendedNote.trim(), insuranceOffered: offered as unknown as Prisma.InputJsonValue, personId: who.person.id, recordedAt: c.now } });
+    await audit(c, "ExtensionOfTime", row.id, `${claimLabel(c, m)} · extension of time`, "CREATE", diffFields(null, { daysGranted: grantedDays, reasonsComputed: `${g.computed} days (assumed)`, previousDateForCompletion: previous, newDateForCompletion: next, periodNotExtended: unextendedNote.trim() || null, policiesEndingBefore: offered.map((p) => `${p.policyNo || p.kind} (${p.periodEnd})`).join(", ") || null, raisedFor: who.person.name }));
+    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
+    return { ok: true, message: g.warnings.length ? timeRefusal("Raised.", g.warnings) : undefined };
+  });
+}
+
+// ------------------------------------------------------------------ FR-EOT-006: loss and expense (design note §6.8)
+
+/// The loss-and-expense claim, locked (its matter first, where it has one).
+async function lockLoss(c: ActCtx, lossId: string) {
+  const pre = await c.tx.lossExpenseClaim.findFirst({ where: { id: lossId, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true, matterId: true } });
+  if (!pre) throw new ActRefusal({ ok: false, message: "That loss-and-expense claim is not on this contract." });
+  if (pre.matterId) await c.tx.$queryRaw`SELECT id FROM "ContractMatter" WHERE id = ${pre.matterId} FOR UPDATE`;
+  await c.tx.$queryRaw`SELECT id FROM "LossExpenseClaim" WHERE id = ${pre.id} FOR UPDATE`;
+  return c.tx.lossExpenseClaim.findFirstOrThrow({ where: { id: pre.id, organisationId: c.l.org.id }, include: { claim: { select: { matter: { select: { reference: true } } } } } });
+}
+const lossLabel = (c: ActCtx, l: { claim: { matter: { reference: string | null } } | null }) => `${c.label} · loss and expense${l.claim ? ` on ${l.claim.matter.reference ?? "an extension-of-time claim"}` : ""}`;
+
+export async function recordLossExpense(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const claimed = r.money("claimed", "Amount claimed", { required: true });
+  const eotClaimId = r.optionalText("eotClaimId");
+  if (r.failed || !claimed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "LossExpenseClaim.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  return inContract(actor, toAuditActor(actor), idOf(data), now, "LOSS_EXPENSE", async (c) => {
+    const who = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
+    const fs = lossRecordFaults({ claimed: parseSen(claimed) });
+    if (fs.length) refuse("Not recorded:", fs);
+    const eot = eotClaimId ? await c.tx.eotClaim.findFirst({ where: { id: eotClaimId, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true, matter: { select: { reference: true } } } }) : null;
+    if (eotClaimId && !eot) fieldError("eotClaimId", "That claim is not on this contract.");
+    const row = await c.tx.lossExpenseClaim.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, claimId: eot?.id ?? null, claimed, personId: who.person.id, recordedAt: c.now } });
+    await audit(c, "LossExpenseClaim", row.id, lossLabel(c, { claim: eot }), "CREATE", diffFields(null, { amountClaimed: formatMoney(parseSen(claimed)), onExtensionOfTime: eot ? (eot.matter.reference ?? "an unnumbered claim") : null, recordedFor: who.person.name }));
+    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
+    return { ok: true };
+  });
+}
+
+export async function valueLossExpense(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const lossId = r.text("lossId", "Claim", { required: true });
+  const valued = r.money("valued", "Value", { required: true });
+  const basis = r.text("basis", "How it was valued", { max: 4000 });
+  const valuedOn = r.date("valuedOn", "Valued on", { required: true });
+  if (r.failed || !valued || !valuedOn) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "LossExpenseClaim.valuedBy", { personField: "personId", dateField: "valuedOn" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  return inContract(actor, toAuditActor(actor), idOf(data), now, "LOSS_EXPENSE", async (c) => {
+    const x = await lockLoss(c, lossId);
+    const who = await recordedFor(c, act, { act: "VALUATION" }, c.today);
+    const fs = lossValueFaults({ sent: x.matterId != null, valued: parseSen(valued), basis, valuedOn: storedDay(valuedOn), today: c.today });
+    if (fs.length) refuse("Not valued:", fs);
+    const moved = await c.tx.lossExpenseClaim.updateMany({ where: { id: x.id, matterId: null }, data: { valued, basis: basis.trim(), valuedOn, valuedByPersonId: who.person.id } });
+    if (moved.count !== 1) throw new ActRefusal({ ok: false, message: "The claim changed while this was being saved. Reload and try again." });
+    await audit(c, "LossExpenseClaim", x.id, lossLabel(c, x), "UPDATE", diffFields({ value: x.valued == null ? null : formatMoney(senFromDecimal(x.valued)), valuedOn: day(x.valuedOn) }, { value: formatMoney(parseSen(valued)), basis: basis.trim(), valuedOn: storedDay(valuedOn), valuedBy: who.person.name }));
+    await act.write(c.tx, x.id, { roleCode: who.soRoleCode });
+    return { ok: true };
+  });
+}
+
+/// Send a valued claim on `loss_expense` at its valued amount; its matter is opened at the first send. Where the contract
+/// type names a claims committee, the route's committee step must be it (OD-B20).
+export async function sendLossExpense(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const lossId = r.text("lossId", "Claim", { required: true });
+  if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  return inContract(actor, toAuditActor(actor), idOf(data), now, "LOSS_EXPENSE", async (c) => {
+    const x = await lockLoss(c, lossId);
+    const sender = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
+    const valued = x.valued == null ? null : senFromDecimal(x.valued);
+    const own = lossSendFaults({ valued });
+    if (own.length) refuse("Not sent for approval:", own);
+    let matterId = x.matterId;
+    if (!matterId) {
+      matterId = await openMatter(c.tx, toAuditActor(actor), c.l, "LOSS_EXPENSE", asMatterRecorder(act), sender.person.name, c.now);
+      await c.tx.lossExpenseClaim.update({ where: { id: x.id, organisationId: c.l.org.id }, data: { matterId } });
+    }
+    const { m } = await lockMatter(c, matterId);
+    const fs = sendFaults(matterFactsOf(m, await matterSeriesSet(c.tx, c.l.org.id)), { value: valued, ratio: null, cond: null });
+    if (fs.length) refuse("Not sent for approval:", fs);
+    const baseline = baselineOn(c.l, c.today);
+    if (!baseline) refuse("Not sent for approval:", [{ code: "NO_DATE_FOR_COMPLETION", level: "block" }]);
+    const type = c.l.ex.contractTypeCode ? await c.tx.contractType.findFirst({ where: { organisationId: c.l.org.id, code: c.l.ex.contractTypeCode }, select: { claimsCommittee: { select: { code: true, nameEn: true } } } }) : null;
+    const claims = type?.claimsCommittee ? { code: type.claimsCommittee.code, name: type.claimsCommittee.nameEn } : null;
+    await sendMatterRoute(c, m, { value: valued, ratio: null, cond: null, contractValue: baseline!.values.contractSum, submittedBy: sender.person, act, chainCheck: (codes, nameOf) => claimsCommitteeFaults(codes, claims, nameOf), what: "Loss and expense" });
+    return { ok: true };
+  });
+}
+
+// ------------------------------------------------------------------ FR-EOT-011–013: the extension of the contract period (design note §6.7)
+
+export async function recordPeriodExtension(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const answers = Object.fromEntries(PERIOD_PRECONDITIONS.map((p) => [p, r.choice(p, "Confirmed", ["yes", "no"] as const, { required: true })])) as Record<(typeof PERIOD_PRECONDITIONS)[number], "yes" | "no" | null>;
+  const newExpiry = r.date("newExpiry", "New expiry", { required: true });
+  const financialImpact = r.money("financialImpact", "Financial impact");
+  const reason = r.text("reason", "Why it is extended", { max: 4000 });
+  if (r.failed || !newExpiry) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "PeriodExtension.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  return inContract(actor, toAuditActor(actor), idOf(data), now, "PERIOD_EXTENSION", async (c) => {
+    const who = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
+    const instrument = await instrumentOf(c);
+    const current = latestValues(c)?.dateForCompletion ?? null;
+    const fs = periodRecordFaults({ instrument: instrumentFaults(instrument.kind, "PERIOD", instrument.name), currentExpiry: current, newExpiry: storedDay(newExpiry), reason, financialImpact: financialImpact ? parseSen(financialImpact) : null });
+    if (fs.length) refuse("Not recorded:", fs);
+    const matterId = await openMatter(c.tx, toAuditActor(actor), c.l, "PERIOD_EXTENSION", asMatterRecorder(act), who.person.name, c.now);
+    const yes = (p: (typeof PERIOD_PRECONDITIONS)[number]) => answers[p] === "yes";
+    const row = await c.tx.periodExtension.create({ data: { organisationId: c.l.org.id, matterId, contractId: c.l.contract.id, priorAgreement: yes("priorAgreement"), termsRetained: yes("termsRetained"), ratesRetained: yes("ratesRetained"), performanceSatisfactory: yes("performanceSatisfactory"), spanConfirmed: yes("spanConfirmed"), currentExpiry: dayToDate(current!), newExpiry, financialImpact, reason: reason.trim(), personId: who.person.id, recordedAt: c.now } });
+    await audit(c, "PeriodExtension", row.id, `${c.label} · extension of the contract period`, "CREATE", diffFields(null, { currentExpiry: formatDate(current!), newExpiry: formatDate(storedDay(newExpiry)), financialImpact: financialImpact ? formatMoney(parseSen(financialImpact)) : "none", why: reason.trim(), preconditionsConfirmed: PERIOD_PRECONDITIONS.filter((p) => yes(p)).length + " of " + PERIOD_PRECONDITIONS.length, recordedFor: who.person.name }));
+    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
+    return { ok: true };
+  });
+}
+
+/// The period extension of a matter, locked (the matter first, then the record).
+async function lockPeriod(c: ActCtx, extensionId: string) {
+  const pre = await c.tx.periodExtension.findFirst({ where: { id: extensionId, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { matterId: true } });
+  if (!pre) throw new ActRefusal({ ok: false, message: "That extension is not on this contract." });
+  const { m } = await lockMatter(c, pre.matterId);
+  if (!m.periodExtension) throw new ActRefusal({ ok: false, message: "That extension is not on this contract." });
+  return { m, x: m.periodExtension };
+}
+
+export async function sendPeriodExtension(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const extensionId = r.text("extensionId", "Extension", { required: true });
+  if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  return inContract(actor, toAuditActor(actor), idOf(data), now, "PERIOD_EXTENSION", async (c) => {
+    const { m, x } = await lockPeriod(c, extensionId);
+    const sender = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
+    const value = x.financialImpact == null ? null : senFromDecimal(x.financialImpact);
+    const fs = [...periodSendFaults(x), ...sendFaults(matterFactsOf(m, await matterSeriesSet(c.tx, c.l.org.id)), { value, ratio: null, cond: null })];
+    if (fs.length) refuse("Not sent for approval:", fs);
+    const baseline = baselineOn(c.l, c.today);
+    if (!baseline) refuse("Not sent for approval:", [{ code: "NO_DATE_FOR_COMPLETION", level: "block" }]);
+    await sendMatterRoute(c, m, { value, ratio: null, cond: null, contractValue: baseline!.values.contractSum, submittedBy: sender.person, act, what: "Extension of the contract period" });
+    return { ok: true };
+  });
+}
+
+/// FR-EOT-013: the supplementary agreement, raised once the extension's matter is approved.
+export async function raisePeriodAgreement(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const extensionId = r.text("extensionId", "Extension", { required: true });
+  if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "PeriodAgreement.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  return inContract(actor, toAuditActor(actor), idOf(data), now, "PERIOD_EXTENSION", async (c) => {
+    const { m, x } = await lockPeriod(c, extensionId);
+    const who = await recordedFor(c, act, { soOnly: true }, c.today);
+    const fs: Finding[] = [];
+    if (!matterApproved(matterFactsOf(m))) fs.push({ code: "MATTER_NOT_APPROVED", level: "block" });
+    const live = x.agreements.find((a) => a.certificate.status !== "VOID");
+    if (live) fs.push({ code: "PERIOD_AGREEMENT_LIVE", level: "block", data: { number: live.certificate.number } });
+    fs.push(...periodMovedFaults(storedDay(x.currentExpiry), latestValues(c)?.dateForCompletion ?? null));
+    if (fs.length) refuse("Not raised:", fs);
+    const templateId = await formOf(c, "CONTRACT_PERIOD_AGREEMENT");
+    const date = (key: string, labelEn: string, value: string) => ({ key, labelEn, type: "DATE" as const, value, overridable: false });
+    const computed = { version: 1 as const, computedOn: c.today, rule: { en: "The contract period's current expiry and the new one agreed." }, lines: [date("periodCurrentExpiry", "Current expiry", storedDay(x.currentExpiry)), date("periodNewExpiry", "New expiry", storedDay(x.newExpiry))], totals: [], routingRatio: null };
+    const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "CONTRACT_PERIOD_AGREEMENT", templateId, routingTypeId: null, sectionId: null, computed }, c.now, c.today);
+    const row = await c.tx.periodAgreement.create({ data: { organisationId: c.l.org.id, certificateId: certId, extensionId: x.id, personId: who.person.id, recordedAt: c.now } });
+    await audit(c, "PeriodAgreement", row.id, `${c.label} · contract period agreement`, "CREATE", diffFields(null, { currentExpiry: formatDate(storedDay(x.currentExpiry)), newExpiry: formatDate(storedDay(x.newExpiry)), raisedFor: who.person.name }));
+    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
+    return { ok: true };
+  });
+}

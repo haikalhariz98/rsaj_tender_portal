@@ -42,7 +42,10 @@ import { nextSequence } from "./sequence";
 import { issueRefusal, sequenceFloor } from "@/lib/payment/at-issue";
 import { afterCertificateIssue, approvalOfRecordFaults, variationIssueRefusal } from "@/lib/variation/at-certificate";
 import { variationRefusal } from "@/lib/variation/labels";
-import { draftSigningFaults, matterSigningFaults } from "./kinds";
+import { draftSigningFaults } from "./kinds";
+import { KIND_ISSUE_HOOK } from "./issue-hooks";
+import { matterSigning } from "@/lib/matter/matter";
+import { certificateMatterFacts } from "@/lib/time/at-issue";
 import { voidFaults } from "./void";
 import { allSigned, maskedIc, signFaults, type SignInput } from "./signature";
 import { englishOnly, readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
@@ -231,6 +234,8 @@ export async function recordCheck(c: CertCtx, defOrder: number, act: ActWriter, 
 export async function proceedToSigning(c: CertCtx) {
   const cert = c.l.cert;
   const s = statusOf(c);
+  // BD-613-121: a kind approved on a contract matter signs once that matter is approved (read after the certificate's lock).
+  const matterFacts = await certificateMatterFacts(c.tx, cert);
   if (s === "DRAFT") {
     if (cert.routingTypeId) refuse("Not sent to signing:", one("ROUTED"));
     // 614-C1: a money-bearing kind needs its latest approval route approved, whatever its routing type. 6.13 Part A
@@ -241,7 +246,7 @@ export async function proceedToSigning(c: CertCtx) {
       if (own.length) throw new CertificateRefusal(variationRefusal("Not sent to signing:", own));
     } else {
       const routes = routesOf(cert.approvalInstances);
-      const fs = draftSigningFaults(cert.kind as CertificateKind, routes.length ? routes[routes.length - 1].status : null);
+      const fs = draftSigningFaults(cert.kind as CertificateKind, routes.length ? routes[routes.length - 1].status : null, matterFacts);
       if (fs.length) refuse("Not sent to signing:", fs);
     }
   } else if (s === "IN_ROUTING") {
@@ -256,9 +261,9 @@ export async function proceedToSigning(c: CertCtx) {
     if (open.length) fs.push(...one("CHECKS_OUTSTANDING", { checks: open.join(", ") }));
     if (fs.length) refuse("Not sent to signing:", fs);
   } else refuse("Not sent to signing:", one("NOT_ALLOWED"));
-  // Review S5: from a draft or from routing alike, a kind approved on a contract matter fails closed until the matter's
-  // approval is read (the draft path has already said it through draftSigningFaults).
-  const matter = matterSigningFaults(cert.kind as CertificateKind);
+  // Review S5, BD-613-121: from a draft or from routing alike, a kind approved on a contract matter signs only once that
+  // matter is approved (the draft path has already said it through draftSigningFaults).
+  const matter = matterSigning(cert.kind as CertificateKind, matterFacts);
   if (matter.length) refuse("Not sent to signing:", matter);
   await moveTo(c, "SIGNING");
   await audit(c, "Certificate", cert.id, labelOf(c), "UPDATE", diffFields({ stage: STATUS_WORDS[s].en }, { stage: STATUS_WORDS.SIGNING.en }));
@@ -383,7 +388,9 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   // were worked out for). A refusal rolls the whole signature back.
   // 6.13 Part A step 4: the variation module judges its own kinds at issue the same way (the instruction still
   // approved and consented, the order still covered, an adjustment still on the issued adjustments it was worked out on).
-  const refusal = (await issueRefusal(c.tx, c.l, cert, sequence, c.today)) ?? (await variationIssueRefusal(c.tx, c.l, cert));
+  // ADR 0047 D2: a post-award kind's own refusal (the basis it was raised on moved), from the one issue-hook map.
+  const hook = KIND_ISSUE_HOOK[cert.kind as CertificateKind];
+  const refusal = (await issueRefusal(c.tx, c.l, cert, sequence, c.today)) ?? (await variationIssueRefusal(c.tx, c.l, cert)) ?? (hook ? await hook.refusal(c.tx, c.l, cert) : null);
   if (refusal) throw new CertificateRefusal(refusal);
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const figures = snap ? applyOverrides(snap, cert.overrides) : { lines: [], totals: [], overridden: false };
@@ -440,6 +447,9 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   // in this transaction; a refusal rolls the issue back.
   const after = await afterCertificateIssue(c.tx, c.actor, c.l, cert, c.now, c.today);
   if (after) throw new CertificateRefusal(after);
+  // ADR 0047 D2: the kind's own writes after issue (an extension's baseline version), in this transaction.
+  const hooked = hook ? await hook.after(c.tx, c.actor, c.l, cert, number, c.now, c.today) : null;
+  if (hooked) throw new CertificateRefusal(hooked);
 }
 
 /**

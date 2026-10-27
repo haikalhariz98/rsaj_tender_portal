@@ -4,7 +4,9 @@ import { ActedBy } from "@/components/attribution";
 import type { CertificateKind } from "@/lib/certificate/types";
 import type { ContractStatus } from "@/lib/contract/types";
 import { actStatusFault, actStatusText, statusCalloutTitle, certificateAct, certificateGates, certificatePhase } from "@/lib/contract/act-status";
-import { draftSigningFaults, matterSigningFaults } from "@/lib/certificate/kinds";
+import { draftSigningFaults } from "@/lib/certificate/kinds";
+import { matterSigning } from "@/lib/matter/matter";
+import { certificateMatterFacts } from "@/lib/time/at-issue";
 import { historyEntityLabel, RECORD_TYPE_WORDS } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
 
@@ -178,13 +180,13 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
     // the variation's application and order, its approval of record (the act calls the same function).
     const own = await approvalOfRecordFaults(db, l, cert);
     const routes = routesOf(cert.approvalInstances);
-    const money = own ?? draftSigningFaults(cert.kind, routes.length ? routes[routes.length - 1].status : null);
+    const money = own ?? draftSigningFaults(cert.kind, routes.length ? routes[routes.length - 1].status : null, await certificateMatterFacts(db, cert));
     actionNote = money.length ? (own ? variationRefusal("", money) : money.map(certificateFaultText).join(" ")) : null;
     action = money.length ? <Blocked label="Send to signing" reason={actionNote!} primary noteId={NOTE_ID} /> : <SendToSigningDrawer certId={cert.id} routed={false} blocker={today ? null : "Set the organisation's time zone first."} />;
   }
   else if (status === "IN_ROUTING" && sheet) {
-    // Review S5: the act's own rule from routing too: a kind approved on a contract matter fails closed.
-    const matter = matterSigningFaults(cert.kind as CertificateKind);
+    // Review S5, BD-613-121: the act's own rule from routing too: a kind approved on a contract matter signs once that matter is approved.
+    const matter = matterSigning(cert.kind as CertificateKind, await certificateMatterFacts(db, cert));
     const blocker = signingBlocker(sheet) ?? (matter.length ? matter.map(certificateFaultText).join(" ") : null);
     actionNote = blocker;
     action = blocker ? <Blocked label="Send to signing" reason={blocker} primary noteId={NOTE_ID} /> : <SendToSigningDrawer certId={cert.id} routed blocker={null} />;

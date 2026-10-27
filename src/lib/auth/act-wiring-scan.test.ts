@@ -24,11 +24,9 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   "RequisitionSplitCheck.overriddenBy": { why: "The split-check override has no act yet: the check is read, and an override is only seeded.", writer: /requisitionSplitCheck\.(?:create|update|upsert)/ },
   "Evaluation.cancelledBy": { why: "No act cancels an evaluation yet.", writer: /cancelledByPersonId/ },
   // ADR 0041: the three slots step 1 registered (sending an online application, checking its certificates and its bank details) are wired since step 4 (`portal-actions.ts`), so they leave this list.
-  "ExtensionOfTime.person": { why: "The extension of time granted on a determined claim is a later 6.13 Part B increment: no act writes it.", writer: /\.extensionOfTime\.(?:create|update|upsert)/ },
-  "PeriodExtension.person": { why: "The extension of the contract period is a later 6.13 Part B increment: no act writes it.", writer: /\.periodExtension\.(?:create|update|upsert)/ },
-  "PeriodAgreement.person": { why: "The agreement on the contract period is a later 6.13 Part B increment: no act writes it.", writer: /\.periodAgreement\.(?:create|update|upsert)/ },
+  // Phase 2 close-out stage A: raising the EOT certificate, the period extension and its agreement, and valuing a loss-and-expense claim are wired
+  // (`src/app/projects/[id]/time-actions.ts`), so they left this list.
   "LadWaiver.person": { why: "Waiving liquidated damages is a later 6.13 Part B increment: no act writes it.", writer: /\.ladWaiver\.(?:create|update|upsert)/ },
-  "LossExpenseClaim.valuedBy": { why: "Valuing a loss-and-expense claim is a later 6.13 Part B increment: no act writes the valuation.", writer: /valuedByPersonId/ },
   // Wave 3b (SR-13): the two attestations of the bid sealing policy are wired since step 7 (`bid-sealing/core.ts`), so they leave this list.
   // ADR 0042 (plan step 4): the Project workspace's six staff slots are wired (`document-actions.ts`, `project-docs/store.ts`) and have left this list.
   // ADR 0042 D10 (plan step 7): the kick-off meeting's two slots are wired since the act step (`kick-off-actions.ts`, `project-docs/kick-off-store.ts`), so they leave this list.

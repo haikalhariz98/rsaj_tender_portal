@@ -231,8 +231,11 @@ export function certificateFaultWords(f: Finding): Words {
     case "CHECKS_OUTSTANDING":
       return w(`The routing sheet's checks are not all recorded in this round: ${s(d.checks, "a check")} ${String(d.checks ?? "").includes(",") ? "are" : "is"} still open.`, `Semakan helaian belum lengkap: ${s(d.checks, "semakan")}.`);
     case "MATTER_NOT_APPROVED":
-      // Review S5: a kind approved on a contract matter fails closed until the matter's approval is read.
+      // Review S5, BD-613-121: a kind approved on a contract matter signs once that matter is approved.
       return matterFaultWords();
+    case "WORK_WOULD_BE_STRANDED":
+      // ADR 0047 D2: an issue that writes the contract's status waits until nothing open would be left that no act can finish.
+      return w(`Not issued yet: once it is, nothing could finish ${s(d.items, "the work still open")}. Decide or void it first.`, `Belum dikeluarkan: ${s(d.items, "kerja yang masih terbuka")} perlu diputuskan atau dibatalkan dahulu.`);
     case "MONEY_NEEDS_APPROVED_ROUTE":
       // 614-C1: a money-bearing kind never reaches signing without an approved route.
       return kindFaultWords(f);

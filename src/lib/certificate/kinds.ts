@@ -12,11 +12,13 @@
  * Pure.
  */
 
+import { matterSigning, type MatterFacts } from "@/lib/matter/matter";
+
 import { w, type Words } from "./labels";
 import type { CertificateKind, Finding } from "./types";
 
-/// MATTER_APPROVED (Run 1a fix round, review S5): the approval of record is a contract matter's own route, so the
-/// certificate never reaches signing on its routing type alone; it is refused until the matter hook (run 1b) answers.
+/// MATTER_APPROVED (Run 1a fix round, review S5; BD-613-121): the approval of record is a contract matter's own route, so the
+/// certificate never reaches signing on its routing type alone: it signs once that matter is approved (`matterSigning`).
 export type KindRouteRule = "APPROVED_ROUTE" | "BY_ROUTING_TYPE" | "MATTER_APPROVED";
 
 export const KIND_ROUTE_RULE: Readonly<Record<CertificateKind, KindRouteRule>> = {
@@ -52,23 +54,15 @@ export const KIND_ROUTE_RULE: Readonly<Record<CertificateKind, KindRouteRule>> =
 export const isMoneyBearing = (k: CertificateKind): boolean => KIND_ROUTE_RULE[k] === "APPROVED_ROUTE";
 
 /**
- * Why a draft with no routing type may not go straight to signing: a money-bearing kind needs its latest
+ * Why a draft with no routing type may not go straight to signing: a kind approved on a contract matter needs that
+ * matter approved (`matter`: the matter of its record, null where none is found); a money-bearing kind needs its latest
  * approval route approved (none opened, pending, refused or recalled all refuse).
  */
-export function draftSigningFaults(kind: CertificateKind, latestRouteStatus: string | null): Finding[] {
-  const matter = matterSigningFaults(kind);
-  if (matter.length) return matter;
+export function draftSigningFaults(kind: CertificateKind, latestRouteStatus: string | null, matter: MatterFacts | null): Finding[] {
+  const m = matterSigning(kind, matter);
+  if (m.length) return m;
   if (!isMoneyBearing(kind) || latestRouteStatus === "APPROVED") return [];
   return [{ code: "MONEY_NEEDS_APPROVED_ROUTE", level: "block", data: { kind, route: latestRouteStatus } }];
-}
-
-/**
- * Review S5: a kind approved on a contract matter is refused at signing, from a draft and from routing alike, until the
- * matter's approval is read. No matter has a route before run 1b, whose hook replaces this refusal with the matter's
- * answer; until then it fails closed.
- */
-export function matterSigningFaults(kind: CertificateKind): Finding[] {
-  return KIND_ROUTE_RULE[kind] === "MATTER_APPROVED" ? [{ code: "MATTER_NOT_APPROVED", level: "block", data: { kind } }] : [];
 }
 
 export const matterFaultWords = (): Words =>

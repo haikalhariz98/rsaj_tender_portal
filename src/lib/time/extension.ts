@@ -106,3 +106,8 @@ export interface PolicyRow {
 export function lapsedPolicies<P extends PolicyRow>(policies: readonly P[], newDate: Day): P[] {
   return policies.filter((p) => p.status === "VERIFIED" && p.periodEnd < newDate);
 }
+
+/// Whether an extension on its scope moves a damages decision's scope (ADR 0030 §2): a whole-works extension moves every
+/// scope; a section's moves that section alone. A decision with no scope reads as the whole works.
+export const movesScope = (ext: { scope: Scope; sectionRef: string | null }, d: { scope: Scope | null; sectionRef: string | null }): boolean =>
+  ext.scope === "WHOLE" || (d.scope === "SECTION" && d.sectionRef === ext.sectionRef);

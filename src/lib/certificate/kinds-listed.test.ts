@@ -8,7 +8,8 @@ import { RECOMMENDING_ACT } from "@/lib/supervision/blocks";
 import { KIND_FIGURE_KEYS } from "./fields";
 import { formNeedFault, formNeeds } from "./form-needs";
 import { certificateFaultWords } from "./fault-text";
-import { draftSigningFaults, isMoneyBearing, KIND_ROUTE_RULE, matterSigningFaults } from "./kinds";
+import { draftSigningFaults, isMoneyBearing, KIND_ROUTE_RULE } from "./kinds";
+import { matterSigning, type MatterFacts } from "@/lib/matter/matter";
 import { KIND_WORDS } from "./labels";
 import { CERTIFICATE_KINDS, type CertificateKind } from "./types";
 
@@ -70,17 +71,26 @@ describe("every map over the kinds decides each Part B kind", () => {
     for (const k of ["EOT", "CONTRACT_PERIOD_AGREEMENT", "TERMINATION", "NOMINATION_LETTER"] as const) expect(KIND_ROUTE_DOMAIN[k]).toBeNull();
   });
 
-  it("S5: EOT, the period agreement and the termination never reach signing with no approval: refused, from a draft and from routing, until the matter hook answers", () => {
+  it("S5, BD-613-121: EOT, the period agreement and the termination never reach signing with no approval: refused, from a draft and from routing, until their matter is approved", () => {
+    // Phase 2 close-out stage A (flagged: matter signing replaces the fail-closed refusal, stricter in the approved
+    // direction): with no matter found, or one not approved, every route state is still refused; the termination has no
+    // record in Phase 2 (ruling 24), so it stays refused.
+    const pending = (kind: "EOT" | "PERIOD_EXTENSION"): MatterFacts => ({ kind, reference: "M/1", closed: null, seriesSet: true, routes: [{ id: "r1", status: "PENDING" }], approvedRouteId: null });
     for (const k of MATTER) {
-      for (const route of [null, "PENDING", "REJECTED", "RECALLED", "APPROVED"]) expect(draftSigningFaults(k, route).map((f) => f.code), `${k} ${route}`).toEqual(["MATTER_NOT_APPROVED"]);
-      expect(matterSigningFaults(k).map((f) => f.code), k).toEqual(["MATTER_NOT_APPROVED"]);
+      for (const route of [null, "PENDING", "REJECTED", "RECALLED", "APPROVED"]) expect(draftSigningFaults(k, route, null).map((f) => f.code), `${k} ${route}`).toEqual(["MATTER_NOT_APPROVED"]);
+      expect(matterSigning(k, null).map((f) => f.code), k).toEqual(["MATTER_NOT_APPROVED"]);
       expect(isMoneyBearing(k), k).toBe(false);
     }
-    for (const k of CERTIFICATE_KINDS.filter((x) => !MATTER.includes(x))) expect(matterSigningFaults(k), k).toEqual([]);
+    for (const [k, by] of [["EOT", "EOT"], ["CONTRACT_PERIOD_AGREEMENT", "PERIOD_EXTENSION"]] as const) {
+      expect(matterSigning(k, pending(by)).map((f) => f.code), k).toEqual(["MATTER_NOT_APPROVED"]);
+      expect(matterSigning(k, { ...pending(by), routes: [{ id: "r1", status: "APPROVED" }], approvedRouteId: "r1" }), k).toEqual([]);
+    }
+    expect(matterSigning("TERMINATION", { ...pending("EOT"), routes: [{ id: "r1", status: "APPROVED" }], approvedRouteId: "r1" }).map((f) => f.code)).toEqual(["MATTER_NOT_APPROVED"]);
+    for (const k of CERTIFICATE_KINDS.filter((x) => !MATTER.includes(x))) expect(matterSigning(k, null), k).toEqual([]);
   });
 
   it("S5: the refusal's words, in English and Malay, never the money words", () => {
-    const w = certificateFaultWords(matterSigningFaults("EOT")[0]);
+    const w = certificateFaultWords(matterSigning("EOT", null)[0]);
     expect(w.en).toBe("Needs its matter approved on its own route first."); // shortened by note 0005, founder 2026-10-19; the meaning pinned is unchanged
     expect(w.ms).toBe("Perakuan yang diluluskan melalui perkara kontrak hanya ditandatangani selepas perkara itu diluluskan pada laluannya sendiri, dan tiada perkara yang diluluskan direkodkan untuknya: ia tidak dihantar untuk tandatangan berdasarkan jenis penghalaannya sahaja.");
     expect(w.en).not.toMatch(/money/);
@@ -89,10 +99,14 @@ describe("every map over the kinds decides each Part B kind", () => {
   it("S5: the act asks it from a draft and from routing; the page asks the same (source)", () => {
     const write = readFileSync("src/lib/certificate/write.ts", "utf8");
     const body = write.slice(write.indexOf("export async function proceedToSigning("), write.indexOf("// ------------------------------------------------------------------ signatures and issue"));
-    expect(body).toMatch(/const matter = matterSigningFaults\(cert\.kind as CertificateKind\);\n\s+if \(matter\.length\) refuse\("Not sent to signing:", matter\);/);
-    expect(body.indexOf("matterSigningFaults(")).toBeLessThan(body.indexOf("await moveTo(c, \"SIGNING\")"));
+    // BD-613-121: the matter of the certificate's record is read once, after the certificate's lock, for both paths.
+    expect(body).toMatch(/const matterFacts = await certificateMatterFacts\(c\.tx, cert\);/);
+    expect(body).toMatch(/draftSigningFaults\(cert\.kind as CertificateKind, routes\.length \? routes\[routes\.length - 1\]\.status : null, matterFacts\)/);
+    expect(body).toMatch(/const matter = matterSigning\(cert\.kind as CertificateKind, matterFacts\);\n\s+if \(matter\.length\) refuse\("Not sent to signing:", matter\);/);
+    expect(body.indexOf("matterSigning(")).toBeLessThan(body.indexOf("await moveTo(c, \"SIGNING\")"));
     const page = readFileSync("src/app/projects/[id]/certificates/[certId]/page.tsx", "utf8");
-    expect(page).toMatch(/matterSigningFaults\(cert\.kind as CertificateKind\)/);
+    expect(page).toMatch(/matterSigning\(cert\.kind as CertificateKind, await certificateMatterFacts\(db, cert\)\)/);
+    expect(page).toMatch(/draftSigningFaults\(cert\.kind, routes\.length \? routes\[routes\.length - 1\]\.status : null, await certificateMatterFacts\(db, cert\)\)/);
   });
 
   it("no figure key and no recommending supervision act yet: each kind's assembler declares its own in its run", () => {

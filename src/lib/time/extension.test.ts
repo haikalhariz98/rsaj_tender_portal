@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseSen } from "@/lib/money";
 
-import { computedExtension, extendedDates, grantedExtension, issueMovedFaults, lapsedPolicies, newCompletion, raiseFaults, scopeDate } from "./extension";
+import { computedExtension, extendedDates, grantedExtension, issueMovedFaults, lapsedPolicies, movesScope, newCompletion, raiseFaults, scopeDate } from "./extension";
 
 /**
  * 6.13 Part B run 1b: the extension an EOT certificate grants (FR-EOT-003, 008, 009; OD-B6 A as ruled, BD-613-74). Pure.
@@ -75,5 +75,18 @@ describe("FR-EOT-009: lapsed policies offered for the S.O.'s self-help", () => {
     const p = (id: string, periodEnd: string, status = "VERIFIED") => ({ id, kind: "WORKS", policyNo: id, periodEnd, status, sumInsured: parseSen("1000.00") });
     const out = lapsedPolicies([p("a", "2026-09-01"), p("b", "2026-09-14"), p("c", "2026-10-01"), p("d", "2026-09-01", "REJECTED")], "2026-09-14");
     expect(out.map((x) => x.id)).toEqual(["a"]);
+  });
+});
+
+describe("which damages decisions an extension moves (ADR 0030 §2; Phase 2 close-out stage A, the issue hook)", () => {
+  it("a whole-works extension moves every scope; a section's moves that section alone; no scope reads as the whole works", () => {
+    const whole = { scope: "WHOLE" as const, sectionRef: null };
+    const s1 = { scope: "SECTION" as const, sectionRef: "S1" };
+    expect(movesScope(whole, { scope: null, sectionRef: null })).toBe(true);
+    expect(movesScope(whole, { scope: "SECTION", sectionRef: "S2" })).toBe(true);
+    expect(movesScope(s1, { scope: "SECTION", sectionRef: "S1" })).toBe(true);
+    expect(movesScope(s1, { scope: "SECTION", sectionRef: "S2" })).toBe(false);
+    expect(movesScope(s1, { scope: "WHOLE", sectionRef: null })).toBe(false);
+    expect(movesScope(s1, { scope: null, sectionRef: null })).toBe(false);
   });
 });

@@ -19,6 +19,7 @@ import { actStatusText } from "@/lib/contract/act-status";
 import { contractLabel, type LoadedContract } from "@/lib/contract/repo";
 import { dayOf } from "@/lib/dates";
 import type { Tx } from "@/lib/audit/record";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import type { AuditActor } from "@/lib/auth/types";
 import { capacityFor, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
 import { supervisionRefusal } from "@/lib/supervision/labels";
@@ -124,3 +125,7 @@ export async function lockMatter(c: ActCtx, matterId: string): Promise<{ matters
   const matters = await loadMatters(c.l.contract.id, c.tx);
   return { matters, m: matters.find((x) => x.id === pre.id)! };
 }
+
+/// The act, as the writer of the matter it opens: its attribution goes on the matter's own slot (`ContractMatter.person`),
+/// beside the record's, when the act was begun for the record (a waiver, a period extension, a loss-and-expense send).
+export const asMatterRecorder = (act: ActWriter): ActWriter => ({ ...act, write: (tx, entityId, extra) => act.writeAlso(tx, "ContractMatter.person", entityId, extra) });

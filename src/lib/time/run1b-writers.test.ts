@@ -114,7 +114,7 @@ describe("one named writer per run 1b table (design note §9)", () => {
   it("every write to a run 1b table is in a writer the design note names", () => {
     expect(all.filter((w) => w.model === UNREADABLE || !WRITERS[w.model].includes(w.at)).map((w) => `${w.model} ${w.at}`)).toEqual([]);
   });
-  it("built so far (C8): the notice, the claim and its notices and reasons, and the pack's loss-and-expense estimate", () => {
+  it("built so far (C8, then Phase 2 stage A): the notice, the claim and its notices and reasons, and the pack's loss-and-expense estimate", () => {
     const built = new Set(all.map((w) => `${w.model} ${w.at}`));
     for (const w of [
       `DelayNotice ${TIME}#recordDelayNotice`,
@@ -125,6 +125,15 @@ describe("one named writer per run 1b table (design note §9)", () => {
       `EotReason ${TIME}#addEotReason`,
       `EotReason ${TIME}#removeEotReason`,
       `EotClaim ${TIME}#determineEotClaim`,
+      // Phase 2 close-out stage A: the EOT certificate, its issue, loss and expense, and the period extension.
+      `ExtensionOfTime ${TIME}#raiseEotCertificate`,
+      `ExtensionOfTime ${AT_ISSUE}#eotAtIssue`,
+      `LossExpenseClaim ${TIME}#recordLossExpense`,
+      `LossExpenseClaim ${TIME}#valueLossExpense`,
+      `LossExpenseClaim ${TIME}#sendLossExpense`,
+      `PeriodExtension ${TIME}#recordPeriodExtension`,
+      `PeriodAgreement ${TIME}#raisePeriodAgreement`,
+      `PeriodAgreement ${AT_ISSUE}#periodAtIssue`,
     ])
       expect(built.has(w), w).toBe(true);
   });
