@@ -25,29 +25,37 @@ Open questions the product cannot answer from RSAJ's documents. Each one is load
 - **24. Mandatory documents.** SK001 lists what each tender must submit (SSM, CIDB/SPKK, MOF with field code, non-blacklist declaration) but nothing about registration. Founder ruling: keep them optional at registration.
 - **26. Requisition note number.** NM/2025/00461 (Expenditure Request Form, shown with PROC2025137846).
 
+## Answered (founder, 2026-10-27, from RSAJ's documents)
+
+- **16 (route choices, settled).** *Termination:* the DAL approves; SK008 §7.5.1 has no value bands and only names the S.O./P.D. as the officer who terminates, who then signs the notice of intention and the termination notice (SK008 §7.6.2): two steps, not a conflict. The bands once quoted for SK008 were the DAL's Letter of Acceptance signing rule (3.1.4.4 item 5), which is how the S.O./P.D. is worked out. *Extension of time* (SK006 §7.6.1, amended 12.01.2026): no financial impact, the Variation Orders Committee approves; with financial impact, the committee gives a mandatory recommendation, then the CEO approves when an authority's requirement caused the delay and the Tender Board for any other cause; the S.O./P.D. signs the certificate (§7.7.1). *Extension of the contract period* (SK006 §7.6.2 where it speaks): no added value, the Variation Orders Committee approves; more than RM50,000, the committee recommends and the Tender Board approves; RM0.01 to RM50,000 is a gap, routed by the DAL until RSAJ fills it.
+- **4. Claims Committee.** The Tender Board: KP002 §5.12.5 gives loss-and-expense claims to the Tender Board, so KP003 is the odd one out.
+- **6. Chairman absent, no CEO appointed.** The sitting cannot proceed (Tender Board quorum 3, SK003 §7.6.2).
+- **11. Evaluation (partly).** Round half up (79.5 is 80). Full marks for Phase 2 are 90% (the evaluation workbook).
+- **12. Interim payment.** The CPD route (variant (i), 52 days) unless RSAJ says otherwise: DAL 3.1.4.3 item 12 has C&P jointly recommend interim payments, so skipping CPD would break the DAL.
+- **22. Numbering (partly).** The tender serial is unpadded and can pass 99 (RSAJ/TA/24/2025, TA 109 2024). Only the Schedule of Rates letter uses the quotation number as its contract number; the other letters show a quotation number plus an inden number, and the forms say "No. Kontrak / Inden / P.O".
+- **25. Contract number restart.** Accepted: SK004 §7.2.1 gives the number when the Letter of Acceptance is issued, as serial/year.
+- **28. Appointment letters.** The officer picks the letter. IT & QA letters leave out the SPAN permit and insurance clauses; One Shot is a one-off quotation, as opposed to a Schedule of Rates term contract; letters over RM50,000 add retention and a defects period. The six samples are in `docs/requirements/rsaj-templates/` (the S.O.R one is a filled-in real letter, not a blank).
+- **29. Consultancy.** Its own contract type: SK004 §7.2.1 gives it its own series, the DAL lists Consultancy/Advisory as a category, and it has its own performance form.
+- **30. Quotation variations.** They follow the DAL quotation table (3.1.4.3 item 5): above 20%, the Variation Orders Committee gives a mandatory recommendation ("MR by VOC").
+- **32. SK004.** Supplied: `docs/requirements/14. SK004 PENYEDIAAN DOKUMEN KONTRAK.pdf`.
+- **33. Online award return.** Contract & Procurement receives it and its questions (SK003 §7.9.3: the Letter of Acceptance is issued from and returned to C&P).
+- **34. Supply contracts.** Paid on a claim with the local order, invoice and delivery order (KP004 §5.10.2); no interim payment certificate.
+- **35. Consultancy and service payment.** Consultancy is paid on certified claims (SK011 covers it); service contracts are paid monthly on interim payments (KP003 §5.10.2).
+- **38. Records retention (partly).** 7 years, the usual statutory period for financial records.
+
 ## Still open
 
-- **4. Claims Committee.** It appears only in KP003 5.11.5; KP002 gives loss-and-expense claims to the Tender Board and the DAL never mentions a Claims Committee. Is it a real body, or should KP003 say Tender Board?
 - **5. Committees.** Members of the Quotation Committee, Quotation Opening Committee and Technical Committee. Please send the Tender Board terms of reference and procedure OM/KP/SP/002, which both SOPs cite.
-- **6. Chairman.** What happens when the Tender Board Chairman is absent and has not appointed the CEO?
 - **8. Corrigendum.** Always part of the quotation document, or only when one is issued?
-- **11. Evaluation.** Marks for each Phase 2 criterion. The formulas use whole-number bands, so a score such as 79.5 falls into no band: how is it rounded?
-- **12. Interim payment.** When may an interim payment skip CPD (variant (ii))?
+- **11. Evaluation.** Marks for each Phase 2 criterion (full marks 90%).
 - **14. Term contracts.** Confirm there is no other value limit on a Schedule of Rates.
 - **15. Direct appointments.** Confirm no quotation pack is needed.
+- **16b. Extension of the contract period, RM0.01 to RM50,000.** SK006 §7.6.2 has no rule for an extension adding up to RM50,000; it is routed by the DAL until RSAJ says who approves.
 - **17. Missing document.** Please supply "Syarat-syarat Sebutharga Untuk Kerja" (conditions of quotation; FR-DOC-013 note).
 - **18. Bank list.** The supplier bank list (conventional and Islamic) was entered without access to Bank Negara Malaysia's published list; confirm or supply the list RSAJ accepts.
-- **22. Numbering.** What JB, MR and IP stand for; the addendum or corrigendum format (FR-ADV-014). Is the tender number padded NN (the answer) or NNN (spec §9.5)? Is the quotation number the contract number of every quotation contract, or only Schedule of Rates ones (FR-FIN-012 says the indent number)? (RSAJ/KP/ST numbers direct appointments, FR-MTD-009.)
-- **25. Contract number restart.** Numbers restart "in the year the contract starts"; the product restarts by the calendar year the number is allocated. Acceptable?
+- **22. Numbering.** What JB, MR and IP stand for; the addendum or corrigendum format (FR-ADV-014). Is a normal (not Schedule of Rates) quotation contract's reference its inden number?
 - **27. Committed budget and SULIT.** A budget code with a single commitment shows that requisition's estimate as its committed figure. Is a committed figure SULIT, and who may see it?
-- **28. Appointment letters.** What marks a job as IT & QA, and which methods are "One Shot"? Please supply the six letter templates.
-- **29. Consultancy.** Is consultancy its own contract type (RSAJ/KP/P series)?
-- **30. Variation Orders Committee.** Does SK006's VOC rule cover quotation contracts too?
 - **31. Schedule of Rates call-off.** How is a call-off approved?
-- **32. SK004.** Please supply SK004 (contract document parts, §7.3.1) to the developer.
-- **33. Online award return.** Which office receives a contractor's online award return and its questions?
-- **34. Supply contracts.** Does a supply contract ever take an interim payment certificate, or only the delivery order and invoice?
-- **35. Consultancy and service payment.** Is consultancy paid on certified claims, and which certificate does a service contract's monthly payment use (KP003 names none)?
 - **36. Award originals.** After an online award return is verified, must the wet-signed originals still be posted?
 - **37. Restricted exercises after award (R-2, AC-18).** Is a contract formed from a restricted (selected) tender itself restricted to the named people, including its title, variations, certificates and payments? Until RSAJ answers, the contract stages stay open to staff and the exercise's title and reference stay withheld.
-- **38. Records retention (NFR-RET-001).** How long are award-return records kept, including the scans of a refused online return (which carry the signatory's IC number and address), and who authorises disposal?
+- **38. Records retention.** Who authorises disposal after the 7 years? Should the scans of a refused online acceptance (IC number, address) be shredded early, as SK003 §7.11.2 shreds unsuccessful tenderers' background documents 30 days after site possession?
