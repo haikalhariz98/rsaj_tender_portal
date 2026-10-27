@@ -25,6 +25,8 @@ describe("cpcRaiseFaults", () => {
     expect(codes(cpcRaiseFaults({ ...ok, live: { number: "CPC/1" } }))).toEqual(["CPC_LIVE"]);
     expect(codes(cpcRaiseFaults({ ...ok, sectional: true }))).toEqual(["SECTIONAL_NOT_BUILT"]);
     expect(codes(cpcRaiseFaults({ ...ok, variant: "IT" }))).toEqual(["IT_VARIANT_NOT_BUILT"]);
+    // Code review of close-out stage B (Consider): an unset variant warns, never read silently as the standard one.
+    expect(cpcRaiseFaults({ ...ok, variant: null }).map((f) => [f.code, f.level])).toEqual([["VARIANT_NOT_SET", "warn"]]);
     expect(codes(cpcRaiseFaults({ ...ok, dlp: { applies: null, months: null } }))).toEqual(["DLP_NOT_SET"]);
     expect(cpcRaiseFaults({ ...ok, dlp: { applies: false, months: null } })).toEqual([]);
     expect(codes(cpcRaiseFaults({ ...ok, completionDate: "2026-10-02" }))).toEqual(["COMPLETION_IN_FUTURE"]);

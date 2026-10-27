@@ -18,6 +18,7 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   CPC_LIVE: (d) => `A practical completion certificate${d.number ? ` (${d.number})` : ""} is already raised. Void it to raise another.`,
   SECTIONAL_NOT_BUILT: () => "This contract has sections. Sectional completion is not built yet, so its practical completion is not certified here.",
   IT_VARIANT_NOT_BUILT: () => "This contract type completes as an IT contract. That certificate is not built yet, so its practical completion is not certified here.",
+  VARIANT_NOT_SET: () => "The contract type does not say how its works complete, so this is raised as the standard works certificate. Set it under Settings › Contract types.",
   DLP_NOT_SET: () => "The contract's baseline does not say whether a defects liability period applies, or how long it is. Correct the baseline first.",
   COMPLETION_IN_FUTURE: (d) => `The completion date (${day(d.day)}) is after today.`,
   BEFORE_POSSESSION: (d) => `The completion date is before possession of site (${day(d.day)}).`,

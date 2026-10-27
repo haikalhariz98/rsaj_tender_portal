@@ -119,7 +119,7 @@ export async function raisePracticalCompletion(_prev: FormState, data: FormData)
     const type = c.l.ex.contractTypeCode ? await c.tx.contractType.findFirst({ where: { organisationId: c.l.org.id, code: c.l.ex.contractTypeCode }, select: { completionVariant: true } }) : null;
     const done = storedDay(completionDate);
     const fs = cpcRaiseFaults({ live: live ? { number: live.certificate.number } : null, completionDate: done, possessionDate: v.possessionDate, inspectedOn: storedDay(inspectedOn), testReasons, today: c.today, dlp: { applies: v.dlpApplies, months: v.dlpMonths }, sectional: v.sectionalCompletion === true || v.sections.length > 0, variant: type?.completionVariant ?? null, ladWindows: await liveLadWindows(c.l.contract.id, c.tx) });
-    if (fs.length) refuse("Not raised:", fs);
+    if (blocks(fs).length) refuse("Not raised:", blocks(fs));
     const form = await formOf(c, "PRACTICAL_COMPLETION");
     const people = attendeeIds.length ? await c.tx.person.findMany({ where: { id: { in: attendeeIds }, organisationId: c.l.org.id }, select: { id: true, name: true } }) : [];
     if (people.length !== new Set(attendeeIds).size) fieldError("attendeeIds", "Choose people on record.");
@@ -136,7 +136,8 @@ export async function raisePracticalCompletion(_prev: FormState, data: FormData)
     });
     await audit(c, "PracticalCompletion", row.id, `${c.label} · practical completion`, "CREATE", diffFields(null, { completionDate: done, possessionOfTheWorks: storedDay(possessionTakenOn), jointInspection: storedDay(inspectedOn), attended: attendees.join(", ") || null, whyComplete: testReasons.trim(), defectsLiabilityPeriod: dlp.applies === true ? `${formatDate(dlp.start)} to ${formatDate(dayPlus(dlp.endExclusive, -1))}` : "does not apply", raisedFor: who.person.name }));
     await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
-    return { ok: true };
+    const warned = warnings(fs);
+    return { ok: true, message: warned.length ? closeoutRefusal("Raised.", warned) : undefined };
   });
 }
 

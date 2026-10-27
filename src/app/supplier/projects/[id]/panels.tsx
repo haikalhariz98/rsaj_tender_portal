@@ -23,7 +23,7 @@ import { delayWords, ENTRY_STATE_TONE, ENTRY_STATE_WORDS, PROGRAMME_DECISION_WOR
 
 import { loadAwardCard } from "@/lib/portal/projects/award-card-store";
 import { defectFactsOf, dlpOfRow, loadCloseout, scheduleRectifyBy } from "@/lib/closeout/load";
-import { defectState, overdue } from "@/lib/closeout/defects";
+import { defectActFaults, defectState, isOpenLine, overdue } from "@/lib/closeout/defects";
 import { DEFECT_STATE_TONE, DEFECT_STATE_WORDS } from "@/lib/closeout/labels";
 import { DataList, type Row } from "@/components/data-list";
 import { dayPlus } from "@/lib/dates";
@@ -394,12 +394,14 @@ export async function DefectsPanel({ actor, ctx, token }: Props) {
       search: `${d.description} ${d.location}`,
       cells: {
         defect: { kind: "stack", title: d.description, sub: [d.location, r.state === "OPEN" && r.returnNote ? `Returned: ${r.returnNote}` : null].filter(Boolean).join(" · ") || undefined },
-        due: { kind: "text", text: formatDate(rectifyBy ?? d.dueOn) },
+        // Code review of close-out stage B (Consider): a line already made good has no day to make it good by.
+        due: isOpenLine(r.state) ? { kind: "text", text: formatDate(rectifyBy ?? d.dueOn) } : { kind: "text", text: "—", dim: true },
         state: { kind: "chips", items: [{ text: DEFECT_STATE_WORDS[r.state], tone: DEFECT_STATE_TONE[r.state] }, ...(late ? [{ text: "Overdue", tone: "err" as const }] : [])] },
       },
     };
   });
-  const open = lines.filter((d) => defectState(d.events).state === "OPEN");
+  // The lines the contractor may mark rectified are those the act would take (the rule, not a restatement of it).
+  const open = today ? lines.filter((d) => defectActFaults("REPORT_RECTIFIED", defectState(d.events).state, { note: "", on: today, today }).length === 0) : [];
   return (
     <Card className="overflow-hidden">
       <CardHeader icon={<ClipboardIcon size={17} />} title="Defects" subtitle={rectifyBy ? `Make good by ${formatDate(rectifyBy)}` : undefined} divided={false} />

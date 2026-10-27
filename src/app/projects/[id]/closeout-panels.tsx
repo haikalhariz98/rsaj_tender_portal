@@ -8,7 +8,7 @@ import { EmptyState, Meter } from "@/components/ui/feedback";
 import { MoreActions } from "@/components/ui/more-actions";
 import { KeyValues } from "@/components/ui/stat";
 import { STATUS_WORDS } from "@/lib/certificate/labels";
-import { defectState, isOpenLine, overdue, type FrozenLine } from "@/lib/closeout/defects";
+import { defectState, isOpenLine, overdue, withdrawnCount, type FrozenLine } from "@/lib/closeout/defects";
 import { dlpDaysLeft } from "@/lib/closeout/dlp";
 import { DEFECT_STATE_TONE, DEFECT_STATE_WORDS, SECURITY_FORM_WORDS, withdrawnWords } from "@/lib/closeout/labels";
 import { defectFactsOf, dlpOfRow, scheduleRectifyBy } from "@/lib/closeout/load";
@@ -60,7 +60,7 @@ export function CompletionPanel({ l, v, people, today, hidden, told }: Props & {
   const pcIssued = pc?.certificate.status === "ISSUED";
   const cmgd = v.rows.cmgd;
   const frozen = (cmgd?.frozenLines as FrozenLine[] | null) ?? null;
-  const withdrawn = withdrawnWords((frozen ?? defectFactsOf(v.rows).map((d) => ({ state: defectState(d.events).state }))).filter((x) => x.state === "WITHDRAWN").length);
+  const withdrawn = withdrawnWords(withdrawnCount(frozen ?? defectFactsOf(v.rows).map((d) => ({ state: defectState(d.events).state }))));
   const dlpEnded = !!dlp && dlp.applies === true && !!today && today >= dlp.endExclusive;
   const balanceRelease = v.p.retentionReleases.find((x) => x.kind === "RELEASED_BALANCE") ?? null;
   const held = heldOnLatest(issuedInterims(v.p));

@@ -43,6 +43,8 @@ export function cpcRaiseFaults(i: CpcRaiseInput): Finding[] {
   if (i.live) f("CPC_LIVE", { number: i.live.number });
   if (i.sectional) f("SECTIONAL_NOT_BUILT");
   if (i.variant === "IT") f("IT_VARIANT_NOT_BUILT");
+  // Code review of close-out stage B (Consider): an unset variant is said, not read as the standard works certificate (gaps stay honest).
+  if (i.variant == null) out.push({ code: "VARIANT_NOT_SET", level: "warn" });
   if (dlpOf(i.completionDate, i.dlp).applies === null) f("DLP_NOT_SET");
   if (i.completionDate > i.today) f("COMPLETION_IN_FUTURE", { day: i.completionDate });
   if (i.possessionDate && i.completionDate < i.possessionDate) f("BEFORE_POSSESSION", { day: i.possessionDate });
