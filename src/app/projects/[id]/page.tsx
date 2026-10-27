@@ -1,3 +1,4 @@
+import { fundingFact, fundingTextForContract, fundingTextForRequisition } from "@/lib/funding/store";
 import { MoreText } from "@/components/ui/more-text";
 import { billItemOptions } from "@/lib/contract/bill-items";
 import type { ComponentProps, ReactNode } from "react";
@@ -156,6 +157,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const status = c ? (c.status as ContractStatus) : null;
   const today = l.org.today;
   const ref = { awardId: award.id, contractId: c?.id ?? null };
+  // ADR 0046 FS-5: the contract's own split once recorded, else the requisition's source; a restricted case's reader sees none of it.
+  const funding = visibility === "WHOLE" ? await fundingFact(db, l.org.id, c ? await fundingTextForContract(db, l.org.id, c.id) : await fundingTextForRequisition(db, l.org.id, ex.requisitionId)) : null;
   const { tab, page, docs, docsAfter, earlier } = { tab: first("tab"), page: first("page"), docs: first("docs"), docsAfter: first("docsAfter"), earlier: first("earlier") };
   const pageNo = Math.max(0, Number.parseInt(page ?? "0", 10) || 0);
 
@@ -338,6 +341,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
           c ? (visibility === "WHOLE" ? <Link key="aw" href={caseHref(ref, { stage: "award" })}>{award.reference}</Link> : award.reference) : null,
           visibility === "WHOLE" ? <span key="for">{t(H.forExercise)} <Link href={`/sourcing/${ex.id}?tab=award`}>{ex.reference}</Link></span> : null,
           c ? (c.contractDate ? sayWith(H.contractDate, lang, { date: formatDate(day(c.contractDate), lang) }) : t(H.notSigned)) : t(INSTRUMENT_SHORT_WORDS[award.instrumentKind as InstrumentKind]),
+          funding,
         ]}
         actions={actions}
         actionsNote={fin?.chrome?.headerNote}

@@ -1,3 +1,4 @@
+import { fundingFact, fundingTextForContract } from "@/lib/funding/store";
 import type { ReactNode } from "react";
 import { ActedBy } from "@/components/attribution";
 import type { CertificateKind } from "@/lib/certificate/types";
@@ -117,6 +118,8 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   const gates = certificateGates(cert.kind as CertificateKind, cert.status as CertificateStatus, l.contract.status as ContractStatus);
   const status = cert.status as CertificateStatus;
   const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
+  // ADR 0046 FS-5: the certificate reads its contract's funding; a restricted case's reader sees none of it.
+  const funding = visibility === "WHOLE" ? await fundingFact(db, l.org.id, await fundingTextForContract(db, l.org.id, l.contract.id)) : null;
   const [people, roles] = await Promise.all([
     db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.authorityRole.findMany({ where: { organisationId: l.org.id }, select: { code: true, nameEn: true } }),
@@ -211,6 +214,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
           dateNow.state === "DATED" ? `Dated ${formatDate(day(cert.certificateDate) ?? dateNow.day)}` : dateNow.state === "NOT_YET" ? "Date set when signed" : cert.templateId ? CERT_WORDS.notDatedBySignature.en : "No form chosen",
           `Baseline version ${cert.baseline.version}`,
           l.award.awardeeName,
+          funding,
         ].filter((x): x is string => x != null)}
         actionsNote={(action ? gates.acts : null) ?? actionNote ?? undefined}
         actionsNoteId={NOTE_ID}

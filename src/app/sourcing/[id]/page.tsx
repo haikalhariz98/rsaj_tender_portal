@@ -1,3 +1,4 @@
+import { fundingFact, fundingTextForRequisition } from "@/lib/funding/store";
 import { ActedBy } from "@/components/attribution";
 import { caseHref } from "@/lib/contract/links";
 import { routeActed } from "@/lib/auth/attribution-read";
@@ -170,6 +171,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const l = await loadExercise(actor.organisationId, id);
   if (!l) notFound();
   const { ex, req, org } = l;
+  // ADR 0046 FS-5: the tender reads the requisition's funding source.
+  const funding = await fundingFact(db, org.id, await fundingTextForRequisition(db, org.id, req.id));
   // The department estimate is SULIT: judged for this reader, once, and the access logged (ADR 0034 D14). Everything on the page that shows the
   // figure takes this, so a withheld value is never read from `ex` below.
   const estimate = await sulitExerciseValue(actor, { id: ex.id, reference: ex.reference }, "estimatedValue", () => money(ex.estimatedValue));
@@ -774,6 +777,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           methodName,
           decided?.contractType.nameEn ?? typeName(ex.contractTypeCode) ?? "Contract type not set",
           ex.regime ? REGIME_SHORT[ex.regime as Regime] : "Regime not determined",
+          funding,
           ...(ex.closingAt ? [<span key="closing">{`${closingVerb(windowGateNow.phase)} ${formatOrgDateTime(ex.closingAt, org.timeZone)}`}</span>] : []),
         ]}
         actions={actions}
