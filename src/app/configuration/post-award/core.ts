@@ -16,7 +16,9 @@ import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /// The certificate kinds the payment and damages chain, and the variations and adjustments, raise (each needs its
 /// form; a routing sheet is optional).
-const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION", "VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT"] as const;
+const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION", "VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT", "EOT", "CONTRACT_PERIOD_AGREEMENT"] as const;
+/// Phase 2 close-out stage A: approved on their contract matter's own route, so on no routing sheet.
+const MATTER_KINDS = ["EOT", "CONTRACT_PERIOD_AGREEMENT"] as const;
 /// The kinds that take no routing sheet: approved on the variation's own routes, or going by none.
 const NO_SHEET_KINDS = ["VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION"] as const;
 
@@ -142,6 +144,47 @@ export async function savePaymentPolicy(_prev: FormState, data: FormData): Promi
   });
 }
 
+/**
+ * Time and damages (BD-613-116, Phase 2 close-out stage A): when an approved LAD waiver reaches the money (OD-B7), the damages accrual's alert
+ * (FR-LAD-012) and the guidance shown on a weather claim (FR-EOT-005). Each ships unset and is saved with where it came from.
+ */
+export async function saveTimePolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const o = await exerciseOrg(actor.organisationId);
+  if (!o) return NO_ORG;
+  const r = new FormReader(data);
+  const daysRaw = r.optionalText("ladAntiOppressionDays")?.trim() ?? null;
+  if (daysRaw && !/^\d{1,4}$/.test(daysRaw)) r.reject("ladAntiOppressionDays", "A whole number of days.");
+  const v = {
+    ladWaiverApplication: r.choice("ladWaiverApplication", "When an approved waiver is applied", ["NEXT_CERTIFICATE", "FINAL_ACCOUNT"] as const),
+    ladWaiverProvenance: r.choice("ladWaiverProvenance", "Basis", PROVENANCE),
+    ladAntiOppressionDays: daysRaw ? Number.parseInt(daysRaw, 10) : null,
+    ladAntiOppressionProvenance: r.choice("ladAntiOppressionProvenance", "Basis", PROVENANCE),
+    weatherGuidance: r.optionalText("weatherGuidance")?.trim() || null,
+    weatherGuidanceProvenance: r.choice("weatherGuidanceProvenance", "Basis", PROVENANCE),
+  };
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
+    const before = await tx.postAwardPolicy.findUnique({ where: { organisationId: o.id } });
+    const row = await tx.postAwardPolicy.upsert({ where: { organisationId: o.id }, update: v, create: { organisationId: o.id, ...v } });
+    const words = (x: { ladWaiverApplication: string | null; ladWaiverProvenance: string | null; ladAntiOppressionDays: number | null; ladAntiOppressionProvenance: string | null; weatherGuidance: string | null; weatherGuidanceProvenance: string | null }) => ({
+      waiverApplied: x.ladWaiverApplication === "NEXT_CERTIFICATE" ? "On the next interim certificate" : x.ladWaiverApplication === "FINAL_ACCOUNT" ? "In the final account" : null,
+      waiverProvenance: x.ladWaiverProvenance,
+      damagesAlertAfterDays: x.ladAntiOppressionDays,
+      alertProvenance: x.ladAntiOppressionProvenance,
+      weatherGuidance: x.weatherGuidance,
+      weatherGuidanceProvenance: x.weatherGuidanceProvenance,
+    });
+    const changes = diffFields(before ? words(before) : null, words(v));
+    if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "PostAwardPolicy", entityId: row.id, entityLabel: "Post-award controls", reason }, before ? "UPDATE" : "CREATE", changes);
+    revalidatePath(PATH);
+    revalidatePath("/projects");
+    return { ok: true };
+  });
+}
+
 /// The form a certificate kind prints on and the routing sheet it goes on (CertificateKindSetting). Empty: unset.
 export async function saveKindSetting(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
@@ -166,6 +209,7 @@ export async function saveKindSetting(_prev: FormState, data: FormData): Promise
     // 6.13 Part A step 4: the variation's application, instruction and order are approved on the variation's own routes
     // (or go by no route), so none goes on a routing sheet, whose approval would be read from a route it never has.
     if (type && (NO_SHEET_KINDS as readonly string[]).includes(kind)) return { ok: false, errors: { routingTypeId: "This certificate is approved on its variation's own routes: it takes no routing sheet." } } as FormState;
+    if (type && (MATTER_KINDS as readonly string[]).includes(kind)) return { ok: false, errors: { routingTypeId: "This certificate is approved on its matter's own route: it takes no routing sheet." } } as FormState;
     const before = await tx.certificateKindSetting.findUnique({ where: { organisationId_kind: { organisationId: o.id, kind } }, include: { template: { select: { nameEn: true } }, routingType: { select: { labelEn: true } } } });
     const row = await tx.certificateKindSetting.upsert({ where: { organisationId_kind: { organisationId: o.id, kind } }, update: { templateId: template?.id ?? null, routingTypeId: type?.id ?? null, provenance, notes }, create: { organisationId: o.id, kind, templateId: template?.id ?? null, routingTypeId: type?.id ?? null, provenance, notes } });
     const changes = diffFields(before ? { form: before.template?.nameEn ?? null, routingSheet: before.routingType?.labelEn ?? null, provenance: before.provenance, notes: before.notes } : null, { form: template?.nameEn ?? null, routingSheet: type?.labelEn ?? null, provenance, notes });

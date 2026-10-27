@@ -124,6 +124,12 @@ export function crumbTrail(segments: readonly string[], recordName: string | nul
     crumbs[2].label = CRUMB_WORDS.variations;
     crumbs[2].href = `/projects/${segments[1]}?tab=variations`;
   }
+  // Phase 2 close-out stage A: an extension-of-time claim sits on its contract's Time tab: "Projects › <contract> › Time › <claim>".
+  if (segments[0] === "projects" && segments[2] === "eot" && crumbs.length >= 3) {
+    if (parentName) crumbs[1].label = named(parentName);
+    crumbs[2].label = CRUMB_WORDS.time;
+    crumbs[2].href = `/projects/${segments[1]}?stage=project&tab=time`;
+  }
   // The simple Project workspace: a document sits on its contract's Documents tab (id `submissions`): "Contracts › <contract> › Documents › <document>".
   if (segments[0] === "projects" && segments[2] === "documents" && crumbs.length >= 3) {
     if (parentName) crumbs[1].label = named(parentName);

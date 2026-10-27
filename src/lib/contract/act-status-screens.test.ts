@@ -257,6 +257,9 @@ const SECTION_FAMILIES: Readonly<Record<string, readonly ContractAct[]>> = {
   // ADR 0046: the funding split and the impact figures are the funding row's acts on the overview (FS-7, FS-12); each card states the row's words to its drawer.
   FundingCard: ["FUNDING"],
   ImpactCard: ["FUNDING"],
+  // Phase 2 close-out stage A: the Time tab (each card its own family) and the waivers on Payments.
+  TimePanel: ["EOT", "LOSS_EXPENSE", "PERIOD_EXTENSION"],
+  WaiversCard: ["LAD_WAIVER"],
   // AC-16, PW-11: answering an earlier contractor submission is an act of the contract's supervision (answerContractorSubmission). Its read-only record sits above the Documents list (plan step 6, which replaced the queue); the answer alone is under this gate.
   EarlierRecord: ["SUPERVISION"],
 };
@@ -338,6 +341,8 @@ const PAGE_GATES: Readonly<Record<string, RegExp[]>> = {
   // C-2 (wave C step C5): the case page is the contract's page now. Its header offers one drawer, Start preparation, inside the FORMATION family's gate; every other act is in a panel that gates itself.
   CasePage: [/const formationShut = status \? actStatusBlocker\("FORMATION", status\) : null;/, /<ActGate blocker=\{formationShut\}><StartPreparationDrawer /],
   VariationPage: [/const gate = actStatusBlocker\("VARIATION", l\.contract\.status as ContractStatus\);/, /<ActGate blocker=\{gate\}>\s*\{action\}/, /<ActGate blocker=\{gate\}>\s*<Tabs /],
+  // Phase 2 close-out stage A: the extension-of-time claim's page asks the EOT row and wraps its header's acts and its body.
+  EotClaimPage: [/const refused = actStatusFault\("EOT", l\.contract\.status as ContractStatus\);/, /<ActGate blocker=\{gate\}>\s*\{action\}/, /<ActGate blocker=\{gate\}>\s*<div className="flex flex-col gap-6">/],
 };
 
 describe("S1 and S-2: every component on the contract's pages that offers an act states its family's refusal first and is gated", () => {

@@ -3,7 +3,9 @@ import { Sections } from "./sections";
 import { CASE_PANEL_TITLE_WORDS as P } from "@/lib/contract/case-page-words";
 import { ActedBy } from "@/components/attribution";
 import { ActGate } from "@/components/act-gate";
-import { actStatusBlocker } from "@/lib/contract/act-status";
+import { actStatusBlocker, actStatusFault, actStatusText } from "@/lib/contract/act-status";
+import { MoreActions } from "@/components/ui/more-actions";
+import { RecordWaiverDrawer, ResendWaiverDrawer, SendWaiverDrawer } from "./time-editors";
 import type { ContractStatus } from "@/lib/contract/types";
 import { AlertTriangle, CalendarIcon, ClipboardIcon, FileIcon, GavelIcon, ShieldIcon, WalletIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
@@ -30,7 +32,7 @@ import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type As
 import { db } from "@/lib/db";
 import { creditorFactsOf } from "@/lib/payment/creditor-store";
 import { OPENING_GROUP_WORDS, ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, PAYEE_BANK_UNCHECKED, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, openingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
+import { accrualOfPayment, assembleInputOf, baselineOn, damagesOf, decisionOf, liveDecisionsOf, waiversToApplyOf, waiverStateOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, openingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { asCorrected } from "@/lib/payment/correction";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
@@ -99,8 +101,14 @@ export async function paymentView(l: LoadedContract, today: string | null) {
   // BD-613-44 (decisions log, 2026-10-09, ruling on 1897 R4): opening a valuation says whether the contractor's bank details are checked, as FR-PAY-014 says of the limit. Said, not refused: the refusal is the issue's.
   const creditor = facts ? await creditorFactsOf(db, l.org.id, l.award.vendorId) : undefined;
   const input = current?.status === "OPEN" && today && facts ? assembleInputOf(l, p, cfg, current, today, facts, creditor) : null;
+  // The raise's own reading of the approved waivers it applies (FR-LAD-009), so the preview is what the act raises.
+  const baseline = today ? baselineOn(l, today) : null;
+  if (input?.damages && baseline) {
+    const w = waiversToApplyOf(p, baseline, cfg.policy?.ladWaiverApplication ?? null);
+    if (w.apply.length) input.damages = damagesOf(p, baseline, w.apply);
+  }
   const assembled = input ? assembleInterim(input) : null;
-  return { p, cfg, current, assembled, refused, issued: issuedInterims(p), baseline: today ? baselineOn(l, today) : null };
+  return { p, cfg, current, assembled, refused, issued: issuedInterims(p), baseline };
 }
 export type PaymentView = Awaited<ReturnType<typeof paymentView>>;
 
@@ -729,7 +737,67 @@ function DamagesSection({ l, v, people, today, hidden }: { l: LoadedContract; v:
           </ul>
         )}
       </Card>
+
+      <WaiversCard l={l} v={v} people={people} today={today} hidden={hidden} />
     </div>
+    </ActGate>
+  );
+}
+
+/// FR-LAD-008, 009, 012: the waivers of the damages a decision charges, and how long they have run (Phase 2 close-out stage A).
+function WaiversCard({ l, v, people, today, hidden }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; hidden: readonly HiddenAct[] }) {
+  const c = l.contract;
+  const refusedBy = actStatusFault("LAD_WAIVER", c.status as ContractStatus);
+  const blocker = refusedBy ? actStatusText(refusedBy) : zone(today);
+  const waivers = v.p.nonCompletions.flatMap((d) => d.waivers.map((w) => ({ d, w, state: waiverStateOf(w) })));
+  const decisions = [...liveDecisionsOf(v.p).values()].filter((d) => d.outcome === "LAD_APPLIES").map((d) => ({ value: d.id, label: `${OUTCOME_WORDS[d.outcome].en}, decided ${formatDate(day(d.decidedOn))}` }));
+  const toSend = waivers.filter((x) => x.state === "Recorded" || x.state === "Refused").map((x) => ({ value: x.w.id, label: `${formatMoney(senFromDecimal(x.w.waived))} waived${x.w.matter.reference ? ` (${x.w.matter.reference})` : ""}` }));
+  const moved = waivers.filter((x) => x.state === "Approved").map((x) => ({ value: x.w.id, label: `${formatMoney(senFromDecimal(x.w.waived))} waived (${x.w.matter.reference ?? "approved"})` }));
+  const accrual = v.baseline && today ? accrualOfPayment(v.p, v.baseline, v.cfg.policy, today) : [];
+  const setting = v.cfg.policy?.ladWaiverApplication ?? null;
+  return (
+    <ActGate blocker={blocker}>
+    <Card className="overflow-hidden">
+      <CardHeader
+        icon={<FileIcon size={17} />}
+        title="Waivers"
+        subtitle={setting == null ? "Applying them not set" : setting === "NEXT_CERTIFICATE" ? "Applied on the next interim" : "Applied in the final account"}
+        actions={
+          hidden.includes("CONTRACTOR_COMMUNICATION") ? undefined : (
+            <MoreActions label="Waiver actions">
+              <RecordWaiverDrawer id={c.id} decisions={decisions} people={people} blocker={blocker} />
+              <SendWaiverDrawer id={c.id} waivers={toSend} people={people} blocker={blocker} />
+              {hidden.includes("CONTRACTOR_COMMUNICATION") ? null : <ResendWaiverDrawer id={c.id} waivers={moved} people={people} blocker={blocker} />}
+            </MoreActions>
+          )
+        }
+        divided
+      />
+      {accrual.length > 0 && (
+        <CardBody className="border-b border-line/70">
+          {accrual.map((a) => (
+            <p key={a.key} className={sub}>{`${a.label}: damages running ${a.days} days, ${formatMoney(a.charged)} charged on issued certificates. `}{a.alert.state === "NOT_SET" ? "Alert after: not set." : a.alert.state === "ALERT" ? <Chip tone="warn">{`Beyond ${a.alert.days} days`}</Chip> : `Alert after ${a.alert.days} days.`}</p>
+          ))}
+        </CardBody>
+      )}
+      {waivers.length === 0 ? (
+        <EmptyState size="sm" title="None" />
+      ) : (
+        <ul className="divide-y divide-line/70">
+          {waivers.map(({ w, state }) => (
+            <li key={w.id} className={row}>
+              <span className="min-w-0">
+                <span className={head}>
+                  {`${formatMoney(senFromDecimal(w.waived))} of ${formatMoney(senFromDecimal(w.ladAmount))}`}
+                  <Chip tone={state === "Applied" || state === "Approved" ? "ok" : state === "Refused" ? "err" : state === "Awaiting approval" ? "warn" : undefined}>{state}</Chip>
+                </span>
+                <span className={sub}>{[w.matter.reference, w.waiverLetterRef ? `letter ${w.waiverLetterRef}` : null, `as of ${formatDate(day(w.asOf))}`, w.reason].filter(Boolean).join(" · ")}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
     </ActGate>
   );
 }

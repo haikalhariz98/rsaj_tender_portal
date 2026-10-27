@@ -103,6 +103,8 @@ export const RECORD_LABEL: Readonly<Record<string, Words>> = {
   certificates: w("Certificate"),
   // 6.13 Part A step 4: a variation under its contract.
   variations: w("Variation"),
+  // Phase 2 close-out stage A: an extension-of-time claim under its contract.
+  eot: w("Extension-of-time claim"),
   // The simple Project workspace: a document under its contract.
   documents: w("Document"),
   templates: w("Template"),
@@ -166,6 +168,8 @@ export const CRUMB_WORDS = {
   // The contract's `documents` tab is Certificates since plan step 6 (the certificate core's records); its crumb says so.
   certificates: w("Certificates"),
   variations: w("Variations"),
+  // Phase 2 close-out stage A: an extension-of-time claim sits on its contract's Time tab.
+  time: w("Time"),
   // The contract's Documents tab keeps the id `submissions` (addresses and notices name it); its word is Documents since the six kinds moved in (plan step 6).
   submissions: w("Documents"),
 } as const satisfies Record<string, Words>;

@@ -22,6 +22,7 @@ import type { LadBasis } from "@/lib/lad/frozen";
 import type { ScopeDecision, ScopeIn } from "@/lib/lad/scopes";
 import { lineScopeOf } from "@/lib/lad/scopes";
 import { rateSegments, segmentsKey } from "@/lib/lad/segments";
+import { accrualOf } from "@/lib/lad/accrual";
 import { applicationOf, ladAmountAt, type WaiverBasis } from "@/lib/lad/waiver";
 import { approvalOfRecord } from "@/lib/matter/matter";
 import { scopeDate } from "@/lib/time/extension";
@@ -426,4 +427,20 @@ export function waiversToApplyOf(p: PaymentRows, baseline: Baseline, setting: "N
     }
   }
   return { apply, moved };
+}
+
+/// FR-LAD-012: the damages accrual per live decision charging damages, against the policy's day count (unset: "Not set", no alert).
+export function accrualOfPayment(p: PaymentRows, baseline: Baseline, policy: { ladAntiOppressionDays: number | null; ladAntiOppressionProvenance: string | null } | null, today: string) {
+  const charged = issuedDamagesOf(p).issued;
+  const scopes = [...liveDecisionsOf(p)].filter(([, d]) => d.outcome === "LAD_APPLIES").map(([key, d]) => ({ key, label: scopeLabelOf(baseline, key), from: day(d.windowFrom), until: day(d.windowUntil), charged: charged.filter((l) => l.scopeKey === key).reduce((a, l) => a + l.gross, 0n) }));
+  return accrualOf({ scopes, today, days: { value: policy?.ladAntiOppressionDays ?? null, provenance: (policy?.ladAntiOppressionProvenance ?? null) as Provenance | null } });
+}
+
+/// A waiver's state in words, as its matter stands.
+export function waiverStateOf(w: PaymentRows["nonCompletions"][number]["waivers"][number]): "Recorded" | "Awaiting approval" | "Approved" | "Applied" | "Refused" | "Closed" {
+  if (w.appliedOnCertificateId) return "Applied";
+  if (w.matter.closedAt) return "Closed";
+  if (waiverApproved(w)) return "Approved";
+  const latest = w.matter.routes.at(-1);
+  return latest?.status === "PENDING" ? "Awaiting approval" : latest ? "Refused" : "Recorded";
 }

@@ -21,13 +21,15 @@ import { BASE_WORDS, BASIS_WORDS, SCHEDULE_FORM_WORDS } from "@/lib/variation/la
 import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/variation/types";
 
 
-import { EditClockRule, EditContractorPortalSigning, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditVariationPolicy } from "./editors";
+import { EditClockRule, EditContractorPortalSigning, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditTimePolicy, EditVariationPolicy } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
 /// The certificates the payment and damages chain raises, each on its configured form (the acts' own list).
 const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION"] as const;
 /// The certificates the variations and the adjustment of the contract sum raise (6.13 Part A step 4).
 const VARIATION_KINDS = ["VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT"] as const;
+/// Phase 2 close-out stage A: the certificates the extensions raise, approved on their matter's own route.
+const TIME_KINDS = ["EOT", "CONTRACT_PERIOD_AGREEMENT"] as const;
 /// What an unset clock does, in words.
 const CLOCK_UNSET: Readonly<Record<ContractClock, string>> = {
   ORAL_CONFIRM: "An instruction first given orally shows no day the contractor's confirmation is due by: the screen says the clock is not set (advisory).",
@@ -127,12 +129,13 @@ export default async function PostAwardControlsPage() {
         {(rule || provenance === "OBSERVED" || provenance === "ASSUMED") && <RuleInfo rule={rule} source={provenance} label="How this is read" />}
       </span>
     );
-  const certificateLines = (kindsList: readonly (typeof PAYMENT_KINDS)[number][] | readonly (typeof VARIATION_KINDS)[number][]) =>
+  const certificateLines = (kindsList: readonly (typeof PAYMENT_KINDS)[number][] | readonly (typeof VARIATION_KINDS)[number][] | readonly (typeof TIME_KINDS)[number][]) =>
     kindsList.map((k) => {
       const x = kindOf(k);
       const sheetsFor = sheets.filter((t) => t.certificateKind == null || t.certificateKind === k).map((t) => ({ value: t.id, label: t.labelEn }));
-      const own = k === "VARIATION_APPLICATION" || k === "SO_INSTRUCTION" || k === "VARIATION";
-      const sheet = own ? "Approved on the variation's own routes" : x?.routingType ? `${x.routingType.labelEn}${x.routingType.retiredOn ? " (retired: choose one in use)" : ""}` : "No routing sheet";
+      const matter = k === "EOT" || k === "CONTRACT_PERIOD_AGREEMENT";
+      const own = k === "VARIATION_APPLICATION" || k === "SO_INSTRUCTION" || k === "VARIATION" || matter;
+      const sheet = matter ? "Approved on its matter's route" : own ? "Approved on the variation's own routes" : x?.routingType ? `${x.routingType.labelEn}${x.routingType.retiredOn ? " (retired: choose one in use)" : ""}` : "No routing sheet";
       return settingLine(KIND_WORDS[k].en, <SettingValue value={x?.templateId ? `${formName(x.templateId)} · ${sheet}` : null} unset="It cannot be raised: the refusal names this setting." />, <EditKindSetting kind={k} label={KIND_WORDS[k].en} values={{ templateId: x?.templateId ?? null, routingTypeId: x?.routingTypeId ?? null, provenance: x?.provenance ?? null, notes: x?.notes ?? "" }} forms={forms} sheets={sheetsFor} noSheet={own} />);
     });
 
@@ -190,6 +193,20 @@ export default async function PostAwardControlsPage() {
           </CardBody>
         </Card>
 
+        <Card>
+          <CardHeader icon={<ClockIcon size={17} />} title="Time and damages" />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={[
+                settingLine("An approved waiver of damages is applied", read(p?.ladWaiverApplication === "NEXT_CERTIFICATE" ? "On the next interim certificate" : p?.ladWaiverApplication === "FINAL_ACCOUNT" ? "In the final account" : null, "Never applied twice.", p?.ladWaiverProvenance, "An approved waiver is not applied. Each one says so."), <EditTimePolicy values={{ ladWaiverApplication: p?.ladWaiverApplication ?? null, ladWaiverProvenance: p?.ladWaiverProvenance ?? null, ladAntiOppressionDays: p?.ladAntiOppressionDays == null ? null : String(p.ladAntiOppressionDays), ladAntiOppressionProvenance: p?.ladAntiOppressionProvenance ?? null, weatherGuidance: p?.weatherGuidance ?? null, weatherGuidanceProvenance: p?.weatherGuidanceProvenance ?? null }} />),
+                settingLine("Alert when damages have run longer than", read(p?.ladAntiOppressionDays == null ? null : `${p.ladAntiOppressionDays} days`, "Counted per decision from its first day charged.", p?.ladAntiOppressionProvenance, "No alert is raised.")),
+                settingLine("Guidance on a weather claim", read(p?.weatherGuidance ?? null, "Shown to the officer answering a weather claim.", p?.weatherGuidanceProvenance, "None is shown.")),
+              ]}
+            />
+          </CardBody>
+        </Card>
+
         <Disclosure id="advanced" title="Advanced" summary="Delegation letters, certificate forms, portal signing, clocks">
           <div className="flex flex-col gap-6">
             <Card>
@@ -216,6 +233,12 @@ export default async function PostAwardControlsPage() {
               <CardHeader icon={<FileIcon size={17} />} title="Variation and adjustment certificates" />
               <CardBody>
                 <KeyValues columns={2} items={certificateLines(VARIATION_KINDS)} />
+              </CardBody>
+            </Card>
+            <Card>
+              <CardHeader icon={<FileIcon size={17} />} title="Extension certificates" />
+              <CardBody>
+                <KeyValues columns={2} items={certificateLines(TIME_KINDS)} />
               </CardBody>
             </Card>
             <Card>

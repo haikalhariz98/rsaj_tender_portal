@@ -74,16 +74,17 @@ export const EOT_STATE_WORDS: Readonly<Record<EotClaimState, string>> = {
   CLOSED: "Closed",
 };
 
-export const EOT_STATE_TONE: Readonly<Record<EotClaimState, "neutral" | "info" | "warning" | "success" | "danger">> = {
-  RECORDED: "neutral",
-  ANSWERED: "neutral",
-  HAS_REASONS: "neutral",
+/// The badge's tone (none: neutral).
+export const EOT_STATE_TONE: Readonly<Record<EotClaimState, "info" | "warn" | "ok" | "err" | null>> = {
+  RECORDED: null,
+  ANSWERED: null,
+  HAS_REASONS: null,
   ENTITLED: "info",
-  NOT_ENTITLED: "danger",
-  SENT: "warning",
-  REFUSED: "danger",
+  NOT_ENTITLED: "err",
+  SENT: "warn",
+  REFUSED: "err",
   APPROVED: "info",
   CERTIFICATE_RAISED: "info",
-  GRANTED: "success",
-  CLOSED: "neutral",
+  GRANTED: "ok",
+  CLOSED: null,
 };

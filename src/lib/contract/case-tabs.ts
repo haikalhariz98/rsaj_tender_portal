@@ -20,7 +20,8 @@ export const CASE_TABS: Readonly<Record<CaseTabStep, readonly string[]>> = {
   "before-signing": ["conditions", "securities"],
   signing: ["formation", "baseline"],
   // overview: the contract's Overview opens the Project stage (F-1).
-  project: ["overview", "team", "site", "payments", "variations", "documents", "submissions"],
+  // Phase 2 close-out stage A: "time" after "variations" (EOT is allowed once practically complete, so it stays open then).
+  project: ["overview", "team", "site", "payments", "variations", "time", "documents", "submissions"],
 };
 
 /// The case-level tab: it has no stage.

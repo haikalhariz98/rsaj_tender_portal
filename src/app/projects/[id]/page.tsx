@@ -13,7 +13,8 @@ import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 import type { Language } from "@/lib/i18n/language";
 import { say, sayWith } from "@/lib/i18n/say";
 import { AWARD_STATUS_WORDS, CASE_HEADER_WORDS as H, CASE_LINK_ACTION_WORDS, CASE_PANEL_TITLE_WORDS as P, CASE_REFUSAL_WORDS as R, CASE_STEP_WORDS, CASE_TAB_WORDS, INSTRUMENT_SHORT_WORDS } from "@/lib/contract/case-page-words";
-import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES, VARIATION_ENTITIES } from "@/lib/audit/entity-labels";
+import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES, TIME_ENTITIES, VARIATION_ENTITIES } from "@/lib/audit/entity-labels";
+import { timeView } from "@/lib/time/view";
 import { notFound, redirect } from "next/navigation";
 import { AWARD_NOTE_ID } from "@/app/awards/editors";
 import { loadCase } from "@/app/_auth/case";
@@ -33,7 +34,7 @@ import { buildAwardView, type AwardPanelId } from "./award/award-view";
 import { possessionBlockerOf, signingActOf, startState } from "./signing-acts";
 
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
-import { AwardIcon, BuildingIcon, CheckIcon, ClipboardIcon, ClockIcon, FileIcon, FilesIcon, InboxIcon, RouteIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
+import { AwardIcon, BuildingIcon, CalendarIcon, CheckIcon, ClipboardIcon, ClockIcon, FileIcon, FilesIcon, InboxIcon, RouteIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs, type TabSpec } from "@/components/tabs";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
@@ -84,6 +85,7 @@ import { hiddenFor } from "@/lib/supervision/authority";
 import { delegationFactsOf } from "@/lib/supervision/load";
 import { SUPERVISION_ACTS } from "@/lib/supervision/types";
 import { VariationsPanel, VariationSummaryCard } from "./variation-panels";
+import { TimePanel } from "./time-panels";
 import { variationView, type VariationView } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden } from "@/app/_auth/sulit";
@@ -115,6 +117,7 @@ const TAB_ICON: Readonly<Record<string, ReactNode>> = {
   site: <BuildingIcon size={15} />,
   payments: <WalletIcon size={15} />,
   variations: <ScaleIcon size={15} />,
+  time: <CalendarIcon size={15} />,
   documents: <FilesIcon size={15} />,
   submissions: <InboxIcon size={15} />,
 };
@@ -210,9 +213,9 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
     await raiseCaseClockNotices({ organisationId: l.org.id, awardId: award.id, awardLabel: award.reference, exerciseId: award.exerciseId, href: `/projects/${c?.id ?? award.id}`, clocks: await av.clockTellings() });
   }
   const contractTab = lc && !view.history ? view.tab : null;
-  const needsPeople = !!lc && !view.history && !!contractTab && ["formation", "team", "site", "payments", "variations", "securities"].includes(contractTab);
+  const needsPeople = !!lc && !view.history && !!contractTab && ["formation", "team", "site", "payments", "variations", "time", "securities"].includes(contractTab);
   const people: Option[] = needsPeople ? (await db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })).map((p) => ({ value: p.id, label: p.name })) : [];
-  const supervisionTabs = ["overview", "team", "site", "payments", "variations"];
+  const supervisionTabs = ["overview", "team", "site", "payments", "variations", "time"];
   const projectTab = lc && stage === "project" && !view.history ? contractTab : null;
   if (lc && projectTab && supervisionTabs.includes(projectTab)) {
     const v = await supervisionOf();
@@ -222,6 +225,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   // Supply invoices are read only for the Payments tab, and only on the delivery order and invoice route (ADR 0045 D5).
   const supply = lc && projectTab === "payments" && (await paymentRouteOf(db, lc)) === "DELIVERY_ORDER_INVOICE" ? await loadSupplyClaims(db, { organisationId: lc.org.id, orgName: lc.org.name, contractId: lc.contract.id }) : null;
   const variations = lc && projectTab && (projectTab === "overview" || projectTab === "variations") ? await variationView(lc, today) : null;
+  const time = lc && projectTab === "time" ? await timeView(lc) : null;
   const documentFacts = lc && projectTab === "documents" ? await contractDocumentFacts(l.org.id, lc.contract.id, today) : null;
   // The contract's gate (the priced working, the figures a certificate's override trail names) is asked only where a panel of the contract shows them.
   const needsContractGate = !!lc && ((projectTab === "overview") || (stage === "signing" && !view.history && view.tab === "formation") || (view.history && sources.includes("contract")));
@@ -266,6 +270,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         return supervision && payments ? <PaymentsPanel l={lc} v={payments} people={people} today={today} page={pageNo} hidden={hiddenActs} supply={supply} /> : null;
       case "variations":
         return supervision && variations ? <VariationsPanel l={lc} v={variations} people={people} today={today} page={pageNo} hidden={hiddenActs} /> : null;
+      case "time":
+        return time ? <TimePanel l={lc} v={time} people={people} today={today} hidden={hiddenActs} /> : null;
       case "documents":
         return documentFacts ? <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} /> : null;
       case "submissions":
@@ -671,6 +677,8 @@ const ENTITY_LABEL: Record<string, string> = {
   ...Object.fromEntries(PAYMENT_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
   // 6.13 Part A step 4: variations, the matters tabled from them, and the adjustment of the contract sum.
   ...Object.fromEntries(VARIATION_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
+  // Phase 2 close-out stage A: time and damages.
+  ...Object.fromEntries(TIME_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
 };
 function HistoryPanel({ withheldRows, sulit, matterGates, entries, total, timeZone, lang }: { withheldRows: boolean; sulit: Sulit<true>; matterGates: ReadonlyMap<string, Sulit<true>>; entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null; lang: Language }) {
   // Known codes in words; real values (LHDN, PS) as they are; a code without words never shown.

@@ -37,3 +37,8 @@ export async function saveVariationPolicy(prev: FormState, data: FormData): Prom
   const proposed = await stageEdit("post-award.saveVariationPolicy", prev, data);
   return proposed;
 }
+
+export async function saveTimePolicy(prev: FormState, data: FormData): Promise<FormState> {
+  const proposed = await stageEdit("post-award.saveTimePolicy", prev, data);
+  return proposed;
+}

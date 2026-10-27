@@ -28,6 +28,13 @@ describe("the tab ids are today's (scanned from the pages)", () => {
   });
 });
 
+describe("the Project stage's Time tab (Phase 2 close-out stage A, additive)", () => {
+  it("sits after Variations, and a stage-less ?tab=time opens it in the Project stage", () => {
+    expect(CASE_TABS.project.indexOf("time")).toBe(CASE_TABS.project.indexOf("variations") + 1);
+    expect(caseTabToStep("time", true)).toEqual({ stage: "project", tab: "time" });
+  });
+});
+
 describe("awardTabToCase (C-6)", () => {
   const want: Record<string, ReturnType<typeof awardTabToCase>> = {
     overview: { stage: "award", tab: "overview" },

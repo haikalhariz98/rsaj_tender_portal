@@ -7,4 +7,5 @@ export const postAwardOperations = defineOperations("post-award", "Post-award", 
   saveClockRule: { label: "Save a contract clock", load: () => import("./core").then((m) => m.saveClockRule) },
   saveContractorPortalSigning: { label: "Save whether a contractor's portal account may sign", load: () => import("./core").then((m) => m.saveContractorPortalSigning) },
   saveVariationPolicy: { label: "Save the variation controls", load: () => import("./core").then((m) => m.saveVariationPolicy) },
+  saveTimePolicy: { label: "Save the time and damages controls", load: () => import("./core").then((m) => m.saveTimePolicy) },
 });

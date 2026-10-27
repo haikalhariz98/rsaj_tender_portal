@@ -104,25 +104,9 @@ describe("every place that judges a recorded supervision act asks for the record
   });
 });
 
-/// The actions that ask a need and have no drawer on any screen yet (the matter acts of 6.13 Part B, the delay notice and the extension-of-time claim, have actions and no drawers). Named, so
+/// The actions that ask a need and have no drawer on any screen yet (none since Phase 2 close-out stage A drew the time and damages drawers). Named, so
 /// that building the drawer makes the derivation fail until the drawer is gated, and so that a new action without a drawer is noticed.
 const KNOWN_NO_DRAWER: string[] = [
-  // Phase 2 close-out stage A2/A3 add their acts before their drawers (A4 gates them and takes them off this list).
-  "answerEotClaim:CONTRACTOR_COMMUNICATION",
-  "determineEotClaim:SO_ONLY",
-  "openEotClaim:CONTRACTOR_COMMUNICATION",
-  "raiseEotCertificate:SO_ONLY",
-  "raisePeriodAgreement:SO_ONLY",
-  "recordDelayNotice:CONTRACTOR_COMMUNICATION",
-  "recordLadWaiver:CONTRACTOR_COMMUNICATION",
-  "recordLossExpense:CONTRACTOR_COMMUNICATION",
-  "recordPeriodExtension:CONTRACTOR_COMMUNICATION",
-  "resendLadWaiver:CONTRACTOR_COMMUNICATION",
-  "sendEotClaim:CONTRACTOR_COMMUNICATION",
-  "sendLadWaiver:CONTRACTOR_COMMUNICATION",
-  "sendLossExpense:CONTRACTOR_COMMUNICATION",
-  "sendPeriodExtension:CONTRACTOR_COMMUNICATION",
-  "valueLossExpense:VALUATION",
 ];
 
 // Review fix: the list above is kept by hand, and a drawer missing from it is one a delegate sees outside their letter (the S.O.'s "commenced pending approval" drawer was). So the list is
@@ -130,8 +114,8 @@ const KNOWN_NO_DRAWER: string[] = [
 // `action={...}`, and each place that drawer is rendered must be gated on that need. A new action or drawer that is not gated fails here without anyone remembering to list it.
 describe("every drawer of an action that asks a need of whom it records is gated on that need (derived, not listed)", () => {
   const ACTION_FILES = [`${CONTRACT}/supervision-actions.ts`, `${CONTRACT}/payment-actions.ts`, `${CONTRACT}/variation-actions.ts`, `${CONTRACT}/time-actions.ts`, `${CONTRACT}/matter-actions.ts`, `${CONTRACT}/damages-actions.ts`];
-  const EDITOR_FILES = [`${CONTRACT}/supervision-editors.tsx`, `${CONTRACT}/payment-editors.tsx`, `${CONTRACT}/variation-editors.tsx`, `${CONTRACT}/editors.tsx`];
-  const SCREEN_FILES = [`${CONTRACT}/supervision-panels.tsx`, `${CONTRACT}/payment-panels.tsx`, `${CONTRACT}/variation-panels.tsx`, `${CONTRACT}/formation-panels.tsx`, `${CONTRACT}/page.tsx`, `${CONTRACT}/variations/[variationId]/page.tsx`];
+  const EDITOR_FILES = [`${CONTRACT}/supervision-editors.tsx`, `${CONTRACT}/payment-editors.tsx`, `${CONTRACT}/variation-editors.tsx`, `${CONTRACT}/editors.tsx`, `${CONTRACT}/time-editors.tsx`];
+  const SCREEN_FILES = [`${CONTRACT}/supervision-panels.tsx`, `${CONTRACT}/payment-panels.tsx`, `${CONTRACT}/variation-panels.tsx`, `${CONTRACT}/formation-panels.tsx`, `${CONTRACT}/page.tsx`, `${CONTRACT}/variations/[variationId]/page.tsx`, `${CONTRACT}/time-panels.tsx`, `${CONTRACT}/eot/[claimId]/page.tsx`];
 
   /// An action whose need is asked and which is not gated on a screen, with the reason. Each is checked to be still true, so that it cannot go stale.
   const NOT_GATED: Record<string, string> = {

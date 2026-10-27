@@ -3,7 +3,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
-import { saveClockRule, saveContractorPortalSigning, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveVariationPolicy } from "./actions";
+import { saveClockRule, saveContractorPortalSigning, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveTimePolicy, saveVariationPolicy } from "./actions";
 
 /**
  * The Post-award controls drawer. No field carries a default: an unset field is not set, and the screen says
@@ -166,6 +166,31 @@ export function EditVariationPolicy({ values, bases, sums, forms, committees }: 
       reason={{ label: "Why the controls are changed" }}
       submitLabel="Save controls"
       trigger={{ label: "Edit", className: buttonClass("ghost", "sm"), ariaLabel: "Edit variation controls" }}
+    />
+  );
+}
+
+/// Time and damages (BD-613-116). Each ships unset; the screen says what an unset one stops.
+export function EditTimePolicy({ values }: { values: Record<string, string | null> }) {
+  return (
+    <RecordEditor
+      title="Time and damages controls"
+      description="Each setting starts unset."
+      size="lg"
+      columns={2}
+      fields={[
+        { kind: "select", name: "ladWaiverApplication", label: "An approved waiver of damages is applied", placeholder: "Not set", options: [{ value: "NEXT_CERTIFICATE", label: "On the next interim certificate" }, { value: "FINAL_ACCOUNT", label: "In the final account" }] },
+        provenance("ladWaiverProvenance", "Basis (waivers)"),
+        { kind: "text", name: "ladAntiOppressionDays", label: "Alert when damages have run longer than (days)", hint: "Unset: no alert." },
+        provenance("ladAntiOppressionProvenance", "Basis (alert)"),
+        { kind: "textarea", name: "weatherGuidance", label: "Guidance shown on a weather claim" },
+        provenance("weatherGuidanceProvenance", "Basis (guidance)"),
+      ]}
+      values={values}
+      action={saveTimePolicy}
+      reason={{ label: "Why the controls are changed" }}
+      submitLabel="Save controls"
+      trigger={{ label: "Edit", className: buttonClass("ghost", "sm"), ariaLabel: "Edit time and damages controls" }}
     />
   );
 }
