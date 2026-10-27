@@ -6,6 +6,7 @@ import { contractsOperations } from "../contracts/operations";
 import { awardsRecordsOperations, documentsRecordsOperations, projectsRecordsOperations } from "./record-operations";
 import { documentsOperations } from "../documents/operations";
 import { evaluationOperations } from "../evaluation/operations";
+import { fundingOperations } from "../funding/operations";
 import { invitationOperations } from "../invitation/operations";
 import { notificationsOperations } from "../notifications/operations";
 import { numberingOperations } from "../numbering/operations";
@@ -39,6 +40,7 @@ export const OPERATIONS = {
   ...awardsRecordsOperations,
   ...documentsOperations,
   ...evaluationOperations,
+  ...fundingOperations,
   ...invitationOperations,
   ...notificationsOperations,
   ...numberingOperations,

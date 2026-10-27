@@ -40,6 +40,10 @@ const ENTITIES = new Set([
   "DocumentStorePolicy",
   "DocumentTemplate",
   "FundingRoute",
+  // ADR 0046: Settings › Funding.
+  "FundingSource",
+  "ProjectCategory",
+  "ImpactMeasure",
   "Meeting",
   "NotApprovedOutcome",
   "PostAwardPolicy",
