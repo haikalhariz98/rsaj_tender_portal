@@ -271,7 +271,7 @@ const NO_ACT: Readonly<Record<string, string>> = {
   SubmissionsTab: "Dispatches to the Documents list and an earlier record's read-only view, each of which gates itself (the list by the Project workspace's row, the record's answer by the supervision family's).",
   ProjectDocumentPage: "Loads the document and renders DocumentPageView, whose gates come from the loader.",
   KickOffSection: "Loads the kick-off meeting's card and renders KickOffCard, whose gates come from the loader. It sits beside the Overview's formation gate, not inside it.",
-  FundingSection: "Loads the funding and impact cards (ADR 0046) and renders them; each card asks the Project workspace's row and gates its own drawer. It sits beside the Overview's formation gate, not inside it.",
+  FundingSection: "Loads the funding and impact cards (ADR 0046) and renders them; each card asks the funding row and gates its own drawer. It sits beside the Overview's formation gate, not inside it.",
   SplitRows: "The funding split drawer's rows: it reads the card's gate (useActGate), disables its own buttons under it, and records nothing; the drawer's act is recordFundingSplit.",
 };
 
