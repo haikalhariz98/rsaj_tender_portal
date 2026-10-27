@@ -23,3 +23,15 @@ export function financeFaults(i: { issued: boolean; already: boolean; batchNo: s
 
 /// The figure Finance pays on a certificate kind, from its issued figures (null: none).
 export const PAID_FIGURE: Readonly<Record<string, string>> = { INTERIM_PAYMENT: "recommended", ADVANCE_PAYMENT: "advanceAmount" };
+
+/// A figure frozen in an issue snapshot, by key, from its lines or its totals (null: not there).
+export function snapshotFigure(issueSnapshot: unknown, key: string): string | null {
+  const f = (issueSnapshot as { figures?: { lines?: { key: string; value: string | null }[]; totals?: { key: string; value: string | null }[] } } | null)?.figures;
+  return [...(f?.lines ?? []), ...(f?.totals ?? [])].find((x) => x.key === key)?.value ?? null;
+}
+
+/// The figure Finance pays on a certificate, as frozen with its issue (null: the kind has none, or it was not frozen). The one reading of PAID_FIGURE.
+export function paidFigureOf(kind: string, issueSnapshot: unknown): string | null {
+  const key = PAID_FIGURE[kind];
+  return key ? snapshotFigure(issueSnapshot, key) : null;
+}

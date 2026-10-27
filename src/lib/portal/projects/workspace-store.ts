@@ -9,7 +9,7 @@ import type { ContractStatus } from "@/lib/contract/types";
 import { dayOrNull as day, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal, type Sen } from "@/lib/money";
-import { PAID_FIGURE } from "@/lib/payment/finance";
+import { paidFigureOf } from "@/lib/payment/finance";
 import { contractorClaimDocuments, contractorDocumentTally } from "@/lib/project-docs/portal-read";
 import { loadSupplyClaims, paymentRouteOfContract, type SupplyClaimRow } from "@/lib/project-docs/supply-read";
 import { contractEnded, inDelay, type DelayReading } from "@/lib/supervision/delay";
@@ -231,7 +231,7 @@ export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): 
   const route = await paymentRouteOfContract(client, actor.organisationId, ctx.contract.id);
   const supply = await loadSupplyClaims(client, { organisationId: actor.organisationId, orgName: ctx.org.name, contractId: ctx.contract.id });
   const rows = certs.map((c) => {
-    const figure = figureOf(c.issueSnapshot, PAID_FIGURE[c.kind] ?? null);
+    const figure = paidFigureOf(c.kind, c.issueSnapshot);
     const recommended: Sen | null = figure == null ? null : senFromDecimal(figure);
     const fp = c.financePayment ? asCorrected(c.financePayment) : null;
     const row: CertifiedRow = { certificateId: c.id, sequence: c.sequence ?? 0, number: c.number, issuedOn: dayText(c.certificateDate), recommended, paid: fp ? { on: formatDate(storedDay(fp.paidOn)), amount: senFromDecimal(fp.amount), batchNo: fp.batchNo } : null };
@@ -252,13 +252,6 @@ export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): 
 }
 
 /// A figure of an issued certificate, by key, from its issue snapshot (money as a decimal string). Null: not there or not computed.
-function figureOf(issueSnapshot: unknown, key: string | null): string | null {
-  if (!key) return null;
-  const snap = issueSnapshot as { figures?: { lines?: { key: string; value: string | null }[]; totals?: { key: string; value: string | null }[] } } | null;
-  const all = [...(snap?.figures?.lines ?? []), ...(snap?.figures?.totals ?? [])];
-  return all.find((x) => x.key === key)?.value ?? null;
-}
-
 // ------------------------------------------------------------------ certificates to sign
 
 export interface CertificateRow {

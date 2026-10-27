@@ -13,14 +13,14 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 
 import { asCorrected, correctionFaults, CORRECTIONS } from "./correction";
-import { financeFaults, PAID_FIGURE } from "./finance";
+import { financeFaults, PAID_FIGURE, paidFigureOf } from "./finance";
 import { paymentRefusal } from "./labels";
 
 export async function recordFinancePayment(c: CertCtx, i: { batchNo: string; paidOn: string; act: ActWriter; note: string }) {
   const cert = c.l.cert;
-  const snap = cert.issueSnapshot as { issuedOn?: string; figures?: { lines?: { key: string; value: string | null }[]; totals?: { key: string; value: string | null }[] } } | null;
+  const snap = cert.issueSnapshot as { issuedOn?: string } | null;
   const key = PAID_FIGURE[cert.kind];
-  const v = key ? ([...(snap?.figures?.totals ?? []), ...(snap?.figures?.lines ?? [])].find((x) => x.key === key)?.value ?? null) : null;
+  const v = paidFigureOf(cert.kind, cert.issueSnapshot);
   const existing = await c.tx.financePayment.findUnique({ where: { certificateId: cert.id }, select: { id: true } });
   const fs = financeFaults({ issued: cert.status === "ISSUED", already: !!existing, batchNo: i.batchNo, paidOn: i.paidOn, issuedOn: snap?.issuedOn ?? null, today: c.today, amount: v == null ? null : parseSen(v) });
   if (!key) fs.unshift({ code: "KIND_HAS_NO_ROUTE", level: "block" });
