@@ -44,7 +44,7 @@ describe("contractFigures (FS-8)", () => {
   });
 
   it("a terminated contract whose retention cannot be read refuses by name", () => {
-    const r = contractFigures(money({ status: "TERMINATED", certified: { ok: true, sen: 40_000n }, retentionHeld: { ok: false, certificate: "IPC 3" } }));
+    const r = contractFigures(money({ status: "TERMINATED", certified: { ok: true, sen: 40_000n }, retentionHeld: { ok: false, number: "IPC 3" } }));
     expect(r).toEqual({ ok: false, reason: expect.stringContaining("IPC 3") });
   });
 
@@ -63,7 +63,7 @@ describe("contractFigures (FS-8)", () => {
   });
 
   it("a certificate with no frozen figure refuses", () => {
-    expect(contractFigures(money({ certified: { ok: false, certificate: "IPC 1" } }))).toEqual({ ok: false, reason: expect.stringContaining("IPC 1") });
+    expect(contractFigures(money({ certified: { ok: false, number: "IPC 1" } }))).toEqual({ ok: false, reason: expect.stringContaining("IPC 1") });
   });
 
   it("a cancelled contract counts nothing", () => {
@@ -106,8 +106,8 @@ describe("useOfProceeds (FS-8 to FS-10)", () => {
   });
 
   it("a contract that cannot be read is named on each of its sources, never counted as nothing", () => {
-    const bad = money({ contractId: "k9", label: "C/9", certified: { ok: false, certificate: "IPC 4" }, funding: { state: "SPLIT", shares: [{ sourceId: "sukuk", bp: 5000 }, { sourceId: "internal", bp: 5000 }] } });
-    const u = useOfProceeds([SUKUK, INTERNAL], [bad, money({ contractId: "k8", label: "C/8", funding: { state: "NOT_SET" }, certified: { ok: false, certificate: "IPC 5" } })]);
+    const bad = money({ contractId: "k9", label: "C/9", certified: { ok: false, number: "IPC 4" }, funding: { state: "SPLIT", shares: [{ sourceId: "sukuk", bp: 5000 }, { sourceId: "internal", bp: 5000 }] } });
+    const u = useOfProceeds([SUKUK, INTERNAL], [bad, money({ contractId: "k8", label: "C/8", funding: { state: "NOT_SET" }, certified: { ok: false, number: "IPC 5" } })]);
     for (const row of u.bySource) expect(row.refused).toEqual([{ contractId: "k9", label: "C/9", reason: expect.stringContaining("IPC 4") }]);
     expect(u.notSet.refused).toEqual([{ contractId: "k8", label: "C/8", reason: expect.stringContaining("IPC 5") }]);
   });

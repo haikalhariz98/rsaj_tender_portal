@@ -83,7 +83,7 @@ export async function saveFundingSource(_prev: FormState, data: FormData): Promi
       await tx.$queryRaw`SELECT id FROM "FundingSource" WHERE id = ${id} FOR UPDATE`;
       const before = await tx.fundingSource.findFirst({ where: { id, organisationId: o.id } });
       if (!before) return { ok: false, message: "That funding source no longer exists." } as FormState;
-      await tx.fundingSource.update({ where: { id }, data });
+      await tx.fundingSource.update({ where: { id, organisationId: o.id }, data });
       await audit(tx, toAuditActor(actor), o.id, "FundingSource", id, v.nameEn, words(before), words(data));
     } else {
       if (await tx.fundingSource.findFirst({ where: { organisationId: o.id, code: { equals: code!, mode: "insensitive" } }, select: { id: true } })) return { ok: false, errors: { code: "That code is already used." } } as FormState;
@@ -114,7 +114,7 @@ export async function saveProjectCategory(_prev: FormState, data: FormData): Pro
       await tx.$queryRaw`SELECT id FROM "ProjectCategory" WHERE id = ${id} FOR UPDATE`;
       const before = await tx.projectCategory.findFirst({ where: { id, organisationId: o.id }, select: { nameEn: true, provenance: true, governingSource: true, sortOrder: true } });
       if (!before) return { ok: false, message: "That category no longer exists." } as FormState;
-      await tx.projectCategory.update({ where: { id }, data: row });
+      await tx.projectCategory.update({ where: { id, organisationId: o.id }, data: row });
       await audit(tx, toAuditActor(actor), o.id, "ProjectCategory", id, v.nameEn, before, row);
     } else {
       if (await tx.projectCategory.findFirst({ where: { organisationId: o.id, code: { equals: code!, mode: "insensitive" } }, select: { id: true } })) return { ok: false, errors: { code: "That code is already used." } } as FormState;
@@ -146,7 +146,7 @@ export async function saveImpactMeasure(_prev: FormState, data: FormData): Promi
       await tx.$queryRaw`SELECT id FROM "ImpactMeasure" WHERE id = ${id} FOR UPDATE`;
       const before = await tx.impactMeasure.findFirst({ where: { id, organisationId: o.id }, select: { nameEn: true, unit: true, provenance: true, governingSource: true, sortOrder: true } });
       if (!before) return { ok: false, message: "That measure no longer exists." } as FormState;
-      await tx.impactMeasure.update({ where: { id }, data: row });
+      await tx.impactMeasure.update({ where: { id, organisationId: o.id }, data: row });
       await audit(tx, toAuditActor(actor), o.id, "ImpactMeasure", id, v.nameEn, before, row);
     } else {
       if (await tx.impactMeasure.findFirst({ where: { organisationId: o.id, code: { equals: code!, mode: "insensitive" } }, select: { id: true } })) return { ok: false, errors: { code: "That code is already used." } } as FormState;
@@ -177,7 +177,7 @@ export async function setFundingRowRetired(_prev: FormState, data: FormData): Pr
     if (!before) return { ok: false, message: "That row no longer exists." } as FormState;
     if (restore && !before.retiredOn) return { ok: false, message: "It is in use." } as FormState;
     if (!restore && before.retiredOn) return { ok: false, message: `It is already no longer used from ${formatDate(storedDay(before.retiredOn))}.` } as FormState;
-    await setRetired(tx, entity, id, on);
+    await setRetired(tx, entity, id, o.id, on);
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity, entityId: id, entityLabel: before.nameEn, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }, { retiredOn: on ? storedDay(on) : null }));
     return done();
   });
@@ -197,8 +197,8 @@ async function lockRow(tx: Tx, entity: Retirable, id: string, organisationId: st
   return tx.impactMeasure.findFirst({ where: { id, organisationId }, select });
 }
 
-async function setRetired(tx: Tx, entity: Retirable, id: string, retiredOn: Date | null) {
-  if (entity === "FundingSource") await tx.fundingSource.update({ where: { id }, data: { retiredOn } });
-  else if (entity === "ProjectCategory") await tx.projectCategory.update({ where: { id }, data: { retiredOn } });
-  else await tx.impactMeasure.update({ where: { id }, data: { retiredOn } });
+async function setRetired(tx: Tx, entity: Retirable, id: string, organisationId: string, retiredOn: Date | null) {
+  if (entity === "FundingSource") await tx.fundingSource.update({ where: { id, organisationId }, data: { retiredOn } });
+  else if (entity === "ProjectCategory") await tx.projectCategory.update({ where: { id, organisationId }, data: { retiredOn } });
+  else await tx.impactMeasure.update({ where: { id, organisationId }, data: { retiredOn } });
 }

@@ -11,7 +11,7 @@ import type { CaseFunding, SourceRef } from "./types";
  */
 
 /// A figure read from a contract's records, or the certificate it could not be read from.
-export type Read = { ok: true; sen: Sen } | { ok: false; certificate: string };
+export type Read = { ok: true; sen: Sen } | { ok: false; number: string };
 
 export interface ContractMoney {
   contractId: string;
@@ -78,12 +78,12 @@ const ZERO: Figures = { committed: 0n, certified: 0n, certifiedPartial: false, p
 /// FS-8, per contract. A cancelled contract counts nothing (excluded by `useOfProceeds`).
 export function contractFigures(c: ContractMoney): { ok: true; figures: Figures } | { ok: false; reason: string } {
   if (c.status === "CANCELLED") return { ok: true, figures: ZERO };
-  if (!c.supplyRoute && !c.certified.ok) return { ok: false, reason: `Certificate ${c.certified.certificate} has no figure frozen with its issue.` };
+  if (!c.supplyRoute && !c.certified.ok) return { ok: false, reason: `Certificate ${c.certified.number} has no figure frozen with its issue.` };
   const certified = c.supplyRoute || !c.certified.ok ? 0n : c.certified.sen;
   let committed: Sen;
   if (c.status === "TERMINATED") {
     if (c.supplyRoute) committed = c.paid;
-    else if (!c.retentionHeld.ok) return { ok: false, reason: `Certificate ${c.retentionHeld.certificate} has no retention held frozen with its issue.` };
+    else if (!c.retentionHeld.ok) return { ok: false, reason: `Certificate ${c.retentionHeld.number} has no retention held frozen with its issue.` };
     else committed = certified + c.retentionHeld.sen;
   } else {
     if (!c.adjustments.ok) return { ok: false, reason: c.adjustments.refused.message };
