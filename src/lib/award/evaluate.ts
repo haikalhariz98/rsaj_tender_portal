@@ -321,7 +321,8 @@ export function evaluateAward(f: AwardFacts, issue?: IssueValues): AwardEvaluati
   });
 
   const distribution = distributionList(f.recipients, kind, a.regulatedActivity, a.awardeeName);
-  const contractNumber = contractNumberSource(f.exercise.regime, f.policy.quotationContractKey, f.contractSeriesKey, { kind, commitmentNo: a.erpCommitmentNo, commitmentKind: a.erpCommitmentKind });
+  // Phase 0.3 item 15: the method's own key first (RSAJ: Schedule of Rates takes the quotation's number), else the award controls'.
+  const contractNumber = contractNumberSource(f.exercise.regime, f.method?.quotationContractKey ?? f.policy.quotationContractKey, f.contractSeriesKey, { kind, commitmentNo: a.erpCommitmentNo, commitmentKind: a.erpCommitmentKind }, f.exercise.reference);
   const commitment = commitmentFault({ status: f.requisition.status }, f.requisition.route);
   const consequence = variant?.state === "SELECTED" ? variant.variant.nonCommencement : null;
   const commencement = kind === "WORK_INDENT" && f.today ? commencementState(a.startDate, a.commencedOn, f.policy.commencementGraceDays, f.today, consequence) : null;

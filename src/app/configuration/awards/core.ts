@@ -61,7 +61,7 @@ export async function saveAwardPolicy(_prev: FormState, data: FormData): Promise
     acceptanceReturnDays: r.int("acceptanceReturnDays", "Days to return", { min: 1 }),
     preContractUnitCode: r.optionalText("preContractUnitCode"),
     postContractUnitCode: r.optionalText("postContractUnitCode"),
-    quotationContractKey: r.choice("quotationContractKey", "Quotation contract number", ["INDENT_NUMBER", "CONTRACT_SERIES"] as const),
+    quotationContractKey: r.choice("quotationContractKey", "Quotation contract number", ["INDENT_NUMBER", "CONTRACT_SERIES", "QUOTATION_NUMBER"] as const),
     regulatedActivityLabel: r.optionalText("regulatedActivityLabel"),
     loaTemplateId: r.optionalText("loaTemplateId"),
     declarationTemplateId: r.optionalText("declarationTemplateId"),

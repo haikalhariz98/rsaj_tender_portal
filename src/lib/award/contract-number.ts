@@ -2,16 +2,17 @@
  * Where the contract number comes from (FR-CON-002, OQ-11; 6.11 rulings).
  *
  * A tender award draws the next number from its contract type's series. A quotation
- * award follows `AwardPolicy.quotationContractKey`: the indent's own number, or the
- * series. Unset refuses: a contract is never numbered on an assumption. The number is
+ * award follows its method's `quotationContractKey`, else `AwardPolicy.quotationContractKey`:
+ * the indent's own number, the series, or the quotation's own number (its exercise's
+ * reference: RSAJ's Schedule of Rates letter, Q22(d)). Unset refuses: a contract is never numbered on an assumption. The number is
  * drawn in the issue transaction, dated the issue day ("the year the contract starts":
  * an assumed reading, shown).
  */
 
 import type { InstrumentKind, QuotationContractKey } from "./types";
 
-export type NumberFault = "CONTRACT_SERIES_NOT_SET" | "QUOTATION_KEY_NOT_SET" | "INDENT_NUMBER_NOT_AN_INDENT" | "INDENT_NUMBER_NOT_RECORDED";
-export type NumberSource = { source: "SERIES"; seriesKey: string } | { source: "INDENT_NUMBER"; number: string } | { fault: NumberFault };
+export type NumberFault = "CONTRACT_SERIES_NOT_SET" | "QUOTATION_KEY_NOT_SET" | "INDENT_NUMBER_NOT_AN_INDENT" | "INDENT_NUMBER_NOT_RECORDED" | "QUOTATION_NUMBER_NOT_RECORDED";
+export type NumberSource = { source: "SERIES"; seriesKey: string } | { source: "INDENT_NUMBER" | "QUOTATION_NUMBER"; number: string } | { fault: NumberFault };
 
 /**
  * The indent's own number serves only an award issued as a work indent whose indent
@@ -22,9 +23,15 @@ export function contractNumberSource(
   quotationKey: QuotationContractKey | null,
   seriesKey: string | null,
   award: { kind: InstrumentKind; commitmentNo: string | null; commitmentKind: "INDENT" | "PURCHASE_ORDER" | null },
+  /// The quotation's own number: its exercise's reference.
+  quotationNumber: string | null = null,
 ): NumberSource {
   if (regime === "quotation") {
     if (!quotationKey) return { fault: "QUOTATION_KEY_NOT_SET" };
+    if (quotationKey === "QUOTATION_NUMBER") {
+      const n = quotationNumber?.trim();
+      return n ? { source: "QUOTATION_NUMBER", number: n } : { fault: "QUOTATION_NUMBER_NOT_RECORDED" };
+    }
     if (quotationKey === "INDENT_NUMBER") {
       if (award.kind !== "WORK_INDENT") return { fault: "INDENT_NUMBER_NOT_AN_INDENT" };
       const n = award.commitmentNo?.trim();

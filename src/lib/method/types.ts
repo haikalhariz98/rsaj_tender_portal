@@ -8,6 +8,7 @@
  */
 
 import type { Regime } from "@/lib/authority/types";
+import type { QuotationContractKey } from "@/lib/award/types";
 import type { PaymentRoute } from "@/lib/project-docs/types";
 import type { FundingPosture, Provenance, SourcingMethod } from "@/lib/reference/types";
 
@@ -59,6 +60,8 @@ export interface MethodBehaviour {
   /// 6.4: the tender pack the method assembles. Null or absent: not set, and the move into
   /// preparation blocks naming it (never read as "no pack").
   documentPackKind?: PackKind | null;
+  /// Phase 0.3 item 15 (RSAJ Q22(d)): where a quotation award of this method takes its contract number. Null or absent: the award controls' choice.
+  quotationContractKey?: QuotationContractKey | null;
 }
 
 export type Method = SourcingMethod & MethodBehaviour;

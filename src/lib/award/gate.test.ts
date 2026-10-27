@@ -156,6 +156,13 @@ describe("where the contract number comes from (FR-CON-002, OQ-11)", () => {
     expect(contractNumberSource("quotation", "INDENT_NUMBER", null, INDENT)).toEqual({ source: "INDENT_NUMBER", number: "XI202600812" });
     expect(contractNumberSource("quotation", "CONTRACT_SERIES", "contract", INDENT)).toEqual({ source: "SERIES", seriesKey: "contract" });
   });
+  // Phase 0.3 item 15 (RSAJ Q22(d)): the quotation's own number, as the Schedule of Rates letter takes it; a tender award still draws its series.
+  it("a quotation award may take the quotation's own number, and only in the quotation regime", () => {
+    expect(contractNumberSource("quotation", "QUOTATION_NUMBER", "contract", INDENT, " RSAJ/KP/QJB/007/26 ")).toEqual({ source: "QUOTATION_NUMBER", number: "RSAJ/KP/QJB/007/26" });
+    expect(contractNumberSource("quotation", "QUOTATION_NUMBER", null, LOA, "Q/1")).toEqual({ source: "QUOTATION_NUMBER", number: "Q/1" });
+    expect(contractNumberSource("quotation", "QUOTATION_NUMBER", "contract", INDENT)).toEqual({ fault: "QUOTATION_NUMBER_NOT_RECORDED" });
+    expect(contractNumberSource("tender", "QUOTATION_NUMBER", "contract", LOA, "Q/1")).toEqual({ source: "SERIES", seriesKey: "contract" });
+  });
   it("numbers from the indent only an indent award whose indent number is recorded — never a purchase order's, never nothing", () => {
     expect(contractNumberSource("quotation", "INDENT_NUMBER", "contract", LOA)).toEqual({ fault: "INDENT_NUMBER_NOT_AN_INDENT" });
     expect(contractNumberSource("quotation", "INDENT_NUMBER", "contract", { kind: "LETTER_OF_ACCEPTANCE", commitmentNo: "PO-1", commitmentKind: "PURCHASE_ORDER" })).toEqual({ fault: "INDENT_NUMBER_NOT_AN_INDENT" });

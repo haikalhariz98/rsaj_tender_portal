@@ -18,6 +18,7 @@ import type { OrgScope } from "@/lib/org-scope";
 import { inOrder } from "@/lib/series";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
+const QUOTATION_KEYS = ["INDENT_NUMBER", "CONTRACT_SERIES", "QUOTATION_NUMBER"] as const;
 const PATH = "/configuration/reference-data";
 
 async function organisationId(scope: OrgScope): Promise<string | null> {
@@ -176,6 +177,7 @@ function readSourcingMethod(data: FormData, taken: string[], storedCode: string 
     requiresCoordinationRecord: r.bool("requiresCoordinationRecord"),
     dossierSeriesKey: r.optionalText("dossierSeriesKey"),
     exerciseSeriesKey: r.optionalText("exerciseSeriesKey"),
+    quotationContractKey: r.choice("quotationContractKey", "A quotation award's contract number", QUOTATION_KEYS),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
     provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
     notes: r.text("notes", "Notes", { max: 2000 }),

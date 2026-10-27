@@ -2433,6 +2433,8 @@ model SourcingMethod {
   defaultEvaluationModelCode        String?
   /// The numbering series (NumberingSeries.key) a dossier reference is issued from.
   dossierSeriesKey                  String?
+  /// Phase 0.3 item 15 (RSAJ Q22(d)): where a quotation award of this method takes its contract number. Null: AwardPolicy.quotationContractKey.
+  quotationContractKey              QuotationContractKey?
   /// RSAJ answer 22: the numbering series (NumberingSeries.key) an exercise of this method takes its reference from, once,
   /// when it is opened. Null: the organisation's "exercise" series.
   exerciseSeriesKey                 String?
@@ -3720,12 +3722,16 @@ enum ContractStatus {
 enum ContractNumberSource {
   SERIES
   INDENT_NUMBER
+  /// Phase 0.3 item 15 (RSAJ Q22(d)): the quotation's own number (its exercise's reference).
+  QUOTATION_NUMBER
 }
 
 /// Where a quotation award's contract number comes from (OQ-11).
 enum QuotationContractKey {
   INDENT_NUMBER
   CONTRACT_SERIES
+  /// Phase 0.3 item 15 (RSAJ Q22(d)): the quotation's own number, its exercise's reference (the Schedule of Rates letter's contract number).
+  QUOTATION_NUMBER
 }
 
 enum NonCommencement {

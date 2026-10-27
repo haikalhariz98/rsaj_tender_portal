@@ -125,9 +125,10 @@ export const SOURCING_METHODS = list("SourcingMethod", "Sourcing method", [
   {
     code: "schedule_of_rates",
     // How a call-off is approved is not stated (RSAJ question 31), so it names no approval rule.
-    values: { nameEn: "Schedule of Rates or term-contract call-off", ...ANY_VALUE, requiresFreshSourcing: false, notes: "DAL §3.1.4.2 item 2 allows it at every band (answer 14); RSAJ to confirm no other limit." },
-    requirement: `${MTD}, FR-MTD-010`,
-    source: "DAL §3.1.4.2 item 2; SK012 3.1; RSAJ answer 14 (2026-10-24)",
+    // RSAJ Q22(d): only the Schedule of Rates letter uses the quotation number as its contract number (Phase 0.3 item 15).
+    values: { nameEn: "Schedule of Rates or term-contract call-off", ...ANY_VALUE, requiresFreshSourcing: false, quotationContractKey: "QUOTATION_NUMBER", notes: "DAL §3.1.4.2 item 2 allows it at every band (answer 14); RSAJ to confirm no other limit." },
+    requirement: `${MTD}, FR-MTD-010, FR-CON-002`,
+    source: "DAL §3.1.4.2 item 2; SK012 3.1; RSAJ answer 14 (2026-10-24); RSAJ answer 22(d) (2026-10-27): the S.O.R letter's contract number is the quotation number",
   },
 ]);
 

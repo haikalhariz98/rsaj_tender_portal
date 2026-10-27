@@ -171,3 +171,15 @@ describe("FR-MTD-009 with the document store: the dossier's evidence, counted an
     expect(evaluateAward(facts({ dossierEvidence: { count: 0, snapshot: null, withdrawnVersionIds: [] } })).issueFaults).toEqual([]);
   });
 });
+
+// Phase 0.3 item 15 (RSAJ Q22(d)): a method's own quotation key comes before the award controls', so only Schedule of Rates takes the quotation's number.
+describe("the contract number of a quotation award", () => {
+  const quotation = (methodKey: "QUOTATION_NUMBER" | null) => {
+    const base = facts();
+    return evaluateAward(facts({ exercise: { ...base.exercise, regime: "quotation", reference: "RSAJ/KP/QJB/007/26" }, method: { ...base.method!, quotationContractKey: methodKey }, policy: { ...base.policy, quotationContractKey: "CONTRACT_SERIES" } })).contractNumber;
+  };
+  it("is the quotation's own number where the method says so, else the award controls' choice", () => {
+    expect(quotation("QUOTATION_NUMBER")).toEqual({ source: "QUOTATION_NUMBER", number: "RSAJ/KP/QJB/007/26" });
+    expect(quotation(null)).toEqual({ source: "SERIES", seriesKey: "contract" });
+  });
+});

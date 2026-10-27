@@ -57,7 +57,7 @@ export const DELIVERY_LABEL: Record<DeliveryMethod, string> = { REGISTERED_POST:
 export const PERIOD_UNIT_LABEL: Record<PeriodUnit, [string, string]> = { DAYS: ["day", "days"], WEEKS: ["week", "weeks"], MONTHS: ["month", "months"] };
 export const periodText = (n: number, u: PeriodUnit) => `${n} ${PERIOD_UNIT_LABEL[u][n === 1 ? 0 : 1]}`;
 export const NON_COMMENCEMENT_LABEL: Record<NonCommencement, string> = { CANCEL_AND_BLACKLIST: "Cancellation, with blacklisting recommended", WARNING_LETTER: "A warning letter only" };
-export const QUOTATION_KEY_LABEL: Record<QuotationContractKey, string> = { INDENT_NUMBER: "The indent's own number", CONTRACT_SERIES: "The contract type's series" };
+export const QUOTATION_KEY_LABEL: Record<QuotationContractKey, string> = { INDENT_NUMBER: "The indent's own number", CONTRACT_SERIES: "The contract type's series", QUOTATION_NUMBER: "The quotation's own number" };
 export const COMMITMENT_KIND_LABEL = { INDENT: "Indent", PURCHASE_ORDER: "Purchase order" } as const;
 export const BOND_BASIS_LABEL = { CONTRACT_PRICE: "Percentage of the contract price", ANNUAL_VALUE: "Percentage of a one-year value", STATED_AMOUNT: "A stated amount" } as const;
 export const SECURITY_KIND_LABEL = { PERFORMANCE_BOND: "Performance bond", ADVANCE_PAYMENT_GUARANTEE: "Advance payment guarantee", DESIGN_GUARANTEE_BOND: "Design guarantee bond", RETENTION_BOND: "Retention bond" } as const;
@@ -356,6 +356,8 @@ export function awardFindingText(f: Finding): string {
       return "No indent number: this award is not a work indent. See Award controls.";
     case "INDENT_NUMBER_NOT_RECORDED":
       return "Record the indent number first.";
+    case "QUOTATION_NUMBER_NOT_RECORDED":
+      return "The quotation has no number to give the contract.";
     case "WC_BASIS_REQUIRED":
       return "Workmen's compensation basis not set. Set it in the terms before issue.";
     case "INDENT_EXPIRES_BEFORE_START":

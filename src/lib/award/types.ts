@@ -15,7 +15,8 @@ export type DocumentLanguage = "MS" | "EN";
 export type PeriodUnit = "DAYS" | "WEEKS" | "MONTHS";
 export type DeliveryMethod = "REGISTERED_POST" | "COLLECTION" | "BY_HAND";
 export type NonCommencement = "CANCEL_AND_BLACKLIST" | "WARNING_LETTER";
-export type QuotationContractKey = "INDENT_NUMBER" | "CONTRACT_SERIES";
+/// QUOTATION_NUMBER (Phase 0.3 item 15, RSAJ Q22(d)): the quotation's own number, its exercise's reference.
+export type QuotationContractKey = "INDENT_NUMBER" | "CONTRACT_SERIES" | "QUOTATION_NUMBER";
 export type Provenance = "STATED" | "OBSERVED" | "ASSUMED";
 
 export const AWARD_STATUSES: readonly AwardStatus[] = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "ISSUED", "ACCEPTED", "CANCELLED"];

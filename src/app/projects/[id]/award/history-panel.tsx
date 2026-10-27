@@ -104,7 +104,7 @@ const ENUM_TEXT: Record<string, Record<string, string>> = {
   decision: DECISION_LABEL,
   kind: { ...SECURITY_KIND_LABEL, ...INSURANCE_KIND_LABEL },
   form: SECURITY_FORM_LABEL,
-  numberSource: { SERIES: "The contract type's series", INDENT_NUMBER: "The indent's own number" },
+  numberSource: { SERIES: "The contract type's series", INDENT_NUMBER: "The indent's own number", QUOTATION_NUMBER: "The quotation's own number" },
   language: LANGUAGE_LABEL,
   bondBasisProvenance: { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" },
   termsProvenance: { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" },

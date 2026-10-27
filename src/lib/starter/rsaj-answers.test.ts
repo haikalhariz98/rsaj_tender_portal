@@ -279,6 +279,9 @@ describe("A11 and A12: methods, contract types and series", () => {
   it("open Schedule of Rates at every band with no approval rule, and give the two direct methods no document pack (ASSUMED)", () => {
     expect(method("schedule_of_rates")).toMatchObject({ availableBelow: true, availableInQuotation: true, availableInTender: true, notes: expect.stringContaining("answer 14") });
     expect(method("schedule_of_rates")).not.toHaveProperty("authorityMethodKey");
+    // Phase 0.3 item 15 (RSAJ Q22(d)): only the Schedule of Rates letter takes the quotation number as its contract number.
+    expect(method("schedule_of_rates")).toMatchObject({ quotationContractKey: "QUOTATION_NUMBER" });
+    expect(listOf("SourcingMethod").filter((r) => "quotationContractKey" in r.values).map((r) => r.code)).toEqual(["schedule_of_rates"]);
     for (const c of ["direct_appointment", "selective_direct_appointment"]) expect(method(c), c).toMatchObject({ documentPackKind: "NONE", documentPackKindProvenance: "ASSUMED" });
     expect(method("direct_appointment")).toMatchObject({ requiresDossier: true, dossierSeriesKey: "direct_appointment" });
     // Each method would save as the configuration screen judges it, against the series both packs load.

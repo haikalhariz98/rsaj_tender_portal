@@ -1,6 +1,7 @@
 import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { QUOTATION_KEY_LABEL } from "@/lib/award/labels";
 
 import { retireRow, saveAwardPolicy, saveNonAwardPolicy, saveBand, saveConditionKind, saveIssuer, saveRecipient, saveRequirement, saveVariant } from "./actions";
 
@@ -50,10 +51,7 @@ export function EditAwardPolicy({ values, templates, units, aria = "Edit award c
           name: "quotationContractKey",
           label: "A quotation award's contract number",
           placeholder: "Not set",
-          options: [
-            { value: "INDENT_NUMBER", label: "The indent's own number" },
-            { value: "CONTRACT_SERIES", label: "The contract type's series" },
-          ],
+          options: Object.entries(QUOTATION_KEY_LABEL).map(([value, label]) => ({ value, label })),
         },
         { kind: "select", name: "preContractUnitCode", label: "Section that owns the case before award", placeholder: "Not set", options: units },
         { kind: "select", name: "postContractUnitCode", label: "Section that owns it after", placeholder: "Not set", options: units },

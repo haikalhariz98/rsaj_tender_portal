@@ -27,6 +27,7 @@ import {
 } from "./actions";
 import type { ContractBehaviours, MethodBehaviour } from "@/lib/method/types";
 import { BEHAVIOUR_LABEL, PAYMENT_ROUTE_LABEL } from "@/lib/method/labels";
+import { QUOTATION_KEY_LABEL } from "@/lib/award/labels";
 import { PAYMENT_ROUTES } from "@/lib/project-docs/types";
 
 /**
@@ -193,6 +194,7 @@ function methodFields(editing: boolean, choices: Choices): Field[] {
     { kind: "switch", name: "requiresDossier", label: "Keeps a justification dossier with a reason code" },
     { kind: "select", name: "dossierSeriesKey", label: "Dossier numbering series", placeholder: "Not set", options: choices.series, orphanLabel: "A series no longer configured", hint: "The series dossier references use." },
     { kind: "select", name: "exerciseSeriesKey", label: "Exercise numbering series", placeholder: "The standard exercise series", options: choices.series, orphanLabel: "A series no longer configured", hint: "Where an exercise's reference comes from." },
+    { kind: "select", name: "quotationContractKey", label: "A quotation award's contract number", placeholder: "As the award controls say", options: Object.entries(QUOTATION_KEY_LABEL).map(([value, label]) => ({ value, label })) },
     { kind: "switch", name: "requiresCoordinationRecord", label: "Needs an emergency coordination record" },
     { kind: "text", name: "governingSource", label: "Source document" },
     PROVENANCE_FIELD,
@@ -329,6 +331,7 @@ export function EditSourcingMethod({ method, id, choices = NO_CHOICES }: { metho
         requiresDossier: method.requiresDossier ?? false,
         dossierSeriesKey: method.dossierSeriesKey ?? null,
         exerciseSeriesKey: method.exerciseSeriesKey ?? null,
+        quotationContractKey: method.quotationContractKey ?? null,
         requiresCoordinationRecord: method.requiresCoordinationRecord ?? false,
         governingSource: method.governingSource,
         provenance: method.provenance,
