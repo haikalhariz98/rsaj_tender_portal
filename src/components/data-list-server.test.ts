@@ -72,6 +72,12 @@ describe("DataList in server mode", () => {
     expect(small).toContain('title="Name"');
     expect(small).not.toContain('title="Other"');
   });
+  // Phase 0.2 item 4: under the default order no column is sorted, so none draws an arrow (a dim ▲ on the first column read as "sorted by this").
+  it("draws the sort arrow only on the column the list is sorted by", () => {
+    expect(render(make())).not.toMatch(/[▲▼]/);
+    expect(render(make({ sort: "title", dir: "asc" })).match(/▲/g)).toHaveLength(1);
+    expect(render(make({ sort: "title", dir: "desc" })).match(/▼/g)).toHaveLength(1);
+  });
   it("keeps the page's own export until the export routes; links to a route when given; says it cannot where blocked", () => {
     expect(render(make())).toContain("Download CSV");
     const blocked = render(make({}, { exportBlocked: "This view cannot be exported" }));

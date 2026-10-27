@@ -521,9 +521,13 @@ export function DataList({
   const sortBody = (c: Column) => (
     <>
       <span className="min-w-0 break-words">{c.label}</span>
-      <span aria-hidden="true" className={cx("shrink-0 text-[9px]", shownSort?.key !== c.key && "opacity-40")}>
-        {shownSort?.key === c.key && shownSort.dir === "desc" ? "▼" : "▲"}
-      </span>
+      {/* Server mode draws the arrow only on the column the list is sorted by: under the default order a dim ▲ on the first column read as
+          "sorted by this, ascending" (Phase 0.2 item 4). */}
+      {(!server || shownSort?.key === c.key) && (
+        <span aria-hidden="true" className={cx("shrink-0 text-[9px]", shownSort?.key !== c.key && "opacity-40")}>
+          {shownSort?.key === c.key && shownSort.dir === "desc" ? "▼" : "▲"}
+        </span>
+      )}
     </>
   );
   const sortableCol = (c: Column) => (server ? Object.hasOwn(server.sortHrefs, c.key) : !!c.sortable);
