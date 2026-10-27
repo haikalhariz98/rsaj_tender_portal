@@ -51,12 +51,21 @@ describe("overdue", () => {
 });
 
 describe("reporting a line during the period (FR-CMP-011)", () => {
-  const ok = { dlpApplies: true, cpcIssued: true, scheduleIssued: false, description: "Leak", dueOn: "2026-11-01" };
+  const ok = { dlpApplies: true, cpcIssued: true, scheduleIssued: false, description: "Leak", dueOn: "2026-11-01", observedOn: "2026-09-20", completionDate: "2025-10-01", dlpEndExclusive: "2026-10-01", today: "2026-10-25" };
   it("is refused before the CPC, with no DLP, and once the schedule is issued", () => {
     expect(reportDefectFaults(ok)).toEqual([]);
     expect(codes(reportDefectFaults({ ...ok, cpcIssued: false }))).toEqual(["CPC_NOT_ISSUED"]);
     expect(codes(reportDefectFaults({ ...ok, dlpApplies: false }))).toEqual(["DLP_NOT_APPLICABLE"]);
     expect(codes(reportDefectFaults({ ...ok, scheduleIssued: true }))).toEqual(["SCHEDULE_ISSUED"]);
+  });
+  // Ruling 3 (code review of close-out stage B, P11): observed during the period, reported until the schedule issues.
+  it("needs the day it was observed, within the period and not after today; a report after the period's end is allowed while no schedule is issued", () => {
+    expect(codes(reportDefectFaults({ ...ok, observedOn: null }))).toEqual(["OBSERVED_REQUIRED"]);
+    expect(codes(reportDefectFaults({ ...ok, observedOn: "2025-09-30" }))).toEqual(["OBSERVED_OUTSIDE_DLP"]);
+    expect(codes(reportDefectFaults({ ...ok, observedOn: "2026-10-01" }))).toEqual(["OBSERVED_OUTSIDE_DLP"]);
+    expect(reportDefectFaults({ ...ok, observedOn: "2026-09-30" })).toEqual([]);
+    expect(reportDefectFaults({ ...ok, observedOn: "2025-10-01" })).toEqual([]);
+    expect(codes(reportDefectFaults({ ...ok, observedOn: "2026-10-26" }))).toEqual(["DAY_IN_FUTURE"]);
   });
 });
 

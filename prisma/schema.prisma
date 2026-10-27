@@ -12441,6 +12441,10 @@ model DefectItem {
   description           String
   location              String               @default("")
   dueOn                 DateTime
+  /// Ruling 3 (code review of close-out stage B, P11): the day a line reported during the period was observed, required by the act; null on a
+  /// CPC line and on lines reported before the ruling ("Not recorded"). Nullable because the line is never updated (trigger). CHECK: only on a
+  /// LIABILITY_PERIOD line.
+  observedOn            DateTime?
   reportedByPersonId    String
   reportedBy            Person               @relation("DefectRecordedBy", fields: [reportedByPersonId], references: [id], onDelete: Restrict)
   recordedAt            DateTime

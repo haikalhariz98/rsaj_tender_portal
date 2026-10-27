@@ -159,7 +159,7 @@ describe("close-out stage B through its acts", () => {
     expect((await issue(s.certificateId, null)).ok).toBe(true);
     const frozen = (await db.defectSchedule.findUniqueOrThrow({ where: { id: s.id } })).frozenLines as { description: string }[];
     expect(frozen.map((l) => l.description)).toEqual(["Cracked tiles, ground floor"]);
-    const late = await as(o.so, () => reportDefect({ ok: false }, form({ id: k.contractId, description: "New crack", dueOn: dayPlus(today(), 7) })));
+    const late = await as(o.so, () => reportDefect({ ok: false }, form({ id: k.contractId, description: "New crack", observedOn: dayPlus(k.due, 5), dueOn: dayPlus(today(), 7) })));
     expect(late.ok).toBe(false);
     expect(late.message).toMatch(/Schedule of Defects is issued/);
   });
@@ -221,5 +221,7 @@ describe("a CPC line with history", () => {
     const kept = await as(o.so, () => removeCpcDefect({ ok: false }, form({ id: k2.contractId, defectId: line.id })));
     expect(kept.ok).toBe(false);
     expect(kept.message).toMatch(/already recorded against this defect/);
+    // Ruling 3: only a line reported during the period carries the day it was observed (CHECK).
+    await expect(db.defectItem.create({ data: { organisationId: o.organisationId, contractId: k2.contractId, source: "PRACTICAL_COMPLETION", practicalCompletionId: line.practicalCompletionId, description: "Observed?", dueOn: D(k2.due), observedOn: D(k2.due), reportedByPersonId: o.so, recordedAt: new Date() } })).rejects.toThrow(/DefectItem_observed_on/);
   });
 });

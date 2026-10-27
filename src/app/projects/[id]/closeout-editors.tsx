@@ -48,13 +48,13 @@ export function RaiseCpcDrawer({ id, people, today, blocker }: { id: string; peo
 }
 
 /// A line on the CPC's list while it is a draft, or a defect reported during the period.
-export function AddDefectDrawer({ id, onCpc, people, blocker, main }: { id: string; onCpc: boolean; people: Option[]; blocker: string | null; main: boolean }) {
+export function AddDefectDrawer({ id, onCpc, people, blocker, main, today }: { id: string; onCpc: boolean; people: Option[]; blocker: string | null; main: boolean; today: string | null }) {
   return (
     <RecordEditor
       title={onCpc ? "Add a defect to the certificate" : "Report a defect"}
       description="The contractor makes it good."
-      fields={[hidden("id"), { kind: "textarea", name: "description", label: "Defect", required: true }, { kind: "text", name: "location", label: "Where" }, { kind: "date", name: "dueOn", label: "Made good by", required: true }, by("DefectItem.reportedBy", people)]}
-      values={{ id }}
+      fields={[hidden("id"), { kind: "textarea", name: "description", label: "Defect", required: true }, { kind: "text", name: "location", label: "Where" }, ...(onCpc ? [] : [{ kind: "date", name: "observedOn", label: "Observed on", required: true } as Field]), { kind: "date", name: "dueOn", label: "Made good by", required: true }, by("DefectItem.reportedBy", people)]}
+      values={onCpc ? { id } : { id, observedOn: today }}
       action={onCpc ? addCpcDefect : reportDefect}
       submitLabel="Add"
       submitBlock={blocker}

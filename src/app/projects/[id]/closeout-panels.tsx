@@ -176,6 +176,10 @@ export async function DefectsPanel({ l, v, people, today, hidden }: Props) {
   const rectifyBy = scheduleRectifyBy(v.rows);
   const facts = defectFactsOf(v.rows);
   const documents = (await db.projectDocument.findMany({ where: { contractId: id, organisationId: l.org.id }, select: { id: true, title: true }, orderBy: { createdAt: "desc" } })).map((d) => ({ value: d.id, label: d.title }));
+  const observedOf = (lineId: string) => {
+    const on = v.rows.lines.find((x) => x.id === lineId)?.observedOn;
+    return on ? formatDate(storedDay(on)) : null;
+  };
   const rows: Row[] = facts.map((d) => {
     const r = defectState(d.events);
     const late = today ? overdue(d, today, rectifyBy) : false;
@@ -184,7 +188,8 @@ export async function DefectsPanel({ l, v, people, today, hidden }: Props) {
       search: `${d.description} ${d.location}`,
       cells: {
         defect: { kind: "stack", title: d.description, sub: [d.location, r.state === "OPEN" && r.returnNote ? `Returned: ${r.returnNote}` : null, r.state === "WITHDRAWN" ? r.withdrawnReason : null].filter(Boolean).join(" · ") || undefined },
-        from: { kind: "text", text: d.source === "PRACTICAL_COMPLETION" ? "Certificate" : "Reported", dim: true },
+        // Ruling 3: a line reported during the period says when it was observed; one reported before the ruling reads "not recorded".
+        from: d.source === "PRACTICAL_COMPLETION" ? { kind: "text", text: "Certificate", dim: true } : { kind: "stack", title: "Reported", sub: `Observed ${observedOf(d.id) ?? "not recorded"}` },
         due: { kind: "text", text: formatDate(rectifyBy ?? d.dueOn) },
         state: { kind: "chips", items: [{ text: DEFECT_STATE_WORDS[r.state], tone: DEFECT_STATE_TONE[r.state] }, ...(late ? [{ text: "Overdue", tone: "err" as const }] : [])] },
       },
@@ -209,7 +214,7 @@ export async function DefectsPanel({ l, v, people, today, hidden }: Props) {
             actions={
               observe && (adding || lineActs) ? (
                 <span className="flex items-center gap-2">
-                  {adding && <AddDefectDrawer id={id} onCpc={adding.onCpc} people={people} blocker={adding.family === "COMPLETION" ? completion : defects} main />}
+                  {adding && <AddDefectDrawer id={id} onCpc={adding.onCpc} people={people} blocker={adding.family === "COMPLETION" ? completion : defects} main today={today} />}
                   <MoreActions label="Defect actions">
                     {cpcDraft && <RemoveDefectDrawer id={id} lines={facts.map((d) => ({ value: d.id, label: d.description.slice(0, 80) }))} blocker={completion} />}
                     {lineActs && <DefectActDrawer id={id} act="REPORT" lines={fresh} documents={documents} people={people} today={today} blocker={defects} />}

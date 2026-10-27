@@ -200,17 +200,18 @@ export async function reportDefect(_prev: FormState, data: FormData): Promise<Fo
   const description = r.text("description", "What the defect is", { required: true, max: 2000 });
   const location = r.text("location", "Where", { max: 400 });
   const dueOn = r.date("dueOn", "Made good by", { required: true });
-  if (r.failed || !dueOn) return { ok: false, errors: r.errors };
+  const observedOn = r.date("observedOn", "Observed on", { required: true });
+  if (r.failed || !dueOn || !observedOn) return { ok: false, errors: r.errors };
   const begun = await beginAct(actor, data, "DefectItem.reportedBy", { personField: "personId" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "DEFECTS", async (c) => {
     const who = await recordedFor(c, act, { act: "OBSERVATION" }, c.today);
     const rows = await loadCloseout(c.l.contract.id, c.tx);
-    const fs = reportDefectFaults({ cpcIssued: rows.cpc?.certificate.status === "ISSUED", dlpApplies: !!rows.cpc?.dlpStart, scheduleIssued: rows.schedule?.certificate.status === "ISSUED", description, dueOn: storedDay(dueOn) });
+    const fs = reportDefectFaults({ cpcIssued: rows.cpc?.certificate.status === "ISSUED", dlpApplies: !!rows.cpc?.dlpStart, scheduleIssued: rows.schedule?.certificate.status === "ISSUED", description, dueOn: storedDay(dueOn), observedOn: storedDay(observedOn), completionDate: rows.cpc ? storedDay(rows.cpc.completionDate) : null, dlpEndExclusive: rows.cpc?.dlpEnd ? storedDay(rows.cpc.dlpEnd) : null, today: c.today });
     if (fs.length) refuse("Not recorded:", fs);
-    const row = await c.tx.defectItem.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, source: "LIABILITY_PERIOD", description: description.trim(), location: location.trim(), dueOn, reportedByPersonId: who.person.id, recordedAt: c.now } });
-    await audit(c, "DefectItem", row.id, `${c.label} · defect`, "CREATE", diffFields(null, { defect: description.trim(), where: location.trim() || null, madeGoodBy: storedDay(dueOn), reported: "during the defects liability period", recordedFor: who.person.name }));
+    const row = await c.tx.defectItem.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, source: "LIABILITY_PERIOD", description: description.trim(), location: location.trim(), dueOn, observedOn, reportedByPersonId: who.person.id, recordedAt: c.now } });
+    await audit(c, "DefectItem", row.id, `${c.label} · defect`, "CREATE", diffFields(null, { defect: description.trim(), where: location.trim() || null, madeGoodBy: storedDay(dueOn), observedOn: storedDay(observedOn), reported: "during the defects liability period", recordedFor: who.person.name }));
     await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
     return { ok: true };
   });

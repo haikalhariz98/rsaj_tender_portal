@@ -6,6 +6,8 @@
  * The Phase 3 Defect work item's board column is read from this, never stored twice.
  */
 
+import { dayPlus } from "@/lib/dates";
+
 import type { Day, DefectEventFact, DefectFact, DefectState, Finding } from "./types";
 
 export interface DefectReading {
@@ -59,11 +61,18 @@ export const onDraftCpc = (line: { practicalCompletionId: string | null }, cpcSt
 
 /// A line reported during the defects liability period (FR-CMP-011), with what it is and a due day. A defect found at the inspection at the
 /// period's end is still reported, until the Schedule of Defects that lists the open lines is issued (it copies none of its own, ADR 0047 D1).
-export function reportDefectFaults(i: { dlpApplies: boolean; cpcIssued: boolean; scheduleIssued: boolean; description: string; dueOn: Day | null }): Finding[] {
+/// Ruling 3 (code review of close-out stage B, P11): the day it was observed is required, and falls within the period, from the practical completion date
+/// to the period's last day (`endExclusive` − 1), and not after today. Reporting may lag the observation until the Schedule of Defects issues.
+export function reportDefectFaults(i: { dlpApplies: boolean; cpcIssued: boolean; scheduleIssued: boolean; description: string; dueOn: Day | null; observedOn: Day | null; completionDate: Day | null; dlpEndExclusive: Day | null; today: Day }): Finding[] {
   const out: Finding[] = [];
   if (!i.cpcIssued) out.push({ code: "CPC_NOT_ISSUED", level: "block" });
   else if (!i.dlpApplies) out.push({ code: "DLP_NOT_APPLICABLE", level: "block" });
   else if (i.scheduleIssued) out.push({ code: "SCHEDULE_ISSUED", level: "block" });
+  if (!i.observedOn) out.push({ code: "OBSERVED_REQUIRED", level: "block" });
+  else {
+    if (i.observedOn > i.today) out.push({ code: "DAY_IN_FUTURE", level: "block", data: { day: i.observedOn } });
+    else if ((i.completionDate && i.observedOn < i.completionDate) || (i.dlpEndExclusive && i.observedOn >= i.dlpEndExclusive)) out.push({ code: "OBSERVED_OUTSIDE_DLP", level: "block", data: { from: i.completionDate, to: i.dlpEndExclusive ? dayPlus(i.dlpEndExclusive, -1) : null } });
+  }
   if (!i.description.trim()) out.push({ code: "DESCRIPTION_REQUIRED", level: "block" });
   if (!i.dueOn) out.push({ code: "DUE_REQUIRED", level: "block" });
   return out;
