@@ -57,9 +57,9 @@ describe("the release act: the opening's release is the first release", () => {
   it("a first release is refused when the opening already released retention; the balance waits for making good", () => {
     const st = releaseState([], released);
     expect(st.already).toEqual({ first: true, balance: false });
-    const r = releaseOf({ kind: "RELEASED_FIRST", held: { MAIN: s("10000.00"), NSC: 0n, NS: 0n }, already: st.already, firstReleasePct: "50", asBuiltHandedOver: true, makingGoodIssued: false, firstReleased: st.firstReleased });
+    const r = releaseOf({ kind: "RELEASED_FIRST", held: { MAIN: s("10000.00"), NSC: 0n, NS: 0n }, already: st.already, firstReleasePct: "50", asBuiltHandedOver: true, balanceEvent: { state: "NOT_REACHED", event: "MAKING_GOOD", missing: "MAKING_GOOD" }, firstReleased: st.firstReleased });
     expect(r.faults.map((f) => f.code)).toContain("ALREADY_RELEASED");
-    const bal = releaseOf({ kind: "RELEASED_BALANCE", held: { MAIN: s("10000.00"), NSC: 0n, NS: 0n }, already: st.already, firstReleasePct: "50", asBuiltHandedOver: true, makingGoodIssued: true, firstReleased: st.firstReleased });
+    const bal = releaseOf({ kind: "RELEASED_BALANCE", held: { MAIN: s("10000.00"), NSC: 0n, NS: 0n }, already: st.already, firstReleasePct: "50", asBuiltHandedOver: true, balanceEvent: { state: "REACHED", event: "MAKING_GOOD" }, firstReleased: st.firstReleased });
     expect(bal.faults).toEqual([]);
     expect(d(bal.amounts!.MAIN)).toBe("5000.00");
   });

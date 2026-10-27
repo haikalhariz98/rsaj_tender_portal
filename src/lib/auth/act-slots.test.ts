@@ -139,6 +139,8 @@ describe("the acts that move money, time or authority are recorded from paper on
         "PeriodAgreement.person",
         "PeriodExtension.person",
         "RetentionRelease.person",
+        // Phase 2 close-out stage B (flagged, stricter): returning a security moves money, as a retention release does.
+        "SecurityRelease.person",
         "SoDelegation.grantorPerson",
         "SumAdjustment.person",
       ].sort(),

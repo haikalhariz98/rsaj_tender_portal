@@ -18,6 +18,8 @@
  * Pure: sen as bigint, percentages as decimal strings, no float anywhere.
  */
 
+import { balanceReleaseFaults } from "@/lib/closeout/release";
+import type { BalanceEvent } from "@/lib/closeout/types";
 import { decimalText } from "@/lib/format";
 import type { Sen } from "@/lib/money";
 import { pctOfSen } from "@/lib/securities/money";
@@ -146,8 +148,9 @@ export interface ReleaseInput {
   firstReleasePct: string | null;
   /// As-built drawings handed over (FR-SUP-009).
   asBuiltHandedOver: boolean;
-  /// A Certificate of Making Good Defects issued (Part B). Always false in Part A.
-  makingGoodIssued: boolean;
+  /// Where the balance's event stands (Phase 2 close-out stage B, `balanceEventOf`: the switch `retentionBalanceReleaseAt`, the CMGD and its
+  /// final inspection, or Finance's payment of the final certificate).
+  balanceEvent: BalanceEvent;
   /// What the first release took, per tier (for the balance).
   firstReleased: Tiers;
 }
@@ -155,7 +158,8 @@ export interface ReleaseInput {
 /**
  * A release of retention: the first (the policy's percentage of what is held, half up, per tier), once, on
  * as-built drawings handed over; the balance (what is held less the first release, so the two sum to what is held),
- * once, on the Certificate of Making Good Defects, which arrives with Part B: refused until then. Never twice.
+ * once, at the event `retentionBalanceReleaseAt` names (Phase 2 close-out stage B: the CMGD with its final inspection, or with Finance's
+ * payment of the final certificate, which writes it itself). Never twice.
  */
 export function releaseOf(i: ReleaseInput): { faults: Finding[]; amounts: Tiers | null } {
   const faults: Finding[] = [];
@@ -170,7 +174,7 @@ export function releaseOf(i: ReleaseInput): { faults: Finding[]; amounts: Tiers 
     return { faults, amounts: { MAIN: pctOfSen(i.held!.MAIN, pct), NSC: pctOfSen(i.held!.NSC, pct), NS: pctOfSen(i.held!.NS, pct) } };
   }
   if (i.already.balance) f("ALREADY_RELEASED", { kind: "balance" });
-  if (!i.makingGoodIssued) f("MAKING_GOOD_NOT_ISSUED");
+  faults.push(...balanceReleaseFaults(i.balanceEvent));
   if (faults.length) return { faults, amounts: null };
   return { faults, amounts: { MAIN: i.held!.MAIN - i.firstReleased.MAIN, NSC: i.held!.NSC - i.firstReleased.NSC, NS: i.held!.NS - i.firstReleased.NS } };
 }

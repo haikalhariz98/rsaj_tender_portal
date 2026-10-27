@@ -17,6 +17,7 @@ import { ACT_STATUS, certificateAct, type ContractAct } from "@/lib/contract/act
 import type { LoadedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { MATTER_FAMILY, type ContractMatterKind } from "@/lib/matter/matter";
+import { cmgdAtIssue, cmgdIssueRefusal, cpcAtIssue, cpcIssueRefusal, scheduleAtIssue, scheduleIssueRefusal } from "@/lib/closeout/at-issue";
 import { eotAtIssue, eotIssueRefusal, periodAtIssue, periodIssueRefusal } from "@/lib/time/at-issue";
 
 import type { CertificateKind, Finding } from "./types";
@@ -31,6 +32,10 @@ export interface IssueHook {
 export const KIND_ISSUE_HOOK: Readonly<Partial<Record<CertificateKind, IssueHook>>> = {
   EOT: { refusal: eotIssueRefusal, after: eotAtIssue },
   CONTRACT_PERIOD_AGREEMENT: { refusal: periodIssueRefusal, after: periodAtIssue },
+  // Stage B (ADR 0047 D1): the CPC and the CMGD write their status; the Schedule of Defects freezes its lines.
+  PRACTICAL_COMPLETION: { refusal: cpcIssueRefusal, after: cpcAtIssue },
+  SCHEDULE_OF_DEFECTS: { refusal: scheduleIssueRefusal, after: scheduleAtIssue },
+  MAKING_GOOD_DEFECTS: { refusal: cmgdIssueRefusal, after: cmgdAtIssue },
 };
 
 /// An item of work still open on the contract, with the family of the act that would finish it.

@@ -488,6 +488,13 @@ model Organisation {
   periodExtensions         PeriodExtension[]
   periodAgreements         PeriodAgreement[]
   ladWaivers               LadWaiver[]
+  // Phase 2 close-out stage B: completion, defects, making good and the return of securities.
+  practicalCompletions     PracticalCompletion[]
+  defectItems              DefectItem[]
+  defectEvents             DefectEvent[]
+  defectSchedules          DefectSchedule[]
+  makingGoods              MakingGood[]
+  securityReleases         SecurityRelease[]
   variationApprovals       VariationApproval[]
   variationInstructions    VariationInstruction[]
   variationMeasurements    VariationMeasurement[]
@@ -742,6 +749,12 @@ model Person {
   periodExtensionsRecorded PeriodExtension[]       @relation("PeriodExtensionRecordedBy")
   periodAgreementsRaised PeriodAgreement[]         @relation("PeriodAgreementRaisedBy")
   ladWaiversRecorded     LadWaiver[]               @relation("LadWaiverRecordedBy")
+  practicalCompletionsRaised PracticalCompletion[]   @relation("PracticalCompletionRaisedBy")
+  defectsRecorded        DefectItem[]              @relation("DefectRecordedBy")
+  defectEventsRecorded   DefectEvent[]             @relation("DefectEventRecordedBy")
+  defectSchedulesRaised  DefectSchedule[]          @relation("DefectScheduleRaisedBy")
+  makingGoodsRaised      MakingGood[]              @relation("MakingGoodRaisedBy")
+  securitiesReturned     SecurityRelease[]         @relation("SecurityReturnedBy")
   variationRoutesSent    VariationApproval[]       @relation("VariationRouteSentBy")
   instructionsRecorded   VariationInstruction[]    @relation("InstructionRecordedBy")
   measurementsRecorded   VariationMeasurement[]    @relation("MeasurementRecordedBy")
@@ -4272,6 +4285,12 @@ model Contract {
   lossExpenseClaims      LossExpenseClaim[]
   periodExtensions       PeriodExtension[]
   sumAdjustments         SumAdjustment[]
+  /// Phase 2 close-out stage B: completion, defects, making good and the return of securities.
+  practicalCompletions   PracticalCompletion[]
+  defectItems            DefectItem[]
+  defectSchedules        DefectSchedule[]
+  makingGoods            MakingGood[]
+  securityReleases       SecurityRelease[]
   /// ADR 0046: its funding split (SF-05) and impact figures (SF-04).
   fundingAllocations     FundingAllocation[]
   impacts                ProjectImpact[]
@@ -4349,6 +4368,8 @@ model SecurityInstrument {
   custodyItem CustodyItem?
   /// 6.13 Part A step 3 (B2): the advance payments this guarantee is lodged for.
   advancePayments AdvancePayment[]
+  /// Phase 2 close-out stage B (CO-7): its return, once.
+  release         SecurityRelease?
 }
 
 /// Which policies a contract must carry (FR-AWD-013). The customer's list; ships empty.
@@ -10439,6 +10460,12 @@ model Certificate {
   extensionOfTime       ExtensionOfTime?
   periodAgreement       PeriodAgreement?
   ladWaiversApplied     LadWaiver[]           @relation("LadWaiverAppliedOn")
+  /// Phase 2 close-out stage B: the practical completion, schedule of defects or making good this certificate is the
+  /// certificate of, and the securities returned on it.
+  practicalCompletion   PracticalCompletion?
+  defectSchedule        DefectSchedule?
+  makingGood            MakingGood?
+  securityReleases      SecurityRelease[]
 
   @@unique([organisationId, number])
   @@unique([contractId, kind, sequence])
@@ -11476,6 +11503,8 @@ enum ContractClock {
   DAYWORK_SUBSTANTIATION
   LAD_WARNING_RESPONSE
   CERT_ISSUE
+  /// Phase 2 close-out stage B (FR-CMP-013): the longest a Schedule of Defects may give the contractor to make good.
+  DEFECTS_RECTIFICATION
 }
 
 /// The form a certificate kind prints on, and the routing sheet it is sent on (6.13 Part A step 3). One per kind
@@ -12329,6 +12358,173 @@ model LadWaiver {
   @@index([appliedOnCertificateId])
 }
 
+// ------------------------------------------------------------------ Phase 2 close-out stage B (ADR 0047): completion, defects, making good, securities returned
+
+/// ADR 0047 D1: where a defect line came from: the practical completion certificate's list (FR-CMP-007), or a report during
+/// the defects liability period (FR-CMP-011).
+enum DefectSource {
+  PRACTICAL_COMPLETION
+  LIABILITY_PERIOD
+}
+
+/// ADR 0047 D1: what happened to a defect line. A line's state is derived from these, never stored.
+enum DefectEventKind {
+  REPORTED_RECTIFIED
+  MADE_GOOD
+  RETURNED
+  WITHDRAWN
+}
+
+/// CO-7 (ADR 0032): the event a security was returned at.
+enum SecurityReleaseTrigger {
+  MAKING_GOOD
+  FINAL_PAYMENT
+  ADVANCE_RECOUPED
+}
+
+/// FR-CMP-004–007, 009 (CO-5): the certificate of practical completion's record. The passing joint inspection is recorded on
+/// it. The defects liability period is frozen here at raise (`dlpStart`, `dlpEnd` exclusive; both null where it does not
+/// apply), and an extension of time never moves it. `frozenLines` holds the lines certified, written at issue (ADR 0008).
+/// No sections (ruling 20): a contract with sections is refused at raise.
+model PracticalCompletion {
+  id                String       @id @default(cuid())
+  organisationId    String
+  organisation      Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  certificateId     String       @unique
+  certificate       Certificate  @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  contractId        String
+  contract          Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  completionDate    DateTime
+  possessionTakenOn DateTime
+  inspectedOn       DateTime
+  attendees         String[]
+  testReasons       String
+  dlpMonths         Int?
+  dlpStart          DateTime?
+  dlpEnd            DateTime?
+  frozenLines       Json?
+  personId          String
+  person            Person       @relation("PracticalCompletionRaisedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt        DateTime
+
+  defects DefectItem[]
+
+  @@index([contractId])
+}
+
+/// ADR 0047 D1: one live defect line: its description, location and due day. The legal record a Phase 3 Defect work item
+/// will point at by a unique key. A line on the CPC's list is inserted or deleted only while its certificate is a draft; a
+/// line reported during the period is insert-only; neither is ever updated (trigger). What happened to it is `DefectEvent`.
+model DefectItem {
+  id                    String               @id @default(cuid())
+  organisationId        String
+  organisation          Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId            String
+  contract              Contract             @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  source                DefectSource
+  practicalCompletionId String?
+  practicalCompletion   PracticalCompletion? @relation(fields: [practicalCompletionId], references: [id], onDelete: Restrict)
+  description           String
+  location              String               @default("")
+  dueOn                 DateTime
+  reportedByPersonId    String
+  reportedBy            Person               @relation("DefectRecordedBy", fields: [reportedByPersonId], references: [id], onDelete: Restrict)
+  recordedAt            DateTime
+
+  events DefectEvent[]
+
+  @@index([contractId])
+  @@index([practicalCompletionId])
+}
+
+/// ADR 0047 D1: what happened to a defect line, append-only (trigger). Exactly one actor: an officer, or the contractor's
+/// portal account (by CHECK). A return or a withdrawal carries its note.
+model DefectEvent {
+  id                 String           @id @default(cuid())
+  organisationId     String
+  organisation       Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  defectId           String
+  defect             DefectItem       @relation(fields: [defectId], references: [id], onDelete: Restrict)
+  kind               DefectEventKind
+  on                 DateTime
+  note               String           @default("")
+  evidenceDocumentId String?
+  evidenceDocument   ProjectDocument? @relation(fields: [evidenceDocumentId], references: [id], onDelete: Restrict)
+  personId           String?
+  person             Person?          @relation("DefectEventRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  supplierAccountId  String?
+  supplierAccount    SupplierAccount? @relation("DefectEventReportedBySupplier", fields: [supplierAccountId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime
+
+  @@index([defectId])
+}
+
+/// FR-CMP-013: the Schedule of Defects' record: the day to make good by. It lists the lines still open at its issue, frozen
+/// into `frozenLines` then; it copies no line of its own.
+model DefectSchedule {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  certificateId  String       @unique
+  certificate    Certificate  @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  rectifyBy      DateTime
+  frozenLines    Json?
+  personId       String
+  person         Person       @relation("DefectScheduleRaisedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+
+  @@index([contractId])
+}
+
+/// FR-CMP-015, 018 (rulings 4, 6; ADR 0047 D3): the certificate of making good defects' record: the day the defects were
+/// made good and the final defects inspection's day. At issue, every line is frozen with its end state (a withdrawn one with
+/// its reason), and `snapshot` keeps the performance bond's value, the retention balance and the securities' numbers.
+/// No sections (ruling 20).
+model MakingGood {
+  id                String       @id @default(cuid())
+  organisationId    String
+  organisation      Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  certificateId     String       @unique
+  certificate       Certificate  @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  contractId        String
+  contract          Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  madeGoodOn        DateTime
+  finalInspectionOn DateTime
+  frozenLines       Json?
+  snapshot          Json?
+  personId          String
+  person            Person       @relation("MakingGoodRaisedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt        DateTime
+
+  @@index([contractId])
+}
+
+/// CO-7 (ADR 0032, FR-CMP-015, 016): a security returned to the contractor, once (`securityId` unique). The certificate
+/// that authorised it (the CMGD or the final certificate) is named where there is one. A cash or banker's-draft security
+/// carries its official receipt's reference.
+model SecurityRelease {
+  id                 String                 @id @default(cuid())
+  organisationId     String
+  organisation       Organisation           @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  securityId         String                 @unique
+  security           SecurityInstrument     @relation(fields: [securityId], references: [id], onDelete: Restrict)
+  contractId         String
+  contract           Contract               @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  trigger            SecurityReleaseTrigger
+  certificateId      String?
+  certificate        Certificate?           @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  returnedOn         DateTime
+  officialReceiptRef String                 @default("")
+  personId           String
+  person             Person                 @relation("SecurityReturnedBy", fields: [personId], references: [id], onDelete: Restrict)
+  note               String                 @default("")
+  recordedAt         DateTime
+
+  @@index([contractId])
+}
+
 model Variation {
   id             String       @id @default(cuid())
   organisationId String
@@ -12796,6 +12992,8 @@ model SupplierAccount {
   sessions SupplierSession[]
   codes    OneTimeCode[]
   events   SignInEvent[]
+  /// Phase 2 close-out stage B: the defect lines it reported rectified from the portal.
+  defectEventsReported DefectEvent[] @relation("DefectEventReportedBySupplier")
   /// Phase 4b: what this account lodged, uploaded, saved, entered, signed and read.
   documentsLodged         SupplierDocument[]        @relation("SupplierDocumentRecordedBySupplier")
   versionsRecorded        DocumentVersion[]         @relation("VersionRecordedBySupplier")
@@ -13445,6 +13643,8 @@ model ProjectDocument {
   versions  ProjectDocumentVersion[]
   requests  ProjectDocumentRequest[]
   approvers ProjectDocumentApprover[]
+  /// Phase 2 close-out stage B: the defect events it is the evidence of.
+  defectEvidence DefectEvent[]
   /// ADR 0042 D10: the kick-off meeting whose minutes this document is, if it is.
   kickOffMinutesOf KickOffMeeting? @relation("KickOffMinutes")
   /// ADR 0045 D7: Finance's payment of this supply claim, once recorded.

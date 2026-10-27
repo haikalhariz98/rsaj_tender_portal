@@ -22,6 +22,8 @@ export interface Words {
   ms: string;
 }
 export const w = (en: string, ms: string): Words => ({ en, ms });
+/// English only (founder, 2026-10-19): a word added since carries its English in both places, so no reader is left blank.
+const en = (text: string): Words => ({ en: text, ms: text });
 
 export const TRIGGER_WORDS: Readonly<Record<ValuationTrigger, Words>> = {
   VALUATION_DATE: w("The agreed monthly valuation day", "Hari penilaian bulanan yang dipersetujui"),
@@ -99,6 +101,7 @@ export const CLOCK_WORDS: Readonly<Record<ContractClock, Words>> = {
   DAYWORK_SUBSTANTIATION: w("Substantiating daywork", "Pembuktian kerja harian"),
   LAD_WARNING_RESPONSE: w("The contractor's reasons after a damages warning", "Alasan kontraktor selepas amaran ganti rugi"),
   CERT_ISSUE: w("Issuing a certificate after its valuation or claim", "Mengeluarkan perakuan selepas penilaian atau tuntutan"),
+  DEFECTS_RECTIFICATION: en("The longest a Schedule of Defects gives to make good"),
 };
 
 export const PACK_WORDS: Readonly<Record<PackItem, Words>> = {
@@ -165,6 +168,17 @@ export function paymentFaultWords(f: Finding): Words {
       return w("As-built release share not set. See Configuration › Post-award.", "Bahagian wang tahanan yang dilepaskan atas lukisan siap bina belum ditetapkan di Konfigurasi › Selepas setuju terima.");
     case "MAKING_GOOD_NOT_ISSUED":
       return w("Balance held until the Certificate of Making Good Defects.", "Baki dilepaskan atas Perakuan Membaiki Kecacatan, yang tiba bersama modul penyiapan dan kecacatan (Bahagian B).");
+    // Phase 2 close-out stage B: the CMGD routes to the contract's S.O. (BD-613-78), and the balance's event (plan §4.5).
+    case "SO_ROUTE_MISMATCH":
+      return en(`The route's approving office is not the contract's S.O. (${d.so ?? "the S.O."}) today. Correct the approval matrix's row.`);
+    case "SO_UNRESOLVED":
+      return en("The contract's S.O. does not resolve today. Resolve the S.O. under Project › Team first.");
+    case "RELEASE_EVENT_NOT_SET":
+      return en("When the retention balance is released is not set. See Configuration › Post-award.");
+    case "FINAL_INSPECTION_NOT_RECORDED":
+      return en("The final defects inspection is not recorded on the Certificate of Making Good Defects.");
+    case "BALANCE_WITH_FINAL_PAYMENT":
+      return en("The balance is released with the final certificate's payment.");
     // ------------------------------------------------ materials, minimum, totals
     case "MATERIALS_PCT_NOT_SET":
       return w("Materials allowance percentage not set. Set it in the baseline or Configuration › Post-award.", "Bahan di tapak dinilai, tetapi tiada peratusan elaun ditetapkan sama ada di garis dasar kontrak atau di Konfigurasi › Selepas setuju terima. Bukan 0%.");

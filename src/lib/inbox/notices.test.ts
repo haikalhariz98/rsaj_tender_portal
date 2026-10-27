@@ -65,7 +65,8 @@ describe("the closed list of kinds", () => {
     // Changed for C13 (design note 0004, AC-20): replaced whole again by the migration that adds INDENT_EXPIRED and COMMENCEMENT_LATE.
     // Changed for ADR 0042 D6 (PW-13): replaced whole again by the Project workspace's migration, which adds the three PROJECT_DOCUMENT_ kinds.
     // Changed for ADR 0045 D4 (wave V step V1): replaced whole again by the wave V migration, which adds AWARD_RETURN_LODGED and AWARD_QUERY_RAISED.
-    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261201000100_wave_v_tables/migration.sql"), "utf8");
+    // Changed for Phase 2 close-out stage B: replaced whole again by 20261210000100, which adds DLP_ENDING and DEFECT_RECTIFIED.
+    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261210000100_staff_notice_closeout_kinds/migration.sql"), "utf8");
     const check = /StaffNotice_kind_known" CHECK \(\("kind" IN \(([^)]*)\)\)/.exec(sql);
     expect(check, "the CHECK is in the migration").toBeTruthy();
     const named = [...check![1]!.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);

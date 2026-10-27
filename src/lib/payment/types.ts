@@ -54,7 +54,8 @@ export const NON_COMPLETION_SCOPES = ["WHOLE", "SECTION"] as const;
 export type NonCompletionScope = (typeof NON_COMPLETION_SCOPES)[number];
 
 /// The contract clocks Part A reads (plan A2): set per organisation, each with its provenance; unset reads "Not set".
-export const CONTRACT_CLOCKS = ["ORAL_CONFIRM", "ORAL_OBJECTION", "DAYWORK_SUBSTANTIATION", "LAD_WARNING_RESPONSE", "CERT_ISSUE"] as const;
+/// Phase 2 close-out stage B adds DEFECTS_RECTIFICATION (FR-CMP-013: the longest a Schedule of Defects may give).
+export const CONTRACT_CLOCKS = ["ORAL_CONFIRM", "ORAL_OBJECTION", "DAYWORK_SUBSTANTIATION", "LAD_WARNING_RESPONSE", "CERT_ISSUE", "DEFECTS_RECTIFICATION"] as const;
 export type ContractClock = (typeof CONTRACT_CLOCKS)[number];
 
 /// FR-LAD-005: the four items of the non-completion pack.

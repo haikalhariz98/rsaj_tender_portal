@@ -355,6 +355,14 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   gated("PeriodExtension", "person", "Recorded by"),
   gated("PeriodAgreement", "person", "Raised by"),
   gated("LadWaiver", "person", "Recorded by"),
+  // Phase 2 close-out stage B (ADR 0047): the CPC, the Schedule of Defects and the CMGD are raised for the S.O. as the other certificates are; a defect line and what
+  // happened to it are recorded for the S.O. or a representative; a security returned moves money, as a retention release does.
+  paper("PracticalCompletion", "person", "Raised by"),
+  paper("DefectItem", "reportedBy", "Recorded by"),
+  paper("DefectEvent", "person", "Recorded by"),
+  paper("DefectSchedule", "person", "Raised by"),
+  paper("MakingGood", "person", "Raised by"),
+  gated("SecurityRelease", "person", "Released by"),
   paper("Variation", "originator", "Originated by"),
   paper("Variation", "reviewedBy", "Reviewed by"),
   paper("Variation", "principal", "Passed on by"),

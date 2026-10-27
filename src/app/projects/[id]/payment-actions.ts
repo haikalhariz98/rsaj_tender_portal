@@ -26,6 +26,7 @@ import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/mo
 import { applicationFaults, pendingAdvanceFaults } from "@/lib/payment/advance";
 import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentFaultText, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
+import { loadCloseout, releaseEventsOf } from "@/lib/closeout/load";
 import { assembleInputOf, baselineOn, damagesOf, waiversToApplyOf, claimFactsOf, inProgress, inProgressSequenceOf, issuedInterims, kindSettingOf, liveDecisionsOf, loadPayment, nextInterimSequence, pendingAdvancesOf, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
 import { ladRoundingFaults } from "@/lib/payment/interim";
@@ -520,7 +521,9 @@ export async function releaseRetention(_prev: FormState, data: FormData): Promis
     const policy = (await configOf(c)).policy;
     const pct = firstReleaseShare(policy?.firstReleasePct);
     const handover = p.siteRecordsHandovers.at(-1) ?? null;
-    const rel = releaseOf({ kind: release, held: held!.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: !!handover, makingGoodIssued: false, firstReleased: rs.firstReleased });
+    // Phase 2 close-out stage B (plan §4.5, flagged): the balance at the event `retentionBalanceReleaseAt` names, read with the CMGD and its final inspection.
+    const balanceEvent = releaseEventsOf(await loadCloseout(c.l.contract.id, c.tx), policy).retention;
+    const rel = releaseOf({ kind: release, held: held!.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: !!handover, balanceEvent, firstReleased: rs.firstReleased });
     if (rel.faults.length) refuse("Not released:", rel.faults);
     const who = await recordedFor(c, act, { principalOrSo: true }, storedDay(releasedOn));
     const a = rel.amounts!;

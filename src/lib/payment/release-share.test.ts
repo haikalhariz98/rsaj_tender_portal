@@ -30,11 +30,11 @@ describe("a stored percentage, read back as a person typed it", () => {
     expect(firstReleaseShare(undefined)).toBeNull();
   });
   it("a 50% first release of RM1,000.00 held releases RM500.00 (worked through the release rule)", () => {
-    const r = releaseOf({ kind: "RELEASED_FIRST", held: { MAIN: parseSen("1000.00"), NSC: parseSen("200.00"), NS: 0n }, already: { first: false, balance: false }, firstReleasePct: firstReleaseShare(db("50.0000")), asBuiltHandedOver: true, makingGoodIssued: false, firstReleased: { MAIN: 0n, NSC: 0n, NS: 0n } });
+    const r = releaseOf({ kind: "RELEASED_FIRST", held: { MAIN: parseSen("1000.00"), NSC: parseSen("200.00"), NS: 0n }, already: { first: false, balance: false }, firstReleasePct: firstReleaseShare(db("50.0000")), asBuiltHandedOver: true, balanceEvent: { state: "NOT_REACHED", event: "MAKING_GOOD", missing: "MAKING_GOOD" }, firstReleased: { MAIN: 0n, NSC: 0n, NS: 0n } });
     expect(r.faults).toEqual([]);
     expect(senToDecimalString(r.amounts!.MAIN)).toBe("500.00");
     expect(senToDecimalString(r.amounts!.NSC)).toBe("100.00");
-    const all = releaseOf({ kind: "RELEASED_FIRST", held: { MAIN: parseSen("1000.00"), NSC: 0n, NS: 0n }, already: { first: false, balance: false }, firstReleasePct: firstReleaseShare(db("100.0000")), asBuiltHandedOver: true, makingGoodIssued: false, firstReleased: { MAIN: 0n, NSC: 0n, NS: 0n } });
+    const all = releaseOf({ kind: "RELEASED_FIRST", held: { MAIN: parseSen("1000.00"), NSC: 0n, NS: 0n }, already: { first: false, balance: false }, firstReleasePct: firstReleaseShare(db("100.0000")), asBuiltHandedOver: true, balanceEvent: { state: "NOT_REACHED", event: "MAKING_GOOD", missing: "MAKING_GOOD" }, firstReleased: { MAIN: 0n, NSC: 0n, NS: 0n } });
     expect(senToDecimalString(all.amounts!.MAIN)).toBe("1000.00");
   });
   it("no screen or act strips zeros from the end of a Decimal's text (the pattern that read 50 as 5)", () => {

@@ -25,7 +25,8 @@ import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { holdersFor } from "@/lib/requisition/holders";
-import { methodKeyOf } from "@/lib/supervision/load";
+import { soRouteFaults, SO_ROUTED_DOMAINS } from "@/lib/closeout/so-route";
+import { loadSupervision, methodKeyOf, soOfficeOn } from "@/lib/supervision/load";
 
 import { paymentRefusal } from "./labels";
 import { KIND_ROUTE_DOMAIN, resolveCertificateRouteUnder } from "./route";
@@ -74,6 +75,12 @@ export async function submitForApproval(c: CertCtx, act: ActWriter) {
     (code) => holdersOf(code).holderIds.includes(person.id),
   );
   if (!r.ok) return refuse(r.faults);
+  // BD-613-78 (plan §4.4): the CMGD's and the final certificate's approving step is the contract's S.O. on the day.
+  if (SO_ROUTED_DOMAINS.includes(domain!)) {
+    const so = await soOfficeOn(c.l, await loadSupervision(c.l.contract.id, c.tx), c.today, c.tx);
+    const fs = soRouteFaults(domain!, r.resolution.approverCode ?? null, so ? { roleCode: so.assignment.roleCode, label: so.office.roleLabel } : null);
+    if (fs.length) return refuse(fs);
+  }
   const source = r.source === "OVERRIDE" && override ? { matrix: override.matrix, override: { id: override.id, label: override.label } } : { matrix: issue.matrix, override: null };
   await openCertificateRoute(c, { domain: domain!, value: v.value, issue, source, resolution: r.resolution, warnings: r.warnings, submittedBy: person, act, figure: v.figure });
   // A certificate on a routing sheet starts it now: its type and its figures freeze (the core's own act).

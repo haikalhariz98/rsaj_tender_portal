@@ -385,6 +385,9 @@ export const ALLOW: Allow = {
   // 6.13 Part B run 1b (ADR 0030, ADR 0021 Amendment 2; flagged against 6.12): the extension's version writer, the one
   // writer of EXTENSION_OF_TIME and PERIOD_EXTENSION, called only by the two certificates' issue hooks.
   [`${P("src/lib/contract/version-write.ts")} › writeExtensionVersion`]: { ops: ["contractBaseline.create", "contractSection.create"], spread: /^\.\.\.(rowOf\(after\)|s|\(draft\?\.snapshotasobject\))$/ },
+  // Phase 2 close-out stage B (ADR 0047 D2; flagged, a writer added): the CPC's and the CMGD's issue hooks write PRACTICALLY_COMPLETE and
+  // MAKING_GOOD_COMPLETE through this one helper, by contractTransition with the writer STATUS_WRITTEN_BY names (the status is a variable).
+  [`${P("src/lib/closeout/at-issue.ts")} › writeStatus`]: { ops: ["contract.updateMany"] },
   [`${P("src/app/awards/actions.ts")} › issueAward`]: { ops: ["contract.create"] },
   [`${P("src/app/awards/actions.ts")} › cancelAward`]: { ops: ["contract.update"] },
 };

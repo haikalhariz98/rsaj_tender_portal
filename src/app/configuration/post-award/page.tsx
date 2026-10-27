@@ -37,6 +37,7 @@ const CLOCK_UNSET: Readonly<Record<ContractClock, string>> = {
   DAYWORK_SUBSTANTIATION: "A daywork record shows no day its substantiation is due by, and lateness is not judged: the screen says the clock is not set.",
   LAD_WARNING_RESPONSE: "A damages warning gives no date for the contractor's reasons: the screen says the clock is not set.",
   CERT_ISSUE: "A valuation shows no date its certificate is due by: the screen says the clock is not set.",
+  DEFECTS_RECTIFICATION: "A Schedule of Defects may give any day to make good by: the longest period is not checked, and the schedule says so.",
 };
 const UNIT_WORDS = { DAYS: "calendar days", WEEKS: "weeks", MONTHS: "months" } as const;
 

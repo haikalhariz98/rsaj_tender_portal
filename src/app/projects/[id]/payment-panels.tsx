@@ -33,6 +33,7 @@ import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type As
 import { db } from "@/lib/db";
 import { creditorFactsOf } from "@/lib/payment/creditor-store";
 import { OPENING_GROUP_WORDS, ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, PAYEE_BANK_UNCHECKED, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
+import { loadCloseout, releaseEventsOf } from "@/lib/closeout/load";
 import { accrualOfPayment, assembleInputOf, baselineOn, damagesOf, decisionOf, liveDecisionsOf, waiversToApplyOf, waiverResendable, waiverStateOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, openingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { asCorrected } from "@/lib/payment/correction";
@@ -92,7 +93,7 @@ export const VALUATION_PAGE = 12;
 
 /// Everything the tab reads, once.
 export async function paymentView(l: LoadedContract, today: string | null) {
-  const [p, cfg] = await Promise.all([loadPayment(l.contract.id), loadPaymentConfig(l.org.id)]);
+  const [p, cfg, closeout] = await Promise.all([loadPayment(l.contract.id), loadPaymentConfig(l.org.id), loadCloseout(l.contract.id)]);
   const current = inProgress(p);
   // Run 3 residual M1: an issued adjustment whose net cannot be read is said by name in place of the valuation's
   // figures (they are read over the revised sum), never thrown into the page.
@@ -109,7 +110,7 @@ export async function paymentView(l: LoadedContract, today: string | null) {
     if (w.apply.length) input.damages = damagesOf(p, baseline, w.apply);
   }
   const assembled = input ? assembleInterim(input) : null;
-  return { p, cfg, current, assembled, refused, issued: issuedInterims(p), baseline };
+  return { p, cfg, current, assembled, refused, issued: issuedInterims(p), baseline, closeout };
 }
 export type PaymentView = Awaited<ReturnType<typeof paymentView>>;
 
@@ -509,7 +510,7 @@ function RetentionSection({ l, v, people, today, hidden }: { l: LoadedContract; 
   const handed = v.p.siteRecordsHandovers.length > 0;
   const releaseBlock = (kind: "RELEASED_FIRST" | "RELEASED_BALANCE") => {
     if (!held) return paymentFaultText({ code: "NO_ISSUED_INTERIM", level: "block" });
-    const r = releaseOf({ kind, held: held.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: handed, makingGoodIssued: false, firstReleased: rs.firstReleased });
+    const r = releaseOf({ kind, held: held.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: handed, balanceEvent: releaseEventsOf(v.closeout, v.cfg.policy).retention, firstReleased: rs.firstReleased });
     return zone(today) ?? say(r.faults);
   };
   const terms =

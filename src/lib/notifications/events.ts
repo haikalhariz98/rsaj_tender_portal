@@ -12,6 +12,8 @@ export const NOTIFICATION_EVENTS: readonly { key: string; label: string }[] = [
   { key: "bid.validity.expiring", label: "A bid's validity is about to end" },
   { key: "committee_matter_not_carried", label: "A committee did not carry a matter" },
   { key: "supplier.document.expiring", label: "A supplier's document is about to expire" },
+  // Phase 2 close-out stage B (plan section 4.3): read by the contract's Completion tab, offsets from the rule.
+  { key: "contract.dlp.ending", label: "A contract's defects liability period is about to end" },
 ];
 
 /// The list for a new rule: every event that has no rule yet.

@@ -16,12 +16,13 @@ import { CERTIFICATE_KINDS, type CertificateKind } from "./types";
  */
 
 const codes = (fs: readonly { code: string }[]) => fs.map((f) => f.code);
-const PENDING: readonly CertificateKind[] = ["PRACTICAL_COMPLETION", "MAKING_GOOD_DEFECTS", "FINAL"];
+// Stage B (flagged, the list shrinks as the plan says): the CPC and the CMGD have their hooks.
+const PENDING: readonly CertificateKind[] = ["FINAL"];
 const OUT_OF_PHASE_2: readonly CertificateKind[] = ["TERMINATION"];
 
 describe("the map", () => {
-  it("stage A: exactly the EOT certificate and the contract period agreement", () => {
-    expect(Object.keys(KIND_ISSUE_HOOK).sort()).toEqual(["CONTRACT_PERIOD_AGREEMENT", "EOT"]);
+  it("stage B: the EOT certificate, the contract period agreement, the CPC, the Schedule of Defects and the CMGD", () => {
+    expect(Object.keys(KIND_ISSUE_HOOK).sort()).toEqual(["CONTRACT_PERIOD_AGREEMENT", "EOT", "MAKING_GOOD_DEFECTS", "PRACTICAL_COMPLETION", "SCHEDULE_OF_DEFECTS"]);
   });
   it("a kind whose issue writes a status has a hook, or is pending a later stage (the list only shrinks), or is out of Phase 2", () => {
     const writes = CERTIFICATE_KINDS.filter((k) => KIND_ISSUE_WRITES[k] != null);

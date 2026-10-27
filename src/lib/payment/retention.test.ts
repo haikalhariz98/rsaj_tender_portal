@@ -56,12 +56,12 @@ describe("held to date, under the cap", () => {
 });
 
 describe("release (FR-PAY-021)", () => {
-  const base: ReleaseInput = { kind: "RELEASED_FIRST", held: { MAIN: s("53875.43"), NSC: 0n, NS: 0n }, already: { first: false, balance: false }, firstReleasePct: "50", asBuiltHandedOver: true, makingGoodIssued: false, firstReleased: ZERO_TIERS };
+  const base: ReleaseInput = { kind: "RELEASED_FIRST", held: { MAIN: s("53875.43"), NSC: 0n, NS: 0n }, already: { first: false, balance: false }, firstReleasePct: "50", asBuiltHandedOver: true, balanceEvent: { state: "NOT_REACHED", event: "MAKING_GOOD", missing: "MAKING_GOOD" }, firstReleased: ZERO_TIERS };
   it("first release 50% of 53,875.43 = 26,937.72; the balance 26,937.71; together what is held", () => {
     const first = releaseOf(base);
     expect(first.faults).toEqual([]);
     expect(money(first.amounts!.MAIN)).toBe("26937.72");
-    const balance = releaseOf({ ...base, kind: "RELEASED_BALANCE", already: { first: true, balance: false }, makingGoodIssued: true, firstReleased: first.amounts! });
+    const balance = releaseOf({ ...base, kind: "RELEASED_BALANCE", already: { first: true, balance: false }, balanceEvent: { state: "REACHED", event: "MAKING_GOOD" }, firstReleased: first.amounts! });
     expect(money(balance.amounts!.MAIN)).toBe("26937.71");
     expect(first.amounts!.MAIN + balance.amounts!.MAIN).toBe(s("53875.43"));
   });
@@ -74,9 +74,18 @@ describe("release (FR-PAY-021)", () => {
   it("the balance without the Certificate of Making Good Defects is refused (it arrives with Part B)", () => {
     expect(codes(releaseOf({ ...base, kind: "RELEASED_BALANCE", already: { first: true, balance: false } }).faults)).toEqual(["MAKING_GOOD_NOT_ISSUED"]);
   });
+  // Phase 2 close-out stage B (plan §6.3, flagged: makingGoodIssued became balanceEvent, each assertion kept): the balance's event read from its switch.
+  it("the balance's event unset, its final inspection not recorded, or the event the final payment is refused, each by name", () => {
+    const balance = { ...base, kind: "RELEASED_BALANCE" as const, already: { first: true, balance: false } };
+    expect(codes(releaseOf({ ...balance, balanceEvent: { state: "NOT_SET" } }).faults)).toEqual(["RELEASE_EVENT_NOT_SET"]);
+    expect(codes(releaseOf({ ...balance, balanceEvent: { state: "NOT_REACHED", event: "MAKING_GOOD", missing: "FINAL_INSPECTION" } }).faults)).toEqual(["FINAL_INSPECTION_NOT_RECORDED"]);
+    expect(codes(releaseOf({ ...balance, balanceEvent: { state: "REACHED", event: "FINAL_PAYMENT" } }).faults)).toEqual(["BALANCE_WITH_FINAL_PAYMENT"]);
+    expect(codes(releaseOf({ ...balance, balanceEvent: { state: "NOT_REACHED", event: "FINAL_PAYMENT", missing: "FINAL_PAYMENT" } }).faults)).toEqual(["BALANCE_WITH_FINAL_PAYMENT"]);
+    expect(releaseOf({ ...balance, balanceEvent: { state: "REACHED", event: "MAKING_GOOD" } }).faults).toEqual([]);
+  });
   it("no release twice, and nothing to release when nothing is held", () => {
     expect(codes(releaseOf({ ...base, already: { first: true, balance: false } }).faults)).toEqual(["ALREADY_RELEASED"]);
-    expect(codes(releaseOf({ ...base, kind: "RELEASED_BALANCE", already: { first: true, balance: true }, makingGoodIssued: true }).faults)).toEqual(["ALREADY_RELEASED"]);
+    expect(codes(releaseOf({ ...base, kind: "RELEASED_BALANCE", already: { first: true, balance: true }, balanceEvent: { state: "REACHED", event: "MAKING_GOOD" } }).faults)).toEqual(["ALREADY_RELEASED"]);
     expect(codes(releaseOf({ ...base, held: null }).faults)).toEqual(["NOTHING_HELD"]);
   });
 });

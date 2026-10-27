@@ -64,6 +64,9 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   // ADR 0042 D10 (plan step 7): the kick-off meeting's attendance names the contractor's accounts that were there. Staff record it; the account did nothing by being ticked.
   // ADR 0045 D3 (wave V): a contractor's question on an award signs nothing. The column is the record, the row is kept as asked (trigger PA049), and the act is audited with the account.
   "AwardQuery.askedBySupplierAccount": "Who asked a question on an issued award from the portal (ADR 0045 D3): the column is the record, kept as asked by trigger, and audited with the account. It signs nothing.",
+  // Phase 2 close-out stage B (ADR 0047 D1, plan section 5): the contractor marks a defect line rectified from the portal. Words, not a signature: the column is the record, the
+  // event is append-only, and the act is audited with the account. An officer accepts or returns it.
+  "DefectEvent.supplierAccount": "Who reported a defect line rectified from the portal (ADR 0047 D1): the column is the record, append-only by trigger, and audited with the account. It signs nothing.",
   "KickOffAttendance.supplierAccount": "An attendee ticked on the contractor's side of a kick-off meeting (ADR 0042 D10): who was there, not who acted. Staff record the meeting held (`KickOffMeeting.heldRecordedBy`); the row is append-only and the account signs nothing.",
 };
 
