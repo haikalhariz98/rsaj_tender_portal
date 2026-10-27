@@ -30,7 +30,7 @@ ALTER TABLE "PaymentCorrection" ADD CONSTRAINT "PaymentCorrection_financePayment
 ALTER TABLE "PaymentCorrection" ADD CONSTRAINT "PaymentCorrection_supplyInvoicePaymentId_fkey" FOREIGN KEY ("supplyInvoicePaymentId") REFERENCES "SupplyInvoicePayment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 
--- Phase 0.3 item 12 (hand-written): exactly one payment corrected; a reference and a reason; never a negative amount; a sequence from 1.
+-- Phase 0.3 item 12 (hand-written): exactly one payment corrected, a reference and a reason, never a negative amount, a sequence from 1.
 ALTER TABLE "PaymentCorrection" ADD CONSTRAINT "PaymentCorrection_one_payment" CHECK (num_nonnulls("financePaymentId", "supplyInvoicePaymentId") = 1);
 ALTER TABLE "PaymentCorrection" ADD CONSTRAINT "PaymentCorrection_values" CHECK ((length(btrim("batchNo")) > 0 AND length(btrim("reason")) > 0 AND "amount" >= 0 AND "sequence" >= 1) IS TRUE);
 
