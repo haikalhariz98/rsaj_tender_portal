@@ -197,6 +197,9 @@ export function dashboardView(f: TabFigures, q: InsightsQuery, today: string | n
       return tenders(f, q);
     case "projects":
       return projects(f, q);
+    // ADR 0046: Use of proceeds is lists, not tiles; the page draws it (proceeds-panel.tsx).
+    case "proceeds":
+      return { tiles: [], charts: [] };
     default:
       return overview(f, q);
   }

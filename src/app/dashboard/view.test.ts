@@ -9,7 +9,7 @@ import type { OverviewFigures, ProjectFigures, RequisitionFigures } from "@/lib/
 
 import { dashboardView } from "./view";
 
-const q = (o: Partial<InsightsQuery> = {}): InsightsQuery => ({ tab: "overview", year: 2026, unit: null, route: null, method: null, ...o });
+const q = (o: Partial<InsightsQuery> = {}): InsightsQuery => ({ tab: "overview", year: 2026, unit: null, route: null, method: null, source: null, ...o });
 const SET: FinancialYear = { state: "SET", year: 2026, from: "2026-01-01", to: "2027-01-01", periods: [] };
 const UNSET: FinancialYear = { state: "NOT_SET", year: null };
 

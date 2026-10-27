@@ -6,22 +6,22 @@ vi.mock("@/lib/db", () => ({ db: {} }));
 import { departmentUnits, insightsHref, mayReadBudget, parseInsightsQuery, type InsightsChoices } from "./query";
 import { insightsWhere } from "./where";
 
-const choices: InsightsChoices = { years: [2025, 2026], defaultYear: 2026, units: ["WS", "FIN"], routes: ["GOV"], methods: ["OPEN"], budget: true };
+const choices: InsightsChoices = { years: [2025, 2026], defaultYear: 2026, units: ["WS", "FIN"], routes: ["GOV"], methods: ["OPEN"], sources: ["SUK"], budget: true };
 
 describe("the Dashboard's address", () => {
   it("lands on Overview in the default year with no filter", () => {
-    expect(parseInsightsQuery({}, choices)).toEqual({ tab: "overview", year: 2026, unit: null, route: null, method: null });
+    expect(parseInsightsQuery({}, choices)).toEqual({ tab: "overview", year: 2026, unit: null, route: null, method: null, source: null });
   });
   it("keeps a known tab, year, unit, route and method", () => {
-    expect(parseInsightsQuery({ tab: "requisitions", year: "2025", unit: "WS", route: "GOV" }, choices)).toEqual({ tab: "requisitions", year: 2025, unit: "WS", route: "GOV", method: null });
+    expect(parseInsightsQuery({ tab: "requisitions", year: "2025", unit: "WS", route: "GOV" }, choices)).toEqual({ tab: "requisitions", year: 2025, unit: "WS", route: "GOV", method: null, source: null });
     expect(parseInsightsQuery({ tab: "tenders", method: "OPEN" }, choices).method).toBe("OPEN");
   });
   it("drops an unknown tab, year, unit, route or method and shows the defaults, never an error", () => {
-    expect(parseInsightsQuery({ tab: "suppliers", year: "1999", unit: "NOPE", route: "X", method: "Y" }, choices)).toEqual({ tab: "overview", year: 2026, unit: null, route: null, method: null });
+    expect(parseInsightsQuery({ tab: "suppliers", year: "1999", unit: "NOPE", route: "X", method: "Y" }, choices)).toEqual({ tab: "overview", year: 2026, unit: null, route: null, method: null, source: null });
     expect(parseInsightsQuery({ tab: "requisitions", year: "2026abc", route: "X" }, choices)).toMatchObject({ year: 2026, route: null });
   });
   it("drops a filter the tab does not take, so it cannot narrow a figure unseen", () => {
-    expect(parseInsightsQuery({ tab: "overview", route: "GOV", method: "OPEN" }, choices)).toMatchObject({ route: null, method: null });
+    expect(parseInsightsQuery({ tab: "overview", route: "GOV", method: "OPEN" }, choices)).toMatchObject({ route: null, method: null, source: null });
     expect(parseInsightsQuery({ tab: "tenders", route: "GOV" }, choices).route).toBeNull();
     expect(parseInsightsQuery({ tab: "requisitions", method: "OPEN" }, choices).method).toBeNull();
   });
@@ -31,6 +31,13 @@ describe("the Dashboard's address", () => {
   it("falls back from the Budget tab to Overview for a reader without the Budget predicate", () => {
     expect(parseInsightsQuery({ tab: "budget" }, choices).tab).toBe("budget");
     expect(parseInsightsQuery({ tab: "budget" }, { ...choices, budget: false }).tab).toBe("overview");
+  });
+  it("Use of proceeds exists only behind the Budget predicate, and only it takes a known source (ADR 0046)", () => {
+    expect(parseInsightsQuery({ tab: "proceeds", source: "SUK" }, choices)).toMatchObject({ tab: "proceeds", source: "SUK" });
+    expect(parseInsightsQuery({ tab: "proceeds", source: "NOPE" }, choices).source).toBeNull();
+    expect(parseInsightsQuery({ tab: "proceeds", source: "SUK" }, { ...choices, budget: false })).toMatchObject({ tab: "overview", source: null });
+    expect(parseInsightsQuery({ tab: "budget", source: "SUK" }, choices).source).toBeNull();
+    expect(insightsHref({ tab: "proceeds", source: "SUK" })).toBe("/dashboard?tab=proceeds&source=SUK");
   });
   it("has no year while the organisation has no budget periods", () => {
     expect(parseInsightsQuery({ year: "2026" }, { ...choices, years: [], defaultYear: null }).year).toBeNull();

@@ -6,17 +6,19 @@
 
 import { maySeeSettings } from "@/lib/nav";
 
-export const INSIGHTS_TABS = ["overview", "budget", "requisitions", "tenders", "projects"] as const;
+export const INSIGHTS_TABS = ["overview", "budget", "requisitions", "tenders", "projects", "proceeds"] as const;
 export type InsightsTab = (typeof INSIGHTS_TABS)[number];
 
 /// The filter each tab takes besides the year and the department (§5). A filter the tab does not take is dropped, so it can
 /// never narrow a figure the reader cannot see a control for.
-const TAB_FILTER: Readonly<Record<InsightsTab, "route" | "method" | null>> = {
+const TAB_FILTER: Readonly<Record<InsightsTab, "route" | "method" | "source" | null>> = {
   overview: null,
   budget: null,
   requisitions: "route",
   tenders: "method",
   projects: null,
+  // ADR 0046: Use of proceeds, to date; a source opens its projects.
+  proceeds: "source",
 };
 
 export interface InsightsQuery {
@@ -29,6 +31,8 @@ export interface InsightsQuery {
   route: string | null;
   /// A sourcing method's code, on the Tenders tab only.
   method: string | null;
+  /// A funding source's code, on the Use of proceeds tab only (ADR 0046).
+  source: string | null;
 }
 
 /// What the address may name, from the organisation's own configuration.
@@ -41,7 +45,9 @@ export interface InsightsChoices {
   units: readonly string[];
   routes: readonly string[];
   methods: readonly string[];
-  /// `mayReadBudget(reader)`: without it the Budget tab does not exist for the reader.
+  /// Funding source codes (ADR 0046).
+  sources: readonly string[];
+  /// `mayReadBudget(reader)`: without it the Budget and Use of proceeds tabs do not exist for the reader.
   budget: boolean;
 }
 
@@ -51,7 +57,8 @@ const known = (v: string | undefined, allowed: readonly string[]): string | null
 
 export function parseInsightsQuery(sp: Params, c: InsightsChoices): InsightsQuery {
   const asked = one(sp.tab);
-  const tab: InsightsTab = (INSIGHTS_TABS as readonly string[]).includes(asked ?? "") && (asked !== "budget" || c.budget) ? (asked as InsightsTab) : "overview";
+  // DB-3: the Budget and Use of proceeds tabs exist only for a reader who may read budget figures.
+  const tab: InsightsTab = (INSIGHTS_TABS as readonly string[]).includes(asked ?? "") && ((asked !== "budget" && asked !== "proceeds") || c.budget) ? (asked as InsightsTab) : "overview";
   const yearText = one(sp.year);
   const year = c.years.find((y) => String(y) === yearText) ?? c.defaultYear;
   return {
@@ -60,17 +67,18 @@ export function parseInsightsQuery(sp: Params, c: InsightsChoices): InsightsQuer
     unit: known(one(sp.unit), c.units),
     route: TAB_FILTER[tab] === "route" ? known(one(sp.route), c.routes) : null,
     method: TAB_FILTER[tab] === "method" ? known(one(sp.method), c.methods) : null,
+    source: TAB_FILTER[tab] === "source" ? known(one(sp.source), c.sources) : null,
   };
 }
 
 /// The filter the tab draws besides the year and the department, for the screen.
-export const tabFilter = (tab: InsightsTab): "route" | "method" | null => TAB_FILTER[tab];
+export const tabFilter = (tab: InsightsTab): "route" | "method" | "source" | null => TAB_FILTER[tab];
 
 /// The Dashboard's address for a query: what a tile, a tab or Reset links to. Empty filters are left out.
 export function insightsHref(q: Partial<InsightsQuery> & { tab: InsightsTab }): string {
   const sp = new URLSearchParams({ tab: q.tab });
   if (q.year != null) sp.set("year", String(q.year));
-  for (const k of ["unit", "route", "method"] as const) if (q[k]) sp.set(k, q[k]);
+  for (const k of ["unit", "route", "method", "source"] as const) if (q[k]) sp.set(k, q[k]);
   return `/dashboard?${sp}`;
 }
 

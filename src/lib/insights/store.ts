@@ -24,6 +24,7 @@ import type { Tx } from "@/lib/db";
 import { EXERCISE_PHASE, type ExercisePhase } from "@/lib/method/phase";
 import type { ExerciseStatus } from "@/lib/method/types";
 import { addSen, senFromDecimal, type Sen } from "@/lib/money";
+import { proceedsFigures, type ProceedsFigures } from "@/lib/funding/store";
 import { asCorrected, CORRECTIONS } from "@/lib/payment/correction";
 import type { RequisitionStatus } from "@/lib/requisition/types";
 
@@ -62,12 +63,13 @@ export interface InsightsContext {
 
 export async function insightsContext(client: Tx, reader: InsightsReader, asOf: Date): Promise<InsightsContext> {
   const organisationId = reader.organisationId;
-  const [org, periods, units, routes, methods, hidden] = await Promise.all([
+  const [org, periods, units, routes, methods, sources, hidden] = await Promise.all([
     client.organisation.findUnique({ where: { id: organisationId }, select: { timeZone: true } }),
     client.budgetPeriod.findMany({ where: { organisationId }, orderBy: [{ year: "asc" }, { sortOrder: "asc" }] }),
     client.orgUnit.findMany({ where: { organisationId }, select: { code: true, nameEn: true, kind: true, effectiveFrom: true }, orderBy: { effectiveFrom: "asc" } }),
     client.fundingRoute.findMany({ where: { organisationId }, select: { code: true, nameEn: true } }),
     client.sourcingMethod.findMany({ where: { organisationId }, select: { code: true, nameEn: true } }),
+    client.fundingSource.findMany({ where: { organisationId }, select: { code: true } }),
     hiddenExerciseIds(client, reader),
   ]);
   const timeZone = org?.timeZone ?? null;
@@ -91,6 +93,7 @@ export async function insightsContext(client: Tx, reader: InsightsReader, asOf: 
       units: departmentUnits(units).map((u) => u.code),
       routes: routes.map((r) => r.code),
       methods: methods.map((m) => m.code),
+      sources: sources.map((s) => s.code),
       budget,
     },
   };
@@ -415,7 +418,8 @@ export async function projectFigures(client: Tx, ctx: InsightsContext, q: Insigh
 
 // ------------------------------------------------------------------ one tab
 
-export type TabFigures = OverviewFigures | BudgetFigures | RequisitionFigures | TenderFigures | ProjectFigures;
+export type TabFigures = OverviewFigures | BudgetFigures | RequisitionFigures | TenderFigures | ProjectFigures | ProceedsFigures;
+export type { ProceedsFigures };
 
 /// The selected tab's figures; only its queries run. A Budget tab asked for by a reader who fails the predicate falls back to Overview
 /// (`parseInsightsQuery` already does; this holds it again).
@@ -423,6 +427,9 @@ export async function loadInsightsTab(client: Tx, ctx: InsightsContext, q: Insig
   switch (q.tab) {
     case "budget":
       return (await budgetFigures(client, ctx, q)) ?? overviewFigures(client, ctx, { ...q, tab: "overview" });
+    case "proceeds":
+      // DB-3, as the Budget tab: never computed for a reader who fails the predicate.
+      return ctx.budget ? proceedsFigures(client, ctx, q) : overviewFigures(client, ctx, { ...q, tab: "overview" });
     case "requisitions":
       return requisitionFigures(client, ctx, q);
     case "tenders":

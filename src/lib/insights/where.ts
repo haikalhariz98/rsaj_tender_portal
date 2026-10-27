@@ -137,6 +137,13 @@ export const insightsWhere = {
     certificate: { contract: { award: visibleCase(f, hidden) } },
   }),
 
+  /// Use of proceeds (ADR 0046 FS-8): every contract not cancelled, on a visible case, to date.
+  proceedsContracts: (organisationId: string, hidden: readonly string[]): Prisma.ContractWhereInput => ({
+    organisationId,
+    status: { not: "CANCELLED" },
+    award: visibleCase({ unit: null }, hidden),
+  }),
+
   /// Payable certificates issued and not yet paid (a snapshot).
   awaitingPayment: (organisationId: string, f: Filters, hidden: readonly string[]): Prisma.CertificateWhereInput => ({
     organisationId,

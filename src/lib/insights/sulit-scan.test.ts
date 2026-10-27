@@ -19,7 +19,8 @@ const walk = (dir: string): string[] =>
     if (statSync(p).isDirectory()) return walk(p);
     return /\.(ts|tsx)$/.test(n) ? [toPosix(p)] : [];
   });
-const files = [...walk(path.join(ROOT, "src/lib/insights")), toPosix(path.join(ROOT, "src/components/ui/chart.tsx"))];
+// ADR 0046: the Use of proceeds tab reads through src/lib/funding, and its panel draws it; both are held to the same rule.
+const files = [...walk(path.join(ROOT, "src/lib/insights")), ...walk(path.join(ROOT, "src/lib/funding")), toPosix(path.join(ROOT, "src/components/ui/chart.tsx")), toPosix(path.join(ROOT, "src/app/dashboard/proceeds-panel.tsx"))];
 
 describe("the Dashboard reads no SULIT field (DB-2)", () => {
   it("the scan finds a planted field, so it cannot pass empty", () => {
@@ -29,8 +30,9 @@ describe("the Dashboard reads no SULIT field (DB-2)", () => {
   it("scans its own files", () => {
     expect(files.some((f) => f.endsWith("/where.ts"))).toBe(true);
     expect(files.some((f) => f.endsWith("/chart.tsx"))).toBe(true);
+    expect(files.some((f) => f.endsWith("/funding/proceeds.ts"))).toBe(true);
   });
-  it("no file under src/lib/insights, nor the chart component, names a registered field", () => {
+  it("no file under src/lib/insights or src/lib/funding, nor the chart component or the proceeds panel, names a registered field", () => {
     const bad = files.flatMap((f) => sulitFieldsIn(readFileSync(f, "utf8")).map((s) => `${path.relative(ROOT, f)} names ${s.field} (${s.what})`));
     expect(bad).toEqual([]);
   });

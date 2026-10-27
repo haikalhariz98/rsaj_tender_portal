@@ -10,6 +10,7 @@ import { parseInsightsQuery, tabFilter, type InsightsTab } from "@/lib/insights/
 import { organisationTimeZone } from "@/lib/org-time";
 
 import { Filters, Panel, type Choice } from "./panel";
+import { ProceedsPanel } from "./proceeds-panel";
 import { dashboardView } from "./view";
 
 export const metadata = { title: "Dashboard" };
@@ -21,6 +22,7 @@ const TABS: { id: InsightsTab; label: string }[] = [
   { id: "requisitions", label: "Requisitions" },
   { id: "tenders", label: "Tenders & quotations" },
   { id: "projects", label: "Projects & payments" },
+  { id: "proceeds", label: "Use of proceeds" },
 ];
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -35,16 +37,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const labelled = (codes: readonly string[], labels: Map<string, string>): Choice[] => codes.map((c) => ({ value: c, label: labels.get(c) ?? c })).sort((a, b) => a.label.localeCompare(b.label));
   const kind = tabFilter(q.tab);
   const extra =
-    kind === "route"
+    kind === "source" ? null : kind === "route"
       ? { name: "route" as const, label: "Funding route", all: "All funding routes", choices: labelled(ctx.choices.routes, ctx.labels.routes), value: q.route }
       : kind === "method"
         ? { name: "method" as const, label: "Method", all: "All methods", choices: labelled(ctx.choices.methods, ctx.labels.methods), value: q.method }
         : null;
   const keep = Object.fromEntries(
-    Object.entries({ year: q.year == null ? null : String(q.year), unit: q.unit, route: q.route, method: q.method }).filter((e): e is [string, string] => e[1] != null),
+    Object.entries({ year: q.year == null ? null : String(q.year), unit: q.unit, route: q.route, method: q.method, source: q.source }).filter((e): e is [string, string] => e[1] != null),
   );
-  const panel = <Panel view={view} q={q} canSetYear={ctx.budget} />;
-  const tabs: TabSpec[] = TABS.filter((t) => t.id !== "budget" || ctx.budget).map((t) => ({ ...t, panel: t.id === q.tab ? panel : null, lazy: true }));
+  const panel = figures.tab === "proceeds" ? <ProceedsPanel f={figures} /> : <Panel view={view} q={q} canSetYear={ctx.budget} />;
+  // DB-3: the Budget and Use of proceeds tabs exist only for a reader who may read budget figures.
+  const tabs: TabSpec[] = TABS.filter((t) => (t.id !== "budget" && t.id !== "proceeds") || ctx.budget).map((t) => ({ ...t, panel: t.id === q.tab ? panel : null, lazy: true }));
 
   return (
     <>
@@ -54,7 +57,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         meta={[
           <>
             <ChartIcon size={14} />
-            {figures.fy.state === "SET" ? `FY ${figures.fy.year}` : "Financial year not set"}
+            {figures.tab === "proceeds" ? "To date" : figures.fy.state === "SET" ? `FY ${figures.fy.year}` : "Financial year not set"}
           </>,
           <>
             <CalendarIcon size={14} />
@@ -63,7 +66,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </>,
         ]}
       />
-      <Filters q={q} years={ctx.choices.years.map((y) => ({ value: String(y), label: `FY ${y}` }))} units={labelled(ctx.choices.units, ctx.labels.units)} extra={extra} />
+      {/* Use of proceeds is to date and per source: the year and department do not apply to it, so no control is drawn. */}
+      {figures.tab !== "proceeds" && <Filters q={q} years={ctx.choices.years.map((y) => ({ value: String(y), label: `FY ${y}` }))} units={labelled(ctx.choices.units, ctx.labels.units)} extra={extra} />}
       <Tabs tabs={tabs} initial={q.tab} keep={keep} label="Dashboard" />
     </>
   );
