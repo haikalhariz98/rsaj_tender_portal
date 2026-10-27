@@ -54,12 +54,17 @@ export function ladAmountAt(i: LadAmountInput): Sen {
 
 export const waiverRatio = (waived: Sen, ladAmount: Sen): ExactRatio => ({ num: waived, den: ladAmount });
 
-export function waiverRecordFaults(i: { decision: { charging: boolean; label: string } | null; waived: Sen | null; ladAmount: Sen; reason: string; asOf: Day; today: Day }): Finding[] {
+/// Review M4: `alreadyWaived` is what the decision's other waivers already take (open, approved or applied; not a closed one), so waivers on one
+/// decision never add up past its LAD amount.
+export function waiverRecordFaults(i: { decision: { charging: boolean; label: string } | null; waived: Sen | null; ladAmount: Sen; reason: string; asOf: Day; today: Day; alreadyWaived?: Sen }): Finding[] {
   const out: Finding[] = [];
   const f = (code: string, data: Record<string, string | number | null> = {}) => out.push({ code, level: "block", data });
+  const already = i.alreadyWaived ?? 0n;
+  const left = i.ladAmount - already;
   if (!i.decision?.charging) f("DECISION_NOT_CHARGING", { decision: i.decision?.label ?? null });
   if (i.ladAmount <= 0n) f("NO_LAD_AMOUNT", { day: i.asOf });
   else if (i.waived == null || i.waived <= 0n || i.waived > i.ladAmount) f("WAIVED_REQUIRED", { amount: senToDecimalString(i.ladAmount) });
+  else if (i.waived > left) f("WAIVED_PAST_LAD", { already: senToDecimalString(already), left: senToDecimalString(left > 0n ? left : 0n) });
   if (!i.reason.trim()) f("WAIVER_REASON_REQUIRED");
   if (i.asOf > i.today) f("FUTURE_DATE", { day: i.asOf });
   return out;

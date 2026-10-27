@@ -20,7 +20,7 @@ import { closeMatter, matterLabel, openMatter } from "@/lib/matter/write";
 import type { Finding } from "@/lib/method/types";
 import { formatMoney, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 import type { OrgScope } from "@/lib/org-scope";
-import { baselineOn, loadPayment, readWaiverBasis, waiverBasisJson, waiverBasisOf } from "@/lib/payment/load";
+import { baselineOn, loadPayment, readWaiverBasis, waivedOnDecision, waiverBasisJson, waiverBasisOf } from "@/lib/payment/load";
 import { timeRefusal } from "@/lib/time/labels";
 import { FormReader } from "@/lib/validate";
 import { beginAct } from "@/app/_auth/act";
@@ -58,12 +58,14 @@ const audit = (c: ActCtx, entity: string, id: string, label: string, action: "CR
   action === "UPDATE" && changes.length === 0 ? Promise.resolve() : writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity, entityId: id, entityLabel: label, reason }, action, changes);
 
 /// The waiver's LAD amount and basis on the day, from the payment rows read on the locked transaction.
-async function basisOn(c: ActCtx, decisionId: string) {
+async function basisOn(c: ActCtx, decisionId: string, exceptWaiverId: string | null = null) {
   const baseline = baselineOn(c.l, c.today);
   if (!baseline) refuse("Not recorded:", [{ code: "NO_LAD_AMOUNT", level: "block", data: { day: c.today } }]);
-  const b = waiverBasisOf(await loadPayment(c.l.contract.id, c.tx), baseline!, decisionId, c.today);
+  const p = await loadPayment(c.l.contract.id, c.tx);
+  const b = waiverBasisOf(p, baseline!, decisionId, c.today);
   if (!b) throw new ActRefusal({ ok: false, message: "That decision is not on this contract." });
-  return b;
+  // Review M4: what the decision's other waivers already take off its LAD amount.
+  return { ...b, alreadyWaived: waivedOnDecision(p, decisionId, exceptWaiverId) };
 }
 
 /// Record a waiver on a live decision charging damages, with its own matter (FR-LAD-009).
@@ -84,7 +86,7 @@ export async function recordLadWaiver(_prev: FormState, data: FormData): Promise
   return inContract(actor, toAuditActor(actor), idOf(data), now, "LAD_WAIVER", async (c) => {
     const who = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const b = await basisOn(c, decisionId);
-    const fs = waiverRecordFaults({ decision: { charging: b.charging, label: b.label }, waived: parseSen(waived), ladAmount: b.amount, reason, asOf: c.today, today: c.today });
+    const fs = waiverRecordFaults({ decision: { charging: b.charging, label: b.label }, waived: parseSen(waived), ladAmount: b.amount, reason, asOf: c.today, today: c.today, alreadyWaived: b.alreadyWaived });
     if (fs.length) refuse("Not recorded:", fs);
     const matterId = await openMatter(c.tx, toAuditActor(actor), c.l, "LAD_WAIVER", asMatterRecorder(act), who.person.name, c.now);
     const row = await c.tx.ladWaiver.create({ data: { organisationId: c.l.org.id, matterId, decisionId, ladAmount: senToDecimalString(b.amount), waived, asOf: dayToDate(c.today), basis: waiverBasisJson(b) as Prisma.InputJsonValue, waiverLetterRef: letterRef.trim(), reason: reason.trim(), personId: who.person.id, recordedAt: c.now } });
@@ -118,9 +120,9 @@ export async function sendLadWaiver(_prev: FormState, data: FormData): Promise<F
   return inContract(actor, toAuditActor(actor), idOf(data), now, "LAD_WAIVER", async (c) => {
     const { m, w } = await lockWaiver(c, waiverId);
     const sender = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
-    const b = await basisOn(c, w.decisionId);
+    const b = await basisOn(c, w.decisionId, w.id);
     const waived = senFromDecimal(w.waived);
-    const fs = [...waiverRecordFaults({ decision: { charging: b.charging, label: b.label }, waived, ladAmount: b.amount, reason: w.reason, asOf: c.today, today: c.today }), ...sendFaults(matterFactsOf(m, await matterSeriesSet(c.tx, c.l.org.id)), { value: null, ratio: waiverRatio(waived, b.amount), cond: null })];
+    const fs = [...waiverRecordFaults({ decision: { charging: b.charging, label: b.label }, waived, ladAmount: b.amount, reason: w.reason, asOf: c.today, today: c.today, alreadyWaived: b.alreadyWaived }), ...sendFaults(matterFactsOf(m, await matterSeriesSet(c.tx, c.l.org.id)), { value: null, ratio: waiverRatio(waived, b.amount), cond: null })];
     if (fs.length) refuse("Not sent for approval:", fs);
     const before = senFromDecimal(w.ladAmount);
     await c.tx.ladWaiver.update({ where: { id: w.id, organisationId: c.l.org.id }, data: { ladAmount: senToDecimalString(b.amount), asOf: dayToDate(c.today), basis: waiverBasisJson(b) as Prisma.InputJsonValue } });
@@ -148,10 +150,10 @@ export async function resendLadWaiver(_prev: FormState, data: FormData): Promise
     const { m, w } = await lockWaiver(c, waiverId);
     const who = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     if (!matterApproved(matterFactsOf(m)) || w.appliedOnCertificateId) throw new ActRefusal({ ok: false, message: "Only an approved waiver not yet applied is sent again." });
-    const b = await basisOn(c, w.decisionId);
+    const b = await basisOn(c, w.decisionId, w.id);
     const frozen = readWaiverBasis(w.basis);
     if (frozen && frozen.amount === b.amount) throw new ActRefusal({ ok: false, message: "Its LAD amount has not moved: it is applied as approved." });
-    const fs = waiverRecordFaults({ decision: { charging: b.charging, label: b.label }, waived: senFromDecimal(w.waived), ladAmount: b.amount, reason: w.reason, asOf: c.today, today: c.today });
+    const fs = waiverRecordFaults({ decision: { charging: b.charging, label: b.label }, waived: senFromDecimal(w.waived), ladAmount: b.amount, reason: w.reason, asOf: c.today, today: c.today, alreadyWaived: b.alreadyWaived });
     if (fs.length) refuse("Not sent again:", fs);
     await closeMatter(c.tx, toAuditActor(actor), c.l, m, "Re-sent at the new LAD amount", c.now);
     const matterId = await openMatter(c.tx, toAuditActor(actor), c.l, "LAD_WAIVER", asMatterRecorder(act), who.person.name, c.now);

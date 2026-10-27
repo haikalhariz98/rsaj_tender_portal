@@ -41,6 +41,9 @@ describe("recording a waiver", () => {
     expect(codes(waiverRecordFaults({ ...ok, waived: 0n }))).toEqual(["WAIVED_REQUIRED"]);
     expect(codes(waiverRecordFaults({ ...ok, waived: parseSen("8081.41") }))).toEqual(["WAIVED_REQUIRED"]);
     expect(waiverRecordFaults({ ...ok, waived: parseSen("8081.40") })).toEqual([]);
+    // Review M4: the decision's other waivers come off the LAD amount first.
+    expect(codes(waiverRecordFaults({ ...ok, waived: parseSen("2020.35"), alreadyWaived: parseSen("6061.06") }))).toEqual(["WAIVED_PAST_LAD"]);
+    expect(waiverRecordFaults({ ...ok, waived: parseSen("2020.35"), alreadyWaived: parseSen("6061.05") })).toEqual([]);
     expect(codes(waiverRecordFaults({ ...ok, reason: "" }))).toEqual(["WAIVER_REASON_REQUIRED"]);
     expect(codes(waiverRecordFaults({ ...ok, asOf: "2026-10-01" }))).toEqual(["FUTURE_DATE"]);
   });

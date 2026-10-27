@@ -39,6 +39,7 @@ export const LAD_FAULT_WORDS: Readonly<Record<string, (d: Data) => Words>> = {
       : w(`The damages it was raised on have moved since: ${s(d.moved, "its basis moved")}. Void it and raise it again.`),
   DECISION_NOT_CHARGING: (d) => w(`A waiver is of damages a live decision charges (${s(d.decision, "no decision in force")} does not).`),
   WAIVED_REQUIRED: (d) => w(`Give the amount waived, more than nothing and not more than the LAD amount (${money(d.amount)}).`),
+  WAIVED_PAST_LAD: (d) => w(`Other waivers on this decision already take ${money(d.already)}: at most ${money(d.left)} is left to waive.`),
   NO_LAD_AMOUNT: (d) => w(`No damages are charged or chargeable to ${day(d.day)} on this decision.`),
   WAIVER_REASON_REQUIRED: () => w("Say why the damages are waived."),
   WAIVER_SETTING_NOT_SET: () => w("Approved, not applied. Timing not set in Configuration › Post-award controls."),

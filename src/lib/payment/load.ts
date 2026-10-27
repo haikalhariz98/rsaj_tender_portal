@@ -404,6 +404,13 @@ export function waiverBasisOf(p: PaymentRows, baseline: Baseline, decisionId: st
   return { amount, extensions, supersededBy: d.supersededByEot ? (d.supersededByEot.certificate.number ?? d.supersededByEot.id) : null, segments: segmentsKey(segments), charging, scopeKey: key, label };
 }
 
+/// Review M4: what the decision's other waivers already take off its LAD amount: every waiver but `exceptId` that is applied, or whose matter is
+/// still open (recorded, waiting, approved or refused and not closed). A closed one (re-sent, withdrawn) takes nothing.
+export function waivedOnDecision(p: PaymentRows, decisionId: string, exceptId: string | null): Sen {
+  const d = p.nonCompletions.find((x) => x.id === decisionId);
+  return (d?.waivers ?? []).filter((w) => w.id !== exceptId && (w.appliedOnCertificateId != null || !w.matter.closedAt)).reduce((a, w) => a + senFromDecimal(w.waived), 0n);
+}
+
 /// A waiver's frozen basis, as stored at its send (`LadWaiver.basis`); null where it cannot be read.
 export function readWaiverBasis(j: unknown): WaiverBasis | null {
   const b = j as { amount?: string; extensions?: { id: string; number: string | null }[]; supersededBy?: string | null; segments?: string } | null;
