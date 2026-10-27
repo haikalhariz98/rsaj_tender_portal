@@ -59,3 +59,8 @@ Open questions the product cannot answer from RSAJ's documents. Each one is load
 - **36. Award originals.** After an online award return is verified, must the wet-signed originals still be posted?
 - **37. Restricted exercises after award (R-2, AC-18).** Is a contract formed from a restricted (selected) tender itself restricted to the named people, including its title, variations, certificates and payments? Until RSAJ answers, the contract stages stay open to staff and the exercise's title and reference stay withheld.
 - **38. Records retention.** Who authorises disposal after the 7 years? Should the scans of a refused online acceptance (IC number, address) be shredded early, as SK003 §7.11.2 shreds unsuccessful tenderers' background documents 30 days after site possession?
+- **39. Performance forms and close (FR-FIN-014).** Confirm that a contract cannot close until its contractor performance report is filed, and supply the seven CPD/SA-F0n performance workbooks (not in the developer's documents). Until they arrive, no contract can close.
+- **40. Sukuk eligibility.** Which project categories may SUKUK26T1 fund? Until answered, a requisition that picks it shows "Eligibility not set".
+- **41. Sukuk budget.** Is SF-03's budget the RM100m envelope, or the sum of the Sukuk project budgets (RM90m in DEV03)? The portal uses the envelope.
+- **42. Sukuk re-split.** Must a contract's funding split change after payments (for example when the Sukuk runs out)? Today it is locked once money is certified.
+- **43. Funding source mandatory.** Must every requisition name a funding source (the document's CFO decision 1)? Today it is optional.
