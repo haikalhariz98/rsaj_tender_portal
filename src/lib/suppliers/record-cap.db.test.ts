@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
-import { makePerson, randomId, testOrganisation } from "@/lib/test-db/auth-fixtures";
+import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
 import { loadSupplier, SUPPLIER_PARTIES_MAX, supplierHistory } from "./repo";
 
@@ -17,7 +17,8 @@ let oldestParty = "";
 let hiddenExercise = "";
 
 beforeAll(async () => {
-  org = (await testOrganisation()).id;
+  // Its own organisation: 202 exercises would move any count another test takes in a shared one.
+  org = (await db.organisation.create({ data: { code: `CAP_${run}`, name: "Supplier record cap", timeZone: "Asia/Kuala_Lumpur" } })).id;
   const person = await makePerson(org);
   const req = await db.requisition.create({
     data: {
