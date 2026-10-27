@@ -56,6 +56,8 @@ Phase 2 builds defect tracking as a module of its own, the two phases end with t
   - a refusal before issue (the basis moved);
   - the writes after issue (a baseline version, the supersession, the frozen lines, the status).
 - A status is written only through `contractTransition` with the writer that `STATUS_WRITTEN_BY` names.
+- A status-writing issue is refused while any open matter, claim or certificate belongs to a family that `ACT_STATUS` would refuse
+  in the status it writes. The list is read from the table itself, so no work is left that no act can finish.
 - The payment and variation hooks are left where they are.
 - Signing a matter-approved kind reads the matter's approval (`matterSigning`), replacing the refusal that failed closed
   (BD-613-121).

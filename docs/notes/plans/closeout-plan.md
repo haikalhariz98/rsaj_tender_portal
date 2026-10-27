@@ -84,6 +84,13 @@ wired".
 - Entries: EOT, CONTRACT_PERIOD_AGREEMENT, PRACTICAL_COMPLETION, SCHEDULE_OF_DEFECTS, MAKING_GOOD_DEFECTS, FINAL.
 - Payment and variation keep their own hooks and are not moved.
 - A hook that writes a status goes through `contractTransition(from, to, { act })`, so `STATUS_WRITTEN_BY` holds.
+- **Nothing is stranded by a status write.** Each hook that writes a status (PC, MGC, FCI) is refused WORK_WOULD_BE_STRANDED,
+  naming each item, while any open item belongs to a family that `actStatusFault(family, statusThisIssueWrites)` would refuse.
+  Open items are: a matter whose route is pending or not yet sent, an EOT claim not determined, and a certificate in DRAFT,
+  IN_ROUTING or SIGNING. The family list is read from `ACT_STATUS` itself (`MATTER_FAMILY`, `certificateAct`), never written by
+  hand. This matters because `EOT: executed(PC)` and `PERIOD_EXTENSION: executed()`: without this refusal, a CMGD would leave a
+  pending EOT route undecidable and the final account's EOT_OPEN would block the contract for good. The rule is pure:
+  `strandedFaults(open, writes)` in `src/lib/certificate/issue-hooks.ts`.
 
 **CO-3. Matter signing is wired.** `proceedToSigning` (`write.ts:261`) and `draftSigningFaults` (`kinds.ts:59`) call
 `matterSigning(kind, facts)`. The facts are the matter reached from the certificate's domain row: `ExtensionOfTime.claim.matter`,
@@ -325,7 +332,10 @@ data, not code.
 - Each has a description, an optional location and a due day (FR-CMP-007).
 - The responsible party is always the contractor. That is said in the card's info popover.
 
-**DAL:** `practical_completion` on the certificate route (`payment/route-open.ts`'s `submitForApproval`, as for interims).
+**DAL:** `practical_completion` on the certificate route (`payment/route-open.ts`'s `submitForApproval`, as for interims). It
+routes at **the contract sum**: `routeValueOf` (`payment/route-state.ts:47`) already falls back to it for every kind that is not
+an interim, an advance or an adjustment. That is also the contract value the S.O. is resolved at, so the pack's `asSo` rows
+match, and SO_ROUTE_MISMATCH cannot fire on a well-formed pack. No change to `routeValueOf` is needed.
 
 **Issue (`KIND_ISSUE_HOOK.PRACTICAL_COMPLETION`):**
 - *refusal:* LAD_WINDOW_OPEN again, on the locked rows.
@@ -437,8 +447,9 @@ made good.
 
 `confirmFinalPayments` (Finance) writes `financeConfirmedTotal`, the person and the time (FR-FIN-004).
 
-**DAL:** `final_payment`, on the figure read as for interims (`KIND_ROUTE_DOMAIN.FINAL`), with SO_ROUTE_MISMATCH and
-SO_UNRESOLVED (§4.4).
+**DAL:** `final_payment` (`KIND_ROUTE_DOMAIN.FINAL`), at the contract sum, by the same fallback in `routeValueOf` as the CPC
+(§4.2): the DAL's item 17 and the pack's FINAL_T rows band on contract value. CMGD routes the same way. SO_ROUTE_MISMATCH and
+SO_UNRESOLVED apply (§4.4).
 
 **Sign:** Recommending, Contractor plus Witness, then S.O. (CO-9). Forwarding through C&P is the routing type's checks (FR-FIN-013),
 which are configuration.
@@ -608,7 +619,7 @@ No timestamps are named here.
 |---|---|---|
 | `src/lib/time/claim-state.ts` | `eotClaimState`, `eotNext` | Every state gives its one action; NOT_ENTITLED gives none, and the damages offer. |
 | `src/lib/time/at-issue.ts` | `eotIssueRefusal`, `afterEotIssue` (server) | EOT_MOVED; the version is written once; only live decisions on the scope are superseded. |
-| `src/lib/certificate/issue-hooks.ts` | `KIND_ISSUE_HOOK` | Exactly the six kinds; a kind with a status in `KIND_ISSUE_WRITES` has a hook (source test). |
+| `src/lib/certificate/issue-hooks.ts` | `KIND_ISSUE_HOOK`, `strandedFaults` | Exactly the six kinds; a kind with a status in `KIND_ISSUE_WRITES` has a hook (source test). `strandedFaults`: an EOT route pending refuses the CMGD's issue, and so does an undetermined claim; a period-extension matter pending refuses the CPC's issue; nothing open passes; the families are read from `ACT_STATUS` (a test that changing a row changes the answer). |
 | `src/lib/closeout/completion.ts` | `cpcRaiseFaults`, `dlpOf` | Every code in §4.2. **Completion 2026-09-25 with 12 months (fixture) ends exclusive 2026-09-25 + 12 months.** `dlp.applies` false gives no dates; null refuses. |
 | `src/lib/closeout/defects.ts` | `defectState`, `overdue`, `defectActFaults` | Reported then returned reads OPEN with the note; made good is final; withdrawn ends it; NOT_OPEN; overdue uses the schedule's day when one is issued. |
 | `src/lib/closeout/schedule.ts` | `scheduleRaiseFaults` | DLP_NOT_ENDED on the last day, allowed on the end day; RECTIFY_BY_PAST_LIMIT with the clock at 3 months (fixture); a warning when unset. |
@@ -653,6 +664,9 @@ would give the two phases two homes for the same fact.
 - **Pack data waits.** Pack rows (RSAJ templates' signature blocks, release switches, the clock, notification rules) wait until
   the Phase 0.1 builder has committed `prisma/rsaj/starter-pack/*`. This plan's steps never edit those files while they are
   uncommitted.
+- **The schema waits too.** `prisma/schema.prisma` is the Phase 0.1 builder's uncommitted file at the time of writing. A step that
+  owns `schema.prisma` or a migration (A2, B1, C1, C5, D1) starts only once `git status` shows those paths clean, and its
+  migration sorts after the latest folder then (Sukuk amendment 20's rule).
 
 ### Stage A — Time (EOT screens and wiring)
 
@@ -738,7 +752,8 @@ would give the two phases two homes for the same fact.
   - `act-status-scan` (each act asks its family);
   - the single-writer scans;
   - **both orders:** CPC issue against an interim in progress (LAD_BASIS_MOVED, existing); CMGD against a balance release
-    (refused before, allowed after).
+    (refused before, allowed after); an EOT route left pending, then the CMGD's issue (refused WORK_WOULD_BE_STRANDED, naming
+    the claim); the claim decided, then the CMGD issues.
 
 **B4. The contractor's side.**
 - **Owns:** `src/app/supplier/projects/[id]/{page.tsx,panels.tsx,controls.tsx}` (the Defects tab, the Overview lines); the
