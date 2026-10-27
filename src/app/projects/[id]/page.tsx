@@ -196,7 +196,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
     // Under CONTRACT_STAGES_ONLY the conditions are the award's, so they are not judged (F0-4).
     beforeSigning: !c ? null : av ? av.before : { readiness: null, securitiesToVerify: 0, lodgeOffered: false },
     signing: lc ? { status: status!, act: signingActOf(lc, facts, today, start, possession) } : null,
-    closeOut: closeout?.next ?? null,
+    // With no time zone the day is unknown, so the step says nothing it would have to judge by a day.
+    closeOut: today ? (closeout?.next ?? null) : null,
   };
   const steps = caseSteps(caseFacts);
   const view = resolveCaseView({ stage: first("stage"), tab, steps, standing, hasContract: !!c, visibility });
