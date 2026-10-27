@@ -1,8 +1,8 @@
 # 0046 — The funding source: a new record, carried by derivation and fixed on the contract
 
-**Status:** Proposed, 2026-10-27. Written by the solution architect for Phase 1, Sukuk core. The build plan is
-`docs/notes/plans/sukuk-core-plan.md`. This record becomes accepted for building once the product owner rules FS-1 to FS-12
-there. Its open questions Q1 to Q5 have defaults, so they do not block the build.
+**Status:** Accepted, 2026-10-28. Written by the solution architect for Phase 1, Sukuk core; the product owner ruled FS-1 to
+FS-12 on 2026-10-27 and accepted it once amendments 14 to 17 and 19 were folded in. The build plan is
+`docs/notes/plans/sukuk-core-plan.md`. Its open questions Q1 to Q5 take their defaults (RSAJ questions 40 to 43).
 
 **Relation to other records:**
 - **Nothing is superseded.**
@@ -35,11 +35,11 @@ Three facts of the codebase shaped the decision:
 1. **`FundingSource` is a new organisation table.** It holds:
    - the code the finance system knows, and a label;
    - an optional envelope as `Decimal(18,2)`, where null means not set and is never read as zero;
-   - tranche, tenor and profit rate, as information only;
    - its eligible project categories;
    - provenance, and a retired date.
 
-   It has no `kind`, because no rule may branch on a source being a sukuk.
+   It has no `kind`, because no rule may branch on a source being a sukuk. It has no tranche, tenor or profit rate either:
+   nothing reads them, and the label carries the tranche (amendment 17).
 2. **Eligibility is per source, on a new `ProjectCategory` list.** The source's `categoriesRestricted` switch has three
    states:
    - **only these:** the requisition must name one of the listed categories, and an ineligible or missing category is
@@ -52,16 +52,19 @@ Three facts of the codebase shaped the decision:
    - The tender, the award and the case before signing read the requisition's source.
    - A contract's funding is resolved in order: its own `FundingAllocation` rows (percentages summing to exactly 100); otherwise
      the requisition's source at 100%; otherwise not set.
-   - Once a live contract exists under a requisition, the requisition's source and category can no longer change. So a recorded
-     fact never moves when the requisition is edited, and nothing is copied at award.
+   - Once a live contract exists under a requisition, the requisition's source and a category already set can no longer
+     change. So a recorded fact never moves when the requisition is edited, and nothing is copied at award. An unset category
+     may still be recorded through the same reasoned act, because filling a gap is not moving a fact (amendment 14).
 4. **A split is fixed once money is certified on the contract.** That means an issued payable certificate or a supply payment.
    Each save replaces the split whole and is audited with its before, after and reason.
 5. **The use-of-proceeds figures are pure functions** (`src/lib/funding/proceeds.ts`), defined so that no money counts twice:
-   - **Committed** is the contract sum plus its issued adjustments. A terminated contract counts its certified figure, or its
-     paid figure where it is a supply contract. A cancelled one counts nothing.
+   - **Committed** is the contract sum plus its issued adjustments. A terminated contract counts its certified figure plus the
+     retention still held on its latest issued interim certificate (`retentionMain` + `retentionNsc` + `retentionNs`), refusing
+     by name when that cannot be read; a terminated supply contract counts its paid figure (amendment 15). A cancelled one
+     counts nothing.
    - **Certified** is the frozen paid figure of the issued payable certificates. A supply contract's certified figure is not
      held, and the source's figure says it is partial.
-   - **Paid** is Finance's certificate payments plus supply payments.
+   - **Paid** is Finance's certificate payments plus supply payments, each at its latest correction (`asCorrected`).
    - **Unallocated** is the envelope minus committed. It is not set when there is no envelope, and it is never clamped.
    - **Not counted:** approved requisitions. They are a pre-encumbrance, and their estimate is SULIT. They are shown as a count.
    - **Rounding.** Each figure is split by basis points to the sen by largest remainder, with a fixed tie order, so the parts
@@ -69,7 +72,7 @@ Three facts of the codebase shaped the decision:
    - **Unreadable figures.** A figure that cannot be read refuses by name.
 6. **Reading.** The tab is gated by `mayReadBudget`, and restricted cases are excluded as on every Dashboard figure.
 7. **Packs.** The RSAJ pack loads the four stated sources:
-   - SUKUK26T1 with its RM100m envelope, 5 years and 4.5%;
+   - SUKUK26T1 with its RM100m envelope;
    - INTERNAL, GRANT and NA, with no envelope.
 
    It loads **no eligibility for SUKUK26T1**. The document's SUK-LAND and SUK-TANK are D365 test-environment groups, not a

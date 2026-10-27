@@ -1,7 +1,8 @@
 # Phase 1 — Sukuk core: the funding source, carried from requisition to payment
 
-**Status:** Design, 2026-10-27. Written by the solution architect. The decision record is ADR 0046
-(`docs/notes/architecture/0046-funding-source.md`). Nothing here has been built.
+**Status:** Approved, 2026-10-28. Written by the solution architect; FS-1 to FS-12 ruled by the product owner on 2026-10-27,
+with amendments 14 to 17, 19 and 20 folded in below. The decision record is ADR 0046
+(`docs/notes/architecture/0046-funding-source.md`), accepted.
 
 **Source:** `docs/requirements/RSAJ Portal Requirements Requisition to Project Close-out.docx`. This plan uses:
 - SF-01 to SF-05;
@@ -39,8 +40,8 @@ These are the product owner's to rule. Each states the default the build takes i
   - no rule reads one from the other;
   - a requisition may carry both, either or neither.
 - **FS-2. No `kind` column.** No rule branches on a source being sukuk (eligibility is per source and generic), and the label
-  already says what it is ("Sukuk Tranche 1 2026"). A column nobody reads is a field somebody has to type. Tranche, tenor and
-  profit rate are held as information only and are never computed with.
+  already says what it is ("Sukuk Tranche 1 2026"). A column nobody reads is a field somebody has to type. For the same reason
+  there are no tranche, tenor or profit-rate columns: the label carries the tranche (amendment 17).
 - **FS-3. Eligibility keys on a project category, a new short organisation list.**
   - SF-02 says "project categories", and RSAJ's own examples (land acquisition, water tank construction) are purposes, not
     contract types. A contract type (Work, Supply…) cannot express them.
@@ -66,8 +67,10 @@ These are the product owner's to rule. Each states the default the build takes i
 - **FS-6. A recorded fact does not move.**
   - The requisition's source and category may change through a reasoned act until a contract exists under it, as the funding
     route may today (`changeFunding`).
-  - Once any contract under the requisition exists and is not cancelled, the change is refused ("Change the funding on the
-    project"). From then on the contract's split is the record.
+  - Once any contract under the requisition exists and is not cancelled, a change of source, or of a category already set, is
+    refused ("Change the funding on the project"). From then on the contract's split is the record.
+  - **Amendment 14.** An unset category may still be recorded through the same reasoned act once a live contract exists:
+    filling a gap is not moving a fact. The source stays as it is in that act.
 - **FS-7. Split rules (SF-05).**
   - **Shape.** One to five sources. Each share is a percentage with at most 2 decimals, greater than 0. The shares sum to exactly
     100.00, with no source repeated. Each source must be in force and eligible for the case's category.
@@ -87,8 +90,10 @@ These are the product owner's to rule. Each states the default the build takes i
     - a contract that is not CANCELLED: `contractSum` plus the nets of its issued adjustments of the contract sum. This is
       FR-PAD-003's one reading, `readIssuedAdjustments`, so an approved variation counts once its adjustment certificate is
       issued.
-    - a TERMINATED contract: its certified figure (the remainder is released). A terminated supply contract has no certified
-      figure, so it counts its paid figure.
+    - a TERMINATED contract: its certified figure plus the retention still held on its latest issued interim certificate
+      (`retentionMain` + `retentionNsc` + `retentionNs` of that certificate's frozen figures); the remainder is released
+      (amendment 15). When that retention cannot be read the contract refuses by name. With no issued interim certificate the
+      retention held is zero. A terminated supply contract has no certified figure, so it counts its paid figure.
     - a CANCELLED contract: excluded from everything.
   - **Certified:** the sum over the contract's ISSUED certificates of a payable kind of `PAID_FIGURE`'s figure.
     - That figure is `recommended` for an interim certificate and `advanceAmount` for an advance.
@@ -101,7 +106,8 @@ These are the product owner's to rule. Each states the default the build takes i
     - The source's certified figure is marked partial, with an info popover: "Supply contracts carry no certified figure. Their
       payments count under Paid."
     - Paid may therefore exceed certified on a source. That is not an error.
-  - **Paid:** the sum of `FinancePayment.amount` (via its certificate) and `SupplyInvoicePayment.amount`, on the contract.
+  - **Paid:** the sum of `FinancePayment.amount` (via its certificate) and `SupplyInvoicePayment.amount`, on the contract,
+    each read at its latest `PaymentCorrection` (`CORRECTIONS` / `asCorrected`, Phase 0).
   - **A figure that cannot be read refuses by name and is never counted as nothing.** For example, an issued adjustment whose net
     is missing (`AdjustmentNetMissing`), or a certificate with no frozen figure. The source's row says "Cannot be read" and names
     the contract.
@@ -151,10 +157,7 @@ model FundingSource {
 
   /// The use-of-proceeds envelope. Null: none set (Internal, Grant), which is not an envelope of zero.
   envelope      Decimal? @db.Decimal(18, 2)
-  /// Information only, never computed with.
-  tranche       String?
-  tenorYears    Int?
-  profitRatePct Decimal? @db.Decimal(6, 3)
+  // No tranche, tenor or profit rate (amendment 17): nothing reads them; the label carries the tranche.
 
   /// SF-02 (FS-4). Null: not set — any category passes, with a warning. False: any category, no warning.
   /// True: only `eligibleCategoryCodes` (never empty while true; the editor refuses it).
@@ -336,11 +339,9 @@ export async function proceedsFigures(client: Tx, ctx: InsightsContext, q: Insig
 - `ListFacets.source` and `FACET_KEYS` gain `source`. `parseListQuery` reads it with the same `CODE` shape, and `listHref`
   writes it.
 - `facetChoices` gains `sources`, and `codeFacet`'s key union gains `"source"`.
-- `facetWhere` gains:
-  - **requisition:** `fundingSource: { code }`;
-  - **exercise:** merged into the one `requisition: {...}` object it already builds for the department;
-  - **award:** `OR: [{ contract: { fundingAllocations: { some: { fundingSource: { code } } } } }, { AND: [{ OR: [{ contract: null }, { contract: { fundingAllocations: { none: {} } } }] }, { exercise: { requisition: { fundingSource: { code } } } }] }]`.
-    Prisma names the relations; the shape is what matters.
+- `facetWhere` gains **requisition:** `fundingSource: { code }`.
+- **Amendment 19.** Only the Requisitions list gains the facet now (the awaiting-award link needs it). The Tenders and
+  Projects facets, and their exercise and award wheres, are deferred.
 - `InsightsQuery.source`, `InsightsChoices.sources` and `INSIGHTS_TABS` gain `"proceeds"`, with `TAB_FILTER.proceeds = "source"`.
   - `parseInsightsQuery` admits `proceeds` only when `c.budget` is true, as it does for `budget`.
   - `insightsHref` writes `source`.
@@ -353,8 +354,7 @@ All use `src/components/ui`. Labels only, never codes. Minimal words; explanatio
    `PageHeader` and `Tabs`, with three tabs.
    - **Funding sources.** A `DataList` with: Name, Envelope, Eligible categories (labels, "Any category" or "Not set"), Provenance tag, and a
      Retired chip.
-     - The drawer holds: Name; Code (shown in the drawer only, fixed once saved); Envelope; Tranche; Tenor (years); Profit rate
-       (%); Eligible categories, a dropdown of Not set / Any category / Only these, which with "Only these" shows checkboxes of
+     - The drawer holds: Name; Code (shown in the drawer only, fixed once saved); Envelope; Eligible categories, a dropdown of Not set / Any category / Only these, which with "Only these" shows checkboxes of
        the organisation's categories; Provenance (dropdown); Source; Notes.
      - The list also offers Retire and Restore.
    - **Project categories.** A `DataList`, a drawer (Name, Code, Provenance), and Retire.
@@ -384,8 +384,10 @@ All use `src/components/ui`. Labels only, never codes. Minimal words; explanatio
    - A row opens `?tab=proceeds&source=CODE`. That view shows a `Meter` of committed against the envelope, and a `DataList` of
      the source's projects: Project, Share, Committed, Certified, Paid, each linking to `/projects/[id]`.
    - It also shows "{n} requisitions awaiting award", linking to `/requisitions?source=CODE&stage=approved`.
-8. **List facets.** A **Funding source** dropdown on Requisitions, Tenders & quotations (`/sourcing`) and Projects, built with
-   `codeFacet`.
+   - **Two info popovers (amendment 16):** on Certified, "Certified is net of retention held."; on Unallocated, "Unallocated
+     does not include approved requisitions."
+8. **List facet.** A **Funding source** dropdown on Requisitions, built with `codeFacet`. Tenders and Projects are deferred
+   (amendment 19).
 
 The build stops short of:
 - per-source pages outside the Dashboard;
@@ -398,8 +400,7 @@ The build stops short of:
 - **RSAJ pack.** A new part, `prisma/rsaj/starter-pack/funding.ts`, added to `PARTS`.
   - **FundingSource**, STATED. The requirement is "SF-01, SF-03, PR-04" and the source is "RSAJ Portal Requirements
     (2026-10-27), D365 configuration: FundingSource values".
-    - `SUKUK26T1`: nameEn "Sukuk Tranche 1 2026", envelope "100000000.00", tranche "Tranche 1, 2026", tenorYears 5,
-      profitRatePct "4.5".
+    - `SUKUK26T1`: nameEn "Sukuk Tranche 1 2026", envelope "100000000.00".
     - `INTERNAL` "Internal", `GRANT` "Grant" and `NA` "Not applicable". No envelope (the document states none).
     - **SUKUK26T1's eligibility is not loaded:** `categoriesRestricted` stays null and `eligibleCategoryCodes` stays empty.
       The document's SUK-LAND and SUK-TANK are project groups in D365's DEV03 test environment, configured for the sukuk
@@ -442,8 +443,9 @@ off.
 **Step 1. Schema and contracts.**
 - **Owns:**
   - `prisma/schema.prisma` (the five models, the two Requisition columns, the back-relations);
-  - `prisma/migrations/<ts>_funding_sources/` (`npm run db:migrate -- --name funding_sources`, then the CHECKs added by hand to
-    the SQL);
+  - `prisma/migrations/<ts>_funding_sources/`, generated with `npx prisma migrate diff --from-config-datasource --to-schema
+    prisma/schema.prisma --script`, then the CHECKs added by hand to the SQL. **Amendment 20:** `<ts>` sorts after the latest
+    existing folder (`20261206000000_quotation_number_key`), not by today's date, and the tree is committed before this step;
   - `src/lib/funding/types.ts`.
 - **Done when:** the migration applies to the dev database, and the existing migration tests and typecheck pass.
 - **Tests:** a db test, `src/lib/funding/schema.db.test.ts`. It checks that the CHECKs reject a share of 0 or 100.01, a negative
@@ -461,7 +463,8 @@ off.
     amount; property-style sums over 200 seeded amounts.
   - **`contractFigures`:**
     - an adjustment added to the sum;
-    - TERMINATED counts certified, and a terminated supply contract counts paid;
+    - TERMINATED counts certified plus the retention held on its latest issued interim certificate, refusing when that
+      retention cannot be read; a terminated supply contract counts paid;
     - CANCELLED is excluded;
     - a supply route gives a partial certified;
     - a missing adjustment net refuses;
@@ -501,7 +504,8 @@ off.
 - **Tests:**
   - `fields.test.ts` cases;
   - `src/app/requisitions/funding-source.db.test.ts`: the change audited with its reason, refused while approval is open,
-    refused with a contract.
+    refused with a contract; with a contract, an unset category may still be recorded while a set category and the source
+    stay locked (amendment 14).
   - Run the full `npm test`.
 
 **Step 5. Carried through the headers.**
@@ -537,7 +541,7 @@ off.
   - `src/lib/list-query.ts` and `src/lib/list-facets.ts`;
   - `src/lib/insights/where.ts` (`facetWhere`);
   - `src/app/dashboard/{page.tsx,panel.tsx,view.ts}`;
-  - the facet lines in `src/app/projects/page.tsx` and `src/app/sourcing/page.tsx`;
+  - the facet line in `src/app/requisitions/page.tsx` (Tenders and Projects deferred, amendment 19);
   - `src/lib/insights/sulit-scan.test.ts` (scan `src/lib/funding` too).
 - **Done when:**
   - the tab is absent for a reader without `mayReadBudget`;
@@ -546,12 +550,12 @@ off.
   - the drill-down rows sum to the source row;
   - the "awaiting award" count is built from the very where of the list it links to (`facetWhere.requisition` plus that list's
     approved stage), so the count and the list agree by construction (I-6), and `where.test.ts` holds them equal;
-  - each facet narrows its list and its export alike.
+  - the Requisitions facet narrows its list and its export alike.
 - **Tests:**
   - `src/lib/funding/proceeds.db.test.ts` (fixture: two contracts, one split, an adjustment, interim and advance certificates,
     a finance payment, a supply payment, a cancelled contract, a restricted exercise);
   - `query.test.ts` (tab gating, `source` parsing);
-  - `where.test.ts` (the three facet wheres);
+  - `where.test.ts` (the requisition facet where);
   - `list-query.test.ts`.
   - Run the full `npm test`.
 
