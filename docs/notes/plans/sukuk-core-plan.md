@@ -298,7 +298,7 @@ export interface ContractMoney {
 export interface Figures { committed: Sen; certified: Sen; certifiedPartial: boolean; paid: Sen }
 export interface SourceProceeds extends Figures { sourceId: string; envelope: Sen | null; unallocated: Sen | null; contracts: number; refused: { contractId: string; label: string }[] }
 export function contractFigures(c: ContractMoney): { ok: true; figures: Figures } | { ok: false; reason: string };   // FS-8
-export function useOfProceeds(sources: readonly SourceRef[], contracts: readonly ContractMoney[]): { bySource: SourceProceeds[]; notSet: Figures & { contracts: number } };
+export function proceedsBySource(sources: readonly SourceRef[], contracts: readonly ContractMoney[]): { bySource: SourceProceeds[]; notSet: Figures & { contracts: number } };
 ```
 
 - **One extraction, so the paid figure is read in one place.** `paidFigureOf(kind, issueSnapshot): Sen | null` goes into
@@ -469,7 +469,7 @@ off.
     - a supply route gives a partial certified;
     - a missing adjustment net refuses;
     - an advance plus interim certificates are not double counted.
-  - **`useOfProceeds`:** "Not set" collects contracts with no funding; unallocated is null without an envelope and negative when
+  - **`proceedsBySource`:** "Not set" collects contracts with no funding; unallocated is null without an envelope and negative when
     over.
   - **`paidFigureOf`:** existing finance and portal tests stay green, unchanged.
 
@@ -608,7 +608,7 @@ off.
 When D365 returns, a per-source comparison follows the `FinanceVariance` pattern:
 - **What is compared:** `compares = "use of proceeds: committed | paid"`;
 - **The key:** the source's `code` (the FundingSource value D365 knows);
-- **The two figures:** `portalAmount` from `useOfProceeds`, and `financeAmount` from the adapter or typed by hand.
+- **The two figures:** `portalAmount` from `proceedsBySource`, and `financeAmount` from the adapter or typed by hand.
 
 `FinanceVariance` is keyed by `budgetCodeCode` today, so that phase adds a nullable `fundingSourceCode` beside it. Nothing in this
 phase depends on it.

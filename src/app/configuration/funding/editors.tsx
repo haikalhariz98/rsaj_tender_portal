@@ -129,6 +129,8 @@ function SourcesView({ sources, categories, today }: FundingScreenData) {
           { key: "status", label: "Status", width: "140px", mobile: "meta" },
         ]}
         rows={rows}
+        // History, Edit and "Stop using" or "Restore".
+        actionsWidth={184}
         actions={(id) => {
           const s = sources.find((x) => x.id === id);
           return s ? <RowTools entity="FundingSource" item={s} today={today} editor={<SourceEditor source={s} categories={categories} />} /> : null;
@@ -211,6 +213,8 @@ function CategoriesView({ categories, today }: FundingScreenData) {
           { key: "status", label: "Status", width: "140px", mobile: "meta" },
         ]}
         rows={rows}
+        // History, Edit and "Stop using" or "Restore".
+        actionsWidth={184}
         actions={(id) => {
           const c = categories.find((x) => x.id === id);
           return c ? <RowTools entity="ProjectCategory" item={c} today={today} editor={<CategoryEditor category={c} />} /> : null;
@@ -262,6 +266,8 @@ function MeasuresView({ measures, today }: FundingScreenData) {
           { key: "status", label: "Status", width: "140px", mobile: "meta" },
         ]}
         rows={rows}
+        // History, Edit and "Stop using" or "Restore".
+        actionsWidth={184}
         actions={(id) => {
           const m = measures.find((x) => x.id === id);
           return m ? <RowTools entity="ImpactMeasure" item={m} today={today} editor={<MeasureEditor measure={m} />} /> : null;

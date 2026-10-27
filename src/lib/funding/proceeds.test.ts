@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { contractFigures, useOfProceeds, type ContractMoney } from "./proceeds";
+import { contractFigures, proceedsBySource, type ContractMoney } from "./proceeds";
 import type { SourceRef } from "./types";
 
 const src = (id: string, sortOrder: number, envelope: bigint | null): SourceRef => ({ id, code: id.toUpperCase(), label: id, sortOrder, envelope, categoriesRestricted: false, eligibleCategoryCodes: [], retiredOn: null });
@@ -71,10 +71,10 @@ describe("contractFigures (FS-8)", () => {
   });
 });
 
-describe("useOfProceeds (FS-8 to FS-10)", () => {
+describe("proceedsBySource (FS-8 to FS-10)", () => {
   it("splits each figure by share, to the sen, and the parts sum to the rows", () => {
     const split = money({ contractId: "k2", label: "C/2", contractSum: 100_001n, certified: { ok: true, sen: 50_001n }, paid: 33_333n, funding: { state: "SPLIT", shares: [{ sourceId: "sukuk", bp: 6000 }, { sourceId: "internal", bp: 4000 }] } });
-    const u = useOfProceeds([SUKUK, INTERNAL], [money(), split]);
+    const u = proceedsBySource([SUKUK, INTERNAL], [money(), split]);
     const s = u.bySource.find((r) => r.sourceId === "sukuk")!;
     const i = u.bySource.find((r) => r.sourceId === "internal")!;
     expect(s.committed + i.committed).toBe(200_001n);
@@ -88,26 +88,26 @@ describe("useOfProceeds (FS-8 to FS-10)", () => {
   });
 
   it("'Not set' collects the contracts with no funding", () => {
-    const u = useOfProceeds([SUKUK], [money({ funding: { state: "NOT_SET" }, paid: 10n })]);
+    const u = proceedsBySource([SUKUK], [money({ funding: { state: "NOT_SET" }, paid: 10n })]);
     expect(u.notSet).toMatchObject({ contracts: 1, committed: 100_000n, paid: 10n });
     expect(u.bySource[0].contracts).toBe(0);
   });
 
   it("unallocated is null without an envelope, and negative, never clamped, when over", () => {
-    const u = useOfProceeds([SUKUK, INTERNAL], [money({ contractSum: 1_200_000n }), money({ contractId: "k3", funding: { state: "FROM_REQUISITION", shares: [{ sourceId: "internal", bp: 10000 }] } })]);
+    const u = proceedsBySource([SUKUK, INTERNAL], [money({ contractSum: 1_200_000n }), money({ contractId: "k3", funding: { state: "FROM_REQUISITION", shares: [{ sourceId: "internal", bp: 10000 }] } })]);
     expect(u.bySource.find((r) => r.sourceId === "sukuk")!.unallocated).toBe(-200_000n);
     expect(u.bySource.find((r) => r.sourceId === "internal")!.unallocated).toBeNull();
   });
 
   it("a cancelled contract is left out of every count", () => {
-    const u = useOfProceeds([SUKUK], [money({ status: "CANCELLED" }), money({ status: "CANCELLED", funding: { state: "NOT_SET" } })]);
+    const u = proceedsBySource([SUKUK], [money({ status: "CANCELLED" }), money({ status: "CANCELLED", funding: { state: "NOT_SET" } })]);
     expect(u.bySource[0]).toMatchObject({ contracts: 0, committed: 0n });
     expect(u.notSet.contracts).toBe(0);
   });
 
   it("a contract that cannot be read is named on each of its sources, never counted as nothing", () => {
     const bad = money({ contractId: "k9", label: "C/9", certified: { ok: false, number: "IPC 4" }, funding: { state: "SPLIT", shares: [{ sourceId: "sukuk", bp: 5000 }, { sourceId: "internal", bp: 5000 }] } });
-    const u = useOfProceeds([SUKUK, INTERNAL], [bad, money({ contractId: "k8", label: "C/8", funding: { state: "NOT_SET" }, certified: { ok: false, number: "IPC 5" } })]);
+    const u = proceedsBySource([SUKUK, INTERNAL], [bad, money({ contractId: "k8", label: "C/8", funding: { state: "NOT_SET" }, certified: { ok: false, number: "IPC 5" } })]);
     for (const row of u.bySource) expect(row.refused).toEqual([{ contractId: "k9", label: "C/9", reason: expect.stringContaining("IPC 4") }]);
     expect(u.notSet.refused).toEqual([{ contractId: "k8", label: "C/8", reason: expect.stringContaining("IPC 5") }]);
   });

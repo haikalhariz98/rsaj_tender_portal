@@ -75,7 +75,7 @@ export interface UseOfProceeds {
 
 const ZERO: Figures = { committed: 0n, certified: 0n, certifiedPartial: false, paid: 0n };
 
-/// FS-8, per contract. A cancelled contract counts nothing (excluded by `useOfProceeds`).
+/// FS-8, per contract. A cancelled contract counts nothing (excluded by `proceedsBySource`).
 export function contractFigures(c: ContractMoney): { ok: true; figures: Figures } | { ok: false; reason: string } {
   if (c.status === "CANCELLED") return { ok: true, figures: ZERO };
   if (!c.supplyRoute && !c.certified.ok) return { ok: false, reason: `Certificate ${c.certified.number} has no figure frozen with its issue.` };
@@ -92,7 +92,7 @@ export function contractFigures(c: ContractMoney): { ok: true; figures: Figures 
   return { ok: true, figures: { committed, certified, certifiedPartial: c.supplyRoute, paid: c.paid } };
 }
 
-export function useOfProceeds(sources: readonly SourceRef[], contracts: readonly ContractMoney[]): UseOfProceeds {
+export function proceedsBySource(sources: readonly SourceRef[], contracts: readonly ContractMoney[]): UseOfProceeds {
   const rows = new Map<string, SourceProceeds>(sources.map((s) => [s.id, { sourceId: s.id, envelope: s.envelope, unallocated: null, contracts: 0, refused: [], ...ZERO }]));
   const notSet: UseOfProceeds["notSet"] = { contracts: 0, refused: [], ...ZERO };
   const parts: Part[] = [];

@@ -60,7 +60,7 @@ export function ProceedsPanel({ f }: { f: ProceedsFigures }) {
         <DataList
           flat
           selectable={false}
-          searchable={false}
+          toolbar={false}
           paging={false}
           exportName="use-of-proceeds"
           emptyTitle="No funding source yet"
@@ -118,7 +118,7 @@ function SourceDetail({ s }: { s: NonNullable<ProceedsFigures["selected"]> }) {
       <DataList
         flat
         selectable={false}
-        searchable={false}
+        toolbar={false}
         exportName="use-of-proceeds-projects"
         emptyTitle="No project yet"
         columns={[

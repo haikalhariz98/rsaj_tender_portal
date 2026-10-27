@@ -13,7 +13,7 @@ import { requisitionListWhere } from "@/lib/requisition/repo";
 
 import { caseFunding, splitLocked } from "./case-funding";
 import { inForce } from "./eligibility";
-import { useOfProceeds, type ContractMoney, type Read, type SourceProceeds } from "./proceeds";
+import { proceedsBySource, type ContractMoney, type Read, type SourceProceeds } from "./proceeds";
 import { bpToPercent } from "./split";
 import type { CaseFunding, SourceRef } from "./types";
 
@@ -152,7 +152,7 @@ type MoneyRow = Prisma.ContractGetPayload<{ select: typeof MONEY_SELECT }>;
 
 const NO_NUMBER = "without a number";
 
-/// One contract's money, as `useOfProceeds` reads it (FS-8): every figure from the portal's own issued records and payments, each payment at its latest correction.
+/// One contract's money, as `proceedsBySource` reads it (FS-8): every figure from the portal's own issued records and payments, each payment at its latest correction.
 export function contractMoney(c: MoneyRow, supplyRoute: boolean): ContractMoney {
   let certified: Read = { ok: true, sen: 0n };
   for (const x of c.certificates) {
@@ -196,10 +196,11 @@ export async function proceedsFigures(client: Tx, ctx: InsightsContext, q: Insig
   const types = await client.contractType.findMany({ where: { organisationId }, select: { code: true, paymentRoute: true } });
   const rows = await client.contract.findMany({ where: insightsWhere.proceedsContracts(organisationId, ctx.hidden), select: MONEY_SELECT, orderBy: { number: "asc" } });
   const supply = (code: string | null) => types.find((t) => t.code === code)?.paymentRoute === "DELIVERY_ORDER_INVOICE";
-  const u = useOfProceeds(sources, rows.map((c) => contractMoney(c, supply(c.award.exercise.contractTypeCode))));
+  const u = proceedsBySource(sources, rows.map((c) => contractMoney(c, supply(c.award.exercise.contractTypeCode))));
   const rowOf = (r: SourceProceeds): ProceedsRow => {
     const s = sources.find((x) => x.id === r.sourceId)!;
-    const { sourceId: _, ...figures } = r;
+    const figures: Omit<SourceProceeds, "sourceId"> & { sourceId?: string } = { ...r };
+    delete figures.sourceId;
     return { ...figures, code: s.code, label: s.label };
   };
   const shown = u.bySource.filter((r) => r.contracts > 0 || inForce(sources.find((s) => s.id === r.sourceId)!, ctx.on)).map(rowOf);
