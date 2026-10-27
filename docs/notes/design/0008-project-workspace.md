@@ -204,6 +204,8 @@ Each record already in the product gets one treatment, so no fact has two homes 
 - **Returned.** In review back to In progress, with a comment. The assignee is told. This is the "Work not accepted" step of
   Procore's punch workflow, without its other six states (§10).
 - **The shortcut.** When the raiser is also the assignee, In review is skipped: Mark done goes straight to Done.
+- **A contractor raiser** may only accept the answer (→ Done) or ask again (→ back to {org}, with a reply). It never cancels or
+  reopens. If the contractor goes quiet on an item In review, the lead may close it.
 - **Reopen.** Done back to To do, by the raiser or the lead, recorded in the history.
 - **Overdue.** Not a status. It is read: due date before the organisation's today, and not Done or Cancelled. Shown as "2 days
   late" in the error tone.
@@ -218,7 +220,7 @@ Each record already in the product gets one treatment, so no fact has two homes 
 | Title | Input | Required. The only required field besides type. |
 | Description | Textarea | Optional |
 | Assignee | Select, searchable: the project team first, then "{contractor}", then everyone else | Optional. Unassigned is a valid state and has its own view. |
-| Due date | Date picker, with "Today", "+3 days", "+1 week" quick picks | Optional. Required for RFI and SI (EX-03 "response due dates"), defaulted to +7 days. The default is a column on the organisation, not a literal. |
+| Due date | Date picker, with "Today", "+3 days", "+1 week" quick picks | Optional. Required for RFI and SI (EX-03 "response due dates"). The response days are a column on the organisation, not a literal. Unset (the product ships none): nothing is prefilled and the date stays required and empty. Set: prefilled as today plus those days. |
 | Priority | Select: Low, Normal, High, Urgent | Normal by default. Urgent is Phase 2's expedited class (FR-CMP-012). |
 | Shared with contractor | Toggle | Per §4.5 |
 | Watchers | Avatar stack, "Watch" toggle | Per §4.8 |
@@ -583,6 +585,7 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
 | Linked act withdrawn | Done column for 14 days, reading "Withdrawn" | Facts plus Open link | — |
 | Lead not named | Contractor-raised items unassigned. Team tab shows "No project manager" (warn) | "Unassigned" | — |
 | Contractor has no active account | Assigning to {contractor} is allowed. Warn chip "No active portal account". | Same | — |
+| RFI and SI response days not set | The due date is required with nothing prefilled. No warning: the field is simply empty. | Same | — |
 
 ---
 
@@ -712,6 +715,10 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
     (AGENTS.md: a policy is a column).
   - Works stay on measured valuation.
   - The RSAJ pack sets no type to it until RSAJ says which (Q4).
+- **The contract type's payment route not set** (null): Budget shows no Payment milestones section and the revision editor no
+  Payment amount column. The Budget section reads "How this contract is paid: Not set", with the setting named and a link to
+  it for those who may edit it. Nothing assumes measured valuation silently; the existing acts that need the route keep
+  refusing by name, as today.
 - **The amounts** must sum to the contract sum, or a warning shows the difference. A payment milestone's amount changes only
   through a revision or a variation's adjustment.
 - **Budget › Payment milestones** is a `DataList`:
