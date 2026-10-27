@@ -31,7 +31,7 @@ let person = "";
 const src = { sukuk: "", internal: "", grant: "" };
 const measure = { storage: "", households: "" };
 
-async function contract(projectCategoryCode: string | null) {
+async function contract(projectCategoryCode: string | null, status: "ACTIVE" | "NUMBER_ALLOCATED" | "CLOSED" = "ACTIVE") {
   const requisition = await db.requisition.create({
     data: {
       organisationId, reference: `FSP/R/${randomId()}`, requestingUnitCode: "U", requestingPersonId: person, title: "Split", justification: "Tests.", needStatement: "",
@@ -40,7 +40,7 @@ async function contract(projectCategoryCode: string | null) {
   });
   const exercise = await db.sourcingExercise.create({ data: { organisationId, reference: `FSP/X/${randomId()}`, requisitionId: requisition.id, title: "Split", [EST]: "1000.00", sourcingMethodCode: "M" } });
   const award = await db.award.create({ data: { organisationId, reference: `FSP/A/${randomId()}`, exerciseId: exercise.id, instrumentKind: "WORK_INDENT", awardeeName: "Contractor", awardedValue: "1000.00", completionPeriod: 30, completionUnit: "DAYS", status: "ACCEPTED", issuedAt: day("2026-02-01") } });
-  return (await db.contract.create({ data: { organisationId, number: `FSP/C/${randomId()}`, numberSource: "SERIES", numberedOn: day("2026-02-05"), awardId: award.id, contractSum: "1000.00", status: "ACTIVE" } })).id;
+  return (await db.contract.create({ data: { organisationId, number: `FSP/C/${randomId()}`, numberSource: "SERIES", numberedOn: day("2026-02-05"), awardId: award.id, contractSum: "1000.00", status } })).id;
 }
 
 const split = async (contractId: string, rows: [string, string][], reason = "Shared funding") => {
@@ -100,6 +100,15 @@ describe("recording a contract's funding split (FS-7)", () => {
     expect(await split(id, [[src.internal, "40"], [src.sukuk, "60.0"]], "Again")).toEqual({ ok: false, message: "Nothing differs from the split as it stands." });
     const trail = await db.auditEntry.findMany({ where: { organisationId, entity: "Contract", entityId: id }, orderBy: { at: "asc" } });
     expect(trail.map((t) => t.reason)).toEqual(["Fixing the source on the contract", "Shared"]);
+  });
+
+  it("is recorded from the number on, before execution, when the requisition's source no longer moves; a closed contract refuses it in the table's words (review)", async () => {
+    const id = await contract("WATER", "NUMBER_ALLOCATED");
+    expect(await split(id, [[src.internal, "100"]], "The wrong source was picked")).toEqual({ ok: true });
+    expect(await impact(id, { [measure.storage]: "2" })).toEqual({ ok: true });
+    const closed = await contract("WATER", "CLOSED");
+    expect(await split(closed, [[src.internal, "100"]])).toEqual({ ok: false, message: "The contract is closed: only debts, the release of or a claim on the design guarantee bond, and where the originals are held are recorded." });
+    expect(await impact(closed, { [measure.storage]: "2" })).toEqual({ ok: false, message: expect.stringMatching(/^The contract is closed/) });
   });
 
   it("is fixed once an interim certificate is issued", async () => {

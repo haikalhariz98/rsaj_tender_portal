@@ -16,8 +16,8 @@ import { contractFunding, fundingText, sourcesOf, splitLockedOn } from "@/lib/fu
 import { FormReader } from "@/lib/validate";
 
 /**
- * A contract's funding split (SF-05, FS-7) and its impact figures (SF-04, FS-12), on the project overview: Project workspace acts, so the table's
- * PROJECT_WORKSPACE row is asked first under the lock. Each is a record act (`staffForAct("TRANSACTION")`, so
+ * A contract's funding split (SF-05, FS-7) and its impact figures (SF-04, FS-12), on the project overview: the table's
+ * FUNDING row is asked first under the lock (open from the number on, so a wrong source is corrected before execution). Each is a record act (`staffForAct("TRANSACTION")`, so
  * an administrator account is refused), under the contract's lock, by anyone who sees the case's contract stages; it writes no Person column, so the audit row
  * names the actor. Each save is one audit row with its before and after in words and its reason. The rules are `splitFaults`; this file restates none.
  */
@@ -42,8 +42,8 @@ export async function recordFundingSplit(_prev: FormState, data: FormData): Prom
   const rows = ids.map((sourceId, i) => ({ sourceId: sourceId.trim(), pct: pcts[i] ?? "" })).filter((x) => x.sourceId || x.pct);
   if (r.failed) return { ok: false, errors: r.errors };
   const result = await withLockedContract(actor.organisationId, contractId, async (tx, l): Promise<FormState> => {
-    // The act x status table first, under the lock: the Project workspace's row (open from execution through termination, PW-22).
-    const shut = actStatusFault("PROJECT_WORKSPACE", l.contract.status as ContractStatus);
+    // The act x status table first, under the lock: the funding row (open from the number through termination).
+    const shut = actStatusFault("FUNDING", l.contract.status as ContractStatus);
     if (shut) return { ok: false, message: actStatusText(shut) };
     const today = dayOf(new Date(), l.org.timeZone);
     if (!today) return { ok: false, message: "Time zone not set. An administrator sets it under Configuration › Organisation." };
@@ -79,8 +79,8 @@ export async function recordImpact(_prev: FormState, data: FormData): Promise<Fo
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
   const result = await withLockedContract(actor.organisationId, contractId, async (tx, l): Promise<FormState> => {
-    // The act x status table first, under the lock: the Project workspace's row (open from execution through termination, PW-22).
-    const shut = actStatusFault("PROJECT_WORKSPACE", l.contract.status as ContractStatus);
+    // The act x status table first, under the lock: the funding row (open from the number through termination).
+    const shut = actStatusFault("FUNDING", l.contract.status as ContractStatus);
     if (shut) return { ok: false, message: actStatusText(shut) };
     const measures = await tx.impactMeasure.findMany({ where: { organisationId: l.org.id }, select: { id: true, nameEn: true, unit: true } });
     const stored = await tx.projectImpact.findMany({ where: { organisationId: l.org.id, contractId }, select: { measureId: true, value: true } });

@@ -14,8 +14,8 @@ import { recordImpact } from "./funding-actions";
 
 /** The project overview's Impact card (SF-04, FS-12): each measure as "value unit". Hidden while the organisation has no measure. */
 export function ImpactCard({ contractId, status, view }: { contractId: string; status: ContractStatus; view: ImpactCardView }) {
-  // The Project workspace's row of the act x status table, in its own words, for the drawer beneath.
-  const shut = actStatusBlocker("PROJECT_WORKSPACE", status);
+  // The funding row of the act x status table, in its own words, for the drawer beneath.
+  const shut = actStatusBlocker("FUNDING", status);
   const fields: Field[] = [{ kind: "hidden", name: "contractId" }, ...view.measures.map((m): Field => ({ kind: "text", name: `value_${m.id}`, label: `${m.label} (${m.unit})`, placeholder: "Not recorded" }))];
   return (
     <ActGate blocker={shut}>

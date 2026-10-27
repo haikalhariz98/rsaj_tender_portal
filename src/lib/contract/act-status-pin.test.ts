@@ -43,9 +43,13 @@ describe("today's answers, pinned (before the act × status table)", () => {
 // Part B's do: refused before execution and when cancelled, allowed once executed. Its own acts (from step 4) are never added to TODAY_ACTS.
 describe("a family after the pin: the Project workspace", () => {
   it("is not recorded before execution or when cancelled, and is recorded once executed, for every status that existed at the pin", () => {
-    expect([...AFTER_PIN_FAMILIES]).toEqual(["PROJECT_WORKSPACE"]);
-    for (const f of AFTER_PIN_FAMILIES) for (const s of TODAY_STATUSES) expect(ACT_STATUS[f][s], `${f} ${s}`).toBe(isExecuted(s) ? "ALLOWED" : "REFUSED");
+    expect([...AFTER_PIN_FAMILIES]).toEqual(["PROJECT_WORKSPACE", "FUNDING"]);
+    for (const s of TODAY_STATUSES) expect(ACT_STATUS.PROJECT_WORKSPACE[s], `PROJECT_WORKSPACE ${s}`).toBe(isExecuted(s) ? "ALLOWED" : "REFUSED");
     expect(Object.keys(TODAY_ACTS)).toHaveLength(5);
+  });
+  // ADR 0046 (Sukuk core review): the funding row, for the statuses that existed at the pin, reads as the pinned answer: refused only when cancelled.
+  it("the funding row gives the pinned answer: refused when cancelled, otherwise to its own rule", () => {
+    for (const s of TODAY_STATUSES) expect(ACT_STATUS.FUNDING[s] === "ALLOWED" ? "ALLOWED" : "CANCELLED", `FUNDING ${s}`).toBe(todayAnswer(s));
   });
 });
 

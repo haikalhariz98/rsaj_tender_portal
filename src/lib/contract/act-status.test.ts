@@ -47,15 +47,17 @@ describe("the table is exhaustive: every act, every status", () => {
     for (const a of CONTRACT_ACTS) expect(Object.keys(ACT_STATUS[a]).sort(), a).toEqual([...CONTRACT_STATUSES].sort());
     expect(Object.keys(ACT_STATUS).sort()).toEqual([...CONTRACT_ACTS].sort());
   });
-  // Changed for ADR 0042 D11 (PW-22): the Project workspace's row joins after the certificate's, before Part B's.
-  it("36 families: 13 built before Part B (R2's originals included), the Project workspace's, then Part B's 22 (R5's design guarantee claim included)", () => {
-    expect(CONTRACT_ACTS.length).toBe(36);
+  // Changed for ADR 0042 D11 (PW-22): the Project workspace's row joins after the certificate's, before Part B's; and for ADR 0046, the funding row after it.
+  it("37 families: 13 built before Part B (R2's originals included), the Project workspace's, the funding row, then Part B's 22 (R5's design guarantee claim included)", () => {
+    expect(CONTRACT_ACTS.length).toBe(37);
     expect(CONTRACT_ACTS.indexOf("PROJECT_WORKSPACE")).toBe(CONTRACT_ACTS.indexOf("CERTIFICATE") + 1);
-    expect(CONTRACT_ACTS.indexOf("EOT")).toBe(14);
+    expect(CONTRACT_ACTS.indexOf("FUNDING")).toBe(CONTRACT_ACTS.indexOf("PROJECT_WORKSPACE") + 1);
+    expect(CONTRACT_ACTS.indexOf("EOT")).toBe(15);
     expect(CONTRACT_ACTS.slice(0, 13)).toContain("ORIGINALS");
     expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("PROJECT_WORKSPACE");
-    expect(CONTRACT_ACTS.slice(14)).toContain("DESIGN_GUARANTEE_CLAIM");
-    expect(CONTRACT_ACTS.slice(14)).toHaveLength(22);
+    expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("FUNDING");
+    expect(CONTRACT_ACTS.slice(15)).toContain("DESIGN_GUARANTEE_CLAIM");
+    expect(CONTRACT_ACTS.slice(15)).toHaveLength(22);
   });
   it("CANCELLED refuses every act, first", () => {
     for (const a of CONTRACT_ACTS) expect(actStatusFault(a, "CANCELLED")?.code, a).toBe("CONTRACT_CANCELLED");
@@ -80,9 +82,9 @@ describe("Part A's answers, unchanged for the nine statuses that existed", () =>
 // Run 1a fix round (BD-613-113 as ruled, R1, R2, R5): CLOSE, SECURITY_RELEASE, DESIGN_BOND_RELEASE, ORIGINALS and
 // DESIGN_GUARANTEE_CLAIM join BD-613-99's seven.
 describe("BD-613-99: in TERMINATED exactly these acts are allowed", () => {
-  // Changed for ADR 0042 D11 (PW-22): the Project workspace stays open on a terminated contract.
-  it("the termination case, renomination, the TERMINATED_FINAL route, the converse decision, bond claims, rectification, debt, the releases of a security and the design guarantee bond, the originals' custody, the design guarantee claim, the Project workspace and the close; no other", () => {
-    expect([...allowedIn("TERMINATED")].sort()).toEqual(["BOND_CLAIM", "CLOSE", "CONVERSE_DECISION", "DEBT", "DESIGN_BOND_RELEASE", "DESIGN_GUARANTEE_CLAIM", "NOMINATED_INCREASE", "ORIGINALS", "PROJECT_WORKSPACE", "RECTIFICATION", "SECURITY_RELEASE", "TERMINATED_FINAL_ROUTE", "TERMINATION_CASE"]);
+  // Changed for ADR 0042 D11 (PW-22): the Project workspace stays open on a terminated contract; and for ADR 0046, the funding row.
+  it("the termination case, renomination, the TERMINATED_FINAL route, the converse decision, bond claims, rectification, debt, the releases of a security and the design guarantee bond, the originals' custody, the design guarantee claim, the Project workspace, funding and the close; no other", () => {
+    expect([...allowedIn("TERMINATED")].sort()).toEqual(["BOND_CLAIM", "CLOSE", "CONVERSE_DECISION", "DEBT", "DESIGN_BOND_RELEASE", "DESIGN_GUARANTEE_CLAIM", "FUNDING", "NOMINATED_INCREASE", "ORIGINALS", "PROJECT_WORKSPACE", "RECTIFICATION", "SECURITY_RELEASE", "TERMINATED_FINAL_ROUTE", "TERMINATION_CASE"]);
     for (const a of CONTRACT_ACTS.filter((x) => !allowedIn("TERMINATED").includes(x))) expect(actStatusFault(a, "TERMINATED")?.code, a).toBe("CONTRACT_TERMINATED");
   });
   it("the TERMINATED_FINAL certificate's acts read TERMINATED_FINAL_ROUTE; the termination's own notices read the case", () => {
@@ -107,6 +109,21 @@ describe("R2: the originals' custody, for the record's life", () => {
   it("the closed and terminated contract's words name the originals", () => {
     expect(actStatusWords({ code: "CONTRACT_CLOSED", level: "block" }).en).toMatch(/where the originals are held/);
     expect(actStatusWords({ code: "CONTRACT_TERMINATED", level: "block" }).en).toMatch(/where the originals are held/);
+  });
+});
+
+describe("ADR 0046 (Sukuk core review): the funding split and impact figures, from the number on", () => {
+  it("allowed in every state from NUMBER_ALLOCATED through termination; refused when cancelled or closed", () => {
+    for (const s of CONTRACT_STATUSES) expect(ACT_STATUS.FUNDING[s] === "ALLOWED", s).toBe(s !== "CANCELLED" && s !== "CLOSED");
+    expect(actStatusFault("FUNDING", "NUMBER_ALLOCATED")).toBeNull();
+    expect(actStatusFault("FUNDING", "CANCELLED")?.code).toBe("CONTRACT_CANCELLED");
+    expect(actStatusFault("FUNDING", "CLOSED")?.code).toBe("CONTRACT_CLOSED");
+  });
+  it("wider than the Project workspace before execution, where the requisition's source no longer moves (FS-6)", () => {
+    for (const s of ["NUMBER_ALLOCATED", "IN_PREPARATION", "PENDING_LEGAL_ENDORSEMENT", "RETURNED_FOR_AMENDMENT", "LEGALLY_ENDORSED"] as const) {
+      expect(ACT_STATUS.FUNDING[s], s).toBe("ALLOWED");
+      expect(ACT_STATUS.PROJECT_WORKSPACE[s], s).toBe("REFUSED");
+    }
   });
 });
 

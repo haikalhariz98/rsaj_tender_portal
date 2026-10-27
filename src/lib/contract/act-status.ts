@@ -46,6 +46,8 @@ export const CONTRACT_ACTS = [
   "CERTIFICATE",
   // ADR 0042 D11 (PW-22): the Project workspace's acts (documents, versions, requests, approvers, decisions, marks, the kick-off meeting).
   "PROJECT_WORKSPACE",
+  // ADR 0046 (FS-7, FS-12; Sukuk core review): the contract's funding split and impact figures.
+  "FUNDING",
   // 6.13 Part B.
   "EOT",
   "PERIOD_EXTENSION",
@@ -114,6 +116,9 @@ export const ACT_STATUS = {
   // when cancelled or once closed. Wider than SUPERVISION on purpose: documents are still exchanged on a terminated contract and up to its final certificate.
   // Reading is never refused by this row.
   PROJECT_WORKSPACE: executed(PC, MGC, FCI, T),
+  // ADR 0046 (Sukuk core review): from the number on, so a wrong source is corrected between the award's issue and execution, when the requisition's
+  // source no longer moves (FS-6); FS-7's own lock fixes the split once money is certified. Never once cancelled or closed.
+  FUNDING: before(PC, MGC, FCI, T),
   EOT: executed(PC),
   // R4 (BD-613-119): a supplementary agreement extends a running term, never one already practically complete.
   PERIOD_EXTENSION: executed(),
@@ -302,7 +307,7 @@ export function actStatusWords(f: Finding): Words {
       return { en: "The contract is not executed yet: this is recorded once it is." };
     case "CONTRACT_TERMINATED":
       return {
-        en: "The contract is terminated: only termination consequences, debts, releases, a claim on the design guarantee bond, where the originals are held, project documents, and its close are recorded.",
+        en: "The contract is terminated: only termination consequences, debts, releases, a claim on the design guarantee bond, where the originals are held, project documents, funding and impact figures, and its close are recorded.",
       };
     case "CONTRACT_CLOSED":
       return { en: "The contract is closed: only debts, the release of or a claim on the design guarantee bond, and where the originals are held are recorded." };

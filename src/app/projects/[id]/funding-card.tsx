@@ -25,8 +25,8 @@ import { recordFundingSplit } from "./funding-actions";
  */
 
 export function FundingCard({ contractId, status, view }: { contractId: string; status: ContractStatus; view: FundingCardView }) {
-  // The Project workspace's row of the act x status table, in its own words, for the drawer beneath.
-  const shut = actStatusBlocker("PROJECT_WORKSPACE", status);
+  // The funding row of the act x status table, in its own words, for the drawer beneath.
+  const shut = actStatusBlocker("FUNDING", status);
   return (
     <ActGate blocker={shut}>
     <Card>

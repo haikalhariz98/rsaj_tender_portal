@@ -254,9 +254,9 @@ const SECTION_FAMILIES: Readonly<Record<string, readonly ContractAct[]>> = {
   AdjustmentsSection: ["SUM_ADJUSTMENT"],
   OverviewPanel: ["FORMATION"],
   SecuritiesPanel: ["FORMATION"],
-  // ADR 0046: the funding split and the impact figures are Project workspace acts on the overview (FS-7, FS-12); each card states the row's words to its drawer.
-  FundingCard: ["PROJECT_WORKSPACE"],
-  ImpactCard: ["PROJECT_WORKSPACE"],
+  // ADR 0046: the funding split and the impact figures are the funding row's acts on the overview (FS-7, FS-12); each card states the row's words to its drawer.
+  FundingCard: ["FUNDING"],
+  ImpactCard: ["FUNDING"],
   // AC-16, PW-11: answering an earlier contractor submission is an act of the contract's supervision (answerContractorSubmission). Its read-only record sits above the Documents list (plan step 6, which replaced the queue); the answer alone is under this gate.
   EarlierRecord: ["SUPERVISION"],
 };
