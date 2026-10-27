@@ -40,10 +40,12 @@ Three facts of the codebase shaped the decision:
    - provenance, and a retired date.
 
    It has no `kind`, because no rule may branch on a source being a sukuk.
-2. **Eligibility is per source, on a new `ProjectCategory` list.** It has three states:
-   - **set:** the requisition must name an eligible category;
-   - **not set:** the requisition passes, with a warning;
-   - **refused:** an ineligible category, or no category where the source names some.
+2. **Eligibility is per source, on a new `ProjectCategory` list.** The source's `categoriesRestricted` switch has three
+   states:
+   - **only these:** the requisition must name one of the listed categories, and an ineligible or missing category is
+     refused;
+   - **any category:** no category is needed and no warning is shown;
+   - **not set:** the requisition passes, with a warning.
 
    It is judged when a requisition leaves Draft, when its source is changed and when a split is recorded.
 3. **The source is picked once, on the requisition, and derived until a contract fixes it.**
@@ -55,8 +57,8 @@ Three facts of the codebase shaped the decision:
 4. **A split is fixed once money is certified on the contract.** That means an issued payable certificate or a supply payment.
    Each save replaces the split whole and is audited with its before, after and reason.
 5. **The use-of-proceeds figures are pure functions** (`src/lib/funding/proceeds.ts`), defined so that no money counts twice:
-   - **Committed** is the contract sum plus its issued adjustments. A terminated contract counts its certified figure; a cancelled
-     one counts nothing.
+   - **Committed** is the contract sum plus its issued adjustments. A terminated contract counts its certified figure, or its
+     paid figure where it is a supply contract. A cancelled one counts nothing.
    - **Certified** is the frozen paid figure of the issued payable certificates. A supply contract's certified figure is not
      held, and the source's figure says it is partial.
    - **Paid** is Finance's certificate payments plus supply payments.
@@ -70,7 +72,8 @@ Three facts of the codebase shaped the decision:
    - SUKUK26T1 with its RM100m envelope, 5 years and 4.5%;
    - INTERNAL, GRANT and NA, with no envelope.
 
-   It loads **no eligibility**. The document's SUK-LAND and SUK-TANK are D365 test-environment groups, not a stated policy.
+   It loads **no eligibility for SUKUK26T1**. The document's SUK-LAND and SUK-TANK are D365 test-environment groups, not a
+   stated policy. INTERNAL, GRANT and NA load as "any category", ASSUMED, because SF-02 limits only a sukuk source.
 
 ## Consequences
 

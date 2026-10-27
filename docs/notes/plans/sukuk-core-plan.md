@@ -47,10 +47,13 @@ These are the product owner's to rule. Each states the default the build takes i
   - `ClassificationTaxonomy` was considered and rejected. Its values sit on the exercise and are mapped from the contract type,
     so the requisition (where the source is picked) does not have one.
   - The requisition gets an optional **Project category** dropdown, shown only when the organisation has categories.
-- **FS-4. Eligibility is three-state, as quorum is.**
-  - **Set:** the source names its eligible categories. A requisition with this source must name an eligible category.
-  - **Not set:** the source's list is empty. Any category passes, and the requisition shows the warning "Eligibility not set for
-    {source}". It is never a silent pass and never a block.
+- **FS-4. Eligibility is three-state, as quorum is.** It is held by `FundingSource.categoriesRestricted`, which is
+  `Boolean?`:
+  - **Only these** (`true`): the source names its eligible categories. A requisition with this source must name one of them.
+    Saving `true` with an empty list is refused, because it would block every requisition.
+  - **Any category** (`false`): no category is needed and no warning is shown. This is Internal's case.
+  - **Not set** (`null`): any category passes, and the requisition shows the warning "Eligibility not set for {source}". It is
+    never a silent pass and never a block.
   - Nothing reads the label to decide this. Eligibility is per source.
 - **FS-5. Where the source lives, and how later stages carry it. Derived first, recorded on the contract.**
   - `Requisition.fundingSourceId` (nullable) is the one place it is picked.
@@ -84,7 +87,8 @@ These are the product owner's to rule. Each states the default the build takes i
     - a contract that is not CANCELLED: `contractSum` plus the nets of its issued adjustments of the contract sum. This is
       FR-PAD-003's one reading, `readIssuedAdjustments`, so an approved variation counts once its adjustment certificate is
       issued.
-    - a TERMINATED contract: its certified figure (the remainder is released).
+    - a TERMINATED contract: its certified figure (the remainder is released). A terminated supply contract has no certified
+      figure, so it counts its paid figure.
     - a CANCELLED contract: excluded from everything.
   - **Certified:** the sum over the contract's ISSUED certificates of a payable kind of `PAID_FIGURE`'s figure.
     - That figure is `recommended` for an interim certificate and `advanceAmount` for an advance.
@@ -152,7 +156,10 @@ model FundingSource {
   tenorYears    Int?
   profitRatePct Decimal? @db.Decimal(6, 3)
 
-  /// ProjectCategory codes this source may fund (SF-02). Empty: eligibility not set — any category passes, with a warning.
+  /// SF-02 (FS-4). Null: not set — any category passes, with a warning. False: any category, no warning.
+  /// True: only `eligibleCategoryCodes` (never empty while true; the editor refuses it).
+  categoriesRestricted  Boolean?
+  /// ProjectCategory codes this source may fund. Read only while `categoriesRestricted` is true.
   eligibleCategoryCodes String[]    @default([])
   eligibilityProvenance Provenance?
 
@@ -250,17 +257,17 @@ model ProjectImpact {
 ```ts
 // src/lib/funding/types.ts
 import type { Sen } from "@/lib/money";
-export interface SourceRef { id: string; code: string; label: string; sortOrder: number; envelope: Sen | null; eligibleCategoryCodes: readonly string[]; retiredOn: Date | null }
+export interface SourceRef { id: string; code: string; label: string; sortOrder: number; envelope: Sen | null; categoriesRestricted: boolean | null; eligibleCategoryCodes: readonly string[]; retiredOn: Date | null }
 /// A share in basis points: 60.00% is 6000. A split's shares sum to 10000.
 export interface Share { sourceId: string; bp: number }
 export type CaseFunding =
   | { state: "SPLIT"; shares: Share[] }              // the contract's own FundingAllocation rows
   | { state: "FROM_REQUISITION"; shares: [Share] }   // no rows: the requisition's source at 10000
   | { state: "NOT_SET" };
-export type Eligibility = { state: "ELIGIBLE" } | { state: "NOT_SET" } | { state: "CATEGORY_MISSING" } | { state: "NOT_ELIGIBLE"; categoryCode: string };
+export type Eligibility = { state: "ELIGIBLE" } | { state: "UNRESTRICTED" } | { state: "NOT_SET" } | { state: "CATEGORY_MISSING" } | { state: "NOT_ELIGIBLE"; categoryCode: string };
 
 // src/lib/funding/eligibility.ts
-export function eligibilityOf(source: Pick<SourceRef, "eligibleCategoryCodes">, categoryCode: string | null): Eligibility;
+export function eligibilityOf(source: Pick<SourceRef, "categoriesRestricted" | "eligibleCategoryCodes">, categoryCode: string | null): Eligibility;
 
 // src/lib/funding/split.ts
 export function percentToBp(pct: string): number | null;                  // "60", "60.5", "33.33" -> bp; >2 dp, <=0 or >100 -> null
@@ -344,10 +351,11 @@ All use `src/components/ui`. Labels only, never codes. Minimal words; explanatio
 
 1. **Settings › Contracts & payments › Funding** (`/configuration/funding`, a new folder in `SETTINGS_SECTIONS`). The page has
    `PageHeader` and `Tabs`, with three tabs.
-   - **Funding sources.** A `DataList` with: Name, Envelope, Eligible categories (labels, or "Not set"), Provenance tag, and a
+   - **Funding sources.** A `DataList` with: Name, Envelope, Eligible categories (labels, "Any category" or "Not set"), Provenance tag, and a
      Retired chip.
      - The drawer holds: Name; Code (shown in the drawer only, fixed once saved); Envelope; Tranche; Tenor (years); Profit rate
-       (%); Eligible categories (checkboxes of the organisation's categories); Provenance (dropdown); Source; Notes.
+       (%); Eligible categories, a dropdown of Not set / Any category / Only these, which with "Only these" shows checkboxes of
+       the organisation's categories; Provenance (dropdown); Source; Notes.
      - The list also offers Retire and Restore.
    - **Project categories.** A `DataList`, a drawer (Name, Code, Provenance), and Retire.
    - **Impact measures.** A `DataList`, a drawer (Name, Unit, Code, Provenance), and Retire.
@@ -393,10 +401,13 @@ The build stops short of:
     - `SUKUK26T1`: nameEn "Sukuk Tranche 1 2026", envelope "100000000.00", tranche "Tranche 1, 2026", tenorYears 5,
       profitRatePct "4.5".
     - `INTERNAL` "Internal", `GRANT` "Grant" and `NA` "Not applicable". No envelope (the document states none).
-    - `eligibleCategoryCodes` stays empty and eligibility is **not loaded**. The document's SUK-LAND and SUK-TANK are project
-      groups in D365's DEV03 test environment, configured for the sukuk demonstration. That is not a statement of RSAJ's
-      eligibility policy. Loading them, even as ASSUMED, would ship a test environment's setting as a production rule, which
-      AGENTS.md forbids. See open question Q1.
+    - **SUKUK26T1's eligibility is not loaded:** `categoriesRestricted` stays null and `eligibleCategoryCodes` stays empty.
+      The document's SUK-LAND and SUK-TANK are project groups in D365's DEV03 test environment, configured for the sukuk
+      demonstration. That is not a statement of RSAJ's eligibility policy. Loading them, even as ASSUMED, would ship a test
+      environment's setting as a production rule, which AGENTS.md forbids. See open question Q1.
+    - **INTERNAL, GRANT and NA:** `categoriesRestricted: false` with `eligibilityProvenance: "ASSUMED"`. SF-02 limits "a
+      sukuk funding source" only, so this is a reading of the document, and the tag says so. Without it, every Internal
+      requisition would carry the "not set" warning for good.
   - **ImpactMeasure**, rows ASSUMED: `storage_added` "Storage added", unit "ML"; `households_served` "Households served", unit
     "households". The source is "SF-04 (the requirement's own examples)". They are labels, not thresholds, and the tag says they
     are a reading.
@@ -404,11 +415,12 @@ The build stops short of:
   - The pack plumbing:
     - `FundingSource` and `ImpactMeasure` are added to `ALLOWED_MODELS` (`src/lib/starter/plan.ts`) and to the `Models` map in
       `prisma/rsaj/starter-pack/shape.ts`;
-    - `rsaj-pack.test.ts` asserts the values, the provenance per row, the citation, and that eligibility is empty;
+    - `rsaj-pack.test.ts` asserts the values, the provenance per row and the citation. It also asserts that SUKUK26T1's
+      eligibility is unset and that the other three are "any category", ASSUMED;
     - the pack's "data only" scan stays green.
 - **Development fill** (`prisma/dev-fill.ts`), all values invented and marked as demo:
-  - FundingSource `demo_fs1` "Demo Sukuk 2026", envelope RM50,000,000, eligible categories `demo_pc1`;
-  - `demo_fs2` "Internal", no envelope;
+  - FundingSource `demo_fs1` "Demo Sukuk 2026", envelope RM50,000,000, restricted to `demo_pc1`;
+  - `demo_fs2` "Internal", no envelope, any category;
   - ProjectCategory `demo_pc1` "Water storage" and `demo_pc2` "Office works";
   - the same two impact measures.
   - `ProjectCategory` is added to `ALLOWED_MODELS` for the fill only. The RSAJ pack test asserts the RSAJ pack writes none.
@@ -443,13 +455,13 @@ off.
   - `paidFigureOf` in `src/lib/payment/finance.ts`, with the two callers switched.
 - **Done when:** every FS-4, FS-7, FS-8, FS-9 and FS-10 rule has a test.
 - **Tests:**
-  - **Eligibility:** all four states.
+  - **Eligibility:** all five states. Unrestricted needs no category.
   - **`percentToBp`:** "33.33" gives 3333; "33.333", "0", "100.01" and "abc" give null.
   - **`splitSen`:** 100.01 at 50/50 gives 50.01 and 50.00 by order; 33.33/33.33/33.34 sums exactly; a single 100%; a negative
     amount; property-style sums over 200 seeded amounts.
   - **`contractFigures`:**
     - an adjustment added to the sum;
-    - TERMINATED counts certified;
+    - TERMINATED counts certified, and a terminated supply contract counts paid;
     - CANCELLED is excluded;
     - a supply route gives a partial certified;
     - a missing adjustment net refuses;
@@ -468,6 +480,7 @@ off.
   - saves are audited with before and after, through `stageEdit`;
   - the code is fixed once saved;
   - an eligible category must be one of the organisation's codes;
+  - "Only these" with no category ticked is refused;
   - retiring a source does not touch the records that name it.
 - **Done when:** the three lists save, retire and restore, and the existing scans pass: `registry-scan`, `config-nav`,
   `history-entities`, `english-only-scan` and `permission-gates`.
@@ -531,6 +544,8 @@ off.
   - its figures match the pure function on a fixture;
   - a hidden case is excluded;
   - the drill-down rows sum to the source row;
+  - the "awaiting award" count is built from the very where of the list it links to (`facetWhere.requisition` plus that list's
+    approved stage), so the count and the list agree by construction (I-6), and `where.test.ts` holds them equal;
   - each facet narrows its list and its export alike.
 - **Tests:**
   - `src/lib/funding/proceeds.db.test.ts` (fixture: two contracts, one split, an adjustment, interim and advance certificates,
