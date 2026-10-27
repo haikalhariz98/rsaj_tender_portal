@@ -1067,6 +1067,7 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
     const fs = adjustmentFaults({ triggers: (type?.sumAdjustmentTriggers ?? []) as AdjustmentTrigger[], lines, ordersAdjusted: ordersAdjusted(rows), ordersIssued: orders.filter((x) => x.o.certificate.status === "ISSUED").map((x) => x.o.id), inProgress: inProg ? `The adjustment${inProg.certificate.number ? ` ${inProg.certificate.number}` : ""}` : null, original: baseline.values.contractSum, prior: issued.map((a) => a.net) });
     if (fs.length) refuse("Not raised:", fs);
     // Each loss-and-expense line's claim, locked after the adjustment's reads (its matter, then the claim): approved, paid once, not above its value.
+    const paysClaim: (string | null)[] = lossOf.map(() => null);
     for (const [i, lossId] of lossOf.entries()) {
       if (!lossId) continue;
       const claim = await lockLossClaim(c.tx, { contractId: c.l.contract.id, organisationId: c.l.org.id }, lossId);
@@ -1074,8 +1075,10 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
       const label = `Loss and expense ${m?.reference ?? `on line ${i + 1}`}`;
       const approved = !!m && matterApproved({ kind: m.kind as ContractMatterKind, reference: m.reference, closed: m.closedAt ? { reason: m.closeReason } : null, seriesSet: true, routes: m.routes, approvedRouteId: m.approvedRouteId });
       const live = claim?.adjustmentLines.find((a) => a.sumAdjustment.certificate.status !== "VOID");
-      const fs = lossLineFaults({ approved, label, adjustedOn: live ? (live.sumAdjustment.certificate.number ?? "in progress") : null, amount: others[i].amount, valued: claim?.valued == null ? null : senFromDecimal(claim.valued) });
+      const onTwoLines = lossOf.indexOf(lossId) !== i;
+      const fs = lossLineFaults({ approved, label, adjustedOn: live ? (live.sumAdjustment.certificate.number ?? "in progress") : null, amount: others[i].amount, valued: claim?.valued == null ? null : senFromDecimal(claim.valued), onTwoLines, direction: others[i].direction });
       if (fs.length) return refuseLoss(fs);
+      paysClaim[i] = label;
     }
     const kind = await formOf(c, "SUM_ADJUSTMENT");
     const { snapshot, figures } = adjustmentSnapshot(c.today, baseline.values.contractSum, issued.map((a) => a.net), lines);
@@ -1089,7 +1092,7 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
     });
     await audit(c, "SumAdjustment", row.id, `${c.label} · adjustment of the contract sum`, "CREATE", diffFields(null, {
       variations: lines.filter((l) => l.section === "VARIATION").map((l) => `${l.reference} (${DIRECTION_WORDS[l.direction].en.toLowerCase()} ${money(l.amount)})`).join("; ") || null,
-      otherAdjustments: lines.filter((l) => l.section === "OTHER").map((l) => `${l.reference}: ${TRIGGER_WORDS[l.trigger].en.toLowerCase()}, ${DIRECTION_WORDS[l.direction].en.toLowerCase()} ${money(l.amount)}`).join("; ") || null,
+      otherAdjustments: others.map((l, i) => `${l.reference}: ${TRIGGER_WORDS[l.trigger].en.toLowerCase()}, ${DIRECTION_WORDS[l.direction].en.toLowerCase()} ${money(l.amount)}${paysClaim[i] ? `, paying ${paysClaim[i]}` : ""}`).join("; ") || null,
       nettAdjustment: money(figures.net13),
       earlierAdjustments: money(figures.prior),
       revisedContractSum: money(figures.revised),

@@ -89,6 +89,8 @@ export type Field =
       /// placeholder says `optionsBy.waiting` (founder, 2026-10-05: choosing a tier should
       /// leave only that tier's head to choose).
       optionsBy?: { name: string; options: Record<string, { value: string; label: string; disabled?: boolean }[]>; waiting: string };
+      /// Other selects of the same form whose chosen value this one does not offer again (one claim paid on one line only).
+      distinctFrom?: readonly string[];
     }
   | { kind: "switch"; name: string; label: string; hint?: string }
   /// A file chosen from the officer's device, on the shared FileInput. It rides out in the
@@ -260,10 +262,13 @@ export function RecordEditor({
     ...fields.flatMap((f) => ((f.kind === "select" || f.kind === "checks") && f.optionsBy ? [f.optionsBy.name] : [])),
     ...fields.flatMap((f) => (f.kind === "select" && f.search?.by ? [f.search.by.name] : [])),
     ...fields.flatMap((f) => (f.kind === "text" && f.suggestBy ? [f.suggestBy.name] : [])),
+    ...fields.flatMap((f) => (f.kind === "select" && f.distinctFrom ? f.distinctFrom : [])),
   ]);
   // A select (or a set of boxes) whose options follow another select: its options for that select's current value.
   const resolved = <F extends Field>(field: F): F =>
-    field.kind === "text" && field.suggestBy
+    field.kind === "select" && field.distinctFrom
+      ? { ...field, options: field.options.filter((o) => !field.distinctFrom!.some((n) => current(n) === o.value)) }
+      : field.kind === "text" && field.suggestBy
       ? { ...field, suggestions: field.suggestBy.options[current(field.suggestBy.name)] ?? [] }
       : field.kind === "select" && field.search?.by
       ? (() => {

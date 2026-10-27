@@ -375,7 +375,7 @@ export function AdjustmentDrawer({ id, orders, triggers, directions, losses, peo
     { kind: "note", text: `Other adjustment ${n} (optional), with its basis.` },
     { kind: "select", name: `other${n}Trigger`, label: "Trigger", placeholder: "None", options: triggers },
     // Phase 2 close-out stage A (FR-EOT-006): a loss-and-expense line names the approved claim it pays.
-    { kind: "select", name: `other${n}LossClaim`, label: "The claim it pays", placeholder: losses.length ? "Choose" : "No approved claim unpaid", options: losses },
+    { kind: "select", name: `other${n}LossClaim`, label: "The claim it pays", placeholder: losses.length ? "Choose" : "No approved claim unpaid", options: losses, distinctFrom: [1, 2, 3].filter((k) => k !== n).map((k) => `other${k}LossClaim`) },
     { kind: "select", name: `other${n}Direction`, label: "Addition or omission", placeholder: "Choose", options: directions },
     { kind: "money", name: `other${n}Amount`, label: "Amount (RM)" },
     { kind: "text", name: `other${n}Reference`, label: "Reference" },

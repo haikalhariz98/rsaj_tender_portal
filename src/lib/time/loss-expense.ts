@@ -38,10 +38,13 @@ export function claimsCommitteeFaults(chainCommittees: readonly string[], claims
 }
 
 /// Phase 2 close-out stage A: the claim is paid once (`adjustedOn`: the live adjustment that already names it), and never above the value
-/// approved (`amount` against `valued`, where both are given).
-export function lossLineFaults(i: { approved: boolean; label: string; adjustedOn?: string | null; amount?: Sen; valued?: Sen | null }): Finding[] {
+/// approved (`amount` against `valued`, where both are given). Review M1: a claim named on two lines of one adjustment is refused (`onTwoLines`),
+/// and a loss-and-expense line is always an addition (an omission would mark the claim paid while paying nothing).
+export function lossLineFaults(i: { approved: boolean; label: string; adjustedOn?: string | null; amount?: Sen; valued?: Sen | null; onTwoLines?: boolean; direction?: "ADDITION" | "OMISSION" }): Finding[] {
   if (!i.approved) return [{ code: "LOSS_NOT_APPROVED", level: "block", data: { claim: i.label } }];
   const out: Finding[] = [];
+  if (i.onTwoLines) out.push({ code: "LOSS_ON_TWO_LINES", level: "block", data: { claim: i.label } });
+  if (i.direction === "OMISSION") out.push({ code: "LOSS_NOT_ADDITION", level: "block", data: { claim: i.label } });
   if (i.adjustedOn) out.push({ code: "LOSS_ALREADY_ADJUSTED", level: "block", data: { claim: i.label, adjustment: i.adjustedOn } });
   if (i.amount != null && i.valued != null && i.amount > i.valued) out.push({ code: "LOSS_ABOVE_APPROVED", level: "block", data: { claim: i.label, valued: senToDecimalString(i.valued) } });
   return out;

@@ -47,5 +47,9 @@ describe("loss and expense", () => {
     expect(codes(lossLineFaults({ approved: true, label: "CM/1", adjustedOn: "ADJ/2" }))).toEqual(["LOSS_ALREADY_ADJUSTED"]);
     expect(codes(lossLineFaults({ approved: true, label: "CM/1", amount: 1_000_001n, valued: 1_000_000n }))).toEqual(["LOSS_ABOVE_APPROVED"]);
     expect(lossLineFaults({ approved: true, label: "CM/1", amount: 1_000_000n, valued: 1_000_000n, adjustedOn: null })).toEqual([]);
+    // Review M1: one claim on two lines of one adjustment, and an omission line, are refused.
+    expect(codes(lossLineFaults({ approved: true, label: "CM/1", onTwoLines: true }))).toEqual(["LOSS_ON_TWO_LINES"]);
+    expect(codes(lossLineFaults({ approved: true, label: "CM/1", direction: "OMISSION" }))).toEqual(["LOSS_NOT_ADDITION"]);
+    expect(lossLineFaults({ approved: true, label: "CM/1", direction: "ADDITION", onTwoLines: false })).toEqual([]);
   });
 });

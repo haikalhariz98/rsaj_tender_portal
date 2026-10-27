@@ -100,6 +100,8 @@ export const TIME_FAULT_WORDS: Readonly<Record<string, (d: Data) => Words>> = {
   CLAIMS_COMMITTEE_NOT_SET: () => w("The contract type names no committee for its loss-and-expense claims, so the route's committee step is not compared."),
   LOSS_NOT_APPROVED: (d) => w(`A loss-and-expense line takes an approved claim; ${s(d.claim, "this claim")} is not approved.`),
   LOSS_ALREADY_ADJUSTED: (d) => w(`${s(d.claim, "This claim")} is already paid on the adjustment ${s(d.adjustment, "in progress")}.`),
+  LOSS_ON_TWO_LINES: (d) => w(`${s(d.claim, "This claim")} is on two lines. A claim is paid on one line.`),
+  LOSS_NOT_ADDITION: (d) => w(`${s(d.claim, "This claim")} is paid as an addition, not an omission.`),
   LOSS_ABOVE_APPROVED: (d) => w(`The line is more than ${s(d.claim, "the claim")}'s approved value (${d.valued ? formatMoney(parseSen(String(d.valued))) : "its value"}).`),
 };
 
