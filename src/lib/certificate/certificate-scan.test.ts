@@ -23,7 +23,8 @@ import { toPosix } from "@/lib/scan/files";
  */
 
 /// A test helper, not product code: it writes the closing, a supplier and the exercise through raw SQL to stand a scenario up, and only the database tests import it (wave 3c step 4).
-const TEST_ONLY_FIXTURE = "online-opening.fixture.ts";
+/// Phase 2 close-out: `contract.fixture.ts` stands up an organisation, an active contract and its baseline for the post-award acts' database tests; only `*.db.test.ts` files import it (lock-order.test.ts holds that).
+const TEST_ONLY_FIXTURES = ["online-opening.fixture.ts", "contract.fixture.ts"];
 const ROOT = path.join(__dirname, "../../..");
 const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8");
 const ACTIONS = "src/app/projects/[id]/certificates/[certId]/actions.ts";
@@ -33,7 +34,7 @@ const REPO = "src/lib/certificate/repo.ts";
 function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = path.join(dir, f);
-    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [toPosix(rel)] : [];
+    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && !TEST_ONLY_FIXTURES.includes(f) ? [toPosix(rel)] : [];
   });
 }
 

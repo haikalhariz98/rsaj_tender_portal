@@ -15,7 +15,8 @@ import { toPosix } from "@/lib/scan/files";
  */
 
 /// A test helper, not product code: it writes the closing, a supplier and the exercise through raw SQL to stand a scenario up, and only the database tests import it (wave 3c step 4).
-const TEST_ONLY_FIXTURE = "online-opening.fixture.ts";
+/// Phase 2 close-out: `contract.fixture.ts` stands up an organisation, an active contract and its baseline for the post-award acts' database tests; only `*.db.test.ts` files import it (lock-order.test.ts holds that).
+const TEST_ONLY_FIXTURES = ["online-opening.fixture.ts", "contract.fixture.ts"];
 const ROOT = path.join(__dirname, "../../..");
 const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8");
 const ACTIONS = "src/app/projects/[id]/actions.ts";
@@ -38,9 +39,18 @@ function actions(src: string): Map<string, string> {
 function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = path.join(dir, f);
-    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== TEST_ONLY_FIXTURE ? [toPosix(rel)] : [];
+    return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && !TEST_ONLY_FIXTURES.includes(f) ? [toPosix(rel)] : [];
   });
 }
+
+describe("the test-only fixtures the scans leave out", () => {
+  it("are imported only by database tests, so no product code writes through them", () => {
+    const all = (dir: string): string[] => readdirSync(path.join(ROOT, dir)).flatMap((f) => (statSync(path.join(ROOT, dir, f)).isDirectory() ? all(path.join(dir, f)) : /\.tsx?$/.test(f) ? [toPosix(path.join(dir, f))] : []));
+    const importers = [...all("src"), ...all("prisma"), ...all("scripts")].filter((f) => TEST_ONLY_FIXTURES.some((x) => read(f).includes(`/${x.replace(/\.ts$/, "")}"`)));
+    expect(importers.length).toBeGreaterThan(0);
+    expect(importers.filter((f) => !f.endsWith(".db.test.ts"))).toEqual([]);
+  });
+});
 
 describe("one lock order (withLockedContract)", () => {
   it("withLockedAward takes the requisition, the exercise and the award, in that order", () => {

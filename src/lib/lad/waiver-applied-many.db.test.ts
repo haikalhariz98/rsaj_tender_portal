@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
 import { randomId } from "@/lib/test-db/auth-fixtures";
-import { activeContract, contractOrg, D, ladDecision, today, type TestOrg } from "@/lib/test-db/contract-fixtures";
+import { activeContract, contractOrg, D, ladDecision, today, type TestOrg } from "@/lib/test-db/contract.fixture";
 
 /**
  * Close-out stage A review M3 (migration 20261209000000_lad_waiver_applied_many): one interim certificate applies every approved waiver it reaches,

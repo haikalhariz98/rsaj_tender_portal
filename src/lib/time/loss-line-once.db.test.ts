@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 import { randomId } from "@/lib/test-db/auth-fixtures";
-import { activeContract, contractOrg, form, type TestOrg } from "@/lib/test-db/contract-fixtures";
+import { activeContract, contractOrg, form, type TestOrg } from "@/lib/test-db/contract.fixture";
 
 /**
  * Close-out stage A review M1: one approved loss-and-expense claim named on two lines of one adjustment of the contract sum would be paid twice
