@@ -8,9 +8,9 @@ import { toSecond } from "@/lib/bids/lateness";
 import { cpcLineFaults, cpcRaiseFaults, dlpOf } from "@/lib/closeout/completion";
 import { defectActFaults, defectState, reportDefectFaults, type DefectAct } from "@/lib/closeout/defects";
 import { closeoutRefusal, SECURITY_FORM_WORDS, SECURITY_KIND_WORDS } from "@/lib/closeout/labels";
-import { defectFactsOf, dlpOfRow, liveLadWindows, loadCloseout, openLineCount, releaseEventsOf } from "@/lib/closeout/load";
+import { cmgdIssuedOn, defectFactsOf, dlpOfRow, liveLadWindows, loadCloseout, openLineCount, releaseEventsOf } from "@/lib/closeout/load";
 import { cmgdRaiseFaults, cmgdSnapshotOf } from "@/lib/closeout/making-good";
-import { returnTriggerOf, securityReturnFaults, type SecurityReturnInput } from "@/lib/closeout/release";
+import { beforeCertificateFault, returnTriggerOf, securityReturnFaults, type SecurityReturnInput } from "@/lib/closeout/release";
 import { scheduleRaiseFaults } from "@/lib/closeout/schedule";
 import { advanceRecoupedOf, retentionOf } from "@/lib/closeout/view";
 import type { Finding } from "@/lib/closeout/types";
@@ -376,6 +376,9 @@ export async function returnSecurity(_prev: FormState, data: FormData): Promise<
     const fs = securityReturnFaults(input);
     if (fs.length) refuse("Not returned:", fs);
     const trigger = returnTriggerOf(input)!;
+    // F4: a return the CMGD authorises is not dated before the CMGD's issue.
+    const early = trigger === "MAKING_GOOD" ? beforeCertificateFault(storedDay(returnedOn), cmgdIssuedOn(rows)) : null;
+    if (early) refuse("Not returned:", [early]);
     // Ruling 16: no route of its own; the certificate that authorised it is named (the CMGD at MAKING_GOOD; the final certificate arrives with stage C).
     const certificateId = trigger === "MAKING_GOOD" && rows.cmgd?.certificate.status === "ISSUED" ? rows.cmgd.certificate.id : null;
     const who = await recordedFor(c, act, { principalOrSo: true }, storedDay(returnedOn));

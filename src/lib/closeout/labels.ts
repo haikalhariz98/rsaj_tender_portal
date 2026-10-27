@@ -36,6 +36,7 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   RETURN_NOTE_REQUIRED: () => "Say why it is not made good.",
   WITHDRAW_REASON_REQUIRED: () => "Say why it is withdrawn.",
   DAY_IN_FUTURE: (d) => `${day(d.day)} is after today.`,
+  BEFORE_CERTIFICATE: (d) => `It is before the certificate of making good defects was issued (${day(d.day)}).`,
   CPC_NOT_ISSUED: () => "The practical completion certificate is not issued yet.",
   DLP_NOT_APPLICABLE: () => "No defects liability period applies to this contract.",
   SCHEDULE_ISSUED: () => "The Schedule of Defects is issued. No more defects are added.",

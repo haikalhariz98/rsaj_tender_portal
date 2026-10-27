@@ -78,3 +78,6 @@ export function securityReturnFaults(i: SecurityReturnInput): Finding[] {
   if ((i.form === "CASH" || i.form === "BANKERS_DRAFT") && !i.officialReceiptRef.trim()) f("OFFICIAL_RECEIPT_REQUIRED");
   return out;
 }
+
+/// Code review of close-out stage B, F4: a release or a return the CMGD authorises is not dated before the CMGD's issue day (null: not judged).
+export const beforeCertificateFault = (on: string, issuedOn: string | null): Finding | null => (issuedOn && on < issuedOn ? { code: "BEFORE_CERTIFICATE", level: "block", data: { day: issuedOn } } : null);

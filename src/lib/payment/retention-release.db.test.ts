@@ -82,6 +82,10 @@ describe("releasing retention through the act", () => {
     expect(early.ok).toBe(false);
     expect(early.message).toMatch(/Certificate of Making Good Defects/);
     await madeGood(k);
+    // F4: not dated before the CMGD's issue (five days ago).
+    const before = await release(k, "RELEASED_BALANCE", dayPlus(today(), -6));
+    expect(before.ok).toBe(false);
+    expect(before.message).toMatch(/before the certificate of making good defects was issued/);
     expect((await release(k, "RELEASED_BALANCE")).ok).toBe(true);
     const twice = await release(k, "RELEASED_BALANCE");
     expect(twice.ok).toBe(false);

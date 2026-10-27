@@ -179,7 +179,9 @@ export function paymentFaultWords(f: Finding): Words {
       return en("The final defects inspection is not recorded on the Certificate of Making Good Defects.");
     case "BALANCE_WITH_FINAL_PAYMENT":
       return en("The balance is released with the final certificate's payment.");
-    // Code review of close-out stage B, rulings 1a and 1c.
+    // Code review of close-out stage B, F4, rulings 1a and 1c.
+    case "BEFORE_CERTIFICATE":
+      return en(`It is before the certificate of making good defects was issued (${day(d.day)}).`);
     case "INTERIM_IN_PROGRESS":
       return en(`Finish first: ${d.items ?? "an interim in progress"}. Issue or void the certificate, or withdraw the valuation under Payments.`);
     case "BALANCE_BELOW_RELEASED":

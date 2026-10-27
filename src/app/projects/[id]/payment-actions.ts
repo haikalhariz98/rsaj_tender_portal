@@ -26,7 +26,8 @@ import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/mo
 import { applicationFaults, pendingAdvanceFaults } from "@/lib/payment/advance";
 import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentFaultText, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
-import { loadCloseout, releaseEventsOf } from "@/lib/closeout/load";
+import { cmgdIssuedOn, loadCloseout, releaseEventsOf } from "@/lib/closeout/load";
+import { beforeCertificateFault } from "@/lib/closeout/release";
 import { manualCloseout } from "@/lib/integration/closeout";
 import { assembleInputOf, baselineOn, damagesOf, waiversToApplyOf, claimFactsOf, inProgress, inProgressSequenceOf, interimsInProgressOf, issuedInterims, lastReleaseOnOf, kindSettingOf, liveDecisionsOf, loadPayment, nextInterimSequence, pendingAdvancesOf, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
@@ -523,7 +524,11 @@ export async function releaseRetention(_prev: FormState, data: FormData): Promis
     const pct = firstReleaseShare(policy?.firstReleasePct);
     const handover = p.siteRecordsHandovers.at(-1) ?? null;
     // Phase 2 close-out stage B (plan §4.5, flagged): the balance at the event `retentionBalanceReleaseAt` names, read with the CMGD and its final inspection.
-    const balanceEvent = releaseEventsOf(await loadCloseout(c.l.contract.id, c.tx), policy).retention;
+    const closeout = await loadCloseout(c.l.contract.id, c.tx);
+    const balanceEvent = releaseEventsOf(closeout, policy).retention;
+    // F4: the balance at the CMGD is not dated before the CMGD's issue.
+    const early = release === "RELEASED_BALANCE" ? beforeCertificateFault(storedDay(releasedOn), cmgdIssuedOn(closeout)) : null;
+    if (early) refuse("Not released:", [early]);
     const rel = releaseOf({ kind: release, held: held!.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: !!handover, balanceEvent, firstReleased: rs.firstReleased, inProgress: interimsInProgressOf(p) });
     if (rel.faults.length) refuse("Not released:", rel.faults);
     const who = await recordedFor(c, act, { principalOrSo: true }, storedDay(releasedOn));

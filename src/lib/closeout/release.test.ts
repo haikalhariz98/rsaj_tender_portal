@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { balanceEventOf, balanceReleaseFaults, returnTriggerOf, securityReturnFaults, type SecurityReturnInput } from "./release";
+import { balanceEventOf, balanceReleaseFaults, beforeCertificateFault, returnTriggerOf, securityReturnFaults, type SecurityReturnInput } from "./release";
 
 /** Plan closeout-plan.md CO-6, CO-7, §4.5, §6.3; ADR 0047 D3; rulings 7, 11, 14. */
 
@@ -48,5 +48,14 @@ describe("securityReturnFaults (CO-7)", () => {
     expect(securityReturnFaults({ ...ok, kind: "ADVANCE_PAYMENT_GUARANTEE", advanceRecouped: true })).toEqual([]);
     expect(returnTriggerOf({ ...ok, kind: "ADVANCE_PAYMENT_GUARANTEE" })).toBe("ADVANCE_RECOUPED");
     expect(returnTriggerOf(ok)).toBe("MAKING_GOOD");
+  });
+});
+
+// Code review of close-out stage B, F4.
+describe("beforeCertificateFault", () => {
+  it("refuses a day before the CMGD's issue, allows its issue day and after, and judges nothing with no issue day", () => {
+    expect(beforeCertificateFault("2026-10-01", "2026-10-02")?.code).toBe("BEFORE_CERTIFICATE");
+    expect(beforeCertificateFault("2026-10-02", "2026-10-02")).toBeNull();
+    expect(beforeCertificateFault("2026-10-01", null)).toBeNull();
   });
 });

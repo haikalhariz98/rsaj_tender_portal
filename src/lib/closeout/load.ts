@@ -15,7 +15,7 @@ import { defectState, isOpenLine } from "./defects";
 import { balanceEventOf } from "./release";
 import type { BalanceEvent, DefectFact, Dlp, ReleaseEvent } from "./types";
 
-const certSelect = { id: true, status: true, number: true, kind: true } as const;
+const certSelect = { id: true, status: true, number: true, kind: true, issueSnapshot: true } as const;
 
 export async function loadCloseout(contractId: string, client: Tx = db) {
   const [completions, schedules, makingGoods, lines] = await Promise.all([
@@ -67,6 +67,9 @@ export function releaseEventsOf(rows: CloseoutRows, policy: { retentionBalanceRe
   const facts = { dlpApplies: cpcIssued ? !!rows.cpc!.dlpStart : true, cmgdIssued: rows.cmgd?.certificate.status === "ISSUED", finalInspectionRecorded: !!rows.cmgd?.finalInspectionOn, finalPaid: false };
   return { retention: balanceEventOf((policy?.retentionBalanceReleaseAt ?? null) as ReleaseEvent | null, facts), performance: balanceEventOf((policy?.performanceBondReleaseAt ?? null) as ReleaseEvent | null, facts) };
 }
+
+/// The issued CMGD's issue day (null: not issued), which a release or return it authorises is not dated before (F4).
+export const cmgdIssuedOn = (rows: CloseoutRows): string | null => (rows.cmgd?.certificate.status === "ISSUED" ? ((rows.cmgd.certificate.issueSnapshot as { issuedOn?: string } | null)?.issuedOn ?? null) : null);
 
 /// The issued schedule's day to make good by, for the overdue reading.
 export const scheduleRectifyBy = (rows: CloseoutRows): string | null => (rows.schedule?.certificate.status === "ISSUED" ? day(rows.schedule.rectifyBy) : null);
