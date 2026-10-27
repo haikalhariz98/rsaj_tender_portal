@@ -59,7 +59,7 @@ export default async function RequisitionsPage(props: PageProps<"/requisitions">
         label="Where requisitions stand"
         className="mb-6"
         items={[
-          { label: "Open", count: counts.open, href: view(null), active: !q.view },
+          { label: "All", count: counts.all, href: view(null), active: !q.view },
           { label: "Pending approval", count: counts.pending, href: view("pending"), tone: "info", active: q.view === "pending" },
           { label: "Drafts", count: counts.drafts, href: view("drafts"), active: q.view === "drafts" },
           { label: "Over budget", count: counts.overBudget, href: view("over"), tone: "warn", active: q.view === "over" },

@@ -239,7 +239,7 @@ export const requisitionListWhere = (organisationId: string, q: Pick<ListQuery<R
 /// `total` is the count under the same where. With `{ all: true }` (the export): no skip, and `LIST_EXPORT_MAX_ROWS + 1` rows, to tell "over".
 export async function listRequisitions(organisationId: string, q: ListQuery<RequisitionView>, opts: { all?: boolean } = {}) {
   const org = await requisitionOrg(organisationId);
-  if (!org) return { org: null, rows: [], total: 0, page: 0, counts: { open: 0, pending: 0, overBudget: 0, flagged: 0, drafts: 0 } };
+  if (!org) return { org: null, rows: [], total: 0, page: 0, counts: { all: 0, pending: 0, overBudget: 0, flagged: 0, drafts: 0 } };
   const where = requisitionListWhere(org.id, q);
   const total = await db.requisition.count({ where });
   const page = opts.all ? 0 : Math.min(q.page, Math.max(0, Math.ceil(total / q.size) - 1));
@@ -262,21 +262,16 @@ export async function listRequisitions(organisationId: string, q: ListQuery<Requ
     db.fundingRoute.findMany({ where: orgWhere, select: { code: true, nameEn: true } }),
     db.orgUnit.findMany({ where: orgWhere, select: { code: true, nameEn: true, effectiveFrom: true }, orderBy: { effectiveFrom: "desc" } }),
   ]);
-  const [open, pending, overBudget, flagged, drafts] = await Promise.all([
-    db.requisition.count({ where: chip({ status: { notIn: ["CANCELLED", "CLOSED", "APPROVED", "SOURCING", "PARTIALLY_FULFILLED", "FULFILLED"] } }) }),
-    db.requisition.count({ where: chip({ status: "PENDING_APPROVAL" }) }),
-    // Open, and over budget on its latest check — whether or not it has gone on to the
-    // over-budget approvers.
-    db.requisition
-      .findMany({
-        where: chip({ status: { in: ["REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET", "PENDING_APPROVAL"] } }),
-        select: { budgetChecks: { orderBy: { checkedAt: "desc" }, take: 1, select: { verdict: true } } },
-      })
-      .then((xs) => xs.filter((x) => x.budgetChecks[0]?.verdict === "EXCEEDS").length),
+  // Each chip counts exactly its view's status set (I-6; Phase 0.3 item 11): "All" is the list with no view.
+  const viewCount = (v: RequisitionView) => db.requisition.count({ where: chip({ status: { in: [...VIEW_STATUSES[v]] } }) });
+  const [all, pending, overBudget, flagged, drafts] = await Promise.all([
+    db.requisition.count({ where: chip({}) }),
+    viewCount("pending"),
+    viewCount("over"),
     db.requisition.count({
       where: chip({ status: { notIn: ["CANCELLED", "CLOSED"] }, splitChecks: { some: { state: "FLAGGED", overrideJustification: null } } }),
     }),
-    db.requisition.count({ where: chip({ status: { in: [...VIEW_STATUSES.drafts] } }) }),
+    viewCount("drafts"),
   ]);
   const unitName = new Map<string, string>();
   for (const u of units) if (!unitName.has(u.code)) unitName.set(u.code, u.nameEn);
@@ -294,7 +289,7 @@ export async function listRequisitions(organisationId: string, q: ListQuery<Requ
     })),
     total,
     page,
-    counts: { open, pending, overBudget, flagged, drafts },
+    counts: { all, pending, overBudget, flagged, drafts },
   };
 }
 
