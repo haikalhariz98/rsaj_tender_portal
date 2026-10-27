@@ -119,6 +119,23 @@ describe("band sets (FR-EVL-010, 011, 012)", () => {
     expect(label(placeInBands(parseFixed("80"), cpr))).toBe("Terbaik");
     expect(label(placeInBands(parseFixed("39.99"), cpr))).toBe("Gagal");
   });
+  // Phase 0.3 item 14: a set that rounds before banding is judged on its rounded grid. RSAJ's CPR reads "up to 79" and "80 and above": whole-number
+  // rounding banks every value (79.4 is 79, 79.5 is 80), so it warns of no gap; unrounded, or to one place, 79.1 to 79.9 is a gap.
+  it("a gap closed by the set's rounding is no gap; one the rounding leaves open still warns", () => {
+    const set = (lowerInclusive: boolean, upperInclusive: boolean) => bandsOf({ code: "C", nameEn: "CPR", provenance: "STATED", governingSource: "", bands: [band({ labelEn: "Baik", outcome: "PASS", sortOrder: 1, lower: "40", upper: "79", upperInclusive }), band({ labelEn: "Terbaik", outcome: "PASS", sortOrder: 2, lower: "80", lowerInclusive })] });
+    const gaps = (roundPlaces: number | null, lo = true, hi = true) => bandSetFaults({ code: "C", nameEn: "CPR", bands: set(lo, hi), roundPlaces }).map((f) => f.code);
+    expect(gaps(null)).toEqual(["BANDS_GAP"]);
+    expect(gaps(0)).toEqual([]);
+    expect(gaps(1)).toEqual(["BANDS_GAP"]);
+    // An edge either side that does not hold its point leaves that whole number unbanded.
+    expect(gaps(0, false, true)).toEqual(["BANDS_GAP"]);
+    expect(gaps(0, true, false)).toEqual(["BANDS_GAP"]);
+    // Up to 79.5, then 80, with one place: 79.6 to 79.9 are held by neither, so it warns; up to 79, then 79.1, with one place, touches.
+    const tight = (upper: string, lower: string, roundPlaces: number) => bandSetFaults({ code: "C", nameEn: "CPR", bands: bandsOf({ code: "C", nameEn: "CPR", provenance: "STATED", governingSource: "", bands: [band({ labelEn: "A", outcome: "PASS", sortOrder: 1, upper, upperInclusive: true }), band({ labelEn: "B", outcome: "PASS", sortOrder: 2, lower, lowerInclusive: true })] }), roundPlaces }).map((f) => f.code);
+    expect(tight("79", "79.1", 1)).toEqual([]);
+    expect(tight("79.5", "80", 1)).toEqual(["BANDS_GAP"]);
+    expect(tight("-1", "0", 0)).toEqual([]);
+  });
   it("an empty set, or reversed edges, refuse", () => {
     expect(bandSetFaults({ code: "X", nameEn: "X", bands: [] }).map((f) => f.code)).toEqual(["BANDS_EMPTY"]);
     expect(bandSetFaults({ code: "X", nameEn: "X", bands: bandsOf({ code: "X", nameEn: "X", provenance: "ASSUMED", governingSource: "", bands: [band({ labelEn: "R", outcome: "NONE", sortOrder: 1, lower: "5", upper: "1" })] }) }).map((f) => f.code)).toEqual(["BAND_EDGES_REVERSED"]);

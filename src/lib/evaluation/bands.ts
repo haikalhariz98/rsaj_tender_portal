@@ -7,7 +7,7 @@
  * warns. Pure.
  */
 
-import { compareFixed, type Fixed } from "./fixed";
+import { compareFixed, FIXED_PLACES, type Fixed } from "./fixed";
 import type { BandOutcome, Finding } from "./types";
 
 export interface Band {
@@ -77,12 +77,20 @@ function endsBefore(a: Interval, b: Interval): boolean {
   return c < 0 || (c === 0 && !(a.hiIn && b.loIn));
 }
 
+/// Phase 0.3 item 14: the first point after `hi` a value can take once rounded to `places` (a value is banded as rounded, `bandedValue`).
+function firstGridPointAfter(hi: Fixed, held: boolean, places: number): Fixed {
+  const step = 10n ** BigInt(Math.max(0, FIXED_PLACES - places));
+  const floor = hi >= 0n ? (hi / step) * step : -(((-hi + step - 1n) / step) * step);
+  return held || floor !== hi ? floor + step : floor;
+}
+
 /**
  * Overlaps refuse the model's issue; a gap warns (OD-5 A). Judged on the numeric edges only: a band
  * with a floor edge moves with the factor chosen per bidder, so it is placed at judging time and left
- * out here. Ordered by their lower edges.
+ * out here. Ordered by their lower edges. Where the set rounds before banding (`roundPlaces`), a gap is
+ * judged on the rounded grid: 79 to 80 with whole-number rounding holds every value (Phase 0.3 item 14).
  */
-export function bandSetFaults(set: { code: string; nameEn: string; bands: readonly Band[] }): Finding<BandSetFault>[] {
+export function bandSetFaults(set: { code: string; nameEn: string; bands: readonly Band[]; roundPlaces?: number | null }): Finding<BandSetFault>[] {
   const out: Finding<BandSetFault>[] = [];
   if (set.bands.length === 0) return [{ code: "BANDS_EMPTY", level: "block", data: { set: set.nameEn } }];
   for (const b of set.bands) {
@@ -101,9 +109,12 @@ export function bandSetFaults(set: { code: string; nameEn: string; bands: readon
     const a = iv[i];
     const b = iv[i + 1];
     if (a.hi == null || b.lo == null) continue;
-    const c = compareFixed(a.hi, b.lo);
-    // Touching at one point, held by at least one side, is no gap.
-    if (c < 0 || (c === 0 && !a.hiIn && !b.loIn)) out.push({ code: "BANDS_GAP", level: "warn", data: { set: set.nameEn, band: a.label, other: b.label } });
+    // On the rounded grid, the first value after a's top edge; else a's top edge itself, as the interval reads.
+    const rounded = set.roundPlaces != null && set.roundPlaces >= 0 && set.roundPlaces <= FIXED_PLACES;
+    const from = rounded ? firstGridPointAfter(a.hi, a.hiIn, set.roundPlaces!) : a.hi;
+    const c = compareFixed(from, b.lo);
+    // Touching at one point, held by at least one side, is no gap. On the grid, `from` is a value a does not hold.
+    if (rounded ? c < 0 || (c === 0 && !b.loIn) : c < 0 || (c === 0 && !a.hiIn && !b.loIn)) out.push({ code: "BANDS_GAP", level: "warn", data: { set: set.nameEn, band: a.label, other: b.label } });
   }
   return out;
 }

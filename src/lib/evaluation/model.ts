@@ -297,7 +297,7 @@ export function modelFaults(m: ModelContent, aspects: readonly AspectConfig[]): 
   if (m.route === "TRADITIONAL" && aspectStages > 0) for (const k of REQUIRED_ASPECT_KINDS) if (!required.some((a) => a.kind === k)) add("ASPECT_KIND_MISSING", { kind: k });
   for (const set of m.bandSets) {
     if (!floorSets.has(set.code) && set.bands.some((b) => b.lowerIsFloor || b.upperIsFloor)) add("FLOOR_EDGE_MISUSED", { set: set.nameEn });
-    out.push(...bandSetFaults({ code: set.code, nameEn: set.nameEn, bands: bandsOf(set) }));
+    out.push(...bandSetFaults({ code: set.code, nameEn: set.nameEn, bands: bandsOf(set), roundPlaces: set.roundPlaces }));
   }
   return out;
 }
