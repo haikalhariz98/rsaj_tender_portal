@@ -11,7 +11,7 @@ import type { Prisma, RequisitionStatus } from "@/generated/prisma/client";
 import { LIST_EXPORT_MAX_ROWS, listOrderBy, type ListQuery } from "@/lib/list-query";
 import { wordsWhere } from "@/lib/search/words";
 import { REQUISITION_PIPELINE } from "@/lib/dashboard/pipeline";
-import { facetWhere, insightsWhere, requisitionApprovedAny } from "@/lib/insights/where";
+import { facetWhere, insightsWhere, requisitionApprovedAny, requisitionAwaitingAward } from "@/lib/insights/where";
 import type { BudgetCode as PureBudgetCode } from "@/lib/budget/codes";
 import { decisionRecord, type DecisionRecord } from "@/lib/committee/record";
 import { isRegisterSnapshot } from "@/lib/committee/assess-sitting";
@@ -63,7 +63,7 @@ export async function loadControls(organisationId: string, client: Tx = db) {
 /// The lists a requisition's fields are looked up against, and the code formats.
 export async function loadLookups(organisationId: string, client: Tx = db) {
   const where = { organisationId };
-  const [units, costCentres, accountCodes, sites, budgetCodes, people, fundingRoutes, formats, contractTypes] = await inOrder(
+  const [units, costCentres, accountCodes, sites, budgetCodes, people, fundingRoutes, formats, contractTypes, fundingSources, projectCategories] = await inOrder(
     () => client.orgUnit.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
     () => client.costCentre.findMany({ where, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
     () => client.accountCode.findMany({ where, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
@@ -72,7 +72,9 @@ export async function loadLookups(organisationId: string, client: Tx = db) {
     () => client.person.findMany({ where, orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true, jobTitle: true, orgUnitCode: true } }),
     () => client.fundingRoute.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
     () => client.codeFormat.findMany({ where }),
-    () => client.contractType.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }));
+    () => client.contractType.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
+    () => client.fundingSource.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, categoriesRestricted: true, eligibleCategoryCodes: true, retiredOn: true } }),
+    () => client.projectCategory.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true, retiredOn: true } }));
   const lookups: LoadedLookups = {
     units: units.map((u) => ({ ...u, kind: u.kind as OrgUnitKind, provenance: u.provenance as Provenance })),
     costCentres,
@@ -82,6 +84,8 @@ export async function loadLookups(organisationId: string, client: Tx = db) {
     people,
     fundingRoutes: fundingRoutes.map((r) => ({ ...r, provenance: r.provenance as Provenance })),
     contractTypes,
+    fundingSources,
+    projectCategories,
   };
   return {
     lookups,
@@ -93,7 +97,9 @@ export async function loadLookups(organisationId: string, client: Tx = db) {
   };
 }
 
-export type LoadedLookups = Omit<Lookups, "units" | "budgetCodes" | "people" | "fundingRoutes"> & {
+export type LoadedLookups = Omit<Lookups, "units" | "budgetCodes" | "people" | "fundingRoutes" | "fundingSources" | "projectCategories"> & {
+  fundingSources: { id: string; nameEn: string; categoriesRestricted: boolean | null; eligibleCategoryCodes: string[]; retiredOn: Date | null }[];
+  projectCategories: { code: string; nameEn: string; retiredOn: Date | null }[];
   units: (OrgUnit & { id: string })[];
   budgetCodes: (PureBudgetCode & { code: string })[];
   people: { id: string; name: string; isActive: boolean; jobTitle: string | null; orgUnitCode: string | null }[];
@@ -225,13 +231,14 @@ export type RequisitionView = (typeof REQUISITION_VIEWS)[number];
 const VIEW_STATUSES: Record<RequisitionView, readonly RequisitionStatus[]> = { pending: ["PENDING_APPROVAL"], drafts: ["DRAFT", "RETURNED", "RECALLED"], over: ["OVER_BUDGET"], pipeline: REQUISITION_PIPELINE };
 
 /// I-6: the dashboard's facets, from its own where-builders. A day range is "raised in the range"; stage "approved" narrows it to those whose route was approved.
-function facetsWhere(organisationId: string, q: Pick<ListQuery<RequisitionView>, "unit" | "route" | "method" | "stage" | "from" | "to">): Prisma.RequisitionWhereInput {
-  if (q.from && q.to) return (q.stage === "approved" ? insightsWhere.requisitionsApproved : insightsWhere.requisitionsRaised)(organisationId, q, { from: q.from, to: q.to });
-  return { ...facetWhere.requisition(q), ...(q.stage === "approved" ? requisitionApprovedAny : {}) };
+function facetsWhere(organisationId: string, q: Pick<ListQuery<RequisitionView>, "unit" | "route" | "method" | "source" | "stage" | "from" | "to">): Prisma.RequisitionWhereInput {
+  const awaiting = q.stage === "awaiting" ? requisitionAwaitingAward : {};
+  if (q.from && q.to) return { ...(q.stage === "approved" ? insightsWhere.requisitionsApproved : insightsWhere.requisitionsRaised)(organisationId, q, { from: q.from, to: q.to }), ...awaiting };
+  return { ...facetWhere.requisition(q), ...(q.stage === "approved" ? requisitionApprovedAny : {}), ...awaiting };
 }
 
 /// The list's where for a query: the organisation, the search words, the view's status set and the dashboard's facets, all ANDed.
-export const requisitionListWhere = (organisationId: string, q: Pick<ListQuery<RequisitionView>, "words" | "view" | "unit" | "route" | "method" | "stage" | "from" | "to">): Prisma.RequisitionWhereInput => ({
+export const requisitionListWhere = (organisationId: string, q: Pick<ListQuery<RequisitionView>, "words" | "view" | "unit" | "route" | "method" | "source" | "stage" | "from" | "to">): Prisma.RequisitionWhereInput => ({
   AND: [{ organisationId }, wordsWhere("requisition", q.words), q.view ? { status: { in: [...VIEW_STATUSES[q.view]] } } : {}, facetsWhere(organisationId, q)],
 });
 
@@ -343,6 +350,8 @@ export function draftOf(req: RequisitionRow): RequisitionDraft {
     estimatedValue: req.estimatedValue.toString(),
     fundingRouteCode: req.fundingRouteCode,
     contractTypeCode: req.contractTypeCode,
+    fundingSourceId: req.fundingSourceId,
+    projectCategoryCode: req.projectCategoryCode,
     lines: req.lines.map((x) => ({
       description: x.description,
       quantity: x.quantity?.toString() ?? null,
@@ -371,6 +380,8 @@ export async function formOptions(organisationId: string, on: Date) {
     sites: sites.filter(inForce).map((x) => ({ code: x.code, name: x.nameEn })),
     fundingRoutes: lookups.fundingRoutes.filter((r) => r.retiredOn == null || r.retiredOn > on).map((r) => ({ code: r.code, name: r.nameEn })),
     contractTypes: contractTypes.filter((c) => c.retiredOn == null || c.retiredOn > on).map((c) => ({ code: c.code, name: c.nameEn })),
+    fundingSources: lookups.fundingSources.filter((s) => s.retiredOn == null || s.retiredOn > on).map((s) => ({ id: s.id, name: s.nameEn, unset: s.categoriesRestricted == null })),
+    projectCategories: lookups.projectCategories.filter((c) => c.retiredOn == null || c.retiredOn > on).map((c) => ({ code: c.code, name: c.nameEn })),
   };
 }
 

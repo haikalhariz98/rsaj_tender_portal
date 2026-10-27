@@ -112,6 +112,7 @@ import {
   Blocked,
   CancelDrawer,
   ChangeFundingDrawer,
+  ChangeFundingSourceDrawer,
   CheckBudgetDrawer,
   CheckGatesDrawer,
   CiteCommitteeDrawer,
@@ -210,6 +211,16 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     code ? `${code} · ${xs.find((x) => x.code === code)?.nameEn ?? "no longer configured"}` : null;
   const personName = (pid: string | null) => (pid ? (lookups.people.find((p) => p.id === pid)?.name ?? "Not on record") : null);
   const route = lookups.fundingRoutes.find((x) => x.code === r.fundingRouteCode) ?? null;
+  // ADR 0046 FS-6: once a live contract stands under the requisition, its source no longer moves here.
+  const liveContracts = await db.contract.count({ where: { organisationId: l.org.id, status: { not: "CANCELLED" }, award: { exercise: { requisitionId: r.id } } } });
+  const inUse = <T extends { retiredOn: Date | null }>(x: T) => x.retiredOn == null || x.retiredOn > on;
+  const funding = {
+    source: r.fundingSourceId ? (lookups.fundingSources.find((s) => s.id === r.fundingSourceId)?.nameEn ?? "A source no longer configured") : null,
+    category: r.projectCategoryCode ? (lookups.projectCategories.find((c) => c.code === r.projectCategoryCode)?.nameEn ?? "A category no longer configured") : null,
+    sources: lookups.fundingSources.filter(inUse).map((s) => ({ value: s.id, label: s.nameEn })),
+    categories: lookups.projectCategories.filter(inUse).map((c) => ({ value: c.code, label: c.nameEn })),
+    sourceLocked: liveContracts > 0,
+  };
   const people = lookups.people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name }));
 
   // The pure checks the buttons are disabled on.
@@ -703,6 +714,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                   }
                   routes={lookups.fundingRoutes.filter((x) => x.retiredOn == null || x.retiredOn > on).map((x) => ({ value: x.code, label: x.nameEn }))}
                   routeNameOf={(code) => lookups.fundingRoutes.find((x) => x.code === code)?.nameEn ?? null}
+                  funding={funding}
                 />
               </div>
             ),
@@ -822,6 +834,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                   if (field === "requestingPersonId" || field === "returnedToPersonId") return personName(value) ?? "Not on record";
                   if (field === "requestingUnitCode" || field === "sectionUnitCode") return unitName(value) ?? "—";
                   if (field === "fundingRouteCode") return lookups.fundingRoutes.find((x) => x.code === value)?.nameEn ?? "A route no longer configured";
+                  if (field === "fundingSourceId") return lookups.fundingSources.find((x) => x.id === value)?.nameEn ?? "A source no longer configured";
+                  if (field === "projectCategoryCode") return lookups.projectCategories.find((x) => x.code === value)?.nameEn ?? "A category no longer configured";
                   if (field === "budgetCodeId") {
                     const b = lookups.budgetCodes.find((x) => x.id === value);
                     return b ? `${b.code} · ${b.descriptionEn}` : "A budget code no longer on file";
@@ -1717,12 +1731,14 @@ function ChecksPanel({
   route,
   routes,
   routeNameOf,
+  funding,
 }: {
   l: LoadedRequisition;
   gate: { faults: string[]; posture: string | null; sourcingPermitted: boolean | null; supersedesAuthority: boolean | null };
   route: { name: string; requires: boolean | undefined; label: string | null | undefined; commitsBudget: boolean | null } | null;
   routes: { value: string; label: string }[];
   routeNameOf: (code: string) => string | null;
+  funding: { source: string | null; category: string | null; sources: { value: string; label: string }[]; categories: { value: string; label: string }[]; sourceLocked: boolean };
 }) {
   const r = l.req;
   const inst = r.approvalInstances[0] ?? null;
@@ -1747,6 +1763,8 @@ function ChecksPanel({
             columns={2}
             items={[
               { label: "Funding route", value: r.fundingRouteCode ? (routeNameOf(r.fundingRouteCode) ?? "A route no longer configured") : <Badge tone="warn">Not set</Badge> },
+              { label: "Funding source", value: funding.source ?? <span className="text-ink-3">Not set</span> },
+              ...(funding.categories.length > 0 || funding.category ? [{ label: "Project category", value: funding.category ?? <span className="text-ink-3">Not set</span> }] : []),
               { label: "What it means", value: postureText },
               {
                 label: "Sourcing permitted",
@@ -1775,6 +1793,9 @@ function ChecksPanel({
                 <ExternalAuthorityDrawer id={r.id} label={label} current={r.externalAuthorityRef} />
               ))}
             {!["DRAFT", "CANCELLED", "CLOSED", "FULFILLED", "PENDING_APPROVAL"].includes(r.status) && <ChangeFundingDrawer id={r.id} current={r.fundingRouteCode} routes={routes} />}
+            {!["DRAFT", "CANCELLED", "CLOSED", "FULFILLED", "PENDING_APPROVAL"].includes(r.status) && !(funding.sourceLocked && (r.projectCategoryCode || funding.categories.length === 0)) && (
+              <ChangeFundingSourceDrawer id={r.id} current={{ fundingSourceId: r.fundingSourceId, projectCategoryCode: r.projectCategoryCode }} sources={funding.sources} categories={funding.categories} sourceLocked={funding.sourceLocked} />
+            )}
           </div>
         </CardBody>
       </Card>

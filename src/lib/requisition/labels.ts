@@ -154,6 +154,8 @@ const FIELD_NAME: Record<string, string> = {
   estimatedValue: "Estimated value",
   fundingRouteCode: "Funding route",
   contractTypeCode: "Contract type",
+  fundingSourceId: "Funding source",
+  projectCategoryCode: "Project category",
   lines: "Line items",
   erpRequisitionNo: "Finance system requisition no.",
   erpNoteNo: "Requisition note no.",
@@ -224,6 +226,12 @@ export function fieldFaultText(f: FieldFault): string {
       return `The format configured for ${fieldName(f.field).toLowerCase()} cannot be read. Correct it under Organisation, Code formats.`;
     case "NO_FORMAT":
       return `No format is configured for ${fieldName(f.field).toLowerCase()}, so it is not checked.`;
+    case "NOT_ELIGIBLE":
+      return "This funding source may not fund that project category.";
+    case "CATEGORY_REQUIRED":
+      return "Choose a project category. This funding source funds only some.";
+    case "ELIGIBILITY_NOT_SET":
+      return "Eligibility not set for this funding source, so the category is not checked.";
   }
 }
 

@@ -29,6 +29,8 @@ export interface Filters {
   unit: string | null;
   route?: string | null;
   method?: string | null;
+  /// A funding source's code (ADR 0046), on requisitions.
+  source?: string | null;
 }
 type Year = { from: string; to: string };
 
@@ -48,6 +50,7 @@ const instantBounds = (fy: Year, timeZone: string | null) => ({ gte: dayStart(fy
 const requisitionFilters = (f: Filters): Prisma.RequisitionWhereInput => ({
   ...(f.unit ? { requestingUnitCode: f.unit } : {}),
   ...(f.route ? { fundingRouteCode: f.route } : {}),
+  ...(f.source ? { fundingSource: { code: f.source } } : {}),
 });
 const exerciseFilters = (f: Filters): Prisma.SourcingExerciseWhereInput => ({
   ...(f.unit ? { requisition: { requestingUnitCode: f.unit } } : {}),
@@ -65,6 +68,9 @@ const approvedRequisitionRoute = { matterKind: "REQUISITION", status: "APPROVED"
 
 /// The department, route and method filters on each table, for the lists' own drill-down facets (I-6): one definition, so a tile and its list agree.
 export const facetWhere = { requisition: requisitionFilters, exercise: exerciseFilters, award: awardFilters };
+
+/// A requisition approved and not yet wholly awarded (ADR 0046 FS-8): the Requisitions list's "awaiting" stage, and Use of proceeds' count of it.
+export const requisitionAwaitingAward = { status: { in: ["APPROVED", "SOURCING"] } } satisfies Prisma.RequisitionWhereInput;
 
 /// A requisition whose route was approved, whenever.
 export const requisitionApprovedAny = { approvalInstances: { some: approvedRequisitionRoute } } satisfies Prisma.RequisitionWhereInput;

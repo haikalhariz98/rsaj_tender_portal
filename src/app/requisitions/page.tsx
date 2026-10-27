@@ -11,7 +11,7 @@ import { LIST_EXPORT_MAX_ROWS, listHref, parseListQuery, sortKeys } from "@/lib/
 import { serverMode } from "@/components/server-list";
 import { ListFacets } from "@/components/list-facets";
 import { db } from "@/lib/db";
-import { codeFacet, facetChoices, rangeFacet } from "@/lib/list-facets";
+import { codeFacet, facetChoices, rangeFacet, stageFacet } from "@/lib/list-facets";
 
 import { buildRequisitionRows } from "./rows";
 
@@ -37,6 +37,8 @@ export default async function RequisitionsPage(props: PageProps<"/requisitions">
   const facets = [
     codeFacet("/requisitions", q, "unit", "Department", "Any department", choices.units, "A unit no longer configured"),
     codeFacet("/requisitions", q, "route", "Funding route", "Any route", choices.routes, "A route no longer configured"),
+    ...(choices.sources.length > 0 || q.source ? [codeFacet("/requisitions", q, "source", "Funding source", "Any source", choices.sources, "A source no longer configured")] : []),
+    ...(q.stage === "awaiting" ? [stageFacet("/requisitions", q, "Stage", "Any stage", [{ value: "awaiting", label: "Awaiting award" }])] : []),
     rangeFacet("/requisitions", q, q.stage === "approved" ? "Raised and approved" : "Raised"),
   ].flatMap((f) => (f ? [f] : []));
 

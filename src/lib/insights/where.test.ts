@@ -8,7 +8,7 @@ import { caseVisibilityWhere } from "@/lib/contract/case-visibility";
 import { CASE_PIPELINE, REQUISITION_PIPELINE, SOURCING_PIPELINE_WHERE, casePipelineWhere } from "@/lib/dashboard/pipeline";
 import { dayIn } from "@/lib/dates";
 
-import { PAYABLE_KINDS, insightsWhere } from "./where";
+import { PAYABLE_KINDS, facetWhere, insightsWhere } from "./where";
 
 const ORG = "org-1";
 const hidden = ["ex-restricted"];
@@ -46,6 +46,10 @@ describe("filters compose without overwriting the visibility rule", () => {
     expect(insightsWhere.payments(ORG, { unit: "WS" }, fy, hidden).certificate).toEqual({ contract: { award: vis } });
     expect(insightsWhere.awaitingPayment(ORG, { unit: "WS" }, hidden).contract).toEqual({ award: vis });
     expect(insightsWhere.variationsOpen(ORG, { unit: "WS" }, hidden).contract).toEqual({ award: vis });
+  });
+  it("the funding source narrows requisitions by its code (ADR 0046)", () => {
+    expect(facetWhere.requisition({ unit: null, source: "SUK" })).toEqual({ fundingSource: { code: "SUK" } });
+    expect(facetWhere.requisition({ unit: "WS", route: "GOV", source: null })).toEqual({ requestingUnitCode: "WS", fundingRouteCode: "GOV" });
   });
   it("the funding route narrows requisitions and the approvals behind them", () => {
     expect(insightsWhere.requisitionsRaised(ORG, { unit: null, route: "GOV" }, fy)).toMatchObject({ fundingRouteCode: "GOV" });

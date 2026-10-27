@@ -25,7 +25,7 @@ import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { endorsementEntryFault, endorsementFaults } from "@/lib/requisition/endorsement";
-import { blocking, requisitionFaults, type DraftLine, type RequisitionDraft } from "@/lib/requisition/fields";
+import { blocking, fundingSourceFaults, requisitionFaults, type DraftLine, type RequisitionDraft } from "@/lib/requisition/fields";
 import { fundingGate } from "@/lib/requisition/funding";
 import { absentOffices } from "@/lib/authority/absence";
 import { actingOffice } from "@/lib/authority/escalation";
@@ -186,6 +186,8 @@ function readDraft(r: FormReader, data: FormData): RequisitionDraft {
     estimatedValue: r.money("estimatedValue", "Estimated value", { required: true }),
     fundingRouteCode: r.optionalText("fundingRouteCode"),
     contractTypeCode: r.optionalText("contractTypeCode"),
+    fundingSourceId: r.optionalText("fundingSourceId"),
+    projectCategoryCode: r.optionalText("projectCategoryCode"),
     lines: readLines(data),
   };
 }
@@ -218,6 +220,8 @@ function draftData(d: RequisitionDraft) {
     estimatedValue: senToDecimalString(parseSen(d.estimatedValue!)),
     fundingRouteCode: d.fundingRouteCode,
     contractTypeCode: d.contractTypeCode ?? null,
+    fundingSourceId: d.fundingSourceId ?? null,
+    projectCategoryCode: d.projectCategoryCode ?? null,
   };
 }
 
@@ -572,6 +576,40 @@ export async function changeFunding(_prev: FormState, data: FormData): Promise<F
     l.req.fundingRouteCode = code;
     // Founder, 2026-10-06: a changed funding route re-checks the budget where one can be checked.
     await checkAutomatically(tx, toAuditActor(actor), l);
+    return { ok: true };
+  });
+}
+
+/**
+ * Change a requisition's funding source and project category after Draft (ADR 0046 FS-6), with a reason. Refused while approval is open, as the
+ * funding route's change is. Once a live contract stands under it, its split is the record: the source and a category already set no longer move, and only
+ * an unset category may still be recorded (amendment 14). The new pair is judged as leaving Draft judges it (SF-02).
+ */
+export async function changeFundingSource(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const next = { fundingSourceId: r.optionalText("fundingSourceId"), projectCategoryCode: r.optionalText("projectCategoryCode") };
+  const reason = r.text("reason", "Reason", { required: true, max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
+    if (["CANCELLED", "CLOSED", "FULFILLED"].includes(l.req.status)) return { ok: false, message: "This requisition can no longer change." };
+    if (l.req.status === "DRAFT") return { ok: false, message: "Edit the draft to change its funding source." };
+    if (l.req.status === "PENDING_APPROVAL") return { ok: false, message: "Approval is open. Recall it, then change the funding source." };
+    const before = { fundingSourceId: l.req.fundingSourceId, projectCategoryCode: l.req.projectCategoryCode };
+    const sourceMoves = next.fundingSourceId !== before.fundingSourceId;
+    const categoryMoves = next.projectCategoryCode !== before.projectCategoryCode;
+    if (!sourceMoves && !categoryMoves) return { ok: false, errors: { fundingSourceId: "Nothing differs from the funding as it stands." } };
+    const live = await tx.contract.count({ where: { organisationId: l.org.id, status: { not: "CANCELLED" }, award: { exercise: { requisitionId: id } } } });
+    if (live > 0 && (sourceMoves || (categoryMoves && before.projectCategoryCode != null))) return { ok: false, message: "A contract exists. Change the funding on the project." };
+    if (!l.org.today) return NO_ZONE;
+    const { lookups } = await loadLookups(l.org.id, tx);
+    const faults = blocking(fundingSourceFaults(next, lookups, dayToDate(l.org.today), true));
+    if (faults.length > 0) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, fieldFaultText(f)])) };
+    await tx.requisition.update({ where: { id, organisationId: actor.organisationId }, data: next });
+    await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields(before, next), reason);
     return { ok: true };
   });
 }

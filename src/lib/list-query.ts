@@ -25,13 +25,15 @@ export interface ListFacets {
   unit: string | null;
   route: string | null;
   method: string | null;
+  /// A funding source's code (ADR 0046): on Requisitions only, for now (amendment 19).
+  source: string | null;
   /// A list's own stage word (sourcing: open, preparing, in_market, evaluating; requisitions: approved).
   stage: string | null;
   from: string | null;
   to: string | null;
 }
-export const FACET_KEYS = ["unit", "route", "method", "stage", "from", "to"] as const satisfies readonly (keyof ListFacets)[];
-export const NO_FACETS: ListFacets = { unit: null, route: null, method: null, stage: null, from: null, to: null };
+export const FACET_KEYS = ["unit", "route", "method", "source", "stage", "from", "to"] as const satisfies readonly (keyof ListFacets)[];
+export const NO_FACETS: ListFacets = { unit: null, route: null, method: null, source: null, stage: null, from: null, to: null };
 /// Whether any facet narrows the list.
 export const hasFacets = (q: ListFacets): boolean => FACET_KEYS.some((k) => q[k] != null);
 
@@ -74,6 +76,7 @@ export function parseListQuery<V extends string, S extends string = never>(sp: P
     unit: code(one(sp.unit)),
     route: code(one(sp.route)),
     method: code(one(sp.method)),
+    source: code(one(sp.source)),
     stage: code(one(sp.stage)),
     from: range ? from : null,
     to: range ? to : null,

@@ -12,6 +12,11 @@ describe("the dashboard's facets (I-6)", () => {
   it("are read by shape: a code or a day pair, else null", () => {
     expect(parse({ unit: "WS_1", route: "a b", method: "OPEN", stage: "in_market", from: "2026-01-01", to: "2027-01-01" })).toMatchObject({ unit: "WS_1", route: null, method: "OPEN", stage: "in_market", from: "2026-01-01", to: "2027-01-01" });
   });
+  it("read a funding source by the same shape, and write it back (ADR 0046)", () => {
+    expect(parse({ source: "SUKUK26T1" }).source).toBe("SUKUK26T1");
+    expect(parse({ source: "a b" }).source).toBeNull();
+    expect(listHref("/requisitions", parse({ source: "SUKUK26T1", stage: "awaiting" }))).toBe("/requisitions?source=SUKUK26T1&stage=awaiting");
+  });
   it("take a day range only as a real, ordered pair", () => {
     for (const sp of [{ from: "2026-01-01" }, { to: "2027-01-01" }, { from: "2026-02-30", to: "2027-01-01" }, { from: "2027-01-01", to: "2026-01-01" }]) expect(parse(sp)).toMatchObject({ from: null, to: null });
   });

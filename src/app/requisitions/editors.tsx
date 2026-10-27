@@ -6,6 +6,7 @@ import { actorField } from "@/lib/auth/actor-field";
 import {
   cancelRequisition,
   changeFunding,
+  changeFundingSource,
   checkBudget,
   checkCommitteeGates,
   citeCommitteeDecision,
@@ -359,6 +360,25 @@ export function ChangeFundingDrawer({ id, current, routes }: { id: string; curre
       action={changeFunding}
       reason={{ label: "Why is the funding route changing?" }}
       trigger={{ label: "Change funding", className: buttonClass("secondary", "sm") }}
+      size="md"
+    />
+  );
+}
+
+export function ChangeFundingSourceDrawer({ id, current, sources, categories, sourceLocked }: { id: string; current: { fundingSourceId: string | null; projectCategoryCode: string | null }; sources: Option[]; categories: Option[]; sourceLocked: boolean }) {
+  return (
+    <RecordEditor
+      title="Change the funding source"
+      description={sourceLocked ? "A contract exists, so only an unset project category can be recorded." : undefined}
+      fields={[
+        hidden("id"),
+        sourceLocked ? hidden("fundingSourceId") : { kind: "select", name: "fundingSourceId", label: "Funding source", placeholder: "None", options: sources, orphanLabel: "A source no longer in use" },
+        ...(categories.length > 0 ? [{ kind: "select", name: "projectCategoryCode", label: "Project category", placeholder: "None", options: categories, orphanLabel: "A category no longer in use" } as Field] : []),
+      ]}
+      values={{ id, fundingSourceId: current.fundingSourceId, projectCategoryCode: current.projectCategoryCode }}
+      action={changeFundingSource}
+      reason={{ label: "Why is the funding source changing?" }}
+      trigger={{ label: "Change funding source", className: buttonClass("secondary", "sm") }}
       size="md"
     />
   );

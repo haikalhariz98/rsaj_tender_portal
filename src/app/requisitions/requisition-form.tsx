@@ -35,6 +35,10 @@ export interface FormOptions {
   sites: { code: string; name: string }[];
   fundingRoutes: { code: string; name: string }[];
   contractTypes: { code: string; name: string }[];
+  /// `unset`: the source's eligibility is not set, so the category is not checked (a warning, FS-4).
+  fundingSources: { id: string; name: string; unset: boolean }[];
+  /// Shown only when the organisation has categories.
+  projectCategories: { code: string; name: string }[];
 }
 
 interface Line {
@@ -126,6 +130,7 @@ export function RequisitionForm({
   const [sectionChoice, setSectionChoice] = useState(start?.result.values.section ?? values.sectionUnitCode ?? "");
   const [costCentre, setCostCentre] = useState(start?.result.values.costCentre ?? values.costCentreCode ?? "");
   const [account, setAccount] = useState(values.accountCode ?? "");
+  const [fundingSource, setFundingSource] = useState(values.fundingSourceId ?? "");
   // What choosing the officer filled in, per field: a value still equal to it was never the user's own, so
   // a later officer may replace it. A field the user then chooses leaves this record.
   const [filled, setFilled] = useState<{ unit?: string; section?: string; costCentre?: string }>(start?.result.filledBy ?? {});
@@ -295,6 +300,13 @@ export function RequisitionForm({
             },
           })}
           {select("fundingRouteCode", "Funding route", options.fundingRoutes.map((r) => ({ value: r.code, label: r.name })), { required: true })}
+          {select("fundingSourceId", "Funding source", options.fundingSources.map((s) => ({ value: s.id, label: s.name })), {
+            placeholder: "None",
+            value: fundingSource,
+            onChange: setFundingSource,
+            hint: options.fundingSources.find((s) => s.id === fundingSource)?.unset ? "Eligibility not set for this source." : undefined,
+          })}
+          {options.projectCategories.length > 0 && select("projectCategoryCode", "Project category", options.projectCategories.map((c) => ({ value: c.code, label: c.name })), { placeholder: "None" })}
           {select("accountCode", "Account code", coded(options.accounts), { required: true, searchable: true, onChange: setAccount })}
           {/* Founder, 2026-10-05: required. Only the budget codes on the chosen account are offered, so the pair always agrees. */}
           {select("budgetCodeId", "Budget code", budgetCodes.map((b) => ({ value: b.id, label: `${b.code} · ${b.name}` })), {

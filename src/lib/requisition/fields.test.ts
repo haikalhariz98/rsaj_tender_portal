@@ -112,3 +112,41 @@ describe("finance-system references (FR-REQ-002)", () => {
     expect(erpRefFaults("PROC2026154676", null, []).map((f) => f.code)).toEqual(["NO_FORMAT"]);
   });
 });
+
+describe("the funding source (SF-02, ADR 0046 FS-4)", () => {
+  const SOURCES: Lookups = {
+    ...LOOKUPS,
+    fundingSources: [
+      { id: "sukuk", categoriesRestricted: true, eligibleCategoryCodes: ["WATER"], retiredOn: null },
+      { id: "internal", categoriesRestricted: false, eligibleCategoryCodes: [], retiredOn: null },
+      { id: "grant", categoriesRestricted: null, eligibleCategoryCodes: [], retiredOn: null },
+      { id: "old", categoriesRestricted: false, eligibleCategoryCodes: [], retiredOn: on },
+    ],
+    projectCategories: [{ code: "WATER", retiredOn: null }, { code: "OFFICE", retiredOn: null }, { code: "GONE", retiredOn: on }],
+  };
+  const fs = (over: Partial<RequisitionDraft>, opts?: { complete: boolean }) => requisitionFaults(draft(over), SOURCES, FORMATS, on, opts).map((f) => `${f.field}:${f.code}`);
+
+  it("is optional, and an eligible or unrestricted source passes", () => {
+    expect(fs({})).toEqual([]);
+    expect(fs({ fundingSourceId: "sukuk", projectCategoryCode: "WATER" })).toEqual([]);
+    expect(fs({ fundingSourceId: "internal" })).toEqual([]);
+  });
+
+  it("an ineligible category blocks, and a restricted source needs a category to leave Draft", () => {
+    expect(fs({ fundingSourceId: "sukuk", projectCategoryCode: "OFFICE" })).toEqual(["fundingSourceId:NOT_ELIGIBLE"]);
+    expect(fs({ fundingSourceId: "sukuk" })).toEqual(["projectCategoryCode:CATEGORY_REQUIRED"]);
+    expect(fs({ fundingSourceId: "sukuk" }, { complete: false })).toEqual([]);
+  });
+
+  it("an unset eligibility warns and never blocks", () => {
+    const faults = requisitionFaults(draft({ fundingSourceId: "grant", projectCategoryCode: "OFFICE" }), SOURCES, FORMATS, on);
+    expect(faults.map((f) => f.code)).toEqual(["ELIGIBILITY_NOT_SET"]);
+    expect(blocking(faults)).toEqual([]);
+  });
+
+  it("a retired or unknown source or category is not in force", () => {
+    expect(fs({ fundingSourceId: "old" })).toEqual(["fundingSourceId:NOT_IN_FORCE"]);
+    expect(fs({ fundingSourceId: "nope" })).toEqual(["fundingSourceId:NOT_IN_FORCE"]);
+    expect(fs({ fundingSourceId: "internal", projectCategoryCode: "GONE" })).toEqual(["projectCategoryCode:NOT_IN_FORCE"]);
+  });
+});
