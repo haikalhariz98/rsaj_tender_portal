@@ -42,7 +42,8 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   DLP_NOT_APPLICABLE: () => "No defects liability period applies to this contract.",
   SCHEDULE_ISSUED: () => "The Schedule of Defects is issued. No more defects are added.",
   // The Schedule of Defects
-  DLP_NOT_ENDED: (d) => `The defects liability period ends on ${d.day ? formatDate(String(d.day)) : "its end day"}.`,
+  // F10 (code review of close-out stage B): the day given is the period's exclusive end, the first day after it, so the words say "from" it.
+  DLP_NOT_ENDED: (d) => `The defects liability period has not ended. This can be raised from ${d.day ? formatDate(String(d.day)) : "the day after it ends"}.`,
   SCHEDULE_LIVE: (d) => `A Schedule of Defects${d.number ? ` (${d.number})` : ""} is already raised.`,
   NO_OPEN_DEFECTS: () => "No defect is open.",
   RECTIFY_BY_NOT_AFTER_TODAY: () => "The day to make good by is after today.",

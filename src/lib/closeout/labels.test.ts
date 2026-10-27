@@ -17,3 +17,12 @@ describe("close-out's words", () => {
     expect([...codes].filter((c) => !CLOSEOUT_FAULT_WORDS[c])).toEqual([]);
   });
 });
+
+// F10: the schedule's and the CMGD's refusal is given the period's exclusive end; the words say it can be raised from that day.
+describe("DLP_NOT_ENDED", () => {
+  it("names the first day it can be raised, not a day late", async () => {
+    const { scheduleRaiseFaults } = await import("./schedule");
+    const f = scheduleRaiseFaults({ cpcIssued: true, dlp: { applies: true, start: "2025-10-01", endExclusive: "2026-10-01" }, today: "2026-09-30", open: 1, live: null, rectifyBy: "2026-12-30", limit: null }).find((x) => x.code === "DLP_NOT_ENDED")!;
+    expect(CLOSEOUT_FAULT_WORDS.DLP_NOT_ENDED(f.data ?? {})).toBe("The defects liability period has not ended. This can be raised from 01 Oct 2026.");
+  });
+});
