@@ -47,7 +47,8 @@ describe("issueAward is the only creator of a Contract row (FR-CON-002, ADR 0007
     const hits: string[] = [];
     for (const f of files) {
       const rel = posixRelative(ROOT, f);
-      if (ALLOWED.includes(rel) || /\.test\.tsx?$/.test(rel)) continue;
+      // The database tests' contract fixture is test code under another name (only *.db.test.ts files import it: lock-order.test.ts).
+      if (ALLOWED.includes(rel) || /\.test\.tsx?$/.test(rel) || rel === "src/lib/test-db/contract.fixture.ts") continue;
       const text = stripComments(readFileSync(f, "utf8"));
       for (const w of WRITES) if (w.test(text)) hits.push(`${rel}: ${w}`);
     }
