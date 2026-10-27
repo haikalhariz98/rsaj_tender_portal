@@ -1,9 +1,14 @@
 # Phase 2 — Close-out and time: plan
 
-**Status:** Proposed, 2026-10-27, by the solution architect. It is a design pass, and no code is written. Written against
-`4579f9ac` on `build-all-modules`, with the Phase 0.1 builder's work still uncommitted in the tree. ADR 0047 records the
-decisions that are hard to reverse. The build is accepted to start once the product owner rules CO-1 to CO-12 and the open
-questions in §10. Each question has a default, so none of them blocks the build.
+**Status:** Accepted, 2026-10-28. Written by the solution architect on 2026-10-27 against `4579f9ac` on `build-all-modules`.
+The product owner ruled on 2026-10-27 (24 rulings); every amending ruling is folded in below, and §11 lists each ruling and
+where it lands. ADR 0047 records the decisions that are hard to reverse. **Stages run A → B → D → C.** Step C5 (supply close) is
+removed, and termination is wholly out of Phase 2.
+
+**Check against the code at build time.** Phase 0 and Phase 1 landed after this plan was written: `PaymentCorrection` (readers
+take the latest through `CORRECTIONS` / `asCorrected`), `paidFigureOf` / `snapshotFigure` in `payment/finance.ts`, and the
+funding sources (ADR 0046). EOT routes in the RSAJ pack are SK006 §7.6.1 on every contract (log, 2026-10-27); this plan does not
+change them. Design note 0008 will rename the Time tab "Timeline" in Phase 4a.
 
 **Sources:**
 - The founder's roadmap of 2026-10-27, Phase 2 (`plans/roadmap-2026-10-27.md`).
@@ -59,14 +64,14 @@ wired".
 | VC-03, FR-EOT-001–010 | **In (stage A).** Screens for the acts that exist; the certificate raise; the issue hook writing the baseline version; supersession of the damages decision. | FR-EOT-005 weather guidance is shown from `weatherGuidance`, which ships unset. |
 | FR-EOT-011–013 | **In (stage A, last step).** Period extension and the supplementary agreement, only for contract types whose `eotInstrumentKind` offers it. | The form is B6 (RSAJ's). It is refused TEMPLATE_NOT_SET until RSAJ writes it. |
 | FR-EOT-006, FR-LAD-008–009, 012 | **In (stage A).** Loss and expense: record, value and send; the 1.2 line links its claim. Waivers: record, send and send again. The accrual meter. | — |
-| CC-01, FR-CMP-004–007, 009 | **In (stage B).** The CPC with its defect lines. The passing joint inspection is recorded on the CPC: its day, who attended and the reasons the test is met. | **Sectional completion (FR-CMP-002): deferred.** A contract with sections is refused (Q2). `scope` and `sectionRef` are modelled now. **The IT variant (FR-CMP-006): deferred.** A type with `completionVariant = IT` is refused by name. **Failed inspections (the FR-CMP-005 loop): deferred to Phase 3**, as Inspection work items. |
+| CC-01, FR-CMP-004–007, 009 | **In (stage B).** The CPC with its defect lines. The passing joint inspection is recorded on the CPC: its day, who attended and the reasons the test is met. | **Sectional completion (FR-CMP-002): deferred.** A contract with sections is refused at the CPC by name (Q2). No `scope` or `sectionRef` is modelled (ruling 20). **The IT variant (FR-CMP-006): deferred.** A type with `completionVariant = IT` is refused by name. **Failed inspections (the FR-CMP-005 loop): deferred to Phase 3**, as Inspection work items. |
 | CC-02, FR-CMP-001, 008, 011, 013, 015 | **In (stage B).** The DLP from the CPC and the baseline. A notice before it ends. Defects reported during the DLP. The Schedule of Defects at the DLP's end. The CMGD. | FR-CMP-012 (expedited class, S): Phase 3 priority. FR-CMP-014 (third-party rectification and its three recoveries), bond claims and debt claims: deferred, so the CMGD waits until every line is made good or withdrawn. The design-bond clock of FR-CMP-008 and FR-CMP-017: the bond is listed as surviving the close; its release act is deferred. |
 | CC-03, FR-PAY-021, FR-CMP-016, 018 | **In (stage B).** The first release stays as built (as-built handover and `firstReleasePct`). The balance is released at the event `retentionBalanceReleaseAt` names. Securities are returned through the `SecurityRelease` ledger (ADR 0032). | INT-07 to D365 goes through a manual adapter (D365 is on hold, roadmap decision 3). |
-| CC-04, FR-FIN-001, 003–013 | **In (stage C).** The final account on the FINAL certificate, with computed blocks, keyed deductions, Finance's confirmation, the pack, the declaration gate, contractor acceptance through the CONTRACTOR block, the route on `final_payment` and Finance's payment. | FR-FIN-002 (final claim window, S): deferred. FR-FIN-007: the declaration is the contractor's document, taken up by an officer; its fields are not captured as data (partly met: PDPA data minimisation). FR-FIN-008: the pack is the contract's own certificates plus a configured document list, not the eleven items fixed in code. |
-| CC-05, FR-FIN-014 | **In (stage C).** Close once every precondition holds. Supply contracts close from Active (Q6). | INT-08 goes through a manual adapter. Archiving under the retention policy stays the document store's deferred item. |
+| CC-04, FR-FIN-001, 003–013 | **In (stage C).** The final account on the FINAL certificate, with computed blocks, keyed deductions, Finance's confirmation, the pack, the declaration gate, contractor acceptance through the CONTRACTOR block, the route on `final_payment` and Finance's payment. | FR-FIN-002 (final claim window, S): deferred. FR-FIN-007: the declaration is the contractor's document, taken up by an officer; its fields are not captured as data (partly met: PDPA data minimisation). FR-FIN-008: the pack is the contract's own certificates plus a configured document list, not the eleven items fixed in code. The RSAJ pack seeds that list with three STATED items (CPD/INT-SFA-INDEN): as-built drawings, the CIDB levy certificate and the receipt of water charges (ruling 8). |
+| CC-05, FR-FIN-014 | **In (stage C).** Close once every precondition holds, the verified performance report among them (ruling 17). **Supply contracts do not close in Phase 2** (ruling 19): they have no defined release event. The Close tab says closing is not built for supply contracts. Backlog row. | INT-08 goes through a manual adapter. Archiving under the retention policy stays the document store's deferred item. |
 | CC-06 | Already met: `SiteRecordsHandover` (as-built drawings, O&M manuals). The close-out tabs link to it. | — |
-| CC-07, FR-CPR (6.16) | **In (stage D), as a minimum viable version.** One configured form; one report per contract at close; scored, then verified by a second person; listed on the supplier. | Deferred: the other three stages of FR-CPR-005, share groups (FR-CPR-004), the LAD block (FR-CPR-007), the evaluation link (FR-EVL-012), language variants and the verifier's office rule. |
-| Part B runs 3 and 4 | **Not in Phase 2.** Nominated parties (FR-NSC), termination (FR-TRM), partial occupation (FR-CMP-003) and `CompletionOpening` (Q5). | They are not in the roadmap's Phase 2 list. Their models are not built. Their ACT_STATUS rows stay as they are. |
+| CC-07, FR-CPR (6.16) | **In (stage D), as a minimum viable version.** One configured form per contract type (no general form); one report per contract, opening at the CMGD (or the CPC where there is no DLP); scored, then verified by a second person; listed on the supplier. | Deferred: the other three stages of FR-CPR-005, share groups (FR-CPR-004), the LAD block (FR-CPR-007), the evaluation link (FR-EVL-012), language variants and the verifier's office rule. |
+| Part B runs 3 and 4 | **Not in Phase 2.** Nominated parties (FR-NSC), termination (FR-TRM, wholly out, ruling 24), partial occupation (FR-CMP-003) and `CompletionOpening` (Q5). | They are not in the roadmap's Phase 2 list. Their models are not built. Their ACT_STATUS rows stay as they are. |
 
 ## 2. Decisions (CO-1 to CO-12)
 
@@ -101,7 +106,10 @@ or `PeriodAgreement.extension.matter`. A TERMINATION certificate has no record y
 - `DefectItem` holds the line. `DefectEvent` is append-only and holds what happened to it.
 - A line belongs to the CPC that lists it, or it is reported during the DLP. A Schedule of Defects lists the lines still open
   when it is issued.
-- An issued certificate freezes its lines (text, location, due day) in its domain row's `frozenLines` (ADR 0008).
+- An issued certificate freezes its lines (text, location, due day) in its domain row's `frozenLines` (ADR 0008): the CPC, the
+  Schedule of Defects and the CMGD.
+- **The CMGD freezes every line with its end state** (made good or withdrawn) in `MakingGood.frozenLines`. A withdrawn line keeps
+  its reason. The CMGD and the Close checklist say "n withdrawn, not made good" (ruling 4).
 - A line's state is derived only from its events, by one pure function.
 - This is the Phase 3 seam (§7).
 
@@ -231,7 +239,7 @@ Final account and Close.
 | Ready for the final account | Final account not raised | `RAISE_FINAL_ACCOUNT` |
 | Final in draft | The first of: deductions, pack, Finance's confirmation, declaration | `OPEN_FINAL_ACCOUNT` |
 | FCI, not paid | Waiting for Finance's payment | `RECORD_FINAL_PAYMENT` (Finance only, else none) |
-| Paid, report not verified | Contractor performance not filed | `SCORE_PERFORMANCE` |
+| MGC (or PC with no DLP), report not verified | Contractor performance not filed | `SCORE_PERFORMANCE` (ruling 17: the report opens at the CMGD and must be filed before the FINAL is sent for approval) |
 | Every check passes | Ready to close | `CLOSE_CONTRACT` |
 | CLOSED | Closed on {day} | — |
 
@@ -274,8 +282,10 @@ committee step is tabled from the matter (`tablingOf`).
   TEMPLATE_NOT_SET (`raiseFormFault`).
 - Warning: GRANT_DIFFERS.
 
-**Sign:** the template's blocks. The S.O./P.D. signs as the authorising block, with office rule SO (SK006 §7.7.1). This is pack
-data, not code.
+**Sign:** the template's blocks. The S.O./P.D. signs as the authorising block, with office rule SO (SK006 §7.7.1). This is
+template data, not code, and not a stage A pack edit (ruling 23): the **demo** EOT template carries an SO authorising block, and
+A1 tests that the certificate signs only after its matter is approved and that the SO block resolves to the contract's S.O.
+RSAJ's own post-award certificate templates are a backlog row.
 
 **Issue (`KIND_ISSUE_HOOK.EOT`):**
 - *refusal:* EOT_MOVED.
@@ -390,7 +400,11 @@ made good.
 **DAL:** `making_good`. At send, SO_ROUTE_MISMATCH and SO_UNRESOLVED apply to the approving step only (BD-613-78, ruled), by
 `soRouteFaults` in `src/lib/closeout/so-route.ts`.
 
-**Issue:** status MAKING_GOOD_COMPLETE. The copies carry the guarantor's notice (FR-CMP-016).
+**Issue:** every line frozen with its end state into `MakingGood.frozenLines` (ruling 4), then status MAKING_GOOD_COMPLETE. The
+copies carry the guarantor's notice (FR-CMP-016).
+
+**Snapshot (ruling 6, FR-CMP-015).** The CMGD's computed snapshot carries the performance bond's value, the retention balance, and
+the guarantee or official receipt numbers of the securities held.
 
 ### 4.5 Retention and securities (stage B)
 
@@ -444,6 +458,7 @@ made good.
 - FINANCE_NOT_CONFIRMED.
 - FINANCE_TOTAL_DIFFERS {confirmed, computed}: Finance's confirmed total ≠ the sum of `FinancePayment` on the contract's interim
   and advance certificates.
+- PERFORMANCE_NOT_FILED: the contractor performance report is not verified (ruling 17; FR-FIN-014). Not set is not met.
 
 `confirmFinalPayments` (Finance) writes `financeConfirmedTotal`, the person and the time (FR-FIN-004).
 
@@ -468,14 +483,16 @@ balance is held, the same transaction writes `RetentionRelease` BALANCE and call
 
 | Code | When |
 |---|---|
-| FINAL_NOT_PAID | The FINAL is not issued and paid. For a supply contract, see the next row. |
-| SUPPLY_CLAIMS_UNPAID | A supply contract (Q6) has an approved SUPPLY_CLAIM document without a `SupplyInvoicePayment`. |
+| FINAL_NOT_PAID | The FINAL is not issued and paid. |
+| SUPPLY_NOT_BUILT | The contract is paid on delivery order and invoice (ruling 19: supply contracts do not close in Phase 2). |
 | CERTIFICATES_IN_PROGRESS | A certificate is still in progress. |
 | MATTERS_OPEN | A route is pending. |
 | DEFECTS_OPEN | A defect line is open. |
 | RETENTION_HELD {amount} | Retention is still held. |
 | SECURITY_NOT_RETURNED {list} | A security other than the design guarantee bond and the rejected ones is not returned. |
-| PERFORMANCE_NOT_FILED | The performance report is not verified (stage D; Q4). |
+| PERFORMANCE_NOT_FILED | The performance report is not verified (stage D; Q4). Checked again here after `finalRouteFaults`; close refuses, it does not warn (ruling 17). |
+
+The checklist also says "n withdrawn, not made good" from the CMGD's frozen lines (ruling 4). Close has no route (ruling 16).
 
 **Writes:**
 - `ContractClosure`: the closing day, the preconditions as checked, and what survives (the design guarantee bond with its
@@ -488,17 +505,20 @@ balance is held, the same transaction writes `RetentionRelease` BALANCE and call
 ### 4.8 Contractor performance (stage D, minimum viable)
 
 **Configuration** (Settings › Contract controls › Performance form; shipped empty):
-- `PerformanceForm`: name, contract type (Select; empty means every type), the scale's top (Select 3–10), and status
-  Draft → Issued → Retired.
+- `PerformanceForm`: name, contract type (Select, required: each form belongs to exactly one type, ruling 10), the scale's top
+  (Select 2–10, CHECK 2..10), and status Draft → Issued → Retired.
 - `PerformanceCriterion`: label, guide, weight.
-- `PerformanceGradeBand`: label and lower bound; half-open, with the top band closed at 100.
-- **Issue is refused** for WEIGHTS_NOT_ONE (the weights must total exactly 1.0000), BANDS_GAP, BANDS_NOT_FROM_ZERO and
-  NO_CRITERIA.
-- A type's own form beats the general one. Two issued forms for the same type are refused at issue.
+- `PerformanceGradeBand`: label and lower bound. Grading reuses `evaluation/bands.ts` (`placeInBands`, `bandSetFaults`), not a
+  rule of its own.
+- **Issue is refused** for WEIGHTS_NOT_ONE (the weights must total exactly 1.0000), NO_CRITERIA, and whatever `bandSetFaults`
+  refuses.
+- There is no general form and no fallback. Two issued forms for the same type are refused at issue.
 
-**Report** (family PERFORMANCE_REPORT, new; allowed in FINAL_CERTIFICATE_ISSUED, and in ACTIVE for supply only, judged by the act):
-- `openPerformanceReport` pins the form and its snapshot. It is refused for FORM_NOT_SET, REPORT_LIVE, and NOT_AT_CLOSE (FINAL not
-  issued, or supply claims unpaid).
+**Report** (family PERFORMANCE_REPORT, new; allowed in MAKING_GOOD_COMPLETE and FINAL_CERTIFICATE_ISSUED, and in
+PRACTICALLY_COMPLETE where the CPC is issued and there is no DLP, judged by the act; ruling 12):
+- `openPerformanceReport` pins the form and its snapshot. It opens once the CMGD is issued, or once the CPC is issued where there
+  is no DLP (ruling 17). It is refused for FORM_NOT_SET (by name: the contract type has no issued form), REPORT_LIVE, and
+  NOT_YET_OPEN.
 - `saveScores`: one Select per criterion (1 to the scale's top) and a note. It is allowed only before assessment.
 - `assessReport` writes the total and grade (`performance/score.ts` and `grade.ts`, 4 places, half up, judged on the stored
   figure).
@@ -579,11 +599,11 @@ No timestamps are named here.
 
 | Model | Fields |
 |---|---|
-| `PracticalCompletion` | `certificateId @unique`, `contractId`, `scope NonCompletionScope @default(WHOLE)`, `sectionRef?` (CHECK: SECTION ⇔ ref), `completionDate`, `possessionTakenOn`, `inspectedOn`, `attendees String[]`, `testReasons`, `dlpMonths Int?`, `dlpStart?`, `dlpEnd?` (CHECK: both or neither; end > start), `frozenLines Json?`, `personId`, `recordedAt` |
+| `PracticalCompletion` | `certificateId @unique`, `contractId`, `completionDate`, `possessionTakenOn`, `inspectedOn`, `attendees String[]`, `testReasons`, `dlpMonths Int?`, `dlpStart?`, `dlpEnd?` (CHECK: both or neither; end > start), `frozenLines Json?`, `personId`, `recordedAt` |
 | `DefectItem` | `contractId`, `source DefectSource`, `practicalCompletionId?` (CHECK: PRACTICAL_COMPLETION ⇔ set), `description`, `location @default("")`, `dueOn`, `reportedByPersonId`, `recordedAt`. A PRACTICAL_COMPLETION line is inserted or deleted only while its CPC is DRAFT; a LIABILITY_PERIOD line is insert-only (trigger). |
 | `DefectEvent` | `defectId`, `kind DefectEventKind`, `on`, `note @default("")`, `evidenceDocumentId?` (FK ProjectDocument), `personId?`, `supplierAccountId?` (CHECK: exactly one actor), `recordedAt`. Append-only (trigger, like `ProjectDocumentDecision`). CHECK: RETURNED and WITHDRAWN have a note. |
 | `DefectSchedule` | `certificateId @unique`, `contractId`, `rectifyBy`, `frozenLines Json?`, `personId`, `recordedAt` |
-| `MakingGood` | `certificateId @unique`, `contractId`, `scope`, `sectionRef?`, `madeGoodOn`, `finalInspectionOn`, `personId`, `recordedAt` |
+| `MakingGood` | `certificateId @unique`, `contractId`, `madeGoodOn`, `finalInspectionOn`, `frozenLines Json?` (every line with its end state; withdrawn keep their reason), `snapshot Json?` (FR-CMP-015: performance bond value, retention balance, guarantee or receipt numbers), `personId`, `recordedAt` |
 | `SecurityRelease` | `securityId @unique`, `contractId`, `trigger SecurityReleaseTrigger` (MAKING_GOOD, FINAL_PAYMENT, ADVANCE_RECOUPED), `certificateId?`, `returnedOn`, `officialReceiptRef @default("")`, `personId`, `note`, `recordedAt` |
 
 **Stage C: `closeout_final`.**
@@ -592,7 +612,7 @@ No timestamps are named here.
 |---|---|
 | `FinalAccount` | `certificateId @unique`, `contractId`, `finalSum`, `recommended`, `previousBasis FinalPreviousBasis` (frozen), `judgedUnder Json`, `declarationDocumentId?` (FK ProjectDocument), `financeConfirmedTotal?`, `financeConfirmedByPersonId?`, `financeConfirmedAt?` (CHECK: all three or none), `personId`, `recordedAt` |
 | `FinalAccountLine` | `finalAccountId` (Cascade), `block FinalBlock` (LESS, DEDUCT), `kind FinalLineKind` (PREVIOUS_INTERIM, RETENTION_RELEASED_MAIN/NSC/NS, ADVANCE_REPAID_MAIN/NSC, LAD, LAD_WAIVED, LAD_CREDIT, LAD_ROUNDING, PREMIUMS_PERKESO, WAGES, NON_COMPLIANCE, MAKING_GOOD_COST, DIMINUTION, OTHER), `amount`, `label`, `sourceIds Json`, `keyed Boolean`. CHECK: keyed ⇔ kind in the keyed set; LAD_ROUNDING in (−1, 1). |
-| `CloseoutDocumentRequirement` | `labelEn`, `sortOrder`, `provenance`, `source @default("")`, `retiredOn?` (configuration; on `history.ts`'s allow-list) |
+| `CloseoutDocumentRequirement` | `labelEn`, `sortOrder`, `provenance`, `source @default("")`, `retiredOn?` (configuration; on `history.ts`'s allow-list; the RSAJ pack seeds three STATED rows, ruling 8) |
 | `FinalPackEntry` | `finalAccountId`, `requirementId`, `projectDocumentId?`, `notApplicableReason @default("")` (CHECK: exactly one), `personId`, `recordedAt`; `@@unique([finalAccountId, requirementId])` |
 | `ContractClosure` | `contractId @unique`, `closedOn`, `preconditions Json`, `surviving Json`, `personId`, `recordedAt` |
 
@@ -600,7 +620,7 @@ No timestamps are named here.
 
 | Model | Fields |
 |---|---|
-| `PerformanceForm` | `nameEn`, `contractTypeCode?`, `scaleMax Int` (CHECK 2..10), `status PerformanceFormStatus`, `version`, `issuedAt?`, `provenance`, `source`, `retiredOn?` |
+| `PerformanceForm` | `nameEn`, `contractTypeCode` (required; no general form, ruling 20), `scaleMax Int` (CHECK 2..10), `status PerformanceFormStatus`, `version`, `issuedAt?`, `provenance`, `source`, `retiredOn?` |
 | `PerformanceCriterion` | `formId` (Cascade), `sortOrder`, `labelEn`, `guideEn @default("")`, `weight Decimal(9,4)` (CHECK > 0) |
 | `PerformanceGradeBand` | `formId` (Cascade), `label`, `lowerPct Decimal(9,4)`, `sortOrder` |
 | `PerformanceReport` | `contractId @unique`, `supplierId?`, `formId`, `formSnapshot Json`, `scoreTotal Decimal(9,4)?`, `gradeLabel?`, `assessedByPersonId?`, `assessedAt?`, `verifiedByPersonId?`, `verifiedAt?` (CHECK verifier ≠ assessor; verified ⇒ assessed), `personId`, `recordedAt` |
@@ -628,9 +648,9 @@ No timestamps are named here.
 | `src/lib/payment/retention.ts` | `releaseOf` (signature changed, flagged) | Existing tests are rewritten from `makingGoodIssued` to `balanceEvent`, each assertion kept (faithful); new: NOT_SET, FINAL_INSPECTION_NOT_RECORDED, BALANCE_WITH_FINAL_PAYMENT. |
 | `src/lib/closeout/so-route.ts` | `soRouteFaults` | Only the approving step is compared; unresolved refuses; another domain is not checked (BD-613-78). |
 | `src/lib/closeout/final-account.ts` | `finalPreconditionFaults`, `finalAccountOf`, `finalRouteFaults` | **The 6.13 B5 fixture: final sum 1,115,308.60; less 1,053,875.43; deduct 10,761.00; recommended 50,672.17.** Both `finalPreviousBasis` readings give the same recommended (a property test over 200 seeded histories). At most three OTHER lines. Rounding ±0.99 accepted, ±1.00 refused. FINANCE_TOTAL_DIFFERS. |
-| `src/lib/closeout/closure.ts` | `closureFaults` | Each code alone; the design guarantee bond never blocks; the supply path. |
+| `src/lib/closeout/closure.ts` | `closureFaults` | Each code alone; the design guarantee bond never blocks; a supply contract is refused SUPPLY_NOT_BUILT. |
 | `src/lib/closeout/next.ts` | `closeoutNext` | One row per line of the table in §3.2 (table-driven). |
-| `src/lib/performance/{form,score,grade}.ts` | `formIssueFaults`, `reportTotal`, `gradeFor` | Weights 0.30/0.25/0.20/0.15/0.10 issue clean, and 0.11 refuses. With scale 5, scores 4,3,5,4,3 give **74.0000** (fixture). Grade 39.995 gives E, 40.0000 gives D, 80 gives A (fixture bands). |
+| `src/lib/performance/{form,score}.ts` | `formIssueFaults`, `reportTotal`; grading through `evaluation/bands.ts` | Weights 0.30/0.25/0.20/0.15/0.10 issue clean, and 0.11 refuses. With scale 5, scores 4,3,5,4,3 give **74.0000** (fixture). Grade 39.995 gives E, 40.0000 gives D, 80 gives A (fixture bands, through `placeInBands`). |
 
 ## 7. Where Phase 2 meets Phase 3 (the work-item engine)
 
@@ -654,7 +674,10 @@ list, "My work", and contractor access to shared items. Phase 2 builds none of t
 Phase 2 must not build a board, assignees, comments or a priority field on `DefectItem`. Each is Phase 3's, and adding one here
 would give the two phases two homes for the same fact.
 
-## 8. Build steps (one heavy builder; stages A → B → C → D, each shippable)
+## 8. Build steps (one heavy builder; stages A → B → D → C, each shippable; ruling 21)
+
+Stage D comes before stage C because close refuses PERFORMANCE_NOT_FILED and the report opens at the CMGD (ruling 17). Stage B
+ships as one unit; check `git status` before each schema step.
 
 **Rules for every step:**
 - The builder reads `node_modules/next/dist/docs/` for any Next API it touches.
@@ -677,7 +700,8 @@ would give the two phases two homes for the same fact.
   - `src/lib/time/{at-issue.ts,certificate.ts,claim-state.ts}` (new);
   - `src/app/projects/[id]/time-actions.ts` (+`raiseEotCertificate`).
 - **Done when:** an approved claim raises, signs and issues an EOT certificate. The issue writes the EXTENSION_OF_TIME version and
-  the supersession. A matter not yet approved cannot sign.
+  the supersession. A matter not yet approved cannot sign. The demo template's SO block resolves to the contract's S.O.
+  (ruling 23).
 - **Tests:**
   - `issue-hooks.test.ts`;
   - `at-issue.test.ts` (EOT_MOVED, written once, supersession by scope);
@@ -805,17 +829,14 @@ would give the two phases two homes for the same fact.
 - **Owns:**
   - the Final account and Close tabs (`closeout-panels.tsx`);
   - Settings › Post-award controls (`finalPreviousBasis`);
-  - Settings › Contract controls › Close-out documents (`CloseoutDocumentRequirement` list, through `stageEdit` as other lists).
-- **Done when:** §3.2's rows from "Ready for the final account" to CLOSED render.
+  - Settings › Contract controls › Close-out documents (`CloseoutDocumentRequirement` list, through `stageEdit` as other lists);
+  - the RSAJ pack's three STATED close-out documents (ruling 8).
+- **Done when:** §3.2's rows from "Ready for the final account" to CLOSED render. A supply contract's Close tab says closing is
+  not built for supply contracts.
 
-**C5. Supply close (Q6; cut if the product owner says no).**
-- **Owns:** `contract/{act-status,status}.ts` (the ACTIVE → CLOSED edge for supply; CLOSE, SECURITY_RELEASE and
-  PERFORMANCE_REPORT allowed in ACTIVE, with the act judging supply only).
-- **Done when:** a supply contract with every claim paid closes.
-- **Tests:** `act-status-edges.test.ts`, `act-status.test.ts` (family count and the TERMINATED/CLOSED lists), flagged and listed
-  in ADR 0047 D4.
+**C5. Removed** (ruling 19: supply contracts do not close in Phase 2; backlog row).
 
-**C6. Demo and gates.** The stage B demo contract is taken to CLOSED. One supply contract is closed.
+**C6. Demo and gates.** The stage B demo contract is taken to CLOSED.
 
 ### Stage D — Contractor performance (minimum viable)
 
@@ -828,10 +849,11 @@ would give the two phases two homes for the same fact.
 
 **D2. Rules and acts.**
 - **Owns:**
-  - `src/lib/performance/{form,score,grade}.ts` (reusing `evaluation/fixed.ts`'s 4-place arithmetic, not a copy);
+  - `src/lib/performance/{form,score}.ts` (reusing `evaluation/fixed.ts`'s 4-place arithmetic and `evaluation/bands.ts`'s
+    grading, not copies);
   - `src/app/projects/[id]/performance-actions.ts`;
-  - `act-status.ts` (+PERFORMANCE_REPORT, flagged);
-  - `closure.ts` (+PERFORMANCE_NOT_FILED).
+  - `act-status.ts` (+PERFORMANCE_REPORT in MAKING_GOOD_COMPLETE, PRACTICALLY_COMPLETE and FINAL_CERTIFICATE_ISSUED, flagged).
+  - PERFORMANCE_NOT_FILED lands in stage C's `finalRouteFaults` and `closureFaults`.
 - **Done when:** a report is scored, assessed, and verified by a second person; the same person is refused.
 
 **D3. Screens.**
@@ -847,7 +869,13 @@ would give the two phases two homes for the same fact.
 
 ## 9. Deliberately not done
 
-- **Termination, nominated parties, partial occupation:** Part B runs 3 and 4. They are not in Phase 2.
+- **Termination, nominated parties, partial occupation:** Part B runs 3 and 4. They are not in Phase 2. Termination is wholly out
+  (ruling 24). Binding on its later run: both notices sign only after the termination matter's DAL approval (SK008 §7.5.1,
+  §7.6.2), and TERMINATION_INTENT moves to MATTER_APPROVED.
+- **Closing a supply contract** (ruling 19). Backlog row.
+- **Contracts completed on paper before the system** (Q5): in the go-live data migration, such a contract must not get a second
+  CPC. Backlog row.
+- **RSAJ's post-award certificate templates** (ruling 23). Backlog row.
 - **Sectional completion (FR-CMP-002) and the IT CPC variant:** each is refused by name (Q2).
 - **Joint-inspection iterations, the expedited class, assignees and comments on defects:** Phase 3 (§7).
 - **Third-party rectification, bond claims, debt claims and legal referral (FR-CMP-014):** with them, a contractor who never
@@ -862,7 +890,7 @@ would give the two phases two homes for the same fact.
 - **SUSPENDED:** as ADR 0031.
 - **`payment/prelims.ts`:** stays on the backlog.
 
-## 10. Open questions for the product owner (each with its default; none blocks the build)
+## 10. Open questions for the product owner (answered 2026-10-27; the answers are in §11)
 
 | # | Question | Default |
 |---|---|---|
@@ -872,3 +900,30 @@ would give the two phases two homes for the same fact.
 | Q4 | Must a verified performance report exist before close (FR-FIN-014), given that the product ships no form? | Yes. Close is refused PERFORMANCE_NOT_FILED, and the report is refused FORM_NOT_SET until a form is set. RSAJ's seven forms are needed before go-live. |
 | Q5 | Contracts already practically complete, or with a release made, before the system. | Not in Phase 2 (no `CompletionOpening`). Such contracts stay at their status. Backlog row. |
 | Q6 | Supply contracts (paid on delivery order and invoice) close from Active, once every claim is paid and the securities are returned. | Yes (step C5; ADR 0047 D4). |
+
+## 11. The product owner's rulings (2026-10-27) and where each lands
+
+| # | Ruling | Where |
+|---|---|---|
+| 1–3 | CO-1, CO-2 (one `KIND_ISSUE_HOOK`; `strandedFaults` reads ACT_STATUS), CO-3 (matter signing; TERMINATION stays refused) approved. | §2 as written. |
+| 4 | `MakingGood.frozenLines`: every line with its end state; withdrawn keep their reasons; "n withdrawn, not made good". | CO-4, §4.4, §4.7, §6.2; ADR D1. |
+| 5 | CO-5 approved: DLP frozen on the CPC; null refuses DLP_NOT_SET; `applies` false goes to the final account. | CO-5. |
+| 6 | The CMGD snapshot carries FR-CMP-015's fields: bond value, retention balance, guarantee or receipt numbers. | §4.4, §6.2. |
+| 7 | CO-7 approved: one return per security (`securityId @unique`); the design guarantee bond survives; cash needs its receipt. | CO-7. |
+| 8 | The RSAJ pack seeds three STATED close-out documents (CPD/INT-SFA-INDEN). | §1, §6.2, C4. |
+| 9 | CO-9, CO-10, CO-11 approved. | §2. |
+| 10 | One form per contract type, no fallback, FORM_NOT_SET by name; grading by `evaluation/bands.ts`; scale 2–10. | §4.8, §6.2, §6.3; ADR D6. |
+| 11 | D3 approved: the final inspection is a day on `MakingGood`; under FINAL_PAYMENT the balance is written with Finance's payment; no DLP reads as FINAL_PAYMENT; `CompletionOpening` and the DGB release deferred. | ADR D3, CO-6. |
+| 12 | No supply ACTIVE → CLOSED edge; PERFORMANCE_REPORT allowed in MGC, and in PC where the CPC is issued with no DLP. | §4.8, D2; ADR D4. |
+| 13 | D5 approved. | ADR D5. |
+| 14 | Q1: the RSAJ pack sets `retentionBalanceReleaseAt` (FR-PAY-021, OM/P/007 §8.26, SK009 §7.7.4) and `performanceBondReleaseAt` (SK009 §7.7.3–7.7.4, FR-CMP-016) to MAKING_GOOD, STATED, each note naming FR-FIN-012's final-payment reading. The first release stays at the as-built handover. | Stage B pack data. |
+| 15 | Q2: sectional and IT contracts refused at the CPC by name. | §4.2. |
+| 16 | Q3: releases have no route of their own; the CMGD or FINAL is the approval of record, named on the Retention and Securities cards. Close needs no route. | §4.5, §4.7. |
+| 17 | Q4: the report opens at the CMGD (or CPC with no DLP); PERFORMANCE_NOT_FILED refuses sending the FINAL and is checked again at close; FORM_NOT_SET by name; order A → B → D → C. New RSAJ question: confirm FR-FIN-014 and supply the seven CPD/SA-F0n workbooks. Supersedes OD-B18. | §4.6, §4.7, §4.8, §8. |
+| 18 | Q5: contracts completed before the system stay at their status; backlog row (no second CPC in the go-live migration). | §9. |
+| 19 | Q6 cut: supply contracts do not close in Phase 2; the Close tab says so; backlog row. | §1, §4.7, C5 removed; ADR D4. |
+| 20 | No `scope` / `sectionRef` on `PracticalCompletion` or `MakingGood`; no general performance form. | §6.2. |
+| 21 | One heavy builder, A → B → D → C, C5 removed; stage B ships as one unit. | §8. |
+| 22 | Musts unmet at go-live (deferred): FR-TRM-001..017; FR-NSC-001..017 bar the splits built; FR-CMP-002, 003, 005's failure loop, 006's IT variant, 014, 017's alert after close; FR-LAD-010, 011, 013's escalation; FR-FIN-007, FR-CMP-013 and FR-CMP-018 in part; FR-CPR-001, 004, 005 (three of four stages), 006, 007, 008. | §1, §9. |
+| 23 | The demo EOT template uses an SO authorising block; A1 tests signing after matter approval and the SO block resolving to the contract's S.O. Backlog row: RSAJ templates for every post-award kind. | §4.1, A1. |
+| 24 | Termination wholly out; its later run signs both notices only after the DAL approval, and TERMINATION_INTENT moves to MATTER_APPROVED. | §9. |
