@@ -4,7 +4,8 @@
  *
  * Recorded → Answered → Has reasons → determined. Not entitled closes the claim (the damages decision may then be
  * recorded). Entitled → Sent → Approved, or Refused (the officer picks where the refusal goes, on the route card) →
- * Certificate raised → Granted once the certificate issues.
+ * Certificate raised → Granted once the certificate issues. Review S2: a refusal sent back to whoever raised it, or a route
+ * recalled, is Returned, and sending it again is the one action.
  */
 
 import type { CertificateStatus } from "@/lib/certificate/types";
@@ -17,13 +18,15 @@ export interface ClaimStateFacts {
   closed: boolean;
   /// The latest route of its matter, or null where none was opened.
   route: "PENDING" | "APPROVED" | "REJECTED" | "RECALLED" | null;
+  /// The latest route was refused and sent back to whoever raised it (RETURN_TO_ORIGINATOR applied).
+  returned?: boolean;
   /// Its matter's approval of record stands.
   approved: boolean;
   /// Its latest EOT certificate that is not void (its status).
   raised: { status: CertificateStatus } | null;
 }
 
-export const EOT_CLAIM_STATES = ["RECORDED", "ANSWERED", "HAS_REASONS", "ENTITLED", "NOT_ENTITLED", "SENT", "REFUSED", "APPROVED", "CERTIFICATE_RAISED", "GRANTED", "CLOSED"] as const;
+export const EOT_CLAIM_STATES = ["RECORDED", "ANSWERED", "HAS_REASONS", "ENTITLED", "NOT_ENTITLED", "SENT", "REFUSED", "RETURNED", "APPROVED", "CERTIFICATE_RAISED", "GRANTED", "CLOSED"] as const;
 export type EotClaimState = (typeof EOT_CLAIM_STATES)[number];
 
 export function eotClaimState(f: ClaimStateFacts): EotClaimState {
@@ -34,7 +37,8 @@ export function eotClaimState(f: ClaimStateFacts): EotClaimState {
   if (f.entitlement === "ENTITLED") {
     if (f.approved) return "APPROVED";
     if (f.route === "PENDING") return "SENT";
-    if (f.route === "REJECTED" || f.route === "RECALLED") return "REFUSED";
+    if (f.route === "RECALLED" || (f.route === "REJECTED" && f.returned)) return "RETURNED";
+    if (f.route === "REJECTED") return "REFUSED";
     return "ENTITLED";
   }
   if (f.reasons > 0) return "HAS_REASONS";
@@ -52,6 +56,7 @@ export const EOT_NEXT: Readonly<Record<EotClaimState, EotAction | null>> = {
   NOT_ENTITLED: null,
   SENT: null,
   REFUSED: null,
+  RETURNED: "SEND",
   APPROVED: "RAISE_CERTIFICATE",
   CERTIFICATE_RAISED: "OPEN_CERTIFICATE",
   GRANTED: null,
@@ -68,6 +73,7 @@ export const EOT_STATE_WORDS: Readonly<Record<EotClaimState, string>> = {
   NOT_ENTITLED: "Not entitled",
   SENT: "Awaiting approval",
   REFUSED: "Refused",
+  RETURNED: "Returned",
   APPROVED: "Approved",
   CERTIFICATE_RAISED: "Certificate raised",
   GRANTED: "Granted",
@@ -83,6 +89,7 @@ export const EOT_STATE_TONE: Readonly<Record<EotClaimState, "info" | "warn" | "o
   NOT_ENTITLED: "err",
   SENT: "warn",
   REFUSED: "err",
+  RETURNED: "warn",
   APPROVED: "info",
   CERTIFICATE_RAISED: "info",
   GRANTED: "ok",

@@ -25,6 +25,7 @@ export function claimStateFactsOf(m: MatterRow): ClaimStateFacts {
     entitlement: c.entitlement as ClaimStateFacts["entitlement"],
     closed: m.closedAt != null,
     route: (latest?.status ?? null) as ClaimStateFacts["route"],
+    returned: latest?.status === "REJECTED" && latest.rejectionApplied === "RETURN_TO_ORIGINATOR",
     approved: matterApproved(matterFactsOf(m)),
     raised: live ? { status: live.certificate.status as "DRAFT" } : null,
   };

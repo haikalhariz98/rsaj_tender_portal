@@ -14,7 +14,9 @@ describe("eotClaimState", () => {
     ["entitled", f({ answered: true, reasons: 2, entitlement: "ENTITLED" }), "ENTITLED", "SEND"],
     ["sent", f({ answered: true, reasons: 2, entitlement: "ENTITLED", route: "PENDING" }), "SENT", null],
     ["refused", f({ answered: true, reasons: 2, entitlement: "ENTITLED", route: "REJECTED" }), "REFUSED", null],
-    ["recalled", f({ answered: true, reasons: 2, entitlement: "ENTITLED", route: "RECALLED" }), "REFUSED", null],
+    // Review S2 (flagged, changed: a recalled route was REFUSED with no action, so it could not be sent again from any screen).
+    ["recalled", f({ answered: true, reasons: 2, entitlement: "ENTITLED", route: "RECALLED" }), "RETURNED", "SEND"],
+    ["refused, sent back to whoever raised it", f({ answered: true, reasons: 2, entitlement: "ENTITLED", route: "REJECTED", returned: true }), "RETURNED", "SEND"],
     ["approved", f({ answered: true, reasons: 2, entitlement: "ENTITLED", route: "APPROVED", approved: true }), "APPROVED", "RAISE_CERTIFICATE"],
     ["certificate raised", f({ entitlement: "ENTITLED", route: "APPROVED", approved: true, raised: { status: "SIGNING" } }), "CERTIFICATE_RAISED", "OPEN_CERTIFICATE"],
     ["granted", f({ entitlement: "ENTITLED", route: "APPROVED", approved: true, raised: { status: "ISSUED" } }), "GRANTED", null],
