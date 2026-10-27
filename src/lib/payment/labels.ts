@@ -5,6 +5,7 @@
  * under and what can still be done, never "set it" (the setting no longer moves it). Exhaustive maps.
  */
 
+import { correctionFaultText } from "./correction";
 import { supplyFaultText } from "./supply";
 import { formatDate } from "@/lib/format";
 import { templateNotSetWords } from "@/lib/certificate/form-needs";
@@ -476,7 +477,8 @@ export function paymentFaultWords(f: Finding): Words {
       // lad/labels.ts's; any other still fails closed in words.
       // The damages chain's words are English only now (founder, 2026-10-19); the Malay slot of a payment pair repeats the English.
       const lad = ladFaultWords(f);
-      return lad ? w(lad.en, lad.en) : w("Refused.", "Ditolak.");
+      const corrected = correctionFaultText(f);
+      return lad ? w(lad.en, lad.en) : corrected ? w(corrected, corrected) : w("Refused.", "Ditolak.");
   }
 }
 

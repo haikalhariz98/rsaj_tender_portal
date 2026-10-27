@@ -9,9 +9,10 @@ import type { ActWriter } from "@/lib/auth/act-writer";
 import { writeAudit } from "@/lib/audit/record";
 import { certificateLabel } from "@/lib/certificate/repo";
 import { CertificateRefusal, type CertCtx } from "@/lib/certificate/write";
-import { dayToDate } from "@/lib/dates";
-import { parseSen, senToDecimalString } from "@/lib/money";
+import { dayToDate, storedDay } from "@/lib/dates";
+import { parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 
+import { asCorrected, correctionFaults, CORRECTIONS } from "./correction";
 import { financeFaults, PAID_FIGURE } from "./finance";
 import { paymentRefusal } from "./labels";
 
@@ -31,4 +32,28 @@ export async function recordFinancePayment(c: CertCtx, i: { batchNo: string; pai
   await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "FinancePayment", entityId: row.id, entityLabel: `${certificateLabel(c.l, cert)} · paid by Finance`, reason: "" }, "CREATE",
     diffFields(null, { batchNo: i.batchNo.trim(), paidOn: i.paidOn, amountPaid: amount, recordedFor: person.name, note: i.note.trim() || null }));
   await i.act.write(c.tx, row.id);
+}
+
+/**
+ * Phase 0.3 item 12: correct Finance's payment of this certificate — a new `PaymentCorrection` row, never an edit — on the same lock and rule as recording it
+ * (`financeFaults`, re-run as if none were recorded) plus a reason and a change. The amount is the certificate's own figure, never keyed, so it is carried over.
+ * Audited on the payment itself, with its before and after and the reason.
+ */
+export async function correctFinancePayment(c: CertCtx, i: { batchNo: string; paidOn: string; reason: string }) {
+  const cert = c.l.cert;
+  const snap = cert.issueSnapshot as { issuedOn?: string } | null;
+  const p = await c.tx.financePayment.findUnique({ where: { certificateId: cert.id }, select: { id: true, paidOn: true, batchNo: true, amount: true, ...CORRECTIONS, _count: { select: { corrections: true } } } });
+  const now = p ? asCorrected(p) : null;
+  const before = now ? { paidOn: storedDay(now.paidOn), batchNo: now.batchNo, amount: senFromDecimal(now.amount) } : { paidOn: "", batchNo: "", amount: 0n };
+  const after = { paidOn: i.paidOn, batchNo: i.batchNo.trim(), amount: before.amount };
+  const fs = [
+    ...correctionFaults({ recorded: !!p, reason: i.reason, before, after }),
+    ...(p ? financeFaults({ issued: cert.status === "ISSUED", already: false, batchNo: i.batchNo, paidOn: i.paidOn, issuedOn: snap?.issuedOn ?? null, today: c.today, amount: before.amount }) : []),
+  ];
+  if (fs.length) throw new CertificateRefusal(paymentRefusal("Not corrected:", fs));
+  await c.tx.paymentCorrection.create({
+    data: { organisationId: c.l.org.id, financePaymentId: p!.id, sequence: p!._count.corrections + 1, paidOn: dayToDate(after.paidOn), batchNo: after.batchNo, amount: senToDecimalString(after.amount), reason: i.reason.trim(), recordedAt: c.now },
+  });
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "FinancePayment", entityId: p!.id, entityLabel: `${certificateLabel(c.l, cert)} · paid by Finance`, reason: i.reason.trim() }, "UPDATE",
+    diffFields({ batchNo: before.batchNo, paidOn: before.paidOn }, { batchNo: after.batchNo, paidOn: after.paidOn }));
 }

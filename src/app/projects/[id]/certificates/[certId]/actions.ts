@@ -15,7 +15,7 @@ import { dayOf, storedDay } from "@/lib/dates";
 import { parseSen, senToDecimalString } from "@/lib/money";
 import { REJECTION_KINDS } from "@/lib/authority/rejection";
 import { chooseCertificateRejection, decideCertificateStep } from "@/lib/certificate/route-write";
-import { recordFinancePayment } from "@/lib/payment/finance-write";
+import { correctFinancePayment, recordFinancePayment } from "@/lib/payment/finance-write";
 import { submitForApproval } from "@/lib/payment/route-open";
 import { FormReader } from "@/lib/validate";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
@@ -268,4 +268,18 @@ export async function recordCertificatePayment(_prev: FormState, data: FormData)
   const begun = await beginAct(actor, data, "FinancePayment.person", { personField: "personId" });
   if (!begun.ok) return begun.state;
   return inCertificate(actor, toAuditActor(actor), certOf(data), now, "POST_ISSUE", (c) => recordFinancePayment(c, { batchNo, paidOn: storedDay(paidOn), act: begun.act, note }));
+}
+
+/// Phase 0.3 item 12: a correction of Finance's payment, by whoever may record it, with a reason; a new row, never an edit.
+export async function correctCertificatePayment(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const batchNo = r.text("batchNo", "Batch number", { required: true, max: 60 });
+  const paidOn = r.date("paidOn", "Paid on", { required: true });
+  const reason = r.text("reason", "Reason", { required: true, max: 2000 });
+  if (r.failed || !paidOn) return { ok: false, errors: r.errors };
+  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "POST_ISSUE", (c) => correctFinancePayment(c, { batchNo, paidOn: storedDay(paidOn), reason }));
 }

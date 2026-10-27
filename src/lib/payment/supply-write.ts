@@ -15,16 +15,17 @@ import type { ActWriter } from "@/lib/auth/act-writer";
 import type { AuditActor } from "@/lib/auth/types";
 import { contractLabel, type LoadedContract } from "@/lib/contract/repo";
 import { dayToDate, storedDay } from "@/lib/dates";
-import { senToDecimalString, type Sen } from "@/lib/money";
+import { senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
 import { loadDocumentFacts } from "@/lib/project-docs/facts";
 import { documentState } from "@/lib/project-docs/state";
 
+import { asCorrected, correctionFaults, CORRECTIONS } from "./correction";
 import { supplyPaymentFaults, supplyRefusal } from "./supply";
 import type { Day, Finding } from "./types";
 
 export class SupplyPaymentRefused extends Error {
-  constructor(readonly faults: readonly Finding[]) {
-    super(supplyRefusal("Not recorded:", faults));
+  constructor(readonly faults: readonly Finding[], lead = "Not recorded:") {
+    super(supplyRefusal(lead, faults));
     this.name = "SupplyPaymentRefused";
   }
 }
@@ -62,4 +63,33 @@ export async function recordSupplyPayment(c: SupplyPaymentCtx, i: { documentId: 
   await writeAudit(c.tx, { actor: c.actor, organisationId: org, entity: "SupplyInvoicePayment", entityId: row.id, entityLabel: label, reason: "" }, "CREATE", diffFields(null, { invoice: doc.title, batchNo: i.batchNo.trim(), paidOn: i.paidOn, amountPaid: amount, recordedFor: person.name, note: i.note.trim() || null }));
   await i.act.write(c.tx, row.id);
   return { paymentId: row.id };
+}
+
+/**
+ * Phase 0.3 item 12: correct Finance's payment of a supply claim — a new `PaymentCorrection` row, never an edit — under the same locks and rule as recording it
+ * (`supplyPaymentFaults`, re-run as if none were recorded, against the version the payment names) plus a reason and a change. Audited on the payment itself, with its
+ * before and after and the reason. Its day, reference and amount, as typed from Finance's remittance.
+ */
+export async function correctSupplyPayment(c: SupplyPaymentCtx, i: { documentId: string; paidOn: Day; batchNo: string; amount: Sen | null; reason: string }): Promise<void> {
+  const org = c.l.org.id;
+  await c.tx.$queryRaw`SELECT id FROM "ProjectDocument" WHERE id = ${i.documentId} AND "contractId" = ${c.l.contract.id} AND "organisationId" = ${org} FOR UPDATE`;
+  const doc = await c.tx.projectDocument.findFirst({ where: { id: i.documentId, contractId: c.l.contract.id, organisationId: org }, select: { id: true, title: true, kind: true } });
+  if (!doc || doc.kind !== "SUPPLY_CLAIM") throw new SupplyPaymentRefused([{ code: "NOT_A_SUPPLY_CLAIM", level: "block" }]);
+  const p = await c.tx.supplyInvoicePayment.findUnique({ where: { documentId: doc.id }, select: { id: true, versionId: true, paidOn: true, batchNo: true, amount: true, ...CORRECTIONS, _count: { select: { corrections: true } } } });
+  const now = p ? asCorrected(p) : null;
+  const before = now ? { paidOn: storedDay(now.paidOn), batchNo: now.batchNo, amount: senFromDecimal(now.amount) } : { paidOn: "", batchNo: "", amount: 0n };
+  // The day the version it paid was verified: a correction never moves the payment before it.
+  const verified = p ? await c.tx.projectDocumentDecision.findFirst({ where: { versionId: p.versionId, approverId: null, outcome: "TAKEN_UP" }, select: { decidedOn: true } }) : null;
+  const fs = [
+    ...correctionFaults({ recorded: !!p, reason: i.reason, before, after: { paidOn: i.paidOn, batchNo: i.batchNo, amount: i.amount ?? -1n } }),
+    ...(p ? supplyPaymentFaults({ verifiedOn: verified ? storedDay(verified.decidedOn) : null, already: false, batchNo: i.batchNo, paidOn: i.paidOn, today: c.today, amount: i.amount }) : []),
+  ];
+  if (fs.length) throw new SupplyPaymentRefused(fs, "Not corrected:");
+  const amount = senToDecimalString(i.amount!);
+  await c.tx.paymentCorrection.create({
+    data: { organisationId: org, supplyInvoicePaymentId: p!.id, sequence: p!._count.corrections + 1, paidOn: dayToDate(i.paidOn), batchNo: i.batchNo.trim(), amount, reason: i.reason.trim(), recordedAt: c.now },
+  });
+  const label = `${contractLabel({ number: c.l.contract.number, award: { awardeeName: c.l.award.awardeeName } })} · ${doc.title} · paid by Finance`;
+  await writeAudit(c.tx, { actor: c.actor, organisationId: org, entity: "SupplyInvoicePayment", entityId: p!.id, entityLabel: label, reason: i.reason.trim() }, "UPDATE",
+    diffFields({ batchNo: before.batchNo, paidOn: before.paidOn, amountPaid: senToDecimalString(before.amount) }, { batchNo: i.batchNo.trim(), paidOn: i.paidOn, amountPaid: amount }));
 }

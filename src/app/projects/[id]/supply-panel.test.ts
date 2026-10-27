@@ -8,7 +8,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { Sen } from "@/lib/money";
 import type { SupplyClaimRow } from "@/lib/project-docs/supply-read";
 
-vi.mock("./supply-editors", () => ({ RecordSupplyPaymentDrawer: ({ invoiceNo }: { invoiceNo: string }) => h("button", null, `Record payment ${invoiceNo}`) }));
+vi.mock("./supply-editors", () => ({
+  RecordSupplyPaymentDrawer: ({ invoiceNo }: { invoiceNo: string }) => h("button", null, `Record payment ${invoiceNo}`),
+  CorrectSupplyPaymentDrawer: ({ invoiceNo, batchNo, amount }: { invoiceNo: string; batchNo: string; amount: string }) => h("button", null, `Correct payment ${invoiceNo} ${batchNo} ${amount}`),
+}));
 vi.mock("./supply-actions", () => ({}));
 
 import { SupplyInvoices } from "./supply-panel";
@@ -18,13 +21,16 @@ const view = (rows: SupplyClaimRow[]) => renderToStaticMarkup(h(SupplyInvoices, 
 
 describe("Supply invoices section", () => {
   it("counts what is waiting, hides zeros, and offers Record payment only on a verified unpaid claim", () => {
-    const paid = claim({ documentId: "d3", invoiceNo: "INV-3", state: "PAID", stateLabel: "Paid RM 10.00 on 2 Oct 2026, batch B1", payment: { paidOn: "2026-10-02", paidText: "2 Oct 2026", batchNo: "B1", amount: 1000n as Sen, amountText: "RM 10.00", note: "" } });
+    const paid = claim({ documentId: "d3", invoiceNo: "INV-3", state: "PAID", stateLabel: "Paid RM 10.00 on 2 Oct 2026, batch B1", payment: { paidOn: "2026-10-02", paidText: "2 Oct 2026", batchNo: "B1", amount: 1000n as Sen, amountText: "RM 10.00", note: "", corrected: false } });
     const html = view([claim({}), claim({ documentId: "d2", invoiceNo: "INV-2", state: "VERIFIED", stateLabel: "Verified", payable: true }), paid]);
     expect(html).toContain("To verify");
     expect(html).toContain("To record payment");
     expect(html).toContain("Record payment INV-2");
     expect(html).not.toContain("Record payment INV-1");
     expect(html).not.toContain("Record payment INV-3");
+    // Phase 0.3 item 12: a paid claim, and only a paid one, offers its correction, starting from the payment as it stands.
+    expect(html).toContain("Correct payment INV-3 B1 10.00");
+    expect(html).not.toContain("Correct payment INV-2");
     expect(html).toContain("/projects/c1/documents/d2");
   });
   it("says so when none are sent, with no zero chips", () => {

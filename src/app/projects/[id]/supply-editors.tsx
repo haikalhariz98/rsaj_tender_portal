@@ -4,7 +4,7 @@ import { RecordEditor } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 
-import { recordSupplyPayment } from "./supply-actions";
+import { correctSupplyPayment, recordSupplyPayment } from "./supply-actions";
 
 type Option = { value: string; label: string };
 
@@ -28,6 +28,29 @@ export function RecordSupplyPaymentDrawer({ id, documentId, invoiceNo, people, t
       submitLabel="Record payment"
       submitBlock={blocker}
       trigger={{ label: "Record payment", className: buttonClass("secondary", "sm") }}
+    />
+  );
+}
+
+/// Phase 0.3 item 12: the day, batch and amount as they should read, with why. Kept beside the payment as a correction, never an edit of it.
+export function CorrectSupplyPaymentDrawer({ id, documentId, invoiceNo, paidOn, batchNo, amount, blocker }: { id: string; documentId: string; invoiceNo: string; paidOn: string; batchNo: string; amount: string; blocker: string | null }) {
+  return (
+    <RecordEditor
+      title={`Correct payment of ${invoiceNo}`}
+      description="Kept as a correction beside the payment, never an edit."
+      fields={[
+        { kind: "hidden", name: "id" },
+        { kind: "hidden", name: "documentId" },
+        { kind: "date", name: "paidOn", label: "Paid on", required: true },
+        { kind: "text", name: "batchNo", label: "Batch number", required: true },
+        { kind: "money", name: "amount", label: "Amount paid", required: true },
+      ]}
+      values={{ id, documentId, paidOn, batchNo, amount }}
+      action={correctSupplyPayment}
+      reason={{ label: "Why is it corrected?" }}
+      submitLabel="Save the correction"
+      submitBlock={blocker}
+      trigger={{ label: "Correct payment", className: buttonClass("ghost", "sm") }}
     />
   );
 }

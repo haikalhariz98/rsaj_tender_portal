@@ -23,7 +23,7 @@ export const APP_ROLE_DEFAULT = "perolehan_app";
  * Its kick-off meeting (ADR 0042 D10) adds who attended (migration `20261123000000_kick_off_meeting`).
  * Wave V (ADR 0045 D7) adds Finance's payment of a supply claim, write-once (migration `20261201000100_wave_v_tables`).
  */
-export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange", "PortalApplicationValue", "ProjectDocumentVersion", "ProjectDocumentRequest", "ProjectDocumentDecision", "KickOffAttendance", "SupplyInvoicePayment"] as const;
+export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent", "RegistrationDeclaration", "AddendumAcknowledgement", "TenderInspectionEvent", "NonAwardNotice", "PaymentAttempt", "PurchaseDownload", "SealedAccessEvent", "PublishedKeyChange", "PortalApplicationValue", "ProjectDocumentVersion", "ProjectDocumentRequest", "ProjectDocumentDecision", "KickOffAttendance", "SupplyInvoicePayment", "PaymentCorrection"] as const;
 
 /**
  * Stored document bytes (OD-9). A trigger refuses UPDATE and TRUNCATE for every login (migration `20261007120000_blob_content_kept`);

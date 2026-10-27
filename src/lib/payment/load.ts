@@ -27,6 +27,7 @@ import { scopeDate } from "@/lib/time/extension";
 import { formatSen, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import type { ContractPartyKind } from "@/lib/supervision/types";
 
+import { CORRECTIONS } from "./correction";
 import { readJudgedUnder, type AssembleInput, type DamagesIn, type IssuedInterim, type ValuationIn } from "./assemble";
 import { EXECUTED_STATUSES, type CreditorFacts } from "./eligibility";
 import { OPENING_GROUP_WORDS } from "./labels";
@@ -37,7 +38,7 @@ import { inOrder } from "@/lib/series";
 const pct = (v: { toString(): string } | null | undefined) => decimalText(v);
 const senOrNull = (v: { toString(): string } | null | undefined): Sen | null => (v == null ? null : parseSen(v.toString()));
 
-const certSelect = { id: true, kind: true, status: true, number: true, sequence: true, certificateDate: true, issuedAt: true, issueSnapshot: true, openedOn: true, financePayment: { include: { person: { select: { name: true } } } } } as const;
+const certSelect = { id: true, kind: true, status: true, number: true, sequence: true, certificateDate: true, issuedAt: true, issueSnapshot: true, openedOn: true, financePayment: { include: { person: { select: { name: true } }, ...CORRECTIONS } } } as const;
 
 export const paymentInclude = {
   paymentCalendar: { include: { person: { select: { name: true } } } },

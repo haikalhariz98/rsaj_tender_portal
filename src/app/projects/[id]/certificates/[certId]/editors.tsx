@@ -8,6 +8,7 @@ import {
   acknowledgeCertificateCopy,
   chooseCertificateRouteRejection,
   decideCertificateRouteStep,
+  correctCertificatePayment,
   recordCertificatePayment,
   sendCertificateForApproval,
   correctCertificateDay,
@@ -271,6 +272,23 @@ export function FinancePaymentDrawer({ certId, amount, people, today, blocker }:
       submitLabel="Record the payment"
       submitBlock={blocker}
       trigger={{ label: "Record Finance's payment", className: secondary }}
+    />
+  );
+}
+
+/// Phase 0.3 item 12: the day and batch as they should read; the amount is the certificate's own and is never corrected.
+export function CorrectFinancePaymentDrawer({ certId, batchNo, paidOn, blocker }: { certId: string; batchNo: string; paidOn: string; blocker: string | null }) {
+  return (
+    <RecordEditor
+      title="Correct Finance's payment"
+      description="Kept as a correction beside the payment, never an edit."
+      fields={[hidden("certId"), { kind: "text", name: "batchNo", label: "Batch number", required: true }, { kind: "date", name: "paidOn", label: "Paid on", required: true }]}
+      values={{ certId, batchNo, paidOn }}
+      action={correctCertificatePayment}
+      reason={{ label: "Why is it corrected?" }}
+      submitLabel="Save the correction"
+      submitBlock={blocker}
+      trigger={{ label: "Correct", className: ghost }}
     />
   );
 }

@@ -27,6 +27,7 @@ import { serviceState, type ServiceState } from "./submission";
 import type { SubmissionKind, SubmissionOutcome } from "./types";
 import { projectFaultText } from "./words";
 import { inOrder } from "@/lib/series";
+import { asCorrected, CORRECTIONS } from "@/lib/payment/correction";
 
 /**
  * What each tab of one contract's My Projects workspace reads (Phase 4e). One loader per tab, so a tab loads only its own slice and never a sibling's. Reads only, in the caller's client. Each
@@ -223,7 +224,7 @@ export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): 
     () => client.certificate.findMany({
       where: { contractId: ctx.contract.id, organisationId: actor.organisationId, status: "ISSUED", kind: { in: ["INTERIM_PAYMENT", "ADVANCE_PAYMENT"] } },
       orderBy: [{ kind: "asc" }, { sequence: "asc" }],
-      select: { id: true, kind: true, number: true, sequence: true, certificateDate: true, issueSnapshot: true, financePayment: { select: { paidOn: true, amount: true, batchNo: true } } },
+      select: { id: true, kind: true, number: true, sequence: true, certificateDate: true, issueSnapshot: true, financePayment: { select: { paidOn: true, amount: true, batchNo: true, ...CORRECTIONS } } },
     }),
     () => client.contractorSubmission.findMany({ where: { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId, kind: { in: ["INTERIM_CLAIM", "MATERIALS_ON_SITE"] } }, orderBy: { submittedAt: "desc" }, select: { id: true, title: true, amount: true, aboutDay: true, submittedAt: true, submittedOn: true, outcome: true, kind: true } }));
   const claimDocuments = await contractorClaimDocuments(client, actor, ctx);
@@ -232,7 +233,8 @@ export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): 
   const rows = certs.map((c) => {
     const figure = figureOf(c.issueSnapshot, PAID_FIGURE[c.kind] ?? null);
     const recommended: Sen | null = figure == null ? null : senFromDecimal(figure);
-    const row: CertifiedRow = { certificateId: c.id, sequence: c.sequence ?? 0, number: c.number, issuedOn: dayText(c.certificateDate), recommended, paid: c.financePayment ? { on: formatDate(storedDay(c.financePayment.paidOn)), amount: senFromDecimal(c.financePayment.amount), batchNo: c.financePayment.batchNo } : null };
+    const fp = c.financePayment ? asCorrected(c.financePayment) : null;
+    const row: CertifiedRow = { certificateId: c.id, sequence: c.sequence ?? 0, number: c.number, issuedOn: dayText(c.certificateDate), recommended, paid: fp ? { on: formatDate(storedDay(fp.paidOn)), amount: senFromDecimal(fp.amount), batchNo: fp.batchNo } : null };
     return { ...row, kind: c.kind as CertificateKind, kindLabel: KIND_WORDS[c.kind as CertificateKind].en, recommendedText: recommended == null ? null : formatMoney(recommended), paidText: row.paid ? formatMoney(row.paid.amount) : null };
   });
   const summary = certifiedAgainstPaid(rows);

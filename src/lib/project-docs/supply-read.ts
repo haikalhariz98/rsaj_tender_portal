@@ -12,6 +12,7 @@ import type { Tx } from "@/lib/audit/record";
 import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, senFromDecimal, type Sen } from "@/lib/money";
+import { asCorrected, CORRECTIONS } from "@/lib/payment/correction";
 import { supplyClaimState, supplyClaimWords, type SupplyClaimState } from "@/lib/payment/supply";
 
 import type { LoadedContract } from "@/lib/contract/repo";
@@ -47,7 +48,8 @@ export interface SupplyClaimRow {
   state: SupplyClaimState;
   /// "With {organisation}", "Returned", "Verified", or "Paid {amount} on {day}, batch {no}".
   stateLabel: string;
-  payment: { paidOn: string; paidText: string; batchNo: string; amount: Sen; amountText: string; note: string } | null;
+  /// `corrected`: a correction stands over the payment as recorded (Phase 0.3 item 12); the figures are the latest.
+  payment: { paidOn: string; paidText: string; batchNo: string; amount: Sen; amountText: string; note: string; corrected: boolean } | null;
   /// Verified and not yet paid: Finance's payment may be recorded now.
   payable: boolean;
 }
@@ -56,14 +58,14 @@ export interface SupplyClaimRow {
 export async function loadSupplyClaims(tx: Tx, c: { organisationId: string; orgName: string; contractId: string }): Promise<SupplyClaimRow[]> {
   const docs = await tx.projectDocument.findMany({
     where: { organisationId: c.organisationId, contractId: c.contractId, kind: "SUPPLY_CLAIM" },
-    select: { id: true, title: true, supplyPayment: { select: { paidOn: true, batchNo: true, amount: true, note: true } } },
+    select: { id: true, title: true, supplyPayment: { select: { paidOn: true, batchNo: true, amount: true, note: true, ...CORRECTIONS } } },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
   });
   const facts = await loadDocumentFactsMany(tx, docs.map((d) => d.id));
   return docs.map((d) => {
     const f = facts.get(d.id)!;
-    const p = d.supplyPayment;
-    const payment = p ? { paidOn: storedDay(p.paidOn), batchNo: p.batchNo, amount: senFromDecimal(p.amount), note: p.note } : null;
+    const p = d.supplyPayment ? asCorrected(d.supplyPayment) : null;
+    const payment = p ? { paidOn: storedDay(p.paidOn), batchNo: p.batchNo, amount: senFromDecimal(p.amount), note: p.note, corrected: p.corrected } : null;
     const state = supplyClaimState(documentState(f), payment !== null);
     // A kind is set only with a version, so a supply claim always has its first.
     const sentOn = f.versions[0]?.uploadedOn ?? "";

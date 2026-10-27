@@ -11,7 +11,7 @@ import { withLockedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf, storedDay } from "@/lib/dates";
 import { parseSen } from "@/lib/money";
-import { recordSupplyPayment as recordSupplyPaymentCore, SupplyPaymentRefused } from "@/lib/payment/supply-write";
+import { correctSupplyPayment as correctSupplyPaymentCore, recordSupplyPayment as recordSupplyPaymentCore, SupplyPaymentRefused } from "@/lib/payment/supply-write";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -53,6 +53,41 @@ export async function recordSupplyPayment(_prev: FormState, data: FormData): Pro
     if (e instanceof SupplyPaymentRefused) return { ok: false, message: e.message };
     const attribution = attributionRefusalState(e);
     if (attribution) return attribution;
+    throw e;
+  }
+  if (result?.ok) {
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${contractId}`);
+  }
+  return result ?? GONE;
+}
+
+/// Phase 0.3 item 12: a correction of Finance's payment of a supply claim, by whoever may record it, with a reason; a new row, never an edit.
+export async function correctSupplyPayment(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const contractId = r.text("id", "Contract", { required: true, max: 100 });
+  const documentId = r.text("documentId", "Invoice", { required: true, max: 100 });
+  const paidOn = r.date("paidOn", "Paid on", { required: true });
+  const batchNo = r.text("batchNo", "Batch number", { required: true, max: 60 });
+  const amount = r.money("amount", "Amount paid", { required: true });
+  const reason = r.text("reason", "Reason", { required: true, max: 2000 });
+  if (r.failed || !paidOn) return { ok: false, errors: r.errors };
+  let result: FormState | null;
+  try {
+    result = await withLockedContract(actor.organisationId, contractId, async (tx, l) => {
+      const shut = actStatusFault("PROJECT_WORKSPACE", l.contract.status as ContractStatus);
+      if (shut) return { ok: false, message: actStatusText(shut) };
+      const today = dayOf(now, l.org.timeZone);
+      if (!today) return { ok: false, message: NO_ZONE };
+      await correctSupplyPaymentCore({ tx, l, actor: toAuditActor(actor), now, today }, { documentId, paidOn: storedDay(paidOn), batchNo, amount: amount === null ? null : parseSen(amount), reason });
+      return { ok: true };
+    });
+  } catch (e) {
+    if (e instanceof SupplyPaymentRefused) return { ok: false, message: e.message };
     throw e;
   }
   if (result?.ok) {

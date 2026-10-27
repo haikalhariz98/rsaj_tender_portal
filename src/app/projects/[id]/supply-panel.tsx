@@ -9,12 +9,13 @@ import { EmptyState } from "@/components/ui/feedback";
 import { StatusCounts } from "@/components/ui/status-counts";
 import { actStatusBlocker } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
+import { senToDecimalString } from "@/lib/money";
 import {
   supplyClaimCounts,
   type SupplyClaimRow,
 } from "@/lib/project-docs/supply-read";
 
-import { RecordSupplyPaymentDrawer } from "./supply-editors";
+import { CorrectSupplyPaymentDrawer, RecordSupplyPaymentDrawer } from "./supply-editors";
 
 type Option = { value: string; label: string };
 const TONE = {
@@ -94,6 +95,17 @@ export function SupplyInvoices({
                         invoiceNo={r.invoiceNo}
                         people={people}
                         today={today}
+                        blocker={blocker}
+                      />
+                    ) : null}
+                    {r.payment ? (
+                      <CorrectSupplyPaymentDrawer
+                        id={contractId}
+                        documentId={r.documentId}
+                        invoiceNo={r.invoiceNo}
+                        paidOn={r.payment.paidOn}
+                        batchNo={r.payment.batchNo}
+                        amount={senToDecimalString(r.payment.amount)}
                         blocker={blocker}
                       />
                     ) : null}

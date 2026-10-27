@@ -24,13 +24,14 @@ import type { Tx } from "@/lib/db";
 import { EXERCISE_PHASE, type ExercisePhase } from "@/lib/method/phase";
 import type { ExerciseStatus } from "@/lib/method/types";
 import { addSen, senFromDecimal, type Sen } from "@/lib/money";
+import { asCorrected, CORRECTIONS } from "@/lib/payment/correction";
 import type { RequisitionStatus } from "@/lib/requisition/types";
 
 import { byMonth, type MonthFigure, type MonthKey } from "./months";
 import { departmentUnits, mayReadBudget, type InsightsChoices, type InsightsQuery } from "./query";
 import { daysToApproval, groups, median, pipelineBars, type Group, type PipelineStage } from "./tiles";
 import { insightsWhere, type Filters } from "./where";
-import { financialYear, type FinancialYear } from "./year";
+import { financialYear, inYear, type FinancialYear } from "./year";
 
 export interface InsightsReader extends Viewer {
   readonly permissions: ReadonlySet<string>;
@@ -119,8 +120,10 @@ async function awardsInYear(client: Tx, ctx: InsightsContext, f: Filters, fy: Se
 }
 
 async function paymentsInYear(client: Tx, ctx: InsightsContext, f: Filters, fy: SetYear) {
-  const rows = await client.financePayment.findMany({ where: insightsWhere.payments(ctx.organisationId, f, fy, ctx.hidden), select: { paidOn: true, amount: true } });
-  return rows.map((r) => ({ day: storedDay(r.paidOn), amount: senFromDecimal(r.amount) }));
+  // Phase 0.3 item 12: a payment counts on its day as last corrected. Read those whose recorded or corrected day is in the year; keep those whose latest is.
+  const { paidOn, ...rest } = insightsWhere.payments(ctx.organisationId, f, fy, ctx.hidden);
+  const rows = await client.financePayment.findMany({ where: { ...rest, OR: [{ paidOn }, { corrections: { some: { paidOn: paidOn as Prisma.DateTimeFilter<"PaymentCorrection"> } } }] }, select: { paidOn: true, batchNo: true, amount: true, ...CORRECTIONS } });
+  return rows.map((r) => asCorrected(r)).map((r) => ({ day: storedDay(r.paidOn), amount: senFromDecimal(r.amount) })).filter((r) => inYear(fy, r.day));
 }
 
 /// The matters the worklist (`loadWorklist`) can name a route by; a route on anything else (a contract matter, today) is not on /approvals,

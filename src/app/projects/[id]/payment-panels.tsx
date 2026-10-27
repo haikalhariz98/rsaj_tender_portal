@@ -32,6 +32,7 @@ import { creditorFactsOf } from "@/lib/payment/creditor-store";
 import { OPENING_GROUP_WORDS, ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, PAYEE_BANK_UNCHECKED, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
 import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, openingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
+import { asCorrected } from "@/lib/payment/correction";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, VALUATION_TRIGGERS, type Finding } from "@/lib/payment/types";
 import { issueClockFrom, openFaults } from "@/lib/payment/valuation";
@@ -45,6 +46,7 @@ import type { SupplyClaimRow } from "@/lib/project-docs/supply-read";
 import { AdjustmentRefusedCallout } from "./adjustment-refused";
 import { WithHiddenNote } from "./hidden-note";
 import {
+
   AdvanceDrawer,
   OpeningDrawer,
   CalendarDrawer,
@@ -290,7 +292,7 @@ function ValuationsSection({ l, v, people, today, page, hidden }: { l: LoadedCon
                       {`Valuation of ${formatDate(day(x.valuationDate))}`}
                       {cert?.id && status ? <Badge tone={TONE[STATUS_TONE[status]]}>{STATUS_WORDS[status].en}</Badge> : <Badge tone={x.status === "OPEN" ? "info" : x.status === "HELD" ? "warn" : undefined}>{VALUATION_STATUS_WORDS[x.status].en}</Badge>}
                     </span>
-                    <span className={sub}>{[TRIGGER_WORDS[x.trigger].en, x.triggerDate ? `claim received ${formatDate(day(x.triggerDate))}` : null, j ? `interim certificate ${cert?.sequence ?? j.sequence}${cert?.number ? `, ${cert.number}` : ""}` : null, recommended != null ? `payment recommended ${formatMoney(recommended)}` : null, cert?.financePayment ? `paid by Finance ${formatDate(day(cert.financePayment.paidOn))}, batch ${cert.financePayment.batchNo}` : null].filter(Boolean).join(" · ")}</span>
+                    <span className={sub}>{[TRIGGER_WORDS[x.trigger].en, x.triggerDate ? `claim received ${formatDate(day(x.triggerDate))}` : null, j ? `interim certificate ${cert?.sequence ?? j.sequence}${cert?.number ? `, ${cert.number}` : ""}` : null, recommended != null ? `payment recommended ${formatMoney(recommended)}` : null, cert?.financePayment ? paidLine(asCorrected(cert.financePayment)) : null].filter(Boolean).join(" · ")}</span>
                     {x.closeReason && <span className={sub}>{`${VALUATION_STATUS_WORDS[x.status].en}: ${x.closeReason}`}</span>}
                     {cert?.status === "VOID" && <span className={sub}>Certificate void. Open another valuation.</span>}
                   </span>
@@ -731,3 +733,6 @@ function DamagesSection({ l, v, people, today, hidden }: { l: LoadedContract; v:
     </ActGate>
   );
 }
+
+/// Finance's payment as it stands (its latest correction, Phase 0.3 item 12), for a valuation's line.
+const paidLine = (p: { paidOn: Date; batchNo: string }): string => `paid by Finance ${formatDate(storedDay(p.paidOn))}, batch ${p.batchNo}`;

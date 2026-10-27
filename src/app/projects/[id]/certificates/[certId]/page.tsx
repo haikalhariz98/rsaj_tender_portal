@@ -59,6 +59,7 @@ import { latestCertificateRoute, refusalKindText } from "@/lib/certificate/route
 import { ApprovalRouteCard } from "@/components/approval-route-card";
 import { paymentFaultText } from "@/lib/payment/labels";
 import { PAID_FIGURE } from "@/lib/payment/finance";
+import { asCorrected, CORRECTIONS } from "@/lib/payment/correction";
 import { KIND_ROUTE_DOMAIN } from "@/lib/payment/route";
 import { routeValueOf, submitStateFaults } from "@/lib/payment/route-state";
 import { RECOMMENDING_ACT } from "@/lib/supervision/blocks";
@@ -68,7 +69,7 @@ import { variationRefusal } from "@/lib/variation/labels";
 /// 6.13 Part A step 4: the kinds approved on their variation's own routes.
 const VARIATION_APPROVED_KINDS: readonly string[] = ["VARIATION_APPLICATION", "VARIATION"];
 
-import { AcknowledgeDrawer, CheckDrawer, ChooseRejectionDrawer, CorrectDateDrawer, DecideRouteStepDrawer, DespatchDrawer, FinancePaymentDrawer, OverrideDrawer, ReceivedDrawer, SendForApprovalDrawer, SendForRoutingDrawer, SendToSigningDrawer, SignatureDrawer, VoidDrawer } from "./editors";
+import { AcknowledgeDrawer, CheckDrawer, ChooseRejectionDrawer, CorrectDateDrawer, CorrectFinancePaymentDrawer, DecideRouteStepDrawer, DespatchDrawer, FinancePaymentDrawer, OverrideDrawer, ReceivedDrawer, SendForApprovalDrawer, SendForRoutingDrawer, SendToSigningDrawer, SignatureDrawer, VoidDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 import { loadCase } from "@/app/_auth/case";
 import { CASE_HEADER_WORDS as H } from "@/lib/contract/case-page-words";
@@ -143,7 +144,8 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
     : {};
   const reResolveUnset = supervisedRules.includes("SO") && ((await loadPostAwardPolicy(l.org.id))?.soReResolve ?? null) == null;
   const dateNow = certificateDateOf(blocks, signedOf(cert));
-  const paid = await db.financePayment.findUnique({ where: { certificateId: cert.id }, include: { person: { select: { name: true } } } });
+  const paidRow = await db.financePayment.findUnique({ where: { certificateId: cert.id }, include: { person: { select: { name: true } }, ...CORRECTIONS } });
+  const paid = paidRow ? asCorrected(paidRow) : null;
   // 614-C4: the route and its steps are the certificate's trail too, and Finance's payment of it.
   const ids = [cert.id, ...cert.signatures.map((s) => s.id), ...cert.overrides.map((o) => o.id), ...cert.routingChecks.map((r) => r.id), ...cert.copies.map((c) => c.id), ...cert.approvalInstances.flatMap((i) => [i.id, ...i.steps.map((x) => x.id)]), ...(paid ? [paid.id] : [])];
   const [history, historyTotal] = await Promise.all([
@@ -357,7 +359,8 @@ async function FinanceCard({ l, people, today }: { l: LoadedCertificate; people:
   const cert = l.cert;
   const key = PAID_FIGURE[cert.kind];
   if (!key) return null;
-  const paid = await db.financePayment.findUnique({ where: { certificateId: cert.id }, include: { person: { select: { name: true } } } });
+  const paidRow = await db.financePayment.findUnique({ where: { certificateId: cert.id }, include: { person: { select: { name: true } }, ...CORRECTIONS } });
+  const paid = paidRow ? asCorrected(paidRow) : null;
   const snap = cert.issueSnapshot as { issuedOn?: string; figures?: { lines?: { key: string; value: string | null }[]; totals?: { key: string; value: string | null }[] } } | null;
   const v = [...(snap?.figures?.totals ?? []), ...(snap?.figures?.lines ?? [])].find((x) => x.key === key)?.value ?? null;
   const issued = cert.status === "ISSUED";
@@ -368,10 +371,11 @@ async function FinanceCard({ l, people, today }: { l: LoadedCertificate; people:
         <span className="min-w-0">
           <span className="block text-[13.5px] font-semibold text-ink">Paid by Finance</span>
           <span className="block text-[12.5px] break-words text-ink-3">
-            {paid ? <>{`${formatMoney(parseSen(paid.amount.toString()))}, batch ${paid.batchNo}, paid ${formatDate(day(paid.paidOn))}; `}<ActedBy entity="FinancePayment" id={paid.id} slot="person" name={paid.person.name} />.</> : issued ? "Not recorded yet." : "Goes to Finance once issued."}
+            {paid ? <>{`${formatMoney(parseSen(paid.amount.toString()))}, batch ${paid.batchNo}, paid ${formatDate(day(paid.paidOn))}${paid.corrected ? " (corrected)" : ""}; `}<ActedBy entity="FinancePayment" id={paid.id} slot="person" name={paid.person.name} />.</> : issued ? "Not recorded yet." : "Goes to Finance once issued."}
           </span>
         </span>
         {!paid && issued && v != null && <FinancePaymentDrawer certId={cert.id} amount={formatMoney(parseSen(v))} people={people} today={today} blocker={blocker} />}
+        {paid && issued && <CorrectFinancePaymentDrawer certId={cert.id} batchNo={paid.batchNo} paidOn={day(paid.paidOn)!} blocker={blocker} />}
       </div>
     </CardBody>
   );

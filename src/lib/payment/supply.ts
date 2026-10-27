@@ -10,6 +10,8 @@ import { fitsMoneyColumn, formatMoney, type Sen } from "@/lib/money";
 import { formatDate } from "@/lib/format";
 import type { DocumentReading } from "@/lib/project-docs/state";
 
+import { correctionFaultText } from "./correction";
+
 import type { Day, Finding } from "./types";
 
 export type SupplyPaymentFault = "NOT_VERIFIED" | "PAYMENT_ALREADY_RECORDED" | "BATCH_REQUIRED" | "FUTURE_DATE" | "PAID_BEFORE_VERIFIED" | "AMOUNT_REQUIRED" | "AMOUNT_NOT_POSITIVE" | "AMOUNT_TOO_LARGE";
@@ -55,7 +57,7 @@ export function supplyFaultText(f: Finding): string {
     case "PERSON_REQUIRED":
       return "Name who it is recorded for: someone on record and active.";
     default:
-      return "Refused.";
+      return correctionFaultText(f) ?? "Refused.";
   }
 }
 

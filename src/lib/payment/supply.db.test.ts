@@ -43,7 +43,7 @@ import { POST as createRoute } from "@/app/supplier/projects/documents/create/ro
 import { POST as versionRoute } from "@/app/supplier/projects/documents/version/route";
 import { saveContractBehaviours } from "@/app/configuration/reference-data/core";
 import { withdrawVersion } from "@/app/documents/actions";
-import { recordSupplyPayment } from "@/app/projects/[id]/supply-actions";
+import { correctSupplyPayment, recordSupplyPayment } from "@/app/projects/[id]/supply-actions";
 import { markProjectVersion } from "@/app/projects/[id]/document-actions";
 import { contractorCreate, contractorVersion } from "@/lib/project-docs/portal-acts";
 import { findProjectFile } from "@/lib/project-docs/portal-file";
@@ -386,5 +386,48 @@ describe("the same path through the portal routes, read back as the portal's Inv
     expect(paid!.payment!.paidText).toMatch(/\d{2} \w{3} \d{4}/);
     expect(await pay(contractId, documentId, { batchNo: "B-0043" })).toMatchObject({ ok: false, message: expect.stringMatching(/already recorded/) });
     expect(await db.supplyInvoicePayment.count({ where: { documentId } })).toBe(1);
+  });
+});
+
+// Phase 0.3 item 12: a payment recorded wrongly is corrected by a new row with a reason, never an edit; readers take the latest; the trail has the before and after.
+describe("correcting Finance's payment of a supply claim", () => {
+  const correct = (contractId: string, documentId: string, o: Partial<Record<"paidOn" | "batchNo" | "amount" | "reason", string>> = {}) =>
+    as(p.finance, () => correctSupplyPayment({ ok: false }, form({ id: contractId, documentId, paidOn: today(), batchNo: "B-0042", amount: "12500.00", reason: "Typed from the wrong remittance.", ...o })));
+
+  it("keeps the payment as recorded, adds the correction, reads the latest, and audits the before and after with the reason", async () => {
+    const c = await contractor();
+    const contractId = await contract(c.supplierId, SUPPLY);
+    const documentId = docOf(await sendClaim(c, contractId, "INV-CORR-1"));
+    expect((await correct(contractId, documentId)).message).toBe("Not corrected: No payment is recorded, so there is nothing to correct.");
+    await mark(contractId, documentId, "TAKEN_UP");
+    expect(await pay(contractId, documentId)).toEqual({ ok: true });
+    const payment = await db.supplyInvoicePayment.findUniqueOrThrow({ where: { documentId } });
+
+    // Refused in words, nothing written: no reason; nothing changed; after today.
+    expect(await correct(contractId, documentId, { reason: "" })).toMatchObject({ ok: false, errors: { reason: expect.any(String) } });
+    expect((await correct(contractId, documentId)).message).toBe("Not corrected: Nothing differs from the payment as it stands.");
+    expect((await correct(contractId, documentId, { batchNo: "B-0420", paidOn: dayOf(at(1), "Asia/Kuala_Lumpur")! })).message).toMatch(/^Not corrected: .*after today/);
+    expect(await db.paymentCorrection.count({ where: { supplyInvoicePaymentId: payment.id } })).toBe(0);
+
+    expect(await correct(contractId, documentId, { batchNo: "B-0420", amount: "12050.00" })).toEqual({ ok: true });
+    expect(await correct(contractId, documentId, { batchNo: "B-0421", amount: "12050.00", reason: "The batch again." })).toEqual({ ok: true });
+    const rows = await db.paymentCorrection.findMany({ where: { supplyInvoicePaymentId: payment.id }, orderBy: { sequence: "asc" } });
+    expect(rows.map((r) => [r.sequence, r.batchNo, r.amount.toString(), r.reason])).toEqual([[1, "B-0420", "12050", "Typed from the wrong remittance."], [2, "B-0421", "12050", "The batch again."]]);
+    // The payment as recorded is untouched.
+    expect(await db.supplyInvoicePayment.findUniqueOrThrow({ where: { documentId } })).toEqual(payment);
+    // Both sides read the latest.
+    const [mine] = await claimsOf(contractId);
+    expect(mine).toMatchObject({ state: "PAID", payment: { batchNo: "B-0421", amount: 1205000n, corrected: true } });
+    expect(mine!.stateLabel).toMatch(/^Paid RM12,050 on .*, batch B-0421$/);
+    expect((await paymentsTab(db, c.actor, (await loadProjectContext(db, c.actor, contractId))!)).invoices.rows[0]).toMatchObject({ payment: { batchNo: "B-0421", amountText: "RM12,050" } });
+    const trail = await db.auditEntry.findMany({ where: { organisationId, entity: "SupplyInvoicePayment", entityId: payment.id, action: "UPDATE" }, orderBy: { at: "asc" } });
+    expect(trail.map((a) => a.reason)).toEqual(["Typed from the wrong remittance.", "The batch again."]);
+    expect(trail[0]!.changes).toEqual(expect.arrayContaining([{ field: "batchNo", before: "B-0042", after: "B-0420" }, { field: "amountPaid", before: "12500.00", after: "12050.00" }]));
+    expect(trail[1]!.changes).toEqual([{ field: "batchNo", before: "B-0420", after: "B-0421" }]);
+    // Write-once: the table refuses a change or a removal.
+    await expect(db.paymentCorrection.update({ where: { id: rows[0]!.id }, data: { reason: "Edited." } })).rejects.toThrow();
+    await expect(db.paymentCorrection.delete({ where: { id: rows[0]!.id } })).rejects.toThrow();
+    // Filed only under the payment's own organisation.
+    await expect(db.paymentCorrection.create({ data: { organisationId: otherOrganisationId, supplyInvoicePaymentId: payment.id, sequence: 9, paidOn: payment.paidOn, batchNo: "X", amount: "1.00", reason: "Wrong org.", recordedAt: new Date() } })).rejects.toThrow(/organisation of the payment/);
   });
 });
