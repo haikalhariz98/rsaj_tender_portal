@@ -69,8 +69,12 @@ const approvedRequisitionRoute = { matterKind: "REQUISITION", status: "APPROVED"
 /// The department, route and method filters on each table, for the lists' own drill-down facets (I-6): one definition, so a tile and its list agree.
 export const facetWhere = { requisition: requisitionFilters, exercise: exerciseFilters, award: awardFilters };
 
-/// A requisition approved and not yet wholly awarded (ADR 0046 FS-8): the Requisitions list's "awaiting" stage, and Use of proceeds' count of it.
-export const requisitionAwaitingAward = { status: { in: ["APPROVED", "SOURCING"] } } satisfies Prisma.RequisitionWhereInput;
+/// A requisition approved and not yet awarded (ADR 0046 FS-8): approved or in sourcing, and no live contract under it (an issued award makes one; nothing moves the
+/// requisition's own status at award). The Requisitions list's "awaiting" stage, and Use of proceeds' count of it.
+export const requisitionAwaitingAward = {
+  status: { in: ["APPROVED", "SOURCING"] },
+  exercises: { none: { awards: { some: { contract: { is: { status: { not: "CANCELLED" } } } } } } },
+} satisfies Prisma.RequisitionWhereInput;
 
 /// A requisition whose route was approved, whenever.
 export const requisitionApprovedAny = { approvalInstances: { some: approvedRequisitionRoute } } satisfies Prisma.RequisitionWhereInput;

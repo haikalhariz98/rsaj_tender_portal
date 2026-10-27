@@ -82,7 +82,9 @@ beforeAll(async () => {
   // F: from a restricted exercise the reader is not named on: a contract's stages stay visible (AC-18), as on every Dashboard money figure.
   await chain("F", { source: src.suk, sum: "1000.00", restricted: true });
 
-  // Requisitions of the sukuk awaiting award: approved, and in sourcing; a draft is not.
+  // Requisitions of the sukuk awaiting award: approved, and in sourcing; a draft is not, nor one in sourcing with a live contract under it (W4).
+  await chain("W4", { source: src.suk, sum: "0.01" });
+  await db.requisition.updateMany({ where: { organisationId, reference: `PRC/R/W4/${run}` }, data: { status: "SOURCING" } });
   for (const [n, status] of [["W1", "APPROVED"], ["W2", "SOURCING"], ["W3", "DRAFT"]] as const)
     await db.requisition.create({ data: { organisationId, reference: `PRC/W/${n}/${run}`, requestingUnitCode: "U", requestingPersonId: person, title: `Awaiting ${n}`, justification: "Tests.", needStatement: "", costCentreCode: "CC", accountCode: "AC", placeOfDelivery: "Nowhere", dateRequired: day("2026-12-31"), [EST]: "1.00", raisedOn: day("2026-03-02"), status, fundingSourceId: src.suk } });
 });
@@ -100,7 +102,8 @@ describe("Use of proceeds (SF-03, FS-8 to FS-10)", () => {
     const row = (label: string) => f.rows.find((r) => r.label === label)!;
     expect(f.rows.map((r) => r.label)).toEqual(["Sukuk", "Internal", "Not set"]);
     // Sukuk: 60% of A (66 000, 30 000, 29 400) + D (9 200, 8 000, 0) + F (1 000, 0, 0).
-    expect(row("Sukuk")).toMatchObject({ envelope: figures(1_000_000), committed: figures(76_200), certified: figures(38_000), paid: figures(29_400), unallocated: figures(923_800), contracts: 3, certifiedPartial: false, refused: [] });
+    // W4 (0.01, under a requisition still in sourcing) adds one sen.
+    expect(row("Sukuk")).toMatchObject({ envelope: figures(1_000_000), committed: figures(76_200) + 1n, certified: figures(38_000), paid: figures(29_400), unallocated: figures(923_800) - 1n, contracts: 4, certifiedPartial: false, refused: [] });
     // Internal: 40% of A (44 000, 20 000, 19 600) + B (5 000, partial, 0).
     expect(row("Internal")).toMatchObject({ envelope: null, committed: figures(49_000), certified: figures(20_000), paid: figures(19_600), unallocated: null, contracts: 2, certifiedPartial: true });
     expect(row("Not set")).toMatchObject({ committed: figures(7_000), contracts: 1 });
@@ -110,7 +113,7 @@ describe("Use of proceeds (SF-03, FS-8 to FS-10)", () => {
     const f = await proceeds({ source: "SUK" });
     const s = f.selected!;
     expect(s.label).toBe("Sukuk");
-    expect(s.projects.map((p) => p.percent).sort()).toEqual(["100", "100", "60"]);
+    expect(s.projects.map((p) => p.percent).sort()).toEqual(["100", "100", "100", "60"]);
     const sum = (k: "committed" | "certified" | "paid") => s.projects.reduce((a, p) => a + p[k], 0n);
     expect([sum("committed"), sum("certified"), sum("paid")]).toEqual([s.committed, s.certified, s.paid]);
     expect(s.projects.map((p) => p.href)).not.toContain(`/projects/${ids.C}`);
