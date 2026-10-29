@@ -619,3 +619,7 @@ Step 4 (`e8854a03`) and step 2 (`02d34575`, `25ecb3c5`) were built ahead of step
 - **For step 5:** there is no `date` cell kind yet, and the Due inline edit needs one (add it to `list-cells.ts` and `DataList` first, never a one-off). The
   status select's options come from `cardMoves` and exclude Cancel and Send back (the panel's dialogs collect those). Check that `?item=` links use
   `scroll={false}` so the list does not jump. `SidePanel` (`ui/side-panel.tsx`) is the panel's shell: Escape only from inside, focus back to the opener.
+- **From the UI audit fixes (`b7f44abd`), check in a real browser at step 6:** the dragged card is set `inert` in `dragstart`,
+  which some browsers may treat as cancelling the drag; the MoreActions menu now sits in the top layer (check its placement on
+  the Board and on every existing screen that uses it); SidePanel confirms before discarding a comment only when the caller wires
+  `useRequestClose(onClose)` into `DrawerHeader`.
