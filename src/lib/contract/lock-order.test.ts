@@ -222,6 +222,77 @@ describe("one lock order, close-out's acts (stage B: the contract, then the doma
   });
 });
 
+/// Close-out stage C review, S5 (stricter: the scans extended to the final account's acts and hooks). The order, documented:
+///   the final account's acts (final-actions.ts): Contract (withLockedContract) → [the raise: each unapplied waiver's ContractMatter, then the
+///   LadWaiver, by ascending matter id] → the FinalAccount row (lockDraftFinal) → its lines, party lines and pack entries (written under it,
+///   never locked); the draft certificate is refigured through the core's refigureDraft, which takes no lock of its own;
+///   the FINAL's send and issue (the certificate's own acts): Contract → Certificate (withLockedCertificate) → the FinalAccount row, by its
+///   certificate (finalSendFaults, finalIssueRefusal).
+/// Both paths take the Contract first, so they serialise there and never cross.
+const FINAL = "src/app/projects/[id]/final-actions.ts";
+
+describe("one lock order, the final account's acts and hooks (stage C)", () => {
+  const src = read(FINAL);
+  const body = (fn: string) => {
+    const at = src.indexOf(fn);
+    return src.slice(at, src.indexOf("\n}\n", at));
+  };
+
+  it("the file asks the table in its own inContract, under withLockedContract; every act reads the clock once, before it", () => {
+    const helper = body("async function inContract(");
+    expect(helper).toContain("withLockedContract(");
+    expect(helper.indexOf("actStatusFault(family, l.contract.status as ContractStatus)")).toBeGreaterThan(helper.indexOf("withLockedContract("));
+    const acts = actions(src);
+    expect(acts.size).toBeGreaterThanOrEqual(8);
+    for (const [name, b] of acts) {
+      expect(b, name).toContain("return inContract(");
+      expect(b.indexOf("const now = toSecond(new Date());"), name).toBeGreaterThan(-1);
+      expect(b.indexOf("const now = toSecond(new Date());"), name).toBeLessThan(b.indexOf("return inContract("));
+      expect((b.match(/new Date\(\)/g) ?? []).length, name).toBe(1);
+    }
+    expect((src.match(/new Date\(\)/g) ?? []).length).toBe(acts.size);
+  });
+
+  it("locks only the FinalAccount row itself, in a stable order, never the certificate, a parent or a transaction of its own", () => {
+    expect(src).not.toMatch(/FROM "Certificate"|FROM "Contract"|FROM "Supplier"|db\.\$transaction/);
+    const locks = [...src.matchAll(/FROM "(\w+)" WHERE [^`]* FOR UPDATE/g)].map((m) => m[1]);
+    expect(locks).toEqual(["FinalAccount"]);
+    const lock = body("async function lockDraftFinal(");
+    expect(lock).toMatch(/orderBy: \[\{ recordedAt: "asc" \}, \{ id: "asc" \}\]/);
+    expect(lock.indexOf("FOR UPDATE")).toBeLessThan(lock.indexOf("loadFinal("));
+  });
+
+  it("every act that writes the account's lines, party lines or pack locks the draft account first; the raise locks the waivers before it reads", () => {
+    const acts = actions(src);
+    for (const name of ["addFinalDeduction", "removeFinalDeduction", "recordFinalPartyDue", "recordPackEntry", "linkDeclaration", "confirmFinalPayments"]) {
+      const b = acts.get(name)!;
+      const lock = b.indexOf("lockDraftFinal(c)");
+      expect(lock, name).toBeGreaterThan(-1);
+      for (const w of b.matchAll(/c\.tx\.(finalAccountLine|finalPartyLine|finalPackEntry|finalAccount)\.(create|update|upsert|delete|deleteMany)/g)) expect(w.index!, `${name}: ${w[0]}`).toBeGreaterThan(lock);
+      // A recompute (which refigures the certificate) comes after the lock as well.
+      if (b.includes("recompute(")) expect(b.indexOf("recompute("), name).toBeGreaterThan(lock);
+    }
+    const raise = acts.get("raiseFinalAccount")!;
+    expect(raise.indexOf("lockUnappliedWaivers(")).toBeGreaterThan(-1);
+    expect(raise.indexOf("lockUnappliedWaivers(")).toBeLessThan(raise.indexOf("finalRaiseCheckOf("));
+  });
+
+  it("the send and the issue lock the FinalAccount by its certificate before they read it, inside the certificate's lock", () => {
+    const hook = read("src/lib/closeout/at-issue.ts");
+    const issue = hook.slice(hook.indexOf("export async function finalIssueRefusal("), hook.indexOf("export async function finalAtIssue("));
+    const at = issue.indexOf('FROM "FinalAccount" WHERE "certificateId" = ${cert.id} FOR UPDATE');
+    expect(at).toBeGreaterThan(-1);
+    for (const read of ["certificateSignature.findMany(", "loadFinal(", "variationsOpenNow(", "finalMovedFaults("]) expect(issue.indexOf(read), read).toBeGreaterThan(at);
+    const write = read("src/lib/closeout/final-write.ts");
+    const send = write.slice(write.indexOf("export async function finalSendFaults("));
+    expect(send.indexOf('FROM "FinalAccount" WHERE "certificateId" = ${certificateId} FOR UPDATE')).toBeGreaterThan(-1);
+    expect(send.indexOf("FOR UPDATE")).toBeLessThan(send.indexOf("loadFinal("));
+    // Both run on the certificate's own transaction, under withLockedCertificate (Contract, then Certificate).
+    const certActs = read("src/app/projects/[id]/certificates/[certId]/actions.ts");
+    expect(certActs).toContain("withLockedCertificate(");
+  });
+});
+
 describe("ContractMatter's place (BD-613-117): /approvals' escalation and a sitting's outcome", () => {
   const escalate = (() => {
     const src = read("src/app/approvals/actions.ts");
