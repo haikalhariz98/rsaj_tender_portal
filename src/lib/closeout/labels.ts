@@ -106,6 +106,7 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   // The close (stage C)
   SUPPLY_NOT_BUILT: () => "Supply contracts are not closed here yet.",
   FINAL_NOT_ISSUED: () => "The final certificate is not issued.",
+  PAID_DIFFERS: (d) => `Paid other than certified: ${s(d.items, "a certificate")}.`,
   CERTIFICATES_NOT_PAID: (d) => `Finance's payment is not recorded on: ${s(d.items, "a certificate")}.`,
   MATTERS_OPEN: (d) => `A route is still open: ${s(d.items, "a matter")}.`,
   RETENTION_HELD: (d) =>

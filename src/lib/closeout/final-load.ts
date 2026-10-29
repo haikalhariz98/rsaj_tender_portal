@@ -8,7 +8,7 @@
 import type { Tx } from "@/lib/audit/record";
 import { CORRECTIONS } from "@/lib/payment/correction";
 import { KIND_WORDS } from "@/lib/certificate/labels";
-import { PAID_FIGURE } from "@/lib/payment/finance";
+import { PAID_FIGURE, paidFigureOf } from "@/lib/payment/finance";
 import type { CertificateKind } from "@/lib/certificate/types";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { db } from "@/lib/db";
@@ -100,6 +100,17 @@ export function finalInterimsOf(p: PaymentRows): { interims: FinalInterim[]; fau
 export function financePaidOf(p: PaymentRows): Sen {
   const paid = [...p.interimValuations.map((v) => (v.certificate?.status === "ISSUED" ? v.certificate.financePayment : null)), ...p.advancePayments.map((a) => (a.certificate.status === "ISSUED" ? a.certificate.financePayment : null))];
   return paid.reduce((a, x) => (x ? a + senFromDecimal(asCorrected(x).amount) : a), 0n);
+}
+
+/// S1 (code review of close-out stage C): each issued interim or advance whose recorded payment, at its latest correction, is not the figure it
+/// certified, named with both, so a part payment is not read as paid in full (a certificate with no payment is `unpaidCertificatesOf`'s).
+export function paidDiffersOf(p: Pick<PaymentRows, "interimValuations" | "advancePayments">): { label: string; certified: Sen; paid: Sen }[] {
+  // Read as plain fields, never a certificate handle kept (certificate-scan's R-8).
+  const issued = [
+    ...p.interimValuations.map((v) => ({ status: v.certificate?.status, kind: v.certificate?.kind ?? "", number: v.certificate?.number ?? null, snapshot: v.certificate?.issueSnapshot, payment: v.certificate?.financePayment ?? null })),
+    ...p.advancePayments.map((a) => ({ status: a.certificate.status, kind: a.certificate.kind, number: a.certificate.number, snapshot: a.certificate.issueSnapshot, payment: a.certificate.financePayment })),
+  ].flatMap((c) => (c.status === "ISSUED" && c.payment ? [{ kind: c.kind, number: c.number, figure: paidFigureOf(c.kind, c.snapshot), paid: senFromDecimal(asCorrected(c.payment).amount) }] : []));
+  return issued.flatMap((x) => (x.figure == null || parseSen(x.figure) === x.paid ? [] : [{ label: `${KIND_WORDS[x.kind as CertificateKind].en}${x.number ? ` ${x.number}` : ""}`, certified: parseSen(x.figure), paid: x.paid }]));
 }
 
 /// The final account's input, as the contract stands: the interims, the advances, the adjustments, the damages it charges itself (the days no

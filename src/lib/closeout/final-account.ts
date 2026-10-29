@@ -279,7 +279,9 @@ export function finalSplitOf(recommended: Sen, parties: readonly FinalParty[], t
   const wf = waterfall(recommended < 0n ? 0n : recommended, parties.map((p) => ({ id: p.id, tier: p.kind === "ASSIGNEE" ? ("ASSIGNEE" as const) : ("NOMINATED" as const), due: p.due ?? 0n })), remainder);
   faults.push(...wf.faults);
   const lines = parties.map((p, n) => ({ id: p.id, name: p.name, due: wf.allocations[n].due, paid: wf.allocations[n].paid }));
-  const split = parties.length ? [remainder ?? "NOT_SET", ...lines.map((l) => `${l.id}:${l.due}:${l.paid}`), `contractor:${wf.contractor}`].join("|") : "";
+  // The remainder rule is frozen only where it placed sen: changing a setting that moved nothing must not refuse an approved final at issue.
+  const rule = wf.remainderSen > 0n ? [remainder ?? "NOT_SET"] : [];
+  const split = parties.length ? [...rule, ...lines.map((l) => `${l.id}:${l.due}:${l.paid}`), `contractor:${wf.contractor}`].join("|") : "";
   return { waterfall: wf, lines, contractor: wf.contractor, faults, judged: { parties: parties.map((p) => p.id), split } };
 }
 

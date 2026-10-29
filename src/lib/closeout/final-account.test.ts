@@ -274,7 +274,15 @@ describe("finalSplitOf", () => {
     const r = finalSplitOf(rm("100000.00"), parties, tiers, "LARGEST_REMAINDER");
     expect(r.faults).toEqual([]);
     expect(paid(r)).toEqual(["NSC Elektrik 3000000", "NS Pam 1000000", "Bank 1500000", "contractor 4500000"]);
-    expect(r.judged).toEqual({ parties: ["NSC Elektrik", "NS Pam", "Bank"], split: "LARGEST_REMAINDER|NSC Elektrik:3000000:3000000|NS Pam:1000000:1000000|Bank:1500000:1500000|contractor:4500000" });
+    expect(r.judged).toEqual({ parties: ["NSC Elektrik", "NS Pam", "Bank"], split: "NSC Elektrik:3000000:3000000|NS Pam:1000000:1000000|Bank:1500000:1500000|contractor:4500000" });
+  });
+  it("freezes the remainder rule only where it placed sen", () => {
+    const exact = (rule: "LARGEST_REMAINDER" | "FIRST_PARTY" | null) => finalSplitOf(rm("50000.00"), parties, tiers, rule).judged.split;
+    expect(exact("FIRST_PARTY")).toBe(exact("LARGEST_REMAINDER"));
+    expect(exact(null)).toBe(exact("LARGEST_REMAINDER"));
+    const inexact = (rule: "LARGEST_REMAINDER" | "FIRST_PARTY") => finalSplitOf(rm("10000.01"), parties.slice(0, 2), tiers, rule).judged.split;
+    expect(inexact("FIRST_PARTY")).not.toBe(inexact("LARGEST_REMAINDER"));
+    expect(inexact("LARGEST_REMAINDER")).toMatch(/^LARGEST_REMAINDER\|/);
   });
   it("insufficient: the nominated tier first, then the assignees, then the contractor", () => {
     expect(paid(finalSplitOf(rm("50000.00"), parties, tiers, "LARGEST_REMAINDER"))).toEqual(["NSC Elektrik 3000000", "NS Pam 1000000", "Bank 1000000", "contractor 0"]);

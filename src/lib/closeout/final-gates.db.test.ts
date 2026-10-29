@@ -15,6 +15,8 @@ import { activeContract, contractOrg, D, form, today, type TestContract, type Te
  * - ruling 4: a final with one nominated sub-contractor: the send refuses until its due is recorded; the split is printed and frozen; it issues.
  * - S5, both orders of a draft final and a new interim: an interim in progress refuses the raise (CERTIFICATES_IN_PROGRESS); an interim issued after
  *   the raise refuses a keyed deduction (S2) and the issue, FINAL_BASIS_MOVED.
+ * - S3, S4 and the pack's trail: a keyed amount too large for its column is refused by name; a keyed deduction audits the account's payment
+ *   before and after; a pack entry recorded again ends the first entry's trail under its own id.
  */
 
 const h = vi.hoisted(() => ({ who: null as StaffActor | null }));
@@ -30,7 +32,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: (
 vi.mock("@/lib/integration/closeout", () => ({ manualCloseout: { retentionReleased: async () => undefined, closeRequested: async () => undefined } }));
 
 import { raisePracticalCompletion } from "@/app/projects/[id]/closeout-actions";
-import { addFinalDeduction, closeContract, raiseFinalAccount, recordFinalPartyDue } from "@/app/projects/[id]/final-actions";
+import { addFinalDeduction, closeContract, raiseFinalAccount, recordFinalPartyDue, recordPackEntry } from "@/app/projects/[id]/final-actions";
 import { recordCertificatePayment, recordCertificateSignature, sendCertificateForApproval, sendCertificateToSigning } from "@/app/projects/[id]/certificates/[certId]/actions";
 
 let o: TestOrg;
@@ -190,5 +192,29 @@ describe("S5: a draft final and a new interim, in both orders", () => {
     const issue = await contractorSigns(fa.certificateId);
     expect(issue.ok).toBe(false);
     expect(issue.message).toMatch(/has changed since it was raised \(the interim certificates/);
+  });
+});
+
+describe("S3, S4 and the pack entry's trail", () => {
+  it("refuses an amount too large, audits the payment before and after, and ends a replaced pack entry's trail under its id", async () => {
+    const k = await completed();
+    expect((await as(o.so, () => raiseFinalAccount({ ok: false }, form({ id: k.contractId, personId: o.so })))).ok).toBe(true);
+    const fa = await liveFinal(k);
+    const big = await as(o.so, () => addFinalDeduction({ ok: false }, form({ id: k.contractId, kind: "WAGES", label: "", amount: "12345678901234567.00" })));
+    expect(big.ok).toBe(false);
+    expect(big.errors?.amount).toBe("Amount is too large to record: at most 16 digits before the decimal point.");
+    expect(await db.finalAccountLine.count({ where: { finalAccountId: fa.id, keyed: true } })).toBe(0);
+    expect((await as(o.so, () => addFinalDeduction({ ok: false }, form({ id: k.contractId, kind: "WAGES", label: "", amount: "250.00" })))).ok).toBe(true);
+    const trail = await db.auditEntry.findFirstOrThrow({ where: { entity: "FinalAccount", entityId: fa.id, action: "UPDATE" }, orderBy: { at: "desc" } });
+    expect(trail.changes).toEqual([{ field: "paymentRecommended", before: "RM500,000", after: "RM499,750" }]);
+    const requirementId = (await db.closeoutDocumentRequirement.create({ data: { organisationId: o.organisationId, labelEn: `Operation manuals ${randomId()}`, sortOrder: 9, provenance: "ASSUMED" } })).id;
+    const record = (reason: string) => as(o.so, () => recordPackEntry({ ok: false }, form({ id: k.contractId, requirementId, notApplicableReason: reason, personId: o.so })));
+    expect((await record("None supplied with this plant (test).")).ok).toBe(true);
+    const first = await db.finalPackEntry.findFirstOrThrow({ where: { finalAccountId: fa.id, requirementId } });
+    expect((await record("Supplied with the pumps' handover instead (test).")).ok).toBe(true);
+    const second = await db.finalPackEntry.findFirstOrThrow({ where: { finalAccountId: fa.id, requirementId } });
+    expect(second.id).not.toBe(first.id);
+    expect((await db.auditEntry.findMany({ where: { entity: "FinalPackEntry", entityId: first.id }, orderBy: { at: "asc" } })).map((x) => x.action)).toEqual(["CREATE", "DELETE"]);
+    expect((await db.auditEntry.findMany({ where: { entity: "FinalPackEntry", entityId: second.id } })).map((x) => x.action)).toEqual(["CREATE"]);
   });
 });

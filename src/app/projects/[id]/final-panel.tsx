@@ -10,7 +10,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { STATUS_WORDS } from "@/lib/certificate/labels";
 import { withdrawnCount, type FrozenLine } from "@/lib/closeout/defects";
 import { FINAL_BASIS_WORDS } from "@/lib/closeout/final-words";
-import { finalSplitFor, financePaidOf, loadRequirements, takenUpDeclarations, unpaidCertificatesOf } from "@/lib/closeout/final-load";
+import { finalSplitFor, financePaidOf, loadRequirements, paidDiffersOf, takenUpDeclarations, unpaidCertificatesOf } from "@/lib/closeout/final-load";
 import { finalRaiseCheckOf } from "@/lib/closeout/final-write";
 import { closeoutFaultText, closeoutRefusal, owedByContractor, withdrawnWords } from "@/lib/closeout/labels";
 import { survivingOf } from "@/lib/closeout/closure";
@@ -101,6 +101,8 @@ export async function FinalAccountPanel({ l, v, people, today, hidden }: Props) 
   const paid = financePaidOf(p);
   // Ruling 9 (code review of close-out stage C): an interim or advance not yet paid is not in Finance's recorded payments; said here, refused at the close.
   const unpaid = await unpaidCertificatesOf(db, id, ["INTERIM_PAYMENT", "ADVANCE_PAYMENT"]);
+  // S1: a recorded payment that is not the certified figure is named, both amounts shown (Finance's confirmation is against what it recorded).
+  const differs = paidDiffersOf(p).map((x) => `${x.label}, certified ${formatMoney(x.certified)}, paid ${formatMoney(x.paid)}`);
   // Ruling 4 (code review of close-out stage C): each live party's due and what it is paid of the payment, as the certificate prints it.
   const split = await finalSplitFor(db, l.org.id, p, fa, senFromDecimal(fa.recommended));
   const partyRows: Row[] = split.lines.map((x) => {
@@ -179,6 +181,7 @@ export async function FinalAccountPanel({ l, v, people, today, hidden }: Props) 
               { label: "Agrees", value: confirmed == null ? "Not judged" : confirmed === paid ? "Yes" : "No" },
             ]}
           />
+          {differs.length > 0 && <Callout tone="warn" className="mt-4">{closeoutFaultText({ code: "PAID_DIFFERS", level: "warn", data: { items: differs.join("; ") } })}</Callout>}
           {unpaid.length > 0 && <Callout tone="warn" className="mt-4">{`${closeoutFaultText({ code: "CERTIFICATES_NOT_PAID", level: "warn", data: { items: unpaid.join("; ") } })} The contract does not close until each is paid.`}</Callout>}
         </CardBody>
       </Card>
