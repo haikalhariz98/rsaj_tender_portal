@@ -629,3 +629,14 @@ Step 4 (`e8854a03`) and step 2 (`02d34575`, `25ecb3c5`) were built ahead of step
   `withLockedOwner` returns null for `workItem`, so the acts attach files themselves (`STAGED_FOR_WORK_ITEM`, `workItemFacts`,
   `workItemLabel`). `workNoticeDrafts` returns `NoticeDraft[]`. The acts must never change an item's `type` or `contractId` (no
   trigger holds them). Open: a work item's file is not protected from version withdrawal as PA047 protects project files.
+- **From step 3 (`e59f68d7`, `15ba55fc`), for step 5:** `editWorkField` takes `field` + `value` (cell `name="value"`, `field` in
+  `fields`); `moveWorkItem` takes `from` + `to` (status cell `name="to"`); Board `card.fields` carry `contractId` and `itemId`;
+  Cancel adds `reason`, Send back adds `comment`. `commentOnWorkItem` takes `body`; `linkWorkItem` takes `toItemId` or
+  `documentId`; `unlinkWorkItem` takes `linkId`. `createWorkItem` answers `ref` (e.g. `Task-12`, from `TYPE_SHORT`) for
+  `?item=`. Files: stage with `stagedFor=work-item`, pass repeated `stagedVersionId`. `WorkContext.filesAllowed` is false when the
+  project-files class is unset (words: `documentFaultText({ code: "PROJECT_CLASS_NOT_SET" })`). Who-can: `whoNamesOf(...)` with
+  `WorkContext.lead`. Board fills Done only in the Open and Done views. Caps: 500 people, 200 link options, 500 Activity rows.
+  Actions already revalidate `/projects/{id}`. `loadWorkList` takes a 0-based `page` + `size`; sortable columns in
+  `WORK_SORT_KEYS`. Send back sends RETURNED only. Owed: `lock-order.test.ts` block for the work acts (step 3's report lists the
+  assertions); a double-submitted create makes two items (no idempotency key); check how the org-wide audit screen renders Work
+  audit `changes` (codes and ids) before go-live.
