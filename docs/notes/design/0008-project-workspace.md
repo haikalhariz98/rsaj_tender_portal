@@ -4,6 +4,12 @@ Status: proposal, written 2026-10-27 by the UX lead for the product owner. It is
 architect's plan for each stage follows it. Nothing here edits ADR 0042, ADR 0047 or the Phase 1 plan; where this note lifts an
 earlier ruling it says so (§4.10).
 
+**Amended 2026-10-29** by the product owner's rulings WS-1 to WS-24 of 2026-10-27
+(`docs/notes/plans/rulings/workspace-po-rulings.md`, binding). Each ruling is folded in at the section it names, and also where it
+overrides text it does not name (WS-16 to WS-18 cut watchers, bulk actions, column quick add, the remembered view, the Contract
+acts toggle and activity grouping wherever they appeared). The table in §0 lists every ruling and where it lands. Where this note
+and the rulings ever disagree, the rulings win. Stage 3a's build plan is `docs/notes/plans/workspace-3a-build-plan.md`.
+
 **The founder's words (binding).**
 - "my vision in project management is more like a Jira, clickup or devops, with budget, timelines, task, payment milestone,
   exchange documents, all other RSAJ requirements and standard project capabilities".
@@ -20,15 +26,48 @@ Words in wireframes: `{org}` is the organisation's configured name, never "RSAJ"
 
 ---
 
+## 0. The product owner's rulings (2026-10-27) and where each lands
+
+| # | Ruling | Where |
+| --- | --- | --- |
+| WS-1 (Q1) | Numbers per project and type ("RFI 12"), taken under the contract lock, unique on (contract, type, number). Short type words from the labels map. PW-4 still binds project documents. | §4.4, §4.10, §15 |
+| WS-2 (Q2) | The budget is Committed. Forecast final = committed + approved not yet adjusted + in approval, tagged Assumed. "In approval" sums each variation's valued amount as the Variations tab shows it, never `matterRoutedValue` (SULIT). | §7.4, §15 |
+| WS-3 (Q3) | Four fixed roles. They route work and notices and never carry authority. PW-16 is lifted for this card. | §4.9, §15 |
+| WS-4 (Q4) | Milestone payment is a new `ContractType.paymentRoute` value, set by the customer; the RSAJ pack sets none; unset reads "How this contract is paid: Not set"; added to the RSAJ questions. | §7.3, §15 |
+| WS-5 (Q5) | Both folds in 3b; old addresses resolve. Phase 2 still builds its portal Defects tab and 3b folds it in. Close-out › Defects stays. | §3.2, §6, §9 3b, §15 |
+| WS-6 (Q6) | In 4a only staff update activity progress. | §7.1, §15 |
+| WS-7 | **[AMENDS §3.2, §5.7]** "Payments" keeps its label. The budget is a card on Overview. Payments gains Payment milestones and By cost category. The budget card replaces the two summary cards only if a text-snapshot diff keeps every figure, warning and provenance tag. | §1, §3.2, §5.7, §7.3, §7.4 |
+| WS-8 | **[AMENDS §5.7, §7.4]** No "SULIT · withheld" money state. Overview money follows FS-11's `mayReadBudget`. Contract sums, issued certificate figures, payments and variation values are Internal. | §5.7, §7.4 |
+| WS-9 | **[AMENDS §4.5 reason]** Work for the contractor goes to the company in 3a and 3b. PW-17 stands. Stored StaffNotice bodies never hold a SULIT name. A nullable per-account assignee column is left for later. | §4.5 |
+| WS-10 | Contractor contact names stay SULIT for now: the founder's call, flagged to him, with the proposal in §4.5. | §4.5 |
+| WS-11 | **[AMENDS §4.5 "Staff names on the portal"]** The portal names a staff assignee only if on the Project team card or PW-16's in-force side; anyone else reads "{org}". | §4.5 |
+| WS-12 | **[AMENDS §5.3, §5.5]** No global single-letter keys. Tab or arrow focus, Enter opens, Esc closes. A focusable status-menu button on each card. Arrow keys across board columns. | §5.3, §5.4, §5.5, §5.8, §8 |
+| WS-13 | Side panel approved: non-modal, the item in the address, one primary action from a pure function, a disabled action names who can. The portal is list-only. | §5.4, §6 |
+| WS-14 | **[AMENDS §9 3a]** 3a is staff-only: no "{contractor}" assignee and no Shared until 3b; `shared` is false on every 3a item. | §4.3, §4.5, §9 |
+| WS-15 | **[AMENDS §9 order]** The Board moves into 3a beside the List. New 3b: contractor sharing and the portal list (Reply / Internal note), My work, the Project team card and default assignees, linked cards, and the folds. | §9 |
+| WS-16 | Cut: bulk actions; quick add per board column (list quick-add only); remembering the last view (List is the default); the "Contract acts" toggle (linked cards always show). | §4.6, §5.1, §5.2, §5.3, §8, §12 |
+| WS-17 | No stored watchers. Notices go to the raiser and the assignee, plus the lead on items the contractor raised; one notice per comment, to the other party. "Due tomorrow" and "Late" notices only if the existing runner already fires date-based notices; otherwise Late shows in lists and My work only. | §4.1, §4.3, §4.5, §4.8, §5.4, §12 |
+| WS-18 | Activity shows comments and audit rows, with an All/Comments filter. No grouping. | §5.4, §8 |
+| WS-19 | **[AMENDS §5.8]** No organisation time zone: "Late" is not judged; show "Needs the organisation's time zone." | §4.2, §5.8 |
+| WS-20 | **[AMENDS §7.1, §7.2, §9 4a]** Cut from 4a: Compare, "Fill planned curve from activities", the "Activities suggest n%" hint, virtualisation. 4a keeps the grid editor (dependencies, milestones), the baseline freeze on approval, the read-only Gantt, Update progress, and the In Delay reading unchanged. | §7.1, §7.2, §8, §9 |
+| WS-21 | **[AMENDS §9 4b]** PDF moves to its own stage, 4c. 4b is the budget card, the stat row, payment milestones and funding by source. By cost category stays gated on Finance decisions 3 and 4. | §7.5, §9 |
+| WS-22 | Every stage also needs, before acceptance: demo data through `demo:load` (3a: every type, with late, unassigned and cancelled items on two demo contracts); npm test, typecheck and lint; a sibling-screen check; its log lines. | §9 |
+| WS-23 | Order: 3a → 3b → 4a → 4b → 4c. | §9 |
+| WS-24 | Fixed defaults: the seven types, one status set, incident severities; Overdue is read, never stored; numbering and the move rules are pure functions with table tests. | §4.1, §4.2, §4.4 |
+| Open | 3b re-checks the defect act names against Phase 2's built acts. | §4.7, §9 3b |
+
+---
+
 ## 1. The short answer
 
 1. **One new tab, Work, holds every work item.** It is a list or a board on the same filter, with an item side panel. It is
    case-level, like History: it shows in the Project and Close-out strips.
 2. **Phases 2 to 4 together add one tab to the Project stage.**
    - Phase 2's "Time" becomes **Timeline**: the Gantt, the programme revisions and extension of time.
-   - "Payments" is relabelled **Budget**, with the budget summary on top.
+   - "Payments" keeps its label (WS-7). It gains the Payment milestones and By cost category sections. The budget is a card on
+     **Overview**.
    - "Certificates" folds into **Documents** as a section.
-   - The strip becomes Overview · Work · Timeline · Budget · Variations · Site · Documents · Team · History.
+   - The strip becomes Overview · Work · Timeline · Payments · Variations · Site · Documents · Team · History.
 3. **Registers stay where they are. The board is a lens.**
    - Variations, extension-of-time claims and certificates keep their own tabs and acts.
    - While they move, they appear on the board as **linked cards**, read-only.
@@ -40,14 +79,17 @@ Words in wireframes: `{org}` is the organisation's configured name, never "RSAJ"
    - Some types share by default.
    - On a shared item, staff choose **Reply** (the contractor sees it) or **Internal note** (never sent).
    - Work given to the contractor is given to the company, not to a named contact. Contact names are SULIT to staff (§4.5).
-6. **My work** joins the sidebar, next to My approvals. It shows the items on you across every project, grouped by when they are
-   due. Alerts become inbox notices. The contractor gets a derived "Waiting for you" list, with no new notice table.
+   - Stage 3a is staff-only (WS-14). Sharing, the "{contractor}" assignee and the portal list arrive in 3b.
+6. **My work** joins the sidebar, next to My approvals (3b). It shows the items on you across every project, grouped by when they
+   are due. Alerts become inbox notices, sent to the raiser and the assignee; there are no stored watchers (WS-17). The contractor
+   gets a derived "Waiting for you" list, with no new notice table.
 7. **Phase 4.**
    - The programme gains activities with dependencies.
    - Approving a revision freezes it as the baseline.
-   - The Gantt is for reading, with light progress edits.
+   - The Gantt is for reading, with light progress edits by staff only (WS-6, WS-20).
    - Payment milestones exist only where the contract type is paid by milestone.
    - The budget card and the money S-curve sit on Overview, using Phase 1's readings word for word.
+   - PDF letters and certificates are their own stage, 4c (WS-21).
 
 ---
 
@@ -86,10 +128,10 @@ Words in wireframes: `{org}` is the organisation's configured name, never "RSAJ"
 
 | Today | After Phase 2 (designed) | After 4b (this note) | Change |
 | --- | --- | --- | --- |
-| Overview | Overview | **Overview** | Gains the stat row, the budget card and the S-curve (§5.7, §7.4). |
+| Overview | Overview | **Overview** | Gains the stat row, the budget card and the S-curve (§5.7, §7.4). The budget card lives here (WS-7). |
 | — | — | **Work** | New, case-level (§3.3). |
 | — | Time | **Timeline** | Phase 2's Time tab, relabelled in 4a. The Gantt goes on top; the Programme card moves here from Site. |
-| Payments | Payments | **Budget** | Label only; the id stays `payments` (precedent: plan step 6 renamed Documents in words only). Budget and Payment milestones go on top as new sections. |
+| Payments | Payments | **Payments** | **Label unchanged (WS-7).** Gains the Payment milestones and By cost category sections (4b). |
 | Variations | Variations | **Variations** | Unchanged. |
 | Site | Site | **Site** | Loses the Programme card, which moves to Timeline. Possession, progress records, diary, oversight and records stay. |
 | Documents (`submissions`) | same | **Documents** | Gains a Certificates section, the old `documents` tab. |
@@ -100,6 +142,7 @@ Words in wireframes: `{org}` is the organisation's configured name, never "RSAJ"
 - **Count.** That is nine tabs including History. Today there are eight, and Phase 2 alone would make nine. All three phases
   together add one.
 - **Order.** The order is by how often the tab is opened, so Work sits next to Overview.
+- **Strip after 4b (WS-7):** Overview · Work · Timeline · Payments · Variations · Site · Documents · Team · History.
 - **Old links.** Every old link still resolves through `caseTabToStep`, the existing alias mechanism (F0-5):
   - `?tab=time` → `timeline`;
   - `?tab=documents` → `submissions`, section `certificates`;
@@ -176,7 +219,7 @@ Each record already in the product gets one treatment, so no fact has two homes 
 - assignee, due date and priority;
 - status;
 - an optional **location** (free text with recent values suggested; the one typed field, because locations are the project's own);
-- watchers, comments and attachments;
+- comments and attachments (no stored watchers, WS-17);
 - links: to other items, to a programme activity (Phase 4), to a project document, and to its source record;
 - the activity history.
 
@@ -207,8 +250,8 @@ Each record already in the product gets one treatment, so no fact has two homes 
 - **A contractor raiser** may only accept the answer (→ Done) or ask again (→ back to {org}, with a reply). It never cancels or
   reopens. If the contractor goes quiet on an item In review, the lead may close it.
 - **Reopen.** Done back to To do, by the raiser or the lead, recorded in the history.
-- **Overdue.** Not a status. It is read: due date before the organisation's today, and not Done or Cancelled. Shown as "2 days
-  late" in the error tone.
+- **Overdue.** Not a status, and never stored (WS-24). It is read: due date before the organisation's today, and not Done or
+  Cancelled. Shown as "2 days late" in the error tone. With no organisation time zone, "late" is not judged (WS-19, §5.8).
 - **The rules are pure.** One function judges a move: (item, actor, to) → faults. The board, the list, the panel and the portal
   all call it. There is no second copy in a component (AGENTS.md rule 3).
 
@@ -216,20 +259,21 @@ Each record already in the product gets one treatment, so no fact has two homes 
 
 | Field | Control | Notes |
 | --- | --- | --- |
-| Type | Select | Picked at creation. Changing it later is allowed while To do, and recorded. |
+| Type | Select | Picked at creation. Changing it later is allowed while To do, and recorded. (Open against WS-1's per-type numbers: see the 3a plan, OQ-3.) |
 | Title | Input | Required. The only required field besides type. |
 | Description | Textarea | Optional |
-| Assignee | Select, searchable: the project team first, then "{contractor}", then everyone else | Optional. Unassigned is a valid state and has its own view. |
+| Assignee | Select, searchable: the project team first, then "{contractor}", then everyone else | Optional. Unassigned is a valid state and has its own view. **3a (WS-14):** the organisation's active people only; "{contractor}" and the team come in 3b. |
 | Due date | Date picker, with "Today", "+3 days", "+1 week" quick picks | Optional. Required for RFI and SI (EX-03 "response due dates"). The response days are a column on the organisation, not a literal. Unset (the product ships none): nothing is prefilled and the date stays required and empty. Set: prefilled as today plus those days. |
 | Priority | Select: Low, Normal, High, Urgent | Normal by default. Urgent is Phase 2's expedited class (FR-CMP-012). |
-| Shared with contractor | Toggle | Per §4.5 |
-| Watchers | Avatar stack, "Watch" toggle | Per §4.8 |
+| Shared with contractor | Toggle | Per §4.5. **From 3b (WS-14).** False on every 3a item. |
 
 ### 4.4 Numbers
 
 - Each item gets a number per project and type: **RFI 12**, **SI 3**, **Inspection 7**, **Defect 41**.
 - RFIs and instructions are quoted by number in letters, meetings and claims; a log without numbers cannot be referred to.
-- This differs from PW-4, which removed numbers from documents. That is why it is open question 1.
+- This differs from PW-4, which removed numbers from documents. **Ruled (WS-1):** numbers are taken under the contract lock, with
+  a unique key on (contract, type, number). The short type words ("RFI", "SI", "Insp") come from the labels map, never from the
+  type key. PW-4 still binds project documents. The rule that gives the next number is pure, with a table test (WS-24).
 
 ### 4.5 Sharing with the contractor (decision 6)
 
@@ -248,22 +292,29 @@ Each record already in the product gets one treatment, so no fact has two homes 
   - On an unshared item every comment is internal, so there is no choice to make.
 - **What the contractor never sees.**
   - Internal notes.
-  - Watchers who are {org} staff.
   - Linked cards of formal acts. Those reach the contractor through their own portal tabs.
   - Links to records not shared with them, which are dropped, not greyed.
   - The history entries of internal notes.
-- **Work given to the contractor goes to the company.**
-  - The assignee is "{contractor}", not a named contact. Any of the awardee's active portal accounts may act on it (PW-17: every
-    active account is on the contractor's side).
+- **Work given to the contractor goes to the company** (WS-9: in 3a's design and 3b's build; the "{contractor}" assignee itself
+  is not offered until 3b, WS-14).
+  - The assignee is "{contractor}", not a named contact. Any of the awardee's active portal accounts may act on it (PW-17
+    stands: every active account is on the contractor's side).
   - This follows Aconex, where a mail is outstanding until "they or someone in their organisation responds".
-  - The SULIT problem it solves: a portal contact's name is SULIT to staff (6.15 condition 2; `team-read.ts`). A named contractor
-    assignee would turn every card, list row, feed line and notice body into a logged SULIT read.
+  - **The reason (amended, WS-9, WS-10).** Contractor contact names stay SULIT to staff for now (6.15 condition 2;
+    `team-read.ts`). A named contractor assignee would turn every card, list row, feed line and notice body into a logged SULIT
+    read. Whether names stay SULIT is the founder's call (WS-10, flagged to him). The proposal before him: a contact's name, and
+    only the name, becomes Internal to staff who may see the case, once that contact's account has acted on that contract.
+    Nothing in 3a or 3b depends on his answer.
   - So on every staff surface a contractor actor is "{contractor}" with a building avatar: cards, rows, the feed ("{contractor}
-    replied"), notice bodies and watchers.
+    replied") and notice bodies. **A stored `StaffNotice` body never holds a SULIT name** (WS-9): it is written once and read
+    without a gate.
+  - **A nullable per-account assignee column** is left on the item for later (WS-9). Nothing writes it until a ruling says so.
   - The named account is in the audit trail, read through the existing gate.
   - On the portal, the contractor sees its own colleagues' names, because the data is its own.
-- **Staff names on the portal.** The contractor sees the staff assignee by name and project role ("Aisyah, Site engineer"). The
-  portal already shows the S.O. and representatives by name and office; a site agent needs to know whom to ring.
+- **Staff names on the portal (amended, WS-11).** The portal names a staff assignee ("Aisyah, Site engineer") only if that person
+  is on the Project team card or on PW-16's in-force side (the S.O., an acting holder, a representative in force). Any other staff
+  assignee reads "{org}". The portal already shows the S.O. and representatives by name and office; a site agent needs to know
+  whom to ring.
 
 ### 4.6 Formal acts as linked cards
 
@@ -288,7 +339,7 @@ Each record already in the product gets one treatment, so no fact has two homes 
 - **Links.** An item can link to an act, and an act can be started from an item: an SI with Impact set to Cost offers "Start a
   variation", which opens the existing variation drawer prefilled and links the two. The item's panel then shows the linked card,
   and the variation's page shows "From SI 3".
-- **The toggle.** Linked cards show by default. A toolbar chip, **Contract acts**, hides them for someone who wants only items.
+- **No toggle (WS-16).** Linked cards always show. The "Contract acts" chip is cut. Linked cards arrive in 3b (WS-15).
 
 ### 4.7 Defects: the Phase 2 seam (closeout-plan §7, ADR 0047)
 
@@ -301,11 +352,14 @@ Each record already in the product gets one treatment, so no fact has two homes 
   - The contractor's "Mark as fixed" calls `reportDefectRectified`, which moves the card to In review.
   - Every refusal of those acts is shown in their own words.
 - **Issued certificates are never touched.** `frozenLines` keep what was certified.
+- **Open (rulings):** 3b re-checks these act names against Phase 2's built acts before wiring them. Stage 3a's plan says what 3a
+  does with Defect items meanwhile.
 
-### 4.8 Watchers and notices
+### 4.8 Notices (amended, WS-17: no watchers)
 
-- **Watchers are added automatically:** the raiser, the assignee, and anyone who comments. The project lead is added on
-  contractor-raised items. Anyone can Watch or Unwatch from the panel.
+- **No stored watchers** (WS-17). There is no watcher table, no Watch toggle and no watcher avatars.
+- **Who is told:** the raiser and the assignee, never the person who acted. The project lead is also told on items the contractor
+  raised (3b).
 - **Notices are staff `StaffNotice` rows**, new closed kinds, changed together with the CHECK (the
   `20261110000000_staff_notices_…` precedent):
 
@@ -314,9 +368,9 @@ Each record already in the product gets one treatment, so no fact has two homes 
 | Assigned to you | The new assignee | On assignment, never to someone assigning themselves |
 | Waiting for you to check | The raiser | Moved to In review |
 | Sent back to you | The assignee | Returned |
-| New reply | Watchers, not the writer | A comment or reply, at most one notice per item per hour per person |
-| Due tomorrow / Late | The assignee | Once each, never daily |
-| Raised by {contractor} | The assignee, or the lead when none | A contractor raises an item or replies on one |
+| New comment | The other party: the raiser and the assignee, not the writer | **One notice per comment** (WS-17) |
+| Due tomorrow / Late | The assignee | **Only if the existing runner already fires date-based notices** (WS-17). Otherwise Late shows in lists and My work only. Once each, never daily. |
+| Raised by {contractor} | The assignee, or the lead when none (3b) | A contractor raises an item or replies on one |
 
 - **The contractor gets no notice table and no bell** (PW-13 stands). The portal's existing derived "Waiting for you" list
   gains the shared items where:
@@ -330,7 +384,8 @@ Each record already in the product gets one treatment, so no fact has two homes 
   is audited.
   - **Roles:** Project manager (one), Site engineer, Contract administrator, Consultant (several each).
   - They are fixed product defaults, like types and statuses (decision 7). The four come from PS-02.
-  - Whether a customer may rename or add roles is open question 3.
+  - **Ruled (WS-3):** four fixed roles. They route work and notices and never carry authority. PW-16 is lifted for this card.
+    Built in 3b (WS-15).
 - **A Consultant is a staff-side `Person`** named on the team. There is no third portal.
 - **Roles route work and notices. They never carry authority.**
   - The **project lead** is the Project manager, or the S.O. office holder when no Project manager is named. The lead may close
@@ -345,8 +400,8 @@ Each record already in the product gets one treatment, so no fact has two homes 
 
 | Ruling | Lifted for work items | Still binding on |
 | --- | --- | --- |
-| PW-4: no due days, days waiting, overdue or numbers | Items have due dates, "late", and numbers (§4.4, Q1) | Project documents. No overdue, no numbers, no counts. |
-| PW-16: no stored staff members or roles | The Project team card (§4.9) | Nothing. Document approval still asks PW-5 authority, not a role. |
+| PW-4: no due days, days waiting, overdue or numbers | Items have due dates, "late", and numbers (§4.4, WS-1) | Project documents. No overdue, no numbers, no counts. |
+| PW-16: no stored staff members or roles | The Project team card (§4.9), lifted by WS-3 | Nothing. Document approval still asks PW-5 authority, not a role. |
 | PW-17: no per-contract contractor membership | Not lifted. Items go to the company. | — |
 | PW-13: staff inbox only; no supplier notice table | Not lifted. New staff kinds; the contractor's list is derived. | — |
 
@@ -359,7 +414,7 @@ Each record already in the product gets one treatment, so no fact has two homes 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ [Open] [Mine] [Late] [Waiting on {contractor}] [Unassigned] [Non-conformances] [Done]      [List|Board]  (+ New item) │
-│ 🔍 Search items     Type ▾   Assignee ▾   Priority ▾   Shared ▾   ☑ Contract acts                  Clear     │
+│ 🔍 Search items     Type ▾   Assignee ▾   Priority ▾   Shared ▾                                     Clear     │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -369,7 +424,9 @@ Each record already in the product gets one treatment, so no fact has two homes 
 - **Filters live in the address.** A combination can be bookmarked or pasted into a chat. This is the saved filter without a
   saved-filter feature (§12).
 - **List and Board share the toolbar and the address.** Switching keeps the filter (ClickUp's views over one filter).
-- The last view used is remembered per person, per browser.
+- **List is the default.** The last view used is not remembered (WS-16); a bookmarked address keeps its own view.
+- **No "Contract acts" chip** (WS-16): linked cards always show.
+- **Staged chips.** "Waiting on {contractor}" and the "Shared" filter arrive with sharing in 3b (WS-14).
 - **The one primary action is New item.**
 
 ### 5.2 List (the default view)
@@ -396,8 +453,7 @@ Each record already in the product gets one treatment, so no fact has two homes 
   The type remembers the last one used.
 - **Default sort:** late first, then by due date, then by priority. Done and Cancelled are in the Done view only.
 - **Clicking a row**, or pressing Enter on it, opens the side panel. The list stays visible and the row stays highlighted.
-- **Selection** takes the existing row checkboxes. Bulk actions are **Assign**, **Due date** and **Status**, each through the
-  same pure move rules. A refused row is listed by number, never silently skipped.
+- **No bulk actions** (WS-16). The list has no selection column.
 - **Linked cards** show as rows with the chain icon, and their cells are not editable.
 
 ### 5.3 Board
@@ -429,12 +485,16 @@ Each record already in the product gets one treatment, so no fact has two homes 
   - A refused drop snaps back and shows the refusal as a toast in plain words: "Only Hafiz, who raised it, or the project
     manager can mark this done."
   - The drop is optimistic and is reverted on refusal.
-- **Keyboard.** The board must not need a mouse: with a card focused, `S` opens its status menu, and arrow keys move focus
-  across columns. This is required for accessibility, not a nicety.
+- **Keyboard (amended, WS-12).** The board must not need a mouse, and it uses no single-letter keys:
+  - Tab or the arrow keys move focus between cards; left and right arrows move across columns.
+  - Enter opens the focused card's panel; Esc closes it.
+  - Each card has a focusable **status-menu button**, which makes the same move as a drag.
+  This is required for accessibility, not a nicety.
 - **Within a column,** cards sort the same way as the list. There is no manual ordering (no rank field; §12).
 - **Done** shows the last 14 days, then "Older: in the list ›".
 - **A column over 50 cards** shows 50 and "Show 50 more".
-- **Quick add** at the top of a column creates an item in that status. To do and In progress only.
+- **No quick add per column** (WS-16). The list's quick-add row is the only quick add; the board's "+ Add item" boxes in the
+  wireframe above are cut.
 
 ### 5.4 The item side panel
 
@@ -445,7 +505,7 @@ Each record already in the product gets one treatment, so no fact has two homes 
                                                    │───────────────────────────────────────────────────────────────│
                                                    │ Assignee   🏢 {contractor}        Priority  High ▾            │
                                                    │ Due        25 Oct ▾               Raised    Hafiz, 18 Oct     │
-                                                   │ Location   Grid C4, Level 2       Watchers  (H)(A)🏢  Watch   │
+                                                   │ Location   Grid C4, Level 2                                   │
                                                    │───────────────────────────────────────────────────────────────│
                                                    │ Drawing S-201 shows 150 c/c; BQ item 3.2.4 says 200 c/c.      │
                                                    │ Which governs?                                                │
@@ -475,8 +535,10 @@ Each record already in the product gets one treatment, so no fact has two homes 
                                                    └───────────────────────────────────────────────────────────────┘
 ```
 
+- **Approved as designed (WS-13):** non-modal, the item in the address, one primary action from a pure function, and a
+  disabled action that names who can.
 - **Non-modal, at the right, `lg` width.** There is no scrim.
-  - The list or board stays live beside it; `J` and `K` step to the next and previous item.
+  - The list or board stays live beside it. There are no `J`/`K` keys (WS-12); the reader opens another row or card.
   - This is Linear's peek and Jira's issue side view, instead of a page hop.
   - It is a variant of the existing drawer shell (§8), so header, width and close behaviour match every other drawer.
 - **The address holds the item**, so back, refresh and a pasted link all reopen it.
@@ -488,13 +550,12 @@ Each record already in the product gets one treatment, so no fact has two homes 
 | Assignee, In progress | Send for review | Reassign, Cancel |
 | Raiser or lead, In review | Mark done | Send back (asks a comment), Cancel |
 | Raiser or lead, Done | — | Reopen |
-| Someone else | — (fields only) | Watch |
+| Someone else | — (fields only) | — |
 
 - **Fields edit inline.** A change saves on pick, with no Save button. A failed save reverts the field and says why beside it.
-- **Activity** merges comments with the audit trail of the item: who changed what, from and to.
-  - "Comments" filters to conversation.
-  - The trail is not clutter, but it is folded: consecutive field changes by one person within a minute show as one line,
-    "Hafiz changed due date and priority", expandable.
+- **Activity** merges comments with the audit rows of the item: who changed what, from and to (WS-18).
+  - An **All / Comments** filter; "Comments" filters to conversation.
+  - **No grouping** (WS-18): each audit row is its own line.
 - **The composer.**
   - Reply or Internal note, only on a shared item; Reply is selected by default, and the tint makes the choice visible.
   - Files go through the existing store routes. An attachment from the composer belongs to the item and is listed under Files
@@ -503,25 +564,23 @@ Each record already in the product gets one treatment, so no fact has two homes 
   - A disabled "Mark done" carries the popover "Hafiz, who raised it, or the project manager (Nurul) can mark this done."
   - A field the reader may not edit is shown as plain text, with the same popover.
 
-### 5.5 Quick add and the keyboard (staff only)
+### 5.5 Quick add and the keyboard (staff only; amended, WS-12)
 
-| Key | Does | Note |
-| --- | --- | --- |
-| `C` | New item: focuses the quick-add row | Linear's `C` |
-| `J` / `K` | Next and previous item, in the list or the open panel | |
-| `Enter` | Open the focused item | |
-| `Esc` | Close the panel | |
-| `S` | Status menu of the focused item | |
-| `A` | Assignee menu | |
-| `M` | Assign to me | |
-| `B` | Switch between list and board | |
-| `?` | Show these keys | |
+**No global single-letter keys** (WS-12). The table of `C`, `J`/`K`, `S`, `A`, `M`, `B` and `?` is withdrawn, and so is the
+help dialog. The keyboard uses only what every web page already offers:
 
-- `/` is not taken. It is already the top bar's global search (`search-box.tsx`), and stays so.
-- No key acts while focus is in a field.
-- The help dialog is the one place the keys are written down. They are not shown as hints on the screen.
+| Key | Does |
+| --- | --- |
+| `Tab`, arrow keys | Move focus between rows, cards and controls; left and right arrows move across board columns |
+| `Enter` | Open the focused item in the side panel |
+| `Esc` | Close the panel, returning focus to the row or card it came from |
 
-### 5.6 My work (`/my-work`)
+- The list's quick-add row is reached by Tab like any field.
+- Status and assignee are changed through focusable controls (the inline selects in the list, the status-menu button on a card),
+  never through a letter key.
+- `/` stays the top bar's global search (`search-box.tsx`).
+
+### 5.6 My work (`/my-work`; 3b, WS-15)
 
 ```
  My work                                                                                     [List|Board]    
@@ -564,15 +623,18 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
 
 - **Progress** is the existing legal reading: the In Delay reading, recorded progress against the planned curve. It is not
   derived from activities (§7.1).
-- **Cost** reads the contract's SULIT gate already asked for Overview. Withheld shows "SULIT · withheld".
+- **Cost (amended, WS-8)** follows FS-11's `mayReadBudget`. There is no "SULIT · withheld" money state: contract sums, issued
+  certificate figures, payments and variation values are Internal.
 - **Below the stat row:** the budget card and S-curve (§7.4), then the existing On site, Securities and Contract cards.
-- **The budget card replaces** the Payment summary and Variation summary cards. Their figures are its lines.
+- **The budget card replaces** the Payment summary and Variation summary cards **only if** a `text-snapshot` diff shows every
+  figure, warning and provenance tag of those two cards kept on the budget card (WS-7). Otherwise all three stay.
 
 ### 5.8 States
 
 | State | Work (list and board) | Panel | My work |
 | --- | --- | --- | --- |
-| No items yet | EmptyState "No work yet", a "New item" button, and a quiet "or press C" | — | "Nothing on you." |
+| No items yet | EmptyState "No work yet" and a "New item" button (no key hint, WS-12) | — | "Nothing on you." |
+| Organisation time zone not set (WS-19) | "Late" is not judged: no late chip, no Late view count, and the Late view says "Needs the organisation's time zone." Due dates still show. | Due date shown; no "late" | Same as Work |
 | Filtered to nothing | The view's own `emptyTitle` ("Nothing late"), plus Clear | — | — |
 | Loading | Skeleton rows or cards in the layout's shape; the toolbar is live at once | Header first, then the body | Skeleton |
 | Save refused (fault) | The cell or card reverts; a toast gives the fault's words | The field reverts, with the words beside it | Same |
@@ -584,7 +646,7 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
 | Item cancelled | Done view only, struck through with its reason | Banner "Cancelled: {reason}", and Reopen for the raiser | Drops out |
 | Linked act withdrawn | Done column for 14 days, reading "Withdrawn" | Facts plus Open link | — |
 | Lead not named | Contractor-raised items unassigned. Team tab shows "No project manager" (warn) | "Unassigned" | — |
-| Contractor has no active account | Assigning to {contractor} is allowed. Warn chip "No active portal account". | Same | — |
+| Contractor has no active account (3b) | Assigning to {contractor} is allowed. Warn chip "No active portal account". | Same | — |
 | RFI and SI response days not set | The due date is required with nothing prefilled. No warning: the field is simply empty. | Same | — |
 
 ---
@@ -594,8 +656,9 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
 - **The tab strip:** Overview · **Work** · Programme · Site diary · Payments · Certificates · Documents.
 - Phase 2's portal **Defects** tab folds into Work, as the view **Defects** (Q5). "Mark as fixed" is the defect item's primary
   action and calls the same act.
-- **No board, no keyboard shortcuts, no bulk actions.** These are staff density. A site agent a few times a week needs a list
-  that says what to do next.
+- **List only (WS-13): no board.** There are no keyboard shortcuts and no bulk actions anywhere (WS-12, WS-16). A site agent a
+  few times a week needs a list that says what to do next.
+- **Built in 3b** (WS-15), with the fold of Phase 2's portal Defects tab (WS-5).
 
 ```
  Jalan Kebun upgrade · Contract C-2026-014                                                                   
@@ -616,6 +679,8 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
 - **The groups are where the item is waiting.** "Waiting for you", "With {org}", "Closed". These are not status names (the
   principle: show state, not process).
 - **Each row has one button.** Its words come from the type and state: Reply, Mark as fixed, Send for checking, Open.
+- **Staff names (WS-11):** "sent to Aisyah, Site engineer" only when Aisyah is on the Project team card or the in-force side;
+  otherwise "sent to {org}".
 - **Opening an item** shows a full-height drawer, modal, at the `md` width. It holds:
   - the title, the due date, the description and, for an RFI, the Answer;
   - files, then the conversation (Replies only), then one composer with "Send";
@@ -623,7 +688,7 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
     "Accept answer" (→ Done) and "Ask again" (→ back to {org}, with a reply).
 - **The contractor raises** via two buttons in Work, "Ask a question" (RFI) and "Report an incident". Each opens a short drawer:
   title, details, location, files and, for an incident, severity and when. The new item is shared and assigned per §4.9.
-- **The contractor cannot** reassign, change a due date or priority, cancel, or see internal notes or staff watchers. A due date
+- **The contractor cannot** reassign, change a due date or priority, cancel, or see internal notes. A due date
   they disagree with is a reply.
 - **Words.** "Sent to {org} for checking", not "Status: In review". "2 days late", not "Overdue". "Sent back to you: see the
   reply", not "Returned".
@@ -638,7 +703,7 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
 ### 7.1 Timeline tab: the Gantt (4a)
 
 ```
- Timeline                       Revision 3 in force ▾   Compare with: Revision 1 ▾   [Week|Month|Quarter]   (Update progress)
+ Timeline                       Revision 3 in force ▾   [Week|Month|Quarter]   (Update progress)
  ┌─────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────────┐
  │ Activity                 Start  Fin. │  Sep        Oct        Nov        Dec        Jan        Feb        Mar          │
  ├─────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────┤
@@ -651,7 +716,8 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
  │ ◆ Roof watertight       31 Jan       │                                             ◆  RM 850,000                  │
  │ ◆ Practical completion  28 Feb       │                                                    ◆ ┊ EOT +30d ┊◆         │
  └─────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────────┘
-  ███ done  ▒▒▒ planned  ░░░ baseline (Revision 1)   ◆ milestone   ↳ depends on the row above   ┊ completion date
+  ███ done  ▒▒▒ planned  ░░░ baseline (Revision 1; drawn only if a later stage brings Compare back, WS-20)   ◆ milestone
+  ↳ depends on the row above   ┊ completion date
 
  EXTENSION OF TIME         (Phase 2's Time tab content, unchanged)
  PROGRAMME REVISIONS       (the Programme card, moved from Site)
@@ -672,19 +738,18 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
 - **The light edit**, with one primary action, **Update progress**:
   - per activity: actual start, percent complete, actual finish, and a forecast finish;
   - a grid drawer of the activities in progress and due to start this period, in one form;
-  - staff only (the contractor sees it read-only; Q6 covers whether they may propose).
+  - staff only (WS-6: the contractor sees it read-only).
   - Changing planned dates, adding activities or changing dependencies happens only in a revision (§7.2).
 - **The legal reading is untouched.**
-  - The In Delay reading still comes from recorded progress against the planned curve (FR-SUP-010).
-  - Activities do not overwrite it. When recording progress on Site, the drawer shows "Activities suggest 42%" beside the field.
-    It is a hint with an Assumed provenance badge, never a silent promotion (AGENTS.md "gaps stay honest").
-- **Compare** draws the chosen approved revision's bars as grey ghosts under the live ones. The panel gives variance in days.
+  - The In Delay reading still comes from recorded progress against the planned curve (FR-SUP-010), unchanged (WS-20).
+  - Activities do not overwrite it. The "Activities suggest n%" hint is **cut** (WS-20).
+- **Compare is cut from 4a** (WS-20).
 - **States:**
   - **No programme yet:** EmptyState "No programme yet". Staff get "Add activities"; the portal gets "Send your programme in
     Documents".
   - **Revision in draft:** a Callout "Revision 4 is a draft and not in force", with a link to view it.
   - **No time zone:** the existing "Needs the organisation's time zone." notice.
-  - **A large programme:** summaries collapsed by default; virtualised rows past 200.
+  - **A large programme:** summaries collapsed by default. No virtualisation (WS-20).
   - **Closed contract:** read-only.
 
 ### 7.2 Programme revisions become baselines
@@ -699,9 +764,8 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
 - **Approval freezes the revision's activities as its baseline.** Nothing edits them after.
   - "Revision 1" is the original baseline, and the latest approved revision is the one in force.
   - Progress (§7.1) is recorded against the activity in force. A new revision carries progress over by matching activities.
-- **The planned curve** (`ProgrammePoint`) stays the legal input.
-  - When a revision has activities, its editor offers "Fill planned curve from activities", weighted by duration.
-  - The officer sees the result and may change it before approval.
+- **The planned curve** (`ProgrammePoint`) stays the legal input, entered as today.
+  - "Fill planned curve from activities" is **cut** (WS-20).
 - **MS Project / Primavera XML import is later.** It fills the same grid in a draft revision and is never a separate path.
   Procore keeps re-imports clean by asking for Save rather than Save As, so activity ids survive; the import keys on the file's
   activity id for the same reason.
@@ -714,14 +778,14 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
   - That is a new route value beside `CERTIFIED_CLAIM` and `DELIVERY_ORDER_INVOICE`. It is a customer policy, set on the type
     (AGENTS.md: a policy is a column).
   - Works stay on measured valuation.
-  - The RSAJ pack sets no type to it until RSAJ says which (Q4).
-- **The contract type's payment route not set** (null): Budget shows no Payment milestones section and the revision editor no
-  Payment amount column. The Budget section reads "How this contract is paid: Not set", with the setting named and a link to
+  - The RSAJ pack sets no type to it until RSAJ says which (WS-4; added to the RSAJ questions).
+- **The contract type's payment route not set** (null): Payments shows no Payment milestones section and the revision editor no
+  Payment amount column. The Payments tab reads "How this contract is paid: Not set" (WS-4), with the setting named and a link to
   it for those who may edit it. Nothing assumes measured valuation silently; the existing acts that need the route keep
   refusing by name, as today.
 - **The amounts** must sum to the contract sum, or a warning shows the difference. A payment milestone's amount changes only
   through a revision or a variation's adjustment.
-- **Budget › Payment milestones** is a `DataList`:
+- **Payments › Payment milestones** (WS-7) is a `DataList`:
 
 | Milestone | Amount | Planned | State |
 | --- | --- | --- | --- |
@@ -764,17 +828,17 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
   - A figure that cannot be read says "Cannot be read" and names why. It is never zero.
 - **"Approved variations" is two lines,** because FS-8 counts a variation only once its adjustment certificate is issued.
   - **Approved, not yet adjusted:** approved variations whose adjustment is not issued.
-  - **In approval:** variations in routing at their valued amount, with a count.
+  - **In approval:** variations in routing, each at its valued amount as the Variations tab shows it, with a count. **Never**
+    `matterRoutedValue`, which is SULIT (WS-2).
   - Neither is in Committed. This is Procore's split between revised budget and pending budget changes.
-- **Forecast final** is committed, plus approved not yet adjusted, plus in approval.
+- **Forecast final** is committed, plus approved not yet adjusted, plus in approval (**ruled, WS-2**).
   - That formula is a product assumption, not a rule from any document, so it carries the **Assumed** provenance badge. The
     popover gives the formula.
-  - Q2 asks whether {org} defines it differently.
+  - **The budget is Committed** (WS-2). No separate allocation line until the D365 link.
 - **There is no "budget" above the contract sum by default.**
   - The approved allocation lives in D365, and that link is on hold.
   - The requisition estimate is SULIT and is not read here.
-  - So the card compares against Committed. If Q2's answer is an entered allocation, it adds one top line, "Allocation", with its
-    provenance and the headroom.
+  - So the card compares against Committed (WS-2).
 - **The S-curve** is three cumulative monthly lines, from possession to the (extended) completion month:
   - **Planned:** the in-force revision's planned percent × Committed. It is Assumed (PS-06 "from the contractor's programme"),
     and on a milestone-paid contract it is the payment milestones by planned date instead.
@@ -783,15 +847,16 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
 - **By funding source ›** opens a small `DataList`: Source, Share, Committed, Certified, Paid.
   - It uses Phase 1's `splitSen`, so the rows add to the card to the sen.
   - With no split recorded it reads "From the requisition: {source} 100%".
-- **By cost category** is a section of the Budget tab, not of the card (PS-04, BQ sections mapped to cost categories). It depends
+- **By cost category** is a section of the Payments tab (WS-7), not of the card (PS-04, BQ sections mapped to cost categories). It depends
   on Finance's open decision 3 (PO line per cost category or per BQ item). Decision 4 (retention accounting) decides whether
   retention shows as its own line. Both are named dependencies of 4b, not designed around.
 - **States:**
   - **Before possession:** the card shows the sums, and the curve shows "Starts at possession".
-  - **SULIT withheld:** each money figure reads "SULIT · withheld", and the curve is not drawn.
+  - **No "SULIT · withheld" state** (WS-8). Whether the card shows at all follows FS-11's `mayReadBudget`; the figures are
+    Internal.
   - **Supply contracts:** certified is not held, so the card shows Paid only, with the Phase 1 popover words.
 
-### 7.5 PDF letters and certificates (4b)
+### 7.5 PDF letters and certificates (4c, WS-21)
 
 - **The template engine stays.** An issued certificate or letter gains **Download PDF** as its secondary action, on its own page
   and as a row action in Documents › Certificates. Print stays for drafts.
@@ -807,17 +872,17 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
 **Reused as they are:**
 - `PageHeader`, `Tabs`, `Card`/`CardHeader`/`CardBody`;
 - `Badge`/`Chip`/`Dot`, `Avatar`/`AvatarStack`, `Button`/`ButtonLink`/`IconButton`;
-- `Select`, `Field`/`Input`, `Toggle` (List|Board, Week|Month|Quarter, Reply|Internal note);
+- `Select`, `Field`/`Input`, `Toggle` (List|Board, Week|Month|Quarter, Reply|Internal note, All|Comments);
 - `MoreActions`, `EmptyState`, `Callout`, `Meter` (certified %), `KeyValues`, `Stat` (Overview row);
 - `RuleInfo` and `InfoChip` (popovers), `ProvenanceBadge` (Assumed);
 - `ConfirmDialog` (Cancel with reason), the `Sections` pattern, `DrawerHeader`;
-- `DataList`: views, filters, server mode, selection.
+- `DataList`: views, filters, server mode (no selection on Work: bulk actions are cut, WS-16).
 
 **Extended, in their own files:**
 
 | Component | Extension | Why |
 | --- | --- | --- |
-| `drawer.tsx` | A non-modal **side panel** variant: no scrim, the page behind stays live, the address holds the record, `J`/`K` step. Same widths and header. | The item and activity panels. One shell, so it cannot drift from the other drawers. |
+| `drawer.tsx` | A non-modal **side panel** variant: no scrim, the page behind stays live, the address holds the record, Esc closes. No `J`/`K` (WS-12). Same widths and header. | The item and activity panels. One shell, so it cannot drift from the other drawers. |
 | `DataList` | A `select` **cell kind** for inline edit; its toolbar (views, filters, search, view switch) extracted as **`ListToolbar`** so the board uses the same one | The list and board share one filter bar. |
 | `chart.tsx` `TrendLine` | **N series** (today: one line and one reference), a dashed style per series, and a vertical marker (today) | The S-curve has three lines. |
 
@@ -825,56 +890,67 @@ A stat row goes on top of the existing Overview cards. Each stat links to its ta
 
 | Component | What it is |
 | --- | --- |
-| `board.tsx` | Columns with a count, cards (data, like DataList cells), drag with a keyboard alternative, a per-column quick add, a column cap with "Show more", optimistic move with revert |
-| `activity.tsx` | The merged feed of comments and history, with grouping of consecutive changes, the All/Comments filter, and the internal-note tint |
-| `composer.tsx` | A textarea, files through the store routes, the Reply/Internal note toggle, Send |
-| `gantt.tsx` | The activity tree, bars (planned, done, baseline ghost), milestones, finish-to-start connectors, today and completion lines, the zoom, and virtualised rows |
-| `shortcuts.tsx` | The key hook that ignores fields, plus the `?` dialog |
+| `board.tsx` | Columns with a count, cards (data, like DataList cells), drag with a keyboard alternative (a status-menu button per card; arrow keys across columns, WS-12), a column cap with "Show more", optimistic move with revert. No per-column quick add (WS-16). |
+| `activity.tsx` | The merged feed of comments and audit rows, the All/Comments filter, and the internal-note tint. No grouping (WS-18). |
+| `composer.tsx` | A textarea, files through the store routes, the Reply/Internal note toggle (3b), Send |
+| `gantt.tsx` | The activity tree, bars (planned, done), milestones, finish-to-start connectors, today and completion lines, and the zoom. No baseline ghost (Compare cut) and no virtualisation (WS-20). |
 
+- **`shortcuts.tsx` is withdrawn** (WS-12): there are no single-letter keys and no `?` dialog.
 - The **icons** (board, list, chain, building, lock, diamond, Gantt) go in `src/components/icons.tsx`.
-- The screen comparator records Work, Timeline and My work as **new screens with no prototype** in `ALLOWED_EXTRA`, with this
-  note as the reason.
+- The screen comparator is retired (AGENTS.md). Work, Timeline and My work are recorded as **new screens with no prototype** in
+  `docs/notes/prototype-differences.md`, with this note as the reason.
 
 ---
 
 ## 9. Build order
 
-One heavy builder at a time, as today. Each stage ships alone.
+One heavy builder at a time, as today. Each stage ships alone. **Order (WS-23): 3a → 3b → 4a → 4b → 4c.**
 
-### 3a: the engine, the list and the side panel
+**Every stage, before acceptance (WS-22):**
+- demo data through `demo:load` (3a: every type, with late, unassigned and cancelled items, on two demo contracts);
+- `npm test`, `npm run typecheck` and `npm run lint`;
+- a sibling-screen check;
+- its lines in `docs/notes/decisions-log.md`.
 
-- **Scope:**
-  - work items with the seven types, the four statuses plus Cancelled, the fields, numbers, watchers, comments (Reply and
-    Internal note), attachments, links and the history;
-  - the pure move rules;
-  - the Work tab (case-level) with the List view and its toolbar, quick add and inline edit;
-  - the side panel, the keys, and the notices.
-  - **The assignee picker** is the organisation's active people plus "{contractor}"; the team arrives in 3b.
-  - **Defect items:** snags only, until Phase 2's lines exist. The link acts are wired if Phase 2 has shipped by then.
-- **Done when:**
-  - A staff member creates each type on an active contract and finds it in the list.
-  - They open the panel by click, `Enter` and pasted address, and edit every field inline.
-  - They comment both ways, attach a file through the store, and see the merged activity.
-  - Every create and change writes an audit row with before and after in the same transaction.
-  - The pure move rules have a table test of every from, to and actor: raiser, assignee, lead, other, contractor.
-  - "Late" is judged on the organisation's day, with a test at midnight in its time zone.
-  - The new notice kinds and the CHECK are changed together in one migration, and the inbox shows them.
-  - Each §5.8 state is rendered by a screen test.
-  - `scripts/check-ui.mjs` passes, and `text-snapshot` shows no codes on screen.
-
-### 3b: board, My work, contractor, team and linked cards
+### 3a: the engine, the List and the Board, staff only (amended, WS-14, WS-15)
 
 - **Scope:**
-  - the Board view on the same toolbar;
-  - `/my-work` in the nav;
-  - linked cards for variations, EOT claims and certificates in routing;
-  - the Project team card and default assignees;
-  - the contractor's Work tab, "Ask a question", "Report an incident", and the portal home's Waiting for you rows;
-  - the portal Defects tab folded into Work (subject to Q5);
-  - Certificates folded into Documents, with the old address aliased.
+  - work items with the seven types, the four statuses plus Cancelled, the fields, numbers, comments (all internal: nothing is
+    shared in 3a), attachments, links between items and to project documents, and the activity;
+  - no stored watchers (WS-17);
+  - the pure move rules and numbering (WS-24);
+  - the Work tab (case-level) with the List view, its toolbar, the list's quick-add row and inline edit;
+  - **the Board view beside the List** on the same toolbar and address (WS-15), with drag and the WS-12 keyboard;
+  - the side panel and the notices.
+  - **Staff only (WS-14).** The assignee picker is the organisation's active people. No "{contractor}" assignee and no Shared:
+    `shared` is false on every 3a item.
 - **Done when:**
+  - A staff member creates each type on an active contract and finds it in the list and on the board.
+  - They open the panel by click, Enter and pasted address, and edit every field inline.
   - A drag and the status select make the same act and refuse with the same words.
-  - Every board action works from the keyboard alone.
+  - Every board action works from the keyboard alone, with no single-letter key.
+  - They comment, attach a file through the store, and see the activity (All / Comments).
+  - Every create and change writes an audit row with before and after in the same transaction.
+  - The pure move rules have a table test of every from, to and actor: raiser, assignee, lead, other.
+  - "Late" is judged on the organisation's day, with a test at midnight in its time zone; with no time zone it is not judged
+    (WS-19).
+  - The new notice kinds and the CHECK are changed together in one migration, and the inbox shows them.
+  - Each §5.8 state that 3a can reach is rendered by a screen test.
+  - `scripts/check-ui.mjs` passes, and `text-snapshot` shows no codes on screen.
+- The build plan is `docs/notes/plans/workspace-3a-build-plan.md`.
+
+### 3b: sharing, the portal list, My work, team and linked cards (amended, WS-15)
+
+- **Scope:**
+  - contractor sharing: the "{contractor}" assignee, the Shared toggle, Reply / Internal note;
+  - the contractor's Work tab as a list (WS-13), "Ask a question", "Report an incident", and the portal home's Waiting for you
+    rows;
+  - `/my-work` in the nav;
+  - the Project team card and default assignees;
+  - linked cards for variations, EOT claims and certificates in routing (always shown, WS-16);
+  - the folds (WS-5): the portal Defects tab into Work, and Certificates into Documents, with the old addresses aliased;
+  - the defect link, after re-checking the defect act names against Phase 2's built acts (rulings, Open).
+- **Done when:**
   - A linked card cannot be moved, and opens to its register.
   - My work shows exactly the §5.6 set across two projects.
   - A contractor sees a shared item, replies, attaches and sends for checking, and never receives an internal note. A scan test
@@ -883,39 +959,41 @@ One heavy builder at a time, as today. Each stage ships alone.
   - Contractor-raised items reach the role's holder, or the lead when the role is empty.
   - Every old `?tab=` address still lands (the `caseTabToStep` tests extended).
 
-### 4a: the timeline
+### 4a: the timeline (amended, WS-20)
 
 - **Scope:**
   - activities on programme revisions: the grid editor, dependencies, milestones;
   - approval freezes the baseline;
-  - the Gantt (read, compare, the light progress edit);
+  - the read-only Gantt and Update progress (staff only, WS-6);
   - Time relabelled Timeline, with the Programme card moved;
   - items linked to activities;
   - the portal's Programme tab shows the in-force Gantt, read-only.
+  - **Cut (WS-20):** Compare, "Fill planned curve from activities", the "Activities suggest n%" hint, virtualisation.
 - **Done when:**
   - An approved revision's activities refuse any edit (a db test).
-  - Compare draws any two approved revisions.
   - Progress by activity saves only through Update progress.
   - **The In Delay reading is unchanged** for every demo contract, with a regression test before and after.
-  - "Fill planned curve from activities" is offered only in draft and is shown before it is saved.
   - Old `?tab=time` and `?tab=site&section=start` links land.
 
-### 4b: budget, payment milestones, S-curve and PDF
+### 4b: budget card, stat row, payment milestones and funding (amended, WS-21)
 
 - **Scope:**
-  - the budget card and S-curve on Overview, replacing the two summary cards;
+  - the budget card and S-curve on Overview; it replaces the two summary cards only on a clean text-snapshot diff (WS-7);
   - the Overview stat row;
-  - the Budget label and its Budget, Payment milestones and By cost category sections;
-  - the milestone payment route on the contract type, and claims and certificates against milestones;
-  - funding by source;
-  - Download PDF on issued certificates and letters.
+  - Payments (label unchanged, WS-7) gains Payment milestones and By cost category;
+  - the milestone payment route on the contract type (WS-4), and claims and certificates against milestones;
+  - funding by source.
 - **Done when:**
   - Committed, Certified and Paid on the card equal Dashboard › Use of proceeds for every demo contract, to the sen (a test).
-  - Forecast carries the Assumed badge.
+  - Forecast carries the Assumed badge, and In approval never reads `matterRoutedValue` (WS-2; a scan test).
   - A contract whose type is not milestone-paid shows no Payment milestones section anywhere.
   - Payment milestone states are read from claims and certificates, never stored twice.
-  - A downloaded PDF's figures equal the issued certificate's frozen figures.
   - **Gated on** Finance's open decisions 3 and 4 for By cost category only. The rest of 4b does not wait.
+
+### 4c: PDF letters and certificates (new, WS-21)
+
+- **Scope:** Download PDF on issued certificates and letters (§7.5), and the six appointment letters as templates.
+- **Done when:** a downloaded PDF's figures equal the issued certificate's frozen figures.
 
 ### Later, not scheduled
 
@@ -928,7 +1006,7 @@ One heavy builder at a time, as today. Each stage ships alone.
 
 | From | Taken | Why it fits |
 | --- | --- | --- |
-| Linear | Peek side panel instead of a page hop; `C` to create; `J`/`K`; one list/board switch on one filter; "My issues" grouped by due | Staff work all day; a page hop per RFI costs minutes a day. [Linear navigation guide](https://linear.app/enablement/guide/navigating-linear), [keyboard help](https://linear.app/changelog/2021-03-25-keyboard-shortcuts-help) |
+| Linear | Peek side panel instead of a page hop; one list/board switch on one filter; "My issues" grouped by due. (Its `C` and `J`/`K` keys are not taken, WS-12.) | Staff work all day; a page hop per RFI costs minutes a day. [Linear navigation guide](https://linear.app/enablement/guide/navigating-linear), [keyboard help](https://linear.app/changelog/2021-03-25-keyboard-shortcuts-help) |
 | Jira | Board columns mapped to statuses; the two default quick filters "Only my issues" and "Recently updated" as fixed views; Service Management's Reply vs Internal note | The quick filters cover most needs without a filter builder. The two-button comment makes leakage a visible choice. [Jira board work mode](https://confluence.atlassian.com/agile065/jira-agile-user-s-guide/using-a-board/using-work-mode) |
 | ClickUp | List, Board and Gantt as views of one set; "Me mode" (became My work) | One data set, many lenses. [ClickUp views](https://help.clickup.com/hc/en-us/sections/17044387445399-Intro-to-views), [developer view types](https://developer.clickup.com/docs/views.md), [Me mode](https://processdriven.co/hub/clickup-views-explained-clickup-tutorial-for-beginners-on-filters-group-by-sort-by-me-mode) |
 | Procore RFIs | The RFI as a question with a responsible party, a due date and an official answer, not a chat. Procore's Draft state and its RFI Manager hand-off are not taken: an item is live when raised. | EX-03. [Procore: draft RFI](https://support.procore.com/faq/what-is-a-draft-rfi) |
@@ -951,7 +1029,7 @@ One heavy builder at a time, as today. Each stage ships alone.
 - **A tab per type** (RFIs, Instructions, Inspections, Incidents, Defects). That gives five tabs, five lists with the same
   columns, and no single view of what is late. Types are a filter, not a place.
 - **A new Budget tab** beside Payments and Variations. It would add a tab whose figures already live in those two. The budget is
-  a card on Overview and a label on the existing tab.
+  a card on Overview, and Payments keeps its label (WS-7).
 - **Per-type statuses** (RFI: Open, Answered, Closed; Punch: eight states). A board with different columns per type cannot be one
   board. The type-specific step lives in a field, not a status: the Answer, the Result.
 
@@ -969,6 +1047,10 @@ One heavy builder at a time, as today. Each stage ships alone.
 - A calendar view. My work's date groups answer "what is due".
 - Offline or phone capture (EX-04): desktop only.
 - Email notices: parked.
+- **Cut by the rulings (2026-10-27):** stored watchers (WS-17); bulk actions, quick add per board column, remembering the last
+  view, the "Contract acts" toggle (WS-16); global single-letter keys and the `?` dialog (WS-12); activity grouping (WS-18);
+  Compare, "Fill planned curve from activities", the "Activities suggest n%" hint and Gantt virtualisation (WS-20); a
+  "SULIT · withheld" money state (WS-8).
 
 ---
 
@@ -992,6 +1074,7 @@ One heavy builder at a time, as today. Each stage ships alone.
    - Give three site engineers a seeded project with 60 items.
    - Ask: "What is late on Jalan Kebun?" and "Close everything Hafiz has checked."
    - Measure time and errors with each default. Expectation: list for the engineer, board for the PM's weekly look.
+   - List is the default meanwhile (WS-16).
 2. **Reply vs Internal note.**
    - Have five staff answer a contractor while adding a private remark.
    - Watch whether anyone sends the private remark as a Reply. One leak means the toggle needs a stronger default: Internal note
@@ -1006,19 +1089,20 @@ One heavy builder at a time, as today. Each stage ships alone.
    - Show a PM the Gantt and the old programme card.
    - Ask whether the job is behind, and on what. Check that they do not try to drag bars. If they do, the "Update progress"
      button is in the wrong place.
-6. **Forecast final.** Show a QS the budget card. Ask what "Forecast final" means to them. This answers Q2.
+6. **Forecast final.** Show a QS the budget card. Ask what "Forecast final" means to them. WS-2 ruled the formula; this checks the words.
 7. **Routine site meetings.** Ask whether linking action items to a minutes document is enough, or whether the meeting itself
    needs a record.
 
 ---
 
-## 15. Open questions for the product owner (each with a default)
+## 15. Open questions for the product owner (answered 2026-10-27, WS-1 to WS-6)
 
-| # | Question | Default if not answered |
-| --- | --- | --- |
-| Q1 | Items carry numbers per type ("RFI 12"), unlike documents (PW-4). Agree? | **Yes.** RFIs and instructions are quoted by number in letters and claims. |
-| Q2 | What is the project budget, and what is "forecast final"? | **The budget is Committed** (Phase 1's reading); no separate allocation until the D365 link. **Forecast** = committed + approved not yet adjusted + in approval, shown as Assumed. |
-| Q3 | Are the four team roles fixed product defaults, or may a customer rename or add them? | **Fixed**, like types and statuses (decision 7). Roles never carry authority. |
-| Q4 | Which contract types are paid by milestone? | A new payment route on the contract type, **set by the customer**. The RSAJ pack sets none until RSAJ answers. Added to the RSAJ questions. |
-| Q5 | Fold the contractor's Defects tab (Phase 2) into Work, and the staff Certificates tab into Documents? | **Yes, both**, in 3b. Old addresses resolve. Phase 2's close-out Defects tab, the legal schedule, stays. |
-| Q6 | May the contractor update activity progress on the Gantt, as they may the diary (decision 5)? | **No, staff only** in 4a. The contractor sees it read-only and says so in the diary. Revisit after test 5. |
+| # | Question | Default proposed | Ruled |
+| --- | --- | --- | --- |
+| Q1 | Items carry numbers per type ("RFI 12"), unlike documents (PW-4). Agree? | **Yes.** RFIs and instructions are quoted by number in letters and claims. | **WS-1: yes**, under the contract lock, unique on (contract, type, number); short words from the labels map; PW-4 still binds documents. |
+| Q2 | What is the project budget, and what is "forecast final"? | **The budget is Committed** (Phase 1's reading); no separate allocation until the D365 link. **Forecast** = committed + approved not yet adjusted + in approval, shown as Assumed. | **WS-2: as proposed**; "in approval" at each variation's valued amount as the Variations tab shows it, never `matterRoutedValue`. |
+| Q3 | Are the four team roles fixed product defaults, or may a customer rename or add them? | **Fixed**, like types and statuses (decision 7). Roles never carry authority. | **WS-3: fixed**; they route work and notices only; PW-16 lifted for this card. |
+| Q4 | Which contract types are paid by milestone? | A new payment route on the contract type, **set by the customer**. The RSAJ pack sets none until RSAJ answers. Added to the RSAJ questions. | **WS-4: as proposed**; unset reads "How this contract is paid: Not set". |
+| Q5 | Fold the contractor's Defects tab (Phase 2) into Work, and the staff Certificates tab into Documents? | **Yes, both**, in 3b. Old addresses resolve. Phase 2's close-out Defects tab, the legal schedule, stays. | **WS-5: as proposed**; Phase 2 still builds its portal Defects tab. |
+| Q6 | May the contractor update activity progress on the Gantt, as they may the diary (decision 5)? | **No, staff only** in 4a. The contractor sees it read-only and says so in the diary. Revisit after test 5. | **WS-6: staff only in 4a.** |
+| WS-10 | Do contractor contact names stay SULIT to staff? | Proposal in §4.5. | **Open: the founder's call.** Names stay SULIT meanwhile; 3a and 3b do not depend on it. |
