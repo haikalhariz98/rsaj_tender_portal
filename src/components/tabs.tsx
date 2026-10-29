@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { PanelSkeleton } from "@/components/ui/skeleton";
 import { useLanguage, useSay } from "@/components/i18n/language-context";
 import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
 import { sayWith } from "@/lib/i18n/say";
@@ -273,10 +274,10 @@ export function Tabs({
               </nav>
               <EdgeButtons more={subMore} scroll={scrollSub} label={sayWith(WORDS.sectionsOf, language, { label: current.label })} />
             </div>
-            {current.panel ?? <p className="text-[13.5px] text-ink-3" role="status">{say(WORDS.loading)}</p>}
+            {current.panel ?? <PanelSkeleton label={say(WORDS.loading)} />}
           </div>
         ) : (
-          (current?.panel ?? (current?.lazy ? <p className="text-[13.5px] text-ink-3" role="status">{say(WORDS.loading)}</p> : null))
+          (current?.panel ?? (current?.lazy ? <PanelSkeleton label={say(WORDS.loading)} /> : null))
         )}
       </div>
     </div>

@@ -19,6 +19,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { endSentence, LOWER_NOTE, plural, RECLASSIFY_NOTE, WITHDRAW_NOTE, withdrawnLine } from "@/lib/documents/labels";
 import type { AttachmentItemView, DrawerView, DrawerVersionView, UploadView } from "@/lib/documents/views";
 
+import { SkeletonRows } from "@/components/ui/skeleton";
 import { AttachToRecordButton } from "./attach-to-record";
 import { DetachButton, NewVersionButton, VerifyButton, type Notice, type OnNotice, type OwnerKey } from "./upload-actions";
 
@@ -133,7 +134,7 @@ function Drawer({ data, reload, onClose, onRecord }: { data: DrawerView | null |
         />
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
           {data === undefined ? (
-            <p className="text-[13px] text-ink-3">Loading…</p>
+            <SkeletonRows />
           ) : data === null ? (
             <EmptyState size="sm" title="Document gone: reload the page" />
           ) : (

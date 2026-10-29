@@ -13,6 +13,7 @@ import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
 import { sayWith } from "@/lib/i18n/say";
 import type { Words } from "@/lib/contract/labels";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
+import { SkeletonRows } from "@/components/ui/skeleton";
 
 const ACTION: Record<HistoryEntry["action"], { label: Words; tone: "ok" | "info" | "err" }> = {
   CREATE: { label: WORDS.created, tone: "ok" },
@@ -90,7 +91,7 @@ export function HistoryButton({
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
               {pending || entries == null ? (
-                <p className="text-[13px] text-ink-3">{say(WORDS.loading)}</p>
+                <SkeletonRows label={say(WORDS.loading)} />
               ) : entries.length === 0 ? (
                 <EmptyState size="sm" title={say(WORDS.noChangeRecorded)} />
               ) : (

@@ -13,6 +13,7 @@ import { Field, Select } from "@/components/ui/field";
 import { ATTACH_PURPOSE_HINT } from "@/lib/documents/labels";
 import { ATTACHABLE_OWNER_KINDS, OWNER_KIND_LABEL, ownerHref } from "@/lib/documents/targets";
 import type { OwnerKind } from "@/lib/documents/types";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Targets = NonNullable<Awaited<ReturnType<typeof loadAttachTargets>>>;
 
@@ -143,7 +144,7 @@ export function AttachToRecordButton({
                       ))}
                     </Select>
                   </Field>
-                  {kind && targets === undefined && <p className="text-[13px] text-ink-3">Loading…</p>}
+                  {kind && targets === undefined && <Skeleton className="h-10 w-full" />}
                   {kind && targets === null && <Callout tone="err">That kind of record cannot be listed. Reload the page.</Callout>}
                   {targets && (
                     <>

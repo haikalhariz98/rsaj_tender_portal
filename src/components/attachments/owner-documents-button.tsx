@@ -10,6 +10,7 @@ import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/dr
 import { EmptyState } from "@/components/ui/feedback";
 import type { OwnerRef } from "@/lib/documents/repo";
 import type { PanelOptions, PanelView } from "@/lib/documents/views";
+import { SkeletonRows } from "@/components/ui/skeleton";
 
 import { AttachmentPanel } from "./attachment-panel";
 
@@ -66,7 +67,7 @@ export function OwnerDocumentsButton({ owner, label, options, iconOnly = false, 
               <DrawerHeader icon={<FileIcon size={17} />} title="Documents" subtitle={label} onClose={close} />
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-sunken/50 px-6 py-5">
                 {view === undefined ? (
-                  <p className="text-[13px] text-ink-3">Loading…</p>
+                  <SkeletonRows />
                 ) : view === null ? (
                   <EmptyState size="sm" title="Record gone: reload the page" />
                 ) : (
