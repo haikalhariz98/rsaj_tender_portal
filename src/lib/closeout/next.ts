@@ -40,5 +40,7 @@ export function closeoutNext(f: CloseoutFacts): CloseoutNext {
   if (f.retention.balanceDue && f.retention.event.state === "REACHED" && f.retention.event.event === "MAKING_GOOD") return { state: "in-progress", next: "Retention balance to release", action: "RELEASE_RETENTION" };
   const due = f.securities.find((s) => s.returnable);
   if (due) return { state: "in-progress", next: `${due.label} to return`, action: "RETURN_SECURITY" };
+  // Stage D (ruling 17): the report is filed before the final certificate is sent for approval.
+  if (f.performance !== "VERIFIED") return { state: "in-progress", next: f.performance === "ASSESSED" ? "Contractor performance to verify" : "Contractor performance not filed", action: "SCORE_PERFORMANCE" };
   return { state: "in-progress", next: "Final account not raised", action: null };
 }

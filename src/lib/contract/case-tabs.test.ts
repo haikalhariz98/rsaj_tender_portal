@@ -126,9 +126,10 @@ describe("parseCaseStepKey", () => {
 });
 
 describe("the Close-out stage's tabs (Phase 2 close-out stage B, plan §3.2)", () => {
-  it("are Completion and Defects, each reached from a stage-less link", () => {
-    expect(CASE_TABS["close-out"]).toEqual(["completion", "defects"]);
-    for (const tab of ["completion", "defects"]) for (const c of [true, false]) expect(caseTabToStep(tab, c)).toEqual({ stage: "close-out", tab });
+  // Changed for stage D (flagged): Close ("closure") joins for the contractor performance card; stage C adds the final account before it.
+  it("are Completion, Defects and Close, each reached from a stage-less link", () => {
+    expect(CASE_TABS["close-out"]).toEqual(["completion", "defects", "closure"]);
+    for (const tab of ["completion", "defects", "closure"]) for (const c of [true, false]) expect(caseTabToStep(tab, c)).toEqual({ stage: "close-out", tab });
     expect(stageTab("close-out", undefined)).toBe("completion");
   });
 });

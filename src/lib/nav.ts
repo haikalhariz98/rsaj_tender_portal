@@ -196,11 +196,12 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     label: w("Contracts & payments"),
     icon: "files",
     about: "How awards become contracts, and how contracts are supervised and paid.",
-    folders: ["awards", "contracts", "post-award", "budget", "funding"],
+    folders: ["awards", "contracts", "post-award", "performance", "budget", "funding"],
     advanced: [
       { label: "Award controls", href: "/configuration/awards" },
       { label: "Contract controls", href: "/configuration/contracts" },
       { label: "Post-award controls", href: "/configuration/post-award" },
+      { label: "Performance forms", href: "/configuration/performance" },
       { label: "Budget", href: "/configuration/budget" },
       { label: "Funding", href: "/configuration/funding" },
     ],

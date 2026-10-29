@@ -53,4 +53,6 @@ export const CASE_ACTION_AT: Readonly<Partial<Record<CaseAction, { stage: CaseSt
   RAISE_CMGD: { stage: "close-out", tab: "completion", section: "making-good" },
   RELEASE_RETENTION: { stage: "close-out", tab: "completion", section: "retention" },
   RETURN_SECURITY: { stage: "close-out", tab: "completion", section: "securities" },
+  // Stage D: the performance card is on the Close tab.
+  SCORE_PERFORMANCE: { stage: "close-out", tab: "closure", section: "performance" },
 };

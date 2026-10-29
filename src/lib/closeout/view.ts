@@ -23,6 +23,8 @@ import { defectState } from "./defects";
 import { defectFactsOf, dlpOfRow, loadCloseout, openLineCount, releaseEventsOf, type CloseoutRows } from "./load";
 import { cmgdFigureLines, cmgdSnapshotOf } from "./making-good";
 import { closeoutNext } from "./next";
+import { loadReport } from "@/lib/performance/load";
+import { performanceState } from "@/lib/performance/report";
 import { securityReturnFaults, type SecurityReturnInput } from "./release";
 import type { BalanceEvent, CloseoutFacts, Finding } from "./types";
 
@@ -59,11 +61,12 @@ export async function cmgdFiguresNow(contractId: string, rows: CloseoutRows, cli
 }
 
 export async function closeoutView(l: LoadedContract, today: string | null) {
-  const [rows, p, cfg, securities] = await Promise.all([
+  const [rows, p, cfg, securities, report] = await Promise.all([
     loadCloseout(l.contract.id),
     loadPayment(l.contract.id),
     loadPaymentConfig(l.org.id),
     db.securityInstrument.findMany({ where: { contractId: l.contract.id, status: { not: "REJECTED" } }, include: { release: { include: { certificate: { select: { id: true, number: true, kind: true } }, person: { select: { name: true } } } } }, orderBy: [{ lodgedOn: "asc" }, { id: "asc" }] }),
+    loadReport(l.contract.id),
   ]);
   const events = releaseEventsOf(rows, cfg.policy);
   const retention = retentionOf(p);
@@ -80,9 +83,10 @@ export async function closeoutView(l: LoadedContract, today: string | null) {
     defects: { open: openLineCount(rows) },
     retention: { balanceDue: retention.balance > 0n, event: events.retention },
     securities: judged.filter((x) => !x.s.release).map((x) => ({ id: x.s.id, label: x.label, returnable: x.returnable })),
+    performance: performanceState(report),
     today: today ?? "9999-12-31",
   };
-  return { rows, p, cfg, facts, next: closeoutNext(facts), events, retention, securities: judged };
+  return { rows, p, cfg, facts, next: closeoutNext(facts), events, retention, securities: judged, report };
 }
 export type CloseoutView = Awaited<ReturnType<typeof closeoutView>>;
 

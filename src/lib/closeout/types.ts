@@ -62,10 +62,12 @@ export interface CloseoutFacts {
   retention: { balanceDue: boolean; event: BalanceEvent };
   /// The securities held and not returned, each with whether it may be returned today.
   securities: readonly { id: string; label: string; returnable: boolean }[];
+  /// Stage D (ruling 17): where the contractor performance report stands; it opens at the CMGD, or the CPC where no DLP applies.
+  performance: "NONE" | "OPEN" | "ASSESSED" | "VERIFIED";
   today: Day;
 }
 
-export type CloseoutAction = "RAISE_CPC" | "OPEN_CERTIFICATE" | "ADD_DEFECT" | "RAISE_SCHEDULE" | "RAISE_CMGD" | "RELEASE_RETENTION" | "RETURN_SECURITY";
+export type CloseoutAction = "RAISE_CPC" | "OPEN_CERTIFICATE" | "ADD_DEFECT" | "RAISE_SCHEDULE" | "RAISE_CMGD" | "RELEASE_RETENTION" | "RETURN_SECURITY" | "SCORE_PERFORMANCE";
 
 export interface CloseoutNext {
   state: "waiting" | "in-progress" | "done";

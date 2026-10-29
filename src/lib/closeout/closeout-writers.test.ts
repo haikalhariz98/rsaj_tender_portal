@@ -14,12 +14,16 @@ import { lex, rawCallText, rawCalls, spans } from "@/lib/scan/source";
 
 const ROOT = path.join(__dirname, "../../..");
 const schema = readFileSync(path.join(ROOT, "prisma/schema.prisma"), "utf8");
-const MODELS = ["PracticalCompletion", "DefectItem", "DefectEvent", "DefectSchedule", "MakingGood", "SecurityRelease", "RetentionRelease"] as const;
+// Stage D adds the performance forms and reports (plan §6.2: each new table has one named writer file).
+const MODELS = ["PracticalCompletion", "DefectItem", "DefectEvent", "DefectSchedule", "MakingGood", "SecurityRelease", "RetentionRelease", "PerformanceForm", "PerformanceCriterion", "PerformanceGradeBand", "PerformanceReport", "PerformanceScore"] as const;
 type Model = (typeof MODELS)[number];
 
 const ACTS = "src/app/projects/[id]/closeout-actions.ts";
 const AT_ISSUE = "src/lib/closeout/at-issue.ts";
 const PORTAL = "src/lib/portal/projects/defect-store.ts";
+const CONFIG = "src/app/configuration/performance/core.ts";
+const PERF = "src/app/projects/[id]/performance-actions.ts";
+const DEMO = "prisma/demo-closeout.ts";
 const WRITERS: Readonly<Record<Model, readonly string[]>> = {
   PracticalCompletion: [`${ACTS}#raisePracticalCompletion`, `${AT_ISSUE}#cpcAtIssue`],
   DefectItem: [`${ACTS}#addCpcDefect`, `${ACTS}#removeCpcDefect`, `${ACTS}#reportDefect`],
@@ -28,6 +32,11 @@ const WRITERS: Readonly<Record<Model, readonly string[]>> = {
   MakingGood: [`${ACTS}#raiseMakingGood`, `${AT_ISSUE}#cmgdAtIssue`],
   SecurityRelease: [`${ACTS}#returnSecurity`],
   RetentionRelease: ["src/app/projects/[id]/payment-actions.ts#releaseRetention"],
+  PerformanceForm: [`${CONFIG}#saveForm`, `${CONFIG}#discardForm`, `${CONFIG}#retireForm`, `${CONFIG}#issueForm`, `${DEMO}#configure`],
+  PerformanceCriterion: [`${CONFIG}#saveCriterion`, `${CONFIG}#removeCriterion`, `${DEMO}#configure`],
+  PerformanceGradeBand: [`${CONFIG}#saveBand`, `${CONFIG}#removeBand`, `${DEMO}#configure`],
+  PerformanceReport: [`${PERF}#openPerformanceReport`, `${PERF}#assessPerformanceReport`, `${PERF}#verifyPerformanceReport`],
+  PerformanceScore: [`${PERF}#savePerformanceScores`],
 };
 
 const delegateOf = (m: string) => m[0].toLowerCase() + m.slice(1);

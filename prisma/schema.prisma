@@ -12565,7 +12565,7 @@ model PerformanceForm {
   createdAt        DateTime              @default(now())
 
   criteria PerformanceCriterion[]
-  bands    PerformanceGradeBand[]
+  grades   PerformanceGradeBand[]
   reports  PerformanceReport[]
 
   @@unique([organisationId, contractTypeCode, version])

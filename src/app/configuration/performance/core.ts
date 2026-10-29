@@ -52,7 +52,7 @@ async function audit(tx: Tx, actor: AuditActor, organisationId: string, entityId
 
 async function lockForm(tx: Tx, orgId: string, formId: string): Promise<FormRow | null> {
   await tx.$queryRaw`SELECT id FROM "PerformanceForm" WHERE id = ${formId} AND "organisationId" = ${orgId} FOR UPDATE`;
-  return tx.performanceForm.findFirst({ where: { id: formId, organisationId: orgId }, include: { criteria: { orderBy: { sortOrder: "asc" } }, bands: { orderBy: { lowerPct: "asc" } } } });
+  return tx.performanceForm.findFirst({ where: { id: formId, organisationId: orgId }, include: { criteria: { orderBy: { sortOrder: "asc" } }, grades: { orderBy: { lowerPct: "asc" } } } });
 }
 
 /// A draft edit: the form locked and re-read, refused unless a draft; an accepted edit puts the signed-in person on record as a maker.
@@ -193,7 +193,7 @@ export async function issueForm(_prev: FormState, data: FormData): Promise<FormS
       const faults = formIssueFaults({ name: f.nameEn, scaleMax: f.scaleMax, criteria: snap.criteria, bands: snap.bands, otherIssued });
       if (faults.length) return { ok: false, message: performanceRefusal("Not issued:", faults) } as FormState;
       await tx.performanceForm.update({ where: { id: f.id, organisationId: o.id }, data: { status: "ISSUED", issuedAt: now, issuedByPersonId: act.subjectPersonId } });
-      await audit(tx, toAuditActor(actor), o.id, f.id, formLabel(f), "UPDATE", diffFields({ status: "Draft" }, { status: "Issued", issuedBy: actor.personName, madeBy: makers.names.join(", "), criteria: f.criteria.length, grades: f.bands.length }), issueReason("", { makerPersonIds: makers.personIds, issuerPersonId: actor.personId, twoPersonChanges: twoPerson }));
+      await audit(tx, toAuditActor(actor), o.id, f.id, formLabel(f), "UPDATE", diffFields({ status: "Draft" }, { status: "Issued", issuedBy: actor.personName, madeBy: makers.names.join(", "), criteria: f.criteria.length, grades: f.grades.length }), issueReason("", { makerPersonIds: makers.personIds, issuerPersonId: actor.personId, twoPersonChanges: twoPerson }));
       await act.write(tx, f.id);
       return { ok: true, message: "Issued." } as FormState;
     });
@@ -260,7 +260,7 @@ export async function saveBand(_prev: FormState, data: FormData): Promise<FormSt
   if (r.failed) return { ok: false, errors: r.errors };
   const words = (x: { label: string; lowerPct: { toString(): string } }) => ({ grade: x.label, fromPercent: x.lowerPct.toString() });
   return inDraft(actor, formId, async (tx, org, f) => {
-    const self = bandId ? f.bands.find((b) => b.id === bandId) : null;
+    const self = bandId ? f.grades.find((b) => b.id === bandId) : null;
     if (bandId && !self) return GONE;
     const row = { label: v.label, lowerPct: v.lowerPct! };
     const label = `${formLabel(f)} · grade ${row.label}`;
@@ -268,7 +268,7 @@ export async function saveBand(_prev: FormState, data: FormData): Promise<FormSt
       await tx.performanceGradeBand.update({ where: { id: self.id, organisationId: org }, data: row });
       await audit(tx, toAuditActor(actor), org, f.id, label, "UPDATE", diffFields(words(self), words(row)));
     } else {
-      await tx.performanceGradeBand.create({ data: { ...row, sortOrder: f.bands.length, organisationId: org, formId: f.id } });
+      await tx.performanceGradeBand.create({ data: { ...row, sortOrder: f.grades.length, organisationId: org, formId: f.id } });
       await audit(tx, toAuditActor(actor), org, f.id, label, "CREATE", diffFields(null, words(row)));
     }
     return { ok: true };
@@ -280,7 +280,7 @@ export async function removeBand(_prev: FormState, data: FormData): Promise<Form
   const formId = String(data.get("formId") ?? "");
   const bandId = String(data.get("bandId") ?? "");
   return inDraft(actor, formId, async (tx, org, f) => {
-    const b = f.bands.find((x) => x.id === bandId);
+    const b = f.grades.find((x) => x.id === bandId);
     if (!b) return GONE;
     await tx.performanceGradeBand.delete({ where: { id: b.id, organisationId: org } });
     await audit(tx, toAuditActor(actor), org, f.id, `${formLabel(f)} · grade ${b.label}`, "DELETE", snapshotFields({ grade: b.label, fromPercent: b.lowerPct.toString() }));

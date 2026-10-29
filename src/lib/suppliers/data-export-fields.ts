@@ -466,6 +466,8 @@ export const OUT_MODELS: Readonly<Record<string, OutReason>> = {
   AwardQuery: "NOT_YET_EXPORTED",
   // Phase 2 close-out stage B (ADR 0047 D1): the contractor's report that a defect line is rectified, shown on the portal's Defects tab.
   DefectEvent: "NOT_YET_EXPORTED",
+  // Phase 2 close-out stage D (ADR 0047 D6, plan §9): the contractor performance report. The contractor never sees its score, so the export does not either.
+  PerformanceReport: "NOT_SHOWN_TODAY",
   // ADR 0042 D10 (plan step 7): the kick-off meeting and who attended it are classified above (EXPORT_COLUMNS), read and exported since the act step.
 };
 

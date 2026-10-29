@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import { closeoutNext } from "./next";
 import type { CloseoutFacts } from "./types";
 
-/** Plan closeout-plan.md §3.2's rows for stage B, one per line (table-driven). */
+/** Plan closeout-plan.md §3.2's rows for stages B and D, one per line (table-driven). */
 
 const dlp = { applies: true as const, start: "2025-10-01", endExclusive: "2026-10-01" };
-const base: CloseoutFacts = { status: "ACTIVE", cpc: null, schedule: null, cmgd: null, defects: { open: 0 }, retention: { balanceDue: false, event: { state: "NOT_SET" } }, securities: [], today: "2026-10-20" };
+// Changed for stage D (flagged): the facts carry the performance report; stage B's rows read it filed, so each keeps its line, and stage D's rows follow.
+const base: CloseoutFacts = { status: "ACTIVE", cpc: null, schedule: null, cmgd: null, defects: { open: 0 }, retention: { balanceDue: false, event: { state: "NOT_SET" } }, securities: [], performance: "VERIFIED", today: "2026-10-20" };
 const pc: CloseoutFacts = { ...base, status: "PRACTICALLY_COMPLETE", cpc: { id: "cpc", status: "ISSUED", dlp } };
 const mgc: CloseoutFacts = { ...pc, status: "MAKING_GOOD_COMPLETE", cmgd: { id: "cmgd", status: "ISSUED" } };
 
@@ -26,6 +27,12 @@ const rows: [string, CloseoutFacts, string, string | null][] = [
   ["MGC, a security to return", { ...mgc, securities: [{ id: "s1", label: "Performance bond", returnable: true }] }, "Performance bond to return", "RETURN_SECURITY"],
   ["MGC, nothing due", { ...mgc, securities: [{ id: "s2", label: "Design guarantee bond", returnable: false }] }, "Final account not raised", null],
   ["PC with no DLP: straight to the releases and the final account", { ...base, status: "PRACTICALLY_COMPLETE", cpc: { id: "cpc", status: "ISSUED", dlp: { applies: false } } }, "Final account not raised", null],
+  // Stage D (ruling 17): after the releases, the report is filed before the final account.
+  ["MGC, no report", { ...mgc, performance: "NONE" }, "Contractor performance not filed", "SCORE_PERFORMANCE"],
+  ["MGC, report being scored", { ...mgc, performance: "OPEN" }, "Contractor performance not filed", "SCORE_PERFORMANCE"],
+  ["MGC, report assessed", { ...mgc, performance: "ASSESSED" }, "Contractor performance to verify", "SCORE_PERFORMANCE"],
+  ["MGC, a security to return comes before the report", { ...mgc, performance: "NONE", securities: [{ id: "s1", label: "Performance bond", returnable: true }] }, "Performance bond to return", "RETURN_SECURITY"],
+  ["PC with no DLP, no report", { ...base, status: "PRACTICALLY_COMPLETE", cpc: { id: "cpc", status: "ISSUED", dlp: { applies: false } }, performance: "NONE" }, "Contractor performance not filed", "SCORE_PERFORMANCE"],
   ["closed", { ...base, status: "CLOSED" }, "The contract is closed", null],
 ];
 

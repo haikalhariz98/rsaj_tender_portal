@@ -75,6 +75,7 @@ export const CASE_ACTION_NEXT: Readonly<Record<CaseAction, string>> = {
   RAISE_CMGD: "Ready for the certificate of making good defects",
   RELEASE_RETENTION: "Retention balance to release",
   RETURN_SECURITY: "A security to return",
+  SCORE_PERFORMANCE: "Contractor performance not filed",
 };
 
 export interface CaseStep {

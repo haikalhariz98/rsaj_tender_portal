@@ -9,7 +9,7 @@ import { fixedToDecimalString, parseFixed } from "@/lib/evaluation/fixed";
 
 import type { FormSnapshot } from "./form";
 
-const formInclude = { criteria: { orderBy: { sortOrder: "asc" } }, bands: { orderBy: { lowerPct: "asc" } } } as const;
+const formInclude = { criteria: { orderBy: { sortOrder: "asc" } }, grades: { orderBy: { lowerPct: "asc" } } } as const;
 
 export type FormRow = NonNullable<Awaited<ReturnType<typeof formRow>>>;
 const formRow = (client: Tx, where: { id: string; organisationId: string }) => client.performanceForm.findFirst({ where, include: formInclude });
@@ -22,7 +22,7 @@ export const snapshotOfForm = (f: FormRow): FormSnapshot => ({
   contractTypeCode: f.contractTypeCode,
   scaleMax: f.scaleMax,
   criteria: f.criteria.map((c) => ({ order: c.sortOrder, label: c.labelEn, guide: c.guideEn, weight: fixedToDecimalString(parseFixed(c.weight.toString())) })),
-  bands: f.bands.map((b) => ({ label: b.label, lowerPct: fixedToDecimalString(parseFixed(b.lowerPct.toString())), sortOrder: b.sortOrder })),
+  bands: f.grades.map((b) => ({ label: b.label, lowerPct: fixedToDecimalString(parseFixed(b.lowerPct.toString())), sortOrder: b.sortOrder })),
 });
 
 /// Every form of the organisation, newest first within each contract type.

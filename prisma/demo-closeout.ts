@@ -15,7 +15,11 @@
  * Configuration, invented and audited as the demo loader, written only by a fresh `demo:load` (rulings 12c, 20z): the CPC's demo form with an SO
  * authorising block and the contractor's (demo_zst1, blocks demo_zsb1–2, copies demo_zsd1–2) and its kind setting (demo_zsk1), one
  * `practical_completion` row on the demo matrix approved by the Finance Director (demo_zsr1), and the demo's release switches (ASSUMED). Acts' rows
- * take the sub-prefixes in demo-acts.ts (demo_zpc, zdi, zde). Ids grepped free. `npm run demo:closeout` adds the acts to a loaded database only
+ * take the sub-prefixes in demo-acts.ts (demo_zpc, zdi, zde). Ids grepped free.
+ *
+ * Stage D (close-out stage D): one demo contractor performance form for the "works" contract type (demo_zvf1, criteria demo_zvk1–5, grades
+ * demo_zvb1–5), issued, invented and ASSUMED (RSAJ's seven CPD/SA-F0n workbooks are not in the repo, RSAJ question 39). Written only by the fresh
+ * load's configuration, like the rest. demo_con13's report does not open yet: its defects liability period runs to Oct 2027. `npm run demo:closeout` adds the acts to a loaded database only
  * where the configuration is already there; otherwise it refuses, naming what is missing.
  */
 
@@ -53,6 +57,19 @@ async function configure(db: Db, organisationId: string) {
   await audit("CertificateKindSetting", `${P}zsk1`, "Post-award controls · Practical completion", "CREATE", [{ field: "form", before: null, after: "Demo certificate of practical completion" }]);
   await db.authorityRule.create({ data: { id: `${P}zsr1`, authorityMatrixId: `${P}mx1`, domain: "practical_completion", ruleKey: "demo.practical_completion", labelEn: "Practical completion (demo)", approverCode: "FD", clause: "DEMO 9.4", sortOrder: 94 } });
   await audit("AuthorityRule", `${P}zsr1`, "Demo limits, issue 1 · practical completion (demo)", "CREATE", [{ field: "approver", before: null, after: "Finance Director (demo)" }]);
+  // Stage D: a demo performance form for works contracts, issued (invented weights, scale and grades, ASSUMED). Inserted issued, as a loader writes history.
+  await db.performanceForm.create({ data: { id: `${P}zvf1`, organisationId, nameEn: "Demo works performance", contractTypeCode: "works", scaleMax: 5, status: "ISSUED", version: 1, issuedAt: at, issuedByPersonId: `${P}p2`, provenance: "ASSUMED", source: SOURCE } });
+  await db.performanceCriterion.createMany({
+    data: [
+      ["Quality of work", "0.3000"],
+      ["Progress against the programme", "0.2500"],
+      ["Site safety and health", "0.2000"],
+      ["Site management", "0.1500"],
+      ["Cooperation", "0.1000"],
+    ].map(([labelEn, weight], i) => ({ id: `${P}zvk${i + 1}`, organisationId, formId: `${P}zvf1`, sortOrder: i + 1, labelEn, guideEn: "", weight })),
+  });
+  await db.performanceGradeBand.createMany({ data: [["E", "0"], ["D", "40"], ["C", "50"], ["B", "60"], ["A", "80"]].map(([label, lowerPct], i) => ({ id: `${P}zvb${i + 1}`, organisationId, formId: `${P}zvf1`, label, lowerPct, sortOrder: i })) });
+  await audit("PerformanceForm", `${P}zvf1`, "Performance form Demo works performance, version 1", "CREATE", [{ field: "form", before: null, after: "Demo works performance: five criteria, scores 1 to 5, grades A to E (invented)" }]);
   const policy = await db.postAwardPolicy.findFirst({ where: { id: `${P}wpa1`, organisationId }, select: { id: true, retentionBalanceReleaseAt: true, performanceBondReleaseAt: true } });
   if (policy && policy.retentionBalanceReleaseAt == null && policy.performanceBondReleaseAt == null) {
     await db.postAwardPolicy.update({ where: { id: policy.id }, data: { retentionBalanceReleaseAt: "MAKING_GOOD", retentionBalanceReleaseProvenance: "ASSUMED", performanceBondReleaseAt: "MAKING_GOOD", performanceBondReleaseProvenance: "ASSUMED" } });

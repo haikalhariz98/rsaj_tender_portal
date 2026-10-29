@@ -87,6 +87,7 @@ import { SUPERVISION_ACTS } from "@/lib/supervision/types";
 import { VariationsPanel, VariationSummaryCard } from "./variation-panels";
 import { TimePanel } from "./time-panels";
 import { CompletionPanel, DefectsPanel } from "./closeout-panels";
+import { ClosePanel } from "./performance-panel";
 import { closeoutView, dlpNotice } from "@/lib/closeout/view";
 import { variationView, type VariationView } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
@@ -285,6 +286,9 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         return closeout ? <CompletionPanel l={lc} v={closeout} people={people} today={today} hidden={hiddenActs} told={dlpTold} /> : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
       case "defects":
         return closeout ? <DefectsPanel l={lc} v={closeout} people={people} today={today} hidden={hiddenActs} /> : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
+      // Phase 2 close-out stage D: the Close tab, with the contractor performance card (stage C adds the checklist).
+      case "closure":
+        return closeout ? <ClosePanel l={lc} v={closeout} today={today} actor={actor} /> : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
       case "documents":
         return documentFacts ? <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} /> : null;
       case "submissions":

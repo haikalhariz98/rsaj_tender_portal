@@ -46,6 +46,7 @@ describe("CASE_ACTION_AT", () => {
   it("covers every act whose drawer is not in a header the bar can draw", () => {
     const linked = Object.keys(CASE_ACTION_AT).sort();
     // Phase 2 close-out stage B (flagged, stricter: the close-out acts each link to the card that holds their drawer; OPEN_CERTIFICATE goes to the certificate).
-    expect(linked).toEqual(["ADD_DEFECT", "LODGE_SECURITY", "RAISE_CMGD", "RAISE_CPC", "RAISE_SCHEDULE", "RECORD_DESPATCH", "RECORD_POSSESSION", "RECORD_RETURN", "RECORD_SIGNATURE", "RECORD_STAMPING", "RELEASE_RETENTION", "RETURN_SECURITY", "SUBMIT_TO_LEGAL", "VERIFY_SECURITY"]);
+    // Stage D (flagged, stricter): SCORE_PERFORMANCE links to the Close tab's performance card.
+    expect(linked).toEqual(["ADD_DEFECT", "LODGE_SECURITY", "RAISE_CMGD", "RAISE_CPC", "RAISE_SCHEDULE", "RECORD_DESPATCH", "RECORD_POSSESSION", "RECORD_RETURN", "RECORD_SIGNATURE", "RECORD_STAMPING", "RELEASE_RETENTION", "RETURN_SECURITY", "SCORE_PERFORMANCE", "SUBMIT_TO_LEGAL", "VERIFY_SECURITY"]);
   });
 });

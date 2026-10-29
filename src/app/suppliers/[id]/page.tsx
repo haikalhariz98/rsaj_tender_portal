@@ -15,7 +15,7 @@ import { notFound } from "next/navigation";
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { RouteSteps } from "@/app/sourcing/[id]/route-steps";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
-import { BuildingIcon, ClipboardIcon, ClockIcon, FileIcon, LinkIcon, LockIcon, RouteIcon, ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
+import { BuildingIcon, ChartIcon, ClipboardIcon, ClockIcon, FileIcon, LinkIcon, LockIcon, RouteIcon, ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { isMandatoryAct } from "@/components/ui/act";
@@ -79,6 +79,7 @@ import { requireStaff } from "@/app/_auth/actor";
 import type { StaffActor } from "@/lib/auth/types";
 import { reviewFacts } from "@/lib/portal/registration/review-facts";
 import { ApplicationSummary } from "./application-summary";
+import { PerformancePanel } from "./performance-panel";
 import { CreditorPanel } from "./creditor-panel";
 import { loadAttributions } from "@/lib/auth/attribution-read";
 
@@ -131,6 +132,8 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
     { id: "standing", label: "Standing", icon: <ShieldIcon size={15} />, count: s.standingEvents.length, panel: <StandingPanel l={l} cfg={cfg} reading={reading} people={peopleOptions} fromAward={fromAward ?? null} /> },
     { id: "eligibility", label: "Eligibility", icon: <ScaleIcon size={15} />, panel: <EligibilityPanel l={l} exerciseId={exercise ?? null} /> },
     { id: "participation", label: "Participation", icon: <LinkIcon size={15} />, count: linkedCount, panel: <ParticipationPanel l={l} people={peopleOptions} /> },
+    // Phase 2 close-out stage D: the performance reports filed on its contracts, SULIT. Read only while this tab is open (the reading is logged).
+    { id: "performance", label: "Performance", icon: <ChartIcon size={15} />, lazy: true, panel: tab === "performance" ? <PerformancePanel actor={actor} supplier={{ id: s.id, reference: s.reference, organisationId: org.id, timeZone: org.timeZone }} /> : null },
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel sulit={sulit} entries={history.entries} total={history.total} timeZone={org.timeZone} /> },
   ];
   const issues = states.filter((x) => x.mandatory && x.state !== "VALID" && x.state !== "NOT_APPLICABLE");
