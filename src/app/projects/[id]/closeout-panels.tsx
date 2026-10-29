@@ -114,8 +114,8 @@ export function CompletionPanel({ l, v, people, today, hidden, told }: Props & {
             <p className={sub}>None applies. Next is the final account.</p>
           ) : (
             <div className="flex flex-col gap-4">
-              <KeyValues columns={3} items={[{ label: "Starts", value: formatDate(dlp.start) }, { label: "Ends", value: formatDate(dayPlus(dlp.endExclusive, -1)) }, { label: "Days left", value: today ? String(dlpDaysLeft(dlp.endExclusive, today)) : "Not judged" }]} />
-              {today && <Meter percent={Math.min(100, Math.max(0, Math.round((daysFrom(dlp.start, today) / Math.max(1, daysFrom(dlp.start, dlp.endExclusive))) * 100)))} label="The defects liability period elapsed" />}
+              <KeyValues columns={3} items={[{ label: "Starts", value: formatDate(dlp.start) }, { label: "Ends", value: formatDate(dayPlus(dlp.endExclusive, -1)) }, { label: "Days left", value: cmgd?.certificate.status === "ISSUED" ? "Made good" : today ? String(dlpDaysLeft(dlp.endExclusive, today)) : "Not judged" }]} />
+              {today && cmgd?.certificate.status !== "ISSUED" && <Meter percent={Math.min(100, Math.max(0, Math.round((daysFrom(dlp.start, today) / Math.max(1, daysFrom(dlp.start, dlp.endExclusive))) * 100)))} label="The defects liability period elapsed" />}
             </div>
           )}
         </CardBody>

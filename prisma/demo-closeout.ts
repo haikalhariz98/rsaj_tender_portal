@@ -19,7 +19,7 @@
  *
  * Stage D (close-out stage D): one demo contractor performance form for the "works" contract type (demo_zvf1, criteria demo_zvk1–5, grades
  * demo_zvb1–5), issued, invented and ASSUMED (RSAJ's seven CPD/SA-F0n workbooks are not in the repo, RSAJ question 39). Written only by the fresh
- * load's configuration, like the rest. demo_con13's report does not open yet: its defects liability period runs to Oct 2027. `npm run demo:closeout` adds the acts to a loaded database only
+ * load's configuration, like the rest. demo_con13's report opens at its CMGD in Oct 2027, told by stage C's demo (prisma/demo-close.ts), which verifies it by a second person. `npm run demo:closeout` adds the acts to a loaded database only
  * where the configuration is already there; otherwise it refuses, naming what is missing.
  */
 

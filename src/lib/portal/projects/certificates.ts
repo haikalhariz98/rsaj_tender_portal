@@ -15,7 +15,8 @@ import { addSen, type Sen } from "@/lib/money";
 
 import { NOTE_MAX, type ProjectFinding } from "./types";
 
-export const CONTRACTOR_SIGNS_KINDS = ["VARIATION", "SUM_ADJUSTMENT"] as const;
+/// Close-out stage C (CO-9): and the final certificate, whose CONTRACTOR block is the contractor's acceptance of the final account (FR-FIN-009).
+export const CONTRACTOR_SIGNS_KINDS = ["VARIATION", "SUM_ADJUSTMENT", "FINAL"] as const;
 export const contractorSignsKind = (kind: string): boolean => (CONTRACTOR_SIGNS_KINDS as readonly string[]).includes(kind);
 
 /**

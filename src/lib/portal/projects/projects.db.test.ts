@@ -444,6 +444,17 @@ describe("the contractor's block on a certificate (FR-VAR-022)", () => {
     expect(tab.rows.find((r) => r.id === certId)).toMatchObject({ recorded: { fromPortal: true, refused: false }, block: { state: "NOT_OFFERED", why: "SIGNED" } });
   });
 
+  // Close-out stage C (CO-9; FR-FIN-009): the contractor accepts the final account by signing the final certificate's CONTRACTOR block from the portal.
+  it("signs the final certificate's contractor block from the portal, once making good is complete", async () => {
+    const h = await supplier();
+    const c = await contract({ vendorId: h.supplierId });
+    await db.contract.update({ where: { id: c.id }, data: { status: "MAKING_GOOD_COMPLETE" } });
+    const certId = await certificate(c.id, { kind: "FINAL" });
+    const done = await signContractorBlock(h.actor, { contractId: c.id, certificateId: certId, action: "sign", note: "", stepUpAt: await stepUp(h) });
+    expect(done.blockOrder).toBe(2);
+    expect(await db.certificateSignature.findFirstOrThrow({ where: { certificateId: certId, blockOrder: 2 } })).toMatchObject({ signedBySupplierAccountId: h.accountId, refused: false });
+  });
+
   it("a dispute is the refusal the form allows, with its reason; the block is offered only in order, on the two kinds, and only on the contractor's own contract", async () => {
     const h = await supplier();
     const other = await supplier();

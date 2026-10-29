@@ -142,6 +142,16 @@ export const ACT_PREFIX: Readonly<Record<string, string>> = {
   PracticalCompletion: "zpc",
   DefectItem: "zdi",
   DefectEvent: "zde",
+  // Phase 2 close-out stage C (prisma/demo-closeout.ts): making good, returns, the performance report, the final account and the close.
+  MakingGood: "zmg",
+  SecurityRelease: "zrs",
+  PerformanceReport: "zpr",
+  PerformanceScore: "zps",
+  FinalAccount: "zfa",
+  FinalAccountLine: "zfl",
+  FinalPackEntry: "zfp",
+  ContractClosure: "zcc",
+  ProjectDocumentDecision: "zpd",
   // Sittings.
   MeetingAttendance: "lat",
   Vote: "lvt",

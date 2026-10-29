@@ -112,7 +112,8 @@ export const dlpNotice = (l: LoadedContract, v: CloseoutView, today: string | nu
  */
 export async function dlpSweep(organisationId: string, today: string | null): Promise<void> {
   if (!today) return;
-  const running = await db.practicalCompletion.findMany({ where: { organisationId, dlpEnd: { gt: dayToDate(today) }, certificate: { status: "ISSUED" } }, select: { contractId: true } });
+  // A contract closed (or made good) is told nothing more, whatever its period's recorded end.
+  const running = await db.practicalCompletion.findMany({ where: { organisationId, dlpEnd: { gt: dayToDate(today) }, certificate: { status: "ISSUED" }, contract: { status: "PRACTICALLY_COMPLETE" } }, select: { contractId: true } });
   for (const { contractId } of running) {
     const l = await loadContract(organisationId, contractId);
     if (l) await dlpNoticeFor(l, (await loadCloseout(contractId)).cpc, today);

@@ -34,6 +34,7 @@ import { loadWaveVDemo } from "./demo-wave-v";
 import { loadFundingDemo } from "./demo-funding";
 import { checkTimeDemo, loadTimeDemo } from "./demo-time";
 import { checkCloseoutDemo, loadCloseoutDemo } from "./demo-closeout";
+import { checkCloseDemo, loadCloseDemo } from "./demo-close";
 import { checkRegistrationDemo, configureRegistrationDemo, loadRegistrationDemo } from "./demo-registration";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { attributeSeededRows } from "./demo-attribution";
@@ -833,6 +834,9 @@ async function load() {
   // Phase 2 close-out stage B: demo_con13's practical completion and its defects (prisma/demo-closeout.ts), after the time demo.
   await loadCloseoutDemo(db, organisationId, { configure: true });
   await checkCloseoutDemo(db);
+  // Phase 2 close-out stage C: demo_con13 made good, its final account paid and the contract closed, with its performance report (prisma/demo-close.ts).
+  await loadCloseDemo(db, organisationId, { configure: true });
+  await checkCloseDemo(db);
   // Phase 2b: the rows the loaders wrote straight into the tables are attributed to the demo loader, as the acts it ran already are.
   await attributeSeededRows(db, organisationId);
 
@@ -2290,8 +2294,12 @@ async function closeout() {
   await seedActIds(db);
   const made = await loadCloseoutDemo(db, org.id, { configure: false });
   if (made.notes.length) await checkCloseoutDemo(db);
+  // Stage C: the close (it refuses where its configuration is missing, as stage B's does).
+  const closed = await loadCloseDemo(db, org.id, { configure: false });
+  if (closed.notes.length) await checkCloseDemo(db);
   await attributeSeededRows(db, org.id);
-  console.log(made.notes.length ? `Added or noted: ${made.notes.join("; ")}.` : "The completion demonstration is already there: nothing was written.");
+  const notes = [...made.notes, ...closed.notes];
+  console.log(notes.length ? `Added or noted: ${notes.join("; ")}.` : "The completion and close demonstration is already there: nothing was written.");
 }
 
 const mode = process.argv[2];

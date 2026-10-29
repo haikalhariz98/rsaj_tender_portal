@@ -122,7 +122,7 @@ export async function afterFinalPayment(c: CertCtx, paidOn: string, personId: st
 }
 
 /// The close's facts (§4.7), as the contract stands; `supply` from the contract type's payment route.
-export async function closureFactsOf(tx: Tx, l: LoadedContract): Promise<{ facts: ClosureFacts; dgb: string[] }> {
+export async function closureFactsOf(tx: Tx, l: LoadedContract): Promise<{ facts: ClosureFacts; dgb: string[]; lossOpen: string[] }> {
   const [rows, p, report, fa, securities, type] = await Promise.all([
     loadCloseout(l.contract.id, tx),
     loadPayment(l.contract.id, tx),
@@ -147,6 +147,7 @@ export async function closureFactsOf(tx: Tx, l: LoadedContract): Promise<{ facts
       performance: performanceNotFiled(report),
     },
     dgb: securities.filter((s) => s.kind === "DESIGN_GUARANTEE_BOND").map(label),
+    lossOpen: work.lossOpen,
   };
 }
 

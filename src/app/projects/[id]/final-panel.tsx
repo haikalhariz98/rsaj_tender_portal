@@ -188,7 +188,7 @@ export async function CloseCard({ l, v, people, today, hidden }: Props) {
   const blocker = shut ?? (v.closeFaults.length ? closeoutRefusal("", v.closeFaults) : null);
   // §7.3.3's stage in words (`contractStage`): the stored state and the derived ones that hold.
   const dlp = v.rows.cpc ? (v.rows.cpc.dlpStart ? (today && v.rows.cpc.dlpEnd && today < storedDay(v.rows.cpc.dlpEnd) ? "RUNNING" : "ENDED") : "NOT_APPLICABLE") : "NOT_SET";
-  const stage = contractStage({ status }, { inDelay: false, noticeOfIntention: false, partiallyOccupied: false, dlp, scheduleOfDefectsOpen: v.facts.defects.open > 0 && !!v.rows.schedule, thirdPartyRectification: false, obligationsDischarged: v.facts.performance === "VERIFIED" && f.defectsOpen === 0, declarationBlocking: !!v.final && !v.final.declarationDocumentId && v.routeFaults.some((x) => x.code === "DECLARATION_NOT_TAKEN_UP"), terminatedAccountSettled: false });
+  const stage = contractStage({ status }, { inDelay: false, noticeOfIntention: false, partiallyOccupied: false, dlp, scheduleOfDefectsOpen: v.facts.defects.open > 0 && !!v.rows.schedule, thirdPartyRectification: false, obligationsDischarged: v.facts.performance === "VERIFIED" && f.defectsOpen === 0 && v.close.lossOpen.length === 0, declarationBlocking: !!v.final && !v.final.declarationDocumentId && v.routeFaults.some((x) => x.code === "DECLARATION_NOT_TAKEN_UP"), terminatedAccountSettled: false });
   return (
     <ActGate blocker={shut}>
       <Card id="close" className="overflow-hidden">
