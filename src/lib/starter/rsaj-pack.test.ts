@@ -328,6 +328,8 @@ describe("part 2: contracts, suppliers and system (plan step 4.6)", () => {
     expect(copies.map((r) => [r.values.nameEn, r.values.onlyWhenRegulated ?? false])).toEqual([["Implementing Department", false], ["Accounts & Finance Department", false], ["CIDB (LPIPM)", false], ["LHDN", false], ["SPAN", true]]);
     expect(listOf("ControlledCopyRecipient").filter((r) => r.values.onlyWithConsultingEngineer).map((r) => r.code)).toEqual(["consulting_engineer"]);
     expect(listOf("StandingReason").map((r) => r.values.appliesTo)).toEqual(["SUSPEND", "SUSPEND", "SUSPEND", "SUSPEND", "BLACKLIST"]);
+    // Ruling 8 (close-out stage C): the final account's pack needs three STATED documents (CPD/INT-SFA-INDEN).
+    expect(listOf("CloseoutDocumentRequirement").map((r) => [r.values.labelEn, r.requirement, r.source])).toEqual([["As-built drawings", "FR-FIN-008", "CPD/INT-SFA-INDEN"], ["CIDB levy certificate", "FR-FIN-008", "CPD/INT-SFA-INDEN"], ["Receipt of water charges", "FR-FIN-008", "CPD/INT-SFA-INDEN"]]);
   });
 
   it("gives each document type only values of a body it names, and leaves 'mandatory at registration' unset (not stated)", () => {

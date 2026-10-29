@@ -2,7 +2,7 @@ import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
-import { retireContractRow, saveContractPolicy, saveCopyRecipient, saveDocumentPart } from "./actions";
+import { retireContractRow, saveCloseoutDocument, saveContractPolicy, saveCopyRecipient, saveDocumentPart } from "./actions";
 
 /**
  * The Contract controls drawers. No field carries a default: an unset field is not set, and the screen
@@ -81,6 +81,15 @@ export function AddCopyRecipient() {
 }
 export function EditCopyRecipient({ id, values, name }: { id: string; values: Values; name: string }) {
   return <RecordEditor title={`Edit ${name}`} fields={[hidden("id"), ...recipientFields(true)]} values={{ id, ...values }} action={saveCopyRecipient} trigger={edit(name)} size="md" />;
+}
+
+const closeoutFields: Field[] = [{ kind: "text", name: "labelEn", label: "Document", required: true, placeholder: "e.g. As-built drawings" }, PROVENANCE, { kind: "text", name: "source", label: "Source", placeholder: "Where it is written" }, ORDER];
+
+export function AddCloseoutDocument() {
+  return <RecordEditor title="Add a close-out document" description="Needed in the final account's pack, beside the contract's own certificates." fields={closeoutFields} action={saveCloseoutDocument} submitLabel="Add document" trigger={{ label: "Add document", icon: true }} size="md" />;
+}
+export function EditCloseoutDocument({ id, values, name }: { id: string; values: Values; name: string }) {
+  return <RecordEditor title={`Edit ${name}`} fields={[hidden("id"), ...closeoutFields]} values={{ id, ...values }} action={saveCloseoutDocument} trigger={edit(name)} size="md" />;
 }
 
 export function RetireContractRow({ entity, id, label, today }: { entity: string; id: string; label: string; today: string | null }) {

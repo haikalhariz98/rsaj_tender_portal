@@ -47,6 +47,7 @@ describe("CASE_ACTION_AT", () => {
     const linked = Object.keys(CASE_ACTION_AT).sort();
     // Phase 2 close-out stage B (flagged, stricter: the close-out acts each link to the card that holds their drawer; OPEN_CERTIFICATE goes to the certificate).
     // Stage D (flagged, stricter): SCORE_PERFORMANCE links to the Close tab's performance card.
-    expect(linked).toEqual(["ADD_DEFECT", "LODGE_SECURITY", "RAISE_CMGD", "RAISE_CPC", "RAISE_SCHEDULE", "RECORD_DESPATCH", "RECORD_POSSESSION", "RECORD_RETURN", "RECORD_SIGNATURE", "RECORD_STAMPING", "RELEASE_RETENTION", "RETURN_SECURITY", "SCORE_PERFORMANCE", "SUBMIT_TO_LEGAL", "VERIFY_SECURITY"]);
+    // Stage C (flagged, stricter): the final account's raise and draft link to the Final account tab, the close to the Close card.
+    expect(linked).toEqual(["ADD_DEFECT", "CLOSE_CONTRACT", "LODGE_SECURITY", "OPEN_FINAL_ACCOUNT", "RAISE_CMGD", "RAISE_CPC", "RAISE_FINAL_ACCOUNT", "RAISE_SCHEDULE", "RECORD_DESPATCH", "RECORD_POSSESSION", "RECORD_RETURN", "RECORD_SIGNATURE", "RECORD_STAMPING", "RELEASE_RETENTION", "RETURN_SECURITY", "SCORE_PERFORMANCE", "SUBMIT_TO_LEGAL", "VERIFY_SECURITY"]);
   });
 });

@@ -11,12 +11,13 @@ import { CONTRACT_CLOCKS, PAYMENT_ROUTE_FIGURES, WATERFALL_REMAINDERS } from "@/
 import { parsePercent, percentAboveZero } from "@/lib/securities/money";
 import { BASE_WORDS, BASIS_WORDS, SCHEDULE_FORM_WORDS } from "@/lib/variation/labels";
 import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/variation/types";
+import { FINAL_BASIS_WORDS } from "@/lib/closeout/final-words";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /// The certificate kinds the payment and damages chain, and the variations and adjustments, raise (each needs its
 /// form; a routing sheet is optional).
-const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION", "VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT", "EOT", "CONTRACT_PERIOD_AGREEMENT", "PRACTICAL_COMPLETION", "SCHEDULE_OF_DEFECTS", "MAKING_GOOD_DEFECTS"] as const;
+const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION", "VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT", "EOT", "CONTRACT_PERIOD_AGREEMENT", "PRACTICAL_COMPLETION", "SCHEDULE_OF_DEFECTS", "MAKING_GOOD_DEFECTS", "FINAL"] as const;
 /// Phase 2 close-out stage A: approved on their contract matter's own route, so on no routing sheet.
 const MATTER_KINDS = ["EOT", "CONTRACT_PERIOD_AGREEMENT"] as const;
 /// The kinds that take no routing sheet: approved on the variation's own routes, or going by none.
@@ -188,7 +189,7 @@ export async function saveTimePolicy(_prev: FormState, data: FormData): Promise<
 /**
  * Completion and release (Phase 2 close-out stage B, plan CO-6; OD-B8): when the retention balance and the performance bond are released, at the
  * certificate of making good defects or with the final certificate's payment. Each ships unset (the release refuses, naming it) and is saved
- * with where it came from.
+ * with where it came from. Stage C (OD-B9): what the final account counts as previous payments, unset refusing the final account.
  */
 export async function saveReleasePolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
@@ -200,6 +201,8 @@ export async function saveReleasePolicy(_prev: FormState, data: FormData): Promi
     retentionBalanceReleaseProvenance: r.choice("retentionBalanceReleaseProvenance", "Basis", PROVENANCE),
     performanceBondReleaseAt: r.choice("performanceBondReleaseAt", "When the performance bond is returned", RELEASE_EVENTS),
     performanceBondReleaseProvenance: r.choice("performanceBondReleaseProvenance", "Basis", PROVENANCE),
+    finalPreviousBasis: r.choice("finalPreviousBasis", "What the final account counts as previous payments", FINAL_BASES),
+    finalAccountProvenance: r.choice("finalAccountProvenance", "Basis", PROVENANCE),
   };
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
@@ -207,11 +210,13 @@ export async function saveReleasePolicy(_prev: FormState, data: FormData): Promi
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
     const before = await tx.postAwardPolicy.findUnique({ where: { organisationId: o.id } });
     const row = await tx.postAwardPolicy.upsert({ where: { organisationId: o.id }, update: v, create: { organisationId: o.id, ...v } });
-    const words = (x: { retentionBalanceReleaseAt: string | null; retentionBalanceReleaseProvenance: string | null; performanceBondReleaseAt: string | null; performanceBondReleaseProvenance: string | null }) => ({
+    const words = (x: { retentionBalanceReleaseAt: string | null; retentionBalanceReleaseProvenance: string | null; performanceBondReleaseAt: string | null; performanceBondReleaseProvenance: string | null; finalPreviousBasis: string | null; finalAccountProvenance: string | null }) => ({
       retentionBalanceReleased: x.retentionBalanceReleaseAt ? RELEASE_EVENT_WORDS[x.retentionBalanceReleaseAt] : null,
       retentionProvenance: x.retentionBalanceReleaseProvenance,
       performanceBondReturned: x.performanceBondReleaseAt ? RELEASE_EVENT_WORDS[x.performanceBondReleaseAt] : null,
       performanceBondProvenance: x.performanceBondReleaseProvenance,
+      finalAccountPreviousPayments: x.finalPreviousBasis ? FINAL_BASIS_WORDS[x.finalPreviousBasis as "AS_PAID"] : null,
+      finalAccountProvenance: x.finalAccountProvenance,
     });
     const changes = diffFields(before ? words(before) : null, words(v));
     if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "PostAwardPolicy", entityId: row.id, entityLabel: "Post-award controls", reason }, before ? "UPDATE" : "CREATE", changes);
@@ -222,6 +227,7 @@ export async function saveReleasePolicy(_prev: FormState, data: FormData): Promi
 }
 
 const RELEASE_EVENTS = ["MAKING_GOOD", "FINAL_PAYMENT"] as const;
+const FINAL_BASES = ["BEFORE_DEDUCTIONS", "AS_PAID"] as const;
 const RELEASE_EVENT_WORDS: Readonly<Record<string, string>> = { MAKING_GOOD: "At the certificate of making good defects", FINAL_PAYMENT: "With the final certificate's payment" };
 
 /// The form a certificate kind prints on and the routing sheet it goes on (CertificateKindSetting). Empty: unset.

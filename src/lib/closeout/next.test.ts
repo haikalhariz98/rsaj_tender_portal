@@ -43,7 +43,7 @@ const rows: [string, CloseoutFacts, string, string | null][] = [
   ["FCI paid, the bond now to return", { ...mgc, status: "FINAL_CERTIFICATE_ISSUED", final: { id: "fin", status: "ISSUED", paid: true, firstMissing: null }, securities: [{ id: "s1", label: "Performance bond", returnable: true }] }, "Performance bond to return", "RETURN_SECURITY"],
   ["FCI paid, a check still failing", { ...mgc, status: "FINAL_CERTIFICATE_ISSUED", final: { id: "fin", status: "ISSUED", paid: true, firstMissing: null }, closeBlocked: "Retention of RM 10.00 is still held." }, "Retention of RM 10.00 is still held.", null],
   ["every check passes", { ...mgc, status: "FINAL_CERTIFICATE_ISSUED", final: { id: "fin", status: "ISSUED", paid: true, firstMissing: null } }, "Ready to close", "CLOSE_CONTRACT"],
-  ["a supply contract", { ...base, supply: true }, "Closing is not built for supply contracts", null],
+  ["a supply contract", { ...base, supply: true }, "Supply contracts are not closed here yet", null],
   ["closed", { ...base, status: "CLOSED" }, "The contract is closed", null],
 ];
 

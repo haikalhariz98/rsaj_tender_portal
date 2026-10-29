@@ -1,5 +1,6 @@
 "use client";
 
+import { FINAL_BASIS_WORDS } from "@/lib/closeout/final-words";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
@@ -188,6 +189,8 @@ export function EditReleasePolicy({ values }: { values: Record<string, string | 
         provenance("retentionBalanceReleaseProvenance", "Basis (retention)"),
         { kind: "select", name: "performanceBondReleaseAt", label: "The performance bond is returned", placeholder: "Not set", options: RELEASE_OPTIONS },
         provenance("performanceBondReleaseProvenance", "Basis (bond)"),
+        { kind: "select", name: "finalPreviousBasis", label: "The final account's previous payments", placeholder: "Not set", options: [{ value: "BEFORE_DEDUCTIONS", label: FINAL_BASIS_WORDS.BEFORE_DEDUCTIONS }, { value: "AS_PAID", label: FINAL_BASIS_WORDS.AS_PAID }] },
+        provenance("finalAccountProvenance", "Basis (final account)"),
       ]}
       values={values}
       action={saveReleasePolicy}

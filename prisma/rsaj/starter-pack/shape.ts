@@ -39,6 +39,7 @@ interface Models {
   NotificationRule: Prisma.NotificationRuleUncheckedCreateInput;
   FundingSource: Prisma.FundingSourceUncheckedCreateInput;
   ImpactMeasure: Prisma.ImpactMeasureUncheckedCreateInput;
+  CloseoutDocumentRequirement: Prisma.CloseoutDocumentRequirementUncheckedCreateInput;
 }
 export type Model = keyof Models;
 type Ref = { ref: string };

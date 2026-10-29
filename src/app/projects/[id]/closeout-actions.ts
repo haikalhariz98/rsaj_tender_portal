@@ -8,7 +8,7 @@ import { toSecond } from "@/lib/bids/lateness";
 import { cpcLineFaults, cpcRaiseFaults, dlpOf } from "@/lib/closeout/completion";
 import { defectActFaults, defectState, onDraftCpc, reportDefectFaults, type DefectAct } from "@/lib/closeout/defects";
 import { closeoutRefusal, SECURITY_FORM_WORDS, SECURITY_KIND_WORDS } from "@/lib/closeout/labels";
-import { cmgdIssuedOn, defectFactsOf, dlpOfRow, liveLadWindows, loadCloseout, openLineCount, releaseEventsOf } from "@/lib/closeout/load";
+import { cmgdIssuedOn, defectFactsOf, dlpOfRow, finalPaidOf, liveLadWindows, loadCloseout, openLineCount, releaseEventsOf } from "@/lib/closeout/load";
 import { cmgdRaiseFaults } from "@/lib/closeout/making-good";
 import { beforeCertificateFault, returnTriggerOf, securityReturnFaults, type SecurityReturnInput } from "@/lib/closeout/release";
 import { scheduleRaiseFaults } from "@/lib/closeout/schedule";
@@ -367,7 +367,7 @@ export async function returnSecurity(_prev: FormState, data: FormData): Promise<
     if (!s) throw new ActRefusal({ ok: false, message: "That security is not on this contract." });
     const policy = await c.tx.postAwardPolicy.findUnique({ where: { organisationId: c.l.org.id }, select: { retentionBalanceReleaseAt: true, performanceBondReleaseAt: true } });
     const events = releaseEventsOf(rows, policy);
-    const input: SecurityReturnInput = { kind: s.kind, form: s.form, status: s.status, returned: !!s.release, officialReceiptRef: receipt, performanceEvent: events.performance, retentionEvent: events.retention, advanceRecouped: advanceRecoupedOf(await loadPayment(c.l.contract.id, c.tx), s.id) };
+    const input: SecurityReturnInput = { kind: s.kind, form: s.form, status: s.status, returned: !!s.release, officialReceiptRef: receipt, performanceEvent: events.performance, retentionEvent: events.retention, advanceRecouped: advanceRecoupedOf(await loadPayment(c.l.contract.id, c.tx), s.id, finalPaidOf(rows)) };
     const fs = securityReturnFaults(input);
     if (fs.length) refuse("Not returned:", fs);
     const trigger = returnTriggerOf(input)!;

@@ -99,6 +99,7 @@ async function recompute(c: ActCtx, fa: FinalRow, keyed: ReturnType<typeof keyed
   const baseline = finalBaselineOf(c.l);
   if (!baseline) throw new ActRefusal({ ok: false, message: "Not recorded: no baseline version is in force." });
   const r = finalInputOf(await loadPayment(c.l.contract.id, c.tx), baseline, fa.previousBasis as FinalBasis, keyed, await completionOf(c), fa.certificateId);
+  if (r.unreadable.length) refuse("Not recorded:", r.unreadable);
   const a = finalAccountOf(r.input);
   if (a.faults.length) refuse("Not recorded:", a.faults);
   if (!(await refigureDraft(c, fa.certificateId, finalSnapshotOf(c.today, a), `${c.label} · final certificate (draft)`, `payment recommended ${formatMoney(a.recommended)}`))) refuse("Not recorded:", [{ code: "FINAL_SENT", level: "block" }]);

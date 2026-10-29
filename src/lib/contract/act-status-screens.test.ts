@@ -265,6 +265,9 @@ const SECTION_FAMILIES: Readonly<Record<string, readonly ContractAct[]>> = {
   DefectsPanel: ["COMPLETION", "DEFECTS"],
   // Phase 2 close-out stage D: the Close tab's contractor performance card.
   ClosePanel: ["PERFORMANCE_REPORT"],
+  // Phase 2 close-out stage C (flagged, stricter: two new gated sections): the Final account tab and the Close card.
+  FinalAccountPanel: ["FINAL_ACCOUNT"],
+  CloseCard: ["CLOSE"],
   // AC-16, PW-11: answering an earlier contractor submission is an act of the contract's supervision (answerContractorSubmission). Its read-only record sits above the Documents list (plan step 6, which replaced the queue); the answer alone is under this gate.
   EarlierRecord: ["SUPERVISION"],
 };

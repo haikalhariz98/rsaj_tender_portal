@@ -132,7 +132,7 @@ export function finalInputOf(p: PaymentRows, baseline: Baseline, basis: FinalBas
     less: senToDecimalString(interims.reduce((a, x) => a + x.carryForward, 0n)),
     ladNow: senToDecimalString(lad.total.gross - lad.total.waived - lad.total.credit),
   };
-  return { input, judged, ladFaults: [...d.faults, ...lad.faults], moved, credits: lad.credits, applied: toApply };
+  return { input, judged, ladFaults: [...d.faults, ...lad.faults], unreadable: faults, moved, credits: lad.credits, applied: toApply };
 }
 
 /// The open work a final account or a close is refused for (§4.6, §4.7): certificates in progress, matters whose route is pending or not yet sent,

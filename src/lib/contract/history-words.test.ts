@@ -93,3 +93,14 @@ describe("the baseline's key lists read as the Baseline tab names them", () => {
   });
 });
 
+
+// Close-out stage C (from the stage D review fixes): the score audit's field and every close-out record read in words on History, never a raw key.
+describe("close-out on History", () => {
+  it("names the performance scores field in words, and every close-out record type", async () => {
+    const { historyFieldLabel } = await import("./history-words");
+    const { CLOSEOUT_ENTITIES, RECORD_TYPE_WORDS } = await import("@/lib/audit/entity-labels");
+    expect(historyFieldLabel("performanceScores")).toBe("Performance scores");
+    for (const f of ["finalContractSum", "paymentRecommended", "recordedPaymentsAddTo", "statutoryDeclaration", "financeConfirmed"]) expect(historyFieldLabel(f), f).not.toMatch(/[a-z][A-Z]/);
+    for (const e of CLOSEOUT_ENTITIES) expect(RECORD_TYPE_WORDS[e]?.en, e).toBeTruthy();
+  });
+});

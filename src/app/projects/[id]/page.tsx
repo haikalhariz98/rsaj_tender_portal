@@ -13,7 +13,7 @@ import { COMPONENT_WORDS } from "@/lib/i18n/catalogues/components";
 import type { Language } from "@/lib/i18n/language";
 import { say, sayWith } from "@/lib/i18n/say";
 import { AWARD_STATUS_WORDS, CASE_HEADER_WORDS as H, CASE_LINK_ACTION_WORDS, CASE_PANEL_TITLE_WORDS as P, CASE_REFUSAL_WORDS as R, CASE_STEP_WORDS, CASE_TAB_WORDS, INSTRUMENT_SHORT_WORDS } from "@/lib/contract/case-page-words";
-import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES, TIME_ENTITIES, VARIATION_ENTITIES } from "@/lib/audit/entity-labels";
+import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES, TIME_ENTITIES, CLOSEOUT_ENTITIES, VARIATION_ENTITIES } from "@/lib/audit/entity-labels";
 import { timeView } from "@/lib/time/view";
 import { notFound, redirect } from "next/navigation";
 import { AWARD_NOTE_ID } from "@/app/awards/editors";
@@ -88,6 +88,7 @@ import { VariationsPanel, VariationSummaryCard } from "./variation-panels";
 import { TimePanel } from "./time-panels";
 import { CompletionPanel, DefectsPanel } from "./closeout-panels";
 import { ClosePanel } from "./performance-panel";
+import { CloseCard, FinalAccountPanel } from "./final-panel";
 import { closeoutView, dlpNotice } from "@/lib/closeout/view";
 import { variationView, type VariationView } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
@@ -220,7 +221,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
     await raiseCaseClockNotices({ organisationId: l.org.id, awardId: award.id, awardLabel: award.reference, exerciseId: award.exerciseId, href: `/projects/${c?.id ?? award.id}`, clocks: await av.clockTellings() });
   }
   const contractTab = lc && !view.history ? view.tab : null;
-  const needsPeople = !!lc && !view.history && !!contractTab && ["formation", "team", "site", "payments", "variations", "time", "securities", "completion", "defects"].includes(contractTab);
+  const needsPeople = !!lc && !view.history && !!contractTab && ["formation", "team", "site", "payments", "variations", "time", "securities", "completion", "defects", "final-account", "closure"].includes(contractTab);
   const people: Option[] = needsPeople ? (await db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })).map((p) => ({ value: p.id, label: p.name })) : [];
   const supervisionTabs = ["overview", "team", "site", "payments", "variations", "time"];
   const projectTab = lc && stage === "project" && !view.history ? contractTab : null;
@@ -286,9 +287,16 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         return closeout ? <CompletionPanel l={lc} v={closeout} people={people} today={today} hidden={hiddenActs} told={dlpTold} /> : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
       case "defects":
         return closeout ? <DefectsPanel l={lc} v={closeout} people={people} today={today} hidden={hiddenActs} /> : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
-      // Phase 2 close-out stage D: the Close tab, with the contractor performance card (stage C adds the checklist).
+      // Phase 2 close-out stage C: the Final account tab; the Close tab's checklist above stage D's contractor performance card.
+      case "final-account":
+        return closeout ? <FinalAccountPanel l={lc} v={closeout} people={people} today={today} hidden={hiddenActs} /> : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
       case "closure":
-        return closeout ? <ClosePanel l={lc} v={closeout} today={today} actor={actor} /> : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
+        return closeout ? (
+          <div className="flex flex-col gap-6">
+            <CloseCard l={lc} v={closeout} people={people} today={today} hidden={hiddenActs} />
+            <ClosePanel l={lc} v={closeout} today={today} actor={actor} />
+          </div>
+        ) : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
       case "documents":
         return documentFacts ? <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} /> : null;
       case "submissions":
@@ -341,7 +349,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         ? <ActGate blocker={formationShut}><StartPreparationDrawer id={lc.contract.id} blocker={start.blocker} frozen={start.frozen} /></ActGate>
         : null;
   // Phase 2 close-out stage B: a close-out certificate in progress opens on its own page.
-  const certHref = act === "OPEN_CERTIFICATE" && c && closeout?.next.certificateId ? `/projects/${c.id}/certificates/${closeout.next.certificateId}` : null;
+  const certHref = (act === "OPEN_CERTIFICATE" || act === "RECORD_FINAL_PAYMENT") && c && closeout?.next.certificateId ? `/projects/${c.id}/certificates/${closeout.next.certificateId}` : null;
   const mainLink = certHref ? <ButtonLink href={certHref} size="sm" variant="primary">{t(LINK_ACTION_WORDS.OPEN_CERTIFICATE!)}</ButtonLink> : linkAt && act ? <ButtonLink href={caseHref(ref, linkAt)} size="sm" variant="primary">{LINK_ACTION_WORDS[act] ? t(LINK_ACTION_WORDS[act]!) : null}</ButtonLink> : null;
   // On the Award stage the award's own drawers (C-3) sit in the menu; a step with no act of its own shows the blocked one, with its reason.
   // A stage with nothing of its own to do (the live Project stage with the award still open) points back at the step that holds the work.
@@ -696,6 +704,8 @@ const ENTITY_LABEL: Record<string, string> = {
   ...Object.fromEntries(VARIATION_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
   // Phase 2 close-out stage A: time and damages.
   ...Object.fromEntries(TIME_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
+  // Phase 2 close-out (stages B, D, C): completion, defects, securities, the performance report, the final account and the close.
+  ...Object.fromEntries(CLOSEOUT_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
 };
 function HistoryPanel({ withheldRows, sulit, matterGates, entries, total, timeZone, lang }: { withheldRows: boolean; sulit: Sulit<true>; matterGates: ReadonlyMap<string, Sulit<true>>; entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null; lang: Language }) {
   // Known codes in words; real values (LHDN, PS) as they are; a code without words never shown.

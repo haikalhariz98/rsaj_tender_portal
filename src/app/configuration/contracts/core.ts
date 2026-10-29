@@ -136,7 +136,35 @@ export async function saveCopyRecipient(_prev: FormState, data: FormData): Promi
   });
 }
 
-const RETIRABLE = { ContractDocumentPart: "contractDocumentPart", ControlledCopyRecipient: "controlledCopyRecipient" } as const;
+/// Phase 2 close-out stage C (FR-FIN-008, CO-8, ruling 8): a document the final account's pack needs besides the contract's own certificates.
+export async function saveCloseoutDocument(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const o = await exerciseOrg(actor.organisationId);
+  if (!o) return NO_ORG;
+  const r = new FormReader(data);
+  const id = r.optionalText("id");
+  const v = {
+    labelEn: r.text("labelEn", "Document", { required: true, max: 240 }),
+    provenance: r.choice("provenance", "Provenance", PROVENANCE, { required: true }),
+    source: r.text("source", "Source", { max: 400 }),
+    sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
+  };
+  if (r.failed || !v.provenance) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx) => {
+    if (id) {
+      const before = await tx.closeoutDocumentRequirement.findFirst({ where: { id, organisationId: o.id } });
+      if (!before) return { ok: false, message: "That document no longer exists." } as FormState;
+      await tx.closeoutDocumentRequirement.update({ where: { id, organisationId: actor.organisationId }, data: { ...v, provenance: v.provenance! } });
+      await audit(tx, toAuditActor(actor), o.id, "CloseoutDocumentRequirement", id, v.labelEn, { labelEn: before.labelEn, provenance: before.provenance, source: before.source, sortOrder: before.sortOrder }, v, "");
+    } else {
+      const row = await tx.closeoutDocumentRequirement.create({ data: { organisationId: o.id, ...v, provenance: v.provenance! } });
+      await audit(tx, toAuditActor(actor), o.id, "CloseoutDocumentRequirement", row.id, v.labelEn, null, v, "");
+    }
+    return done();
+  });
+}
+
+const RETIRABLE = { ContractDocumentPart: "contractDocumentPart", ControlledCopyRecipient: "controlledCopyRecipient", CloseoutDocumentRequirement: "closeoutDocumentRequirement" } as const;
 
 export async function retireContractRow(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
@@ -153,6 +181,7 @@ export async function retireContractRow(_prev: FormState, data: FormData): Promi
   return db.$transaction(async (tx) => {
     // The row first (its own lock), then read it: two retirements of one row cannot both pass.
     if (entity === "ContractDocumentPart") await tx.$queryRaw`SELECT id FROM "ContractDocumentPart" WHERE id = ${id} FOR UPDATE`;
+    else if (entity === "CloseoutDocumentRequirement") await tx.$queryRaw`SELECT id FROM "CloseoutDocumentRequirement" WHERE id = ${id} FOR UPDATE`;
     else await tx.$queryRaw`SELECT id FROM "ControlledCopyRecipient" WHERE id = ${id} FOR UPDATE`;
     const model = (tx as unknown as Record<string, { findFirst: (a: object) => Promise<{ id: string; retiredOn: Date | null; labelEn?: string; nameEn?: string } | null>; update: (a: object) => Promise<unknown> }>)[RETIRABLE[entity]];
     const before = await model.findFirst({ where: { id, organisationId: o.id } });

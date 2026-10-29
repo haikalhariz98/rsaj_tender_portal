@@ -55,4 +55,8 @@ export const CASE_ACTION_AT: Readonly<Partial<Record<CaseAction, { stage: CaseSt
   RETURN_SECURITY: { stage: "close-out", tab: "completion", section: "securities" },
   // Stage D: the performance card is on the Close tab.
   SCORE_PERFORMANCE: { stage: "close-out", tab: "closure", section: "performance" },
+  // Stage C: the final account's cards, and the Close card (RECORD_FINAL_PAYMENT goes to the certificate's own page).
+  RAISE_FINAL_ACCOUNT: { stage: "close-out", tab: "final-account", section: "figures" },
+  OPEN_FINAL_ACCOUNT: { stage: "close-out", tab: "final-account" },
+  CLOSE_CONTRACT: { stage: "close-out", tab: "closure", section: "close" },
 };

@@ -18,7 +18,7 @@ import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 
-import { AddCopyRecipient, AddDocumentPart, EditContractPolicy, EditCopyRecipient, EditDocumentPart, RetireContractRow } from "./editors";
+import { AddCloseoutDocument, AddCopyRecipient, AddDocumentPart, EditCloseoutDocument, EditContractPolicy, EditCopyRecipient, EditDocumentPart, RetireContractRow } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
@@ -45,10 +45,11 @@ export default async function ContractControlsPage() {
       </>
     );
   }
-  const [cfg, rules, roles] = await Promise.all([
+  const [cfg, rules, roles, closeoutDocs] = await Promise.all([
     loadContractConfig(org.id),
     db.authorityRule.findMany({ where: { domain: SIGNATORY_DOMAIN, cond: { not: null }, authorityMatrix: { organisationId: org.id, issuedAt: { not: null } } }, select: { cond: true, labelEn: true }, orderBy: { sortOrder: "asc" } }),
     db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, select: { code: true, nameEn: true }, orderBy: { nameEn: "asc" } }),
+    db.closeoutDocumentRequirement.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }),
   ]);
   const p = cfg.policy;
   const offices = roles.map((r) => ({ value: r.code, label: r.nameEn }));
@@ -104,6 +105,38 @@ export default async function ContractControlsPage() {
               ]}
             />
           </CardBody>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <CardHeader icon={<FileIcon size={17} />} title="Close-out documents" info={{ label: "About close-out documents", text: "Needed in the final account's pack, beside the contract's own issued certificates. Each is met by a document of the contract or marked not applicable." }} actions={<AddCloseoutDocument />} divided={closeoutDocs.length === 0} />
+          {closeoutDocs.length === 0 ? (
+            <EmptyState size="sm" title="None: the pack is the contract's certificates" />
+          ) : (
+            <Table minWidth={560}>
+              <colgroup>
+                <col />
+                <ActionsCol icons={2} labelled={1} />
+              </colgroup>
+              <THead>
+                <Th>Document</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {closeoutDocs.map((x) => (
+                  <Tr key={x.id}>
+                    <Td label="Document"><CellStack title={x.labelEn} sub={[x.source || null, retiredWords(x)].filter(Boolean).join(" · ") || undefined} /></Td>
+                    <Td>
+                      <RowActions>
+                        <HistoryButton iconOnly entity="CloseoutDocumentRequirement" entityId={x.id} label={x.labelEn} />
+                        <EditCloseoutDocument id={x.id} name={x.labelEn} values={{ labelEn: x.labelEn, provenance: x.provenance, source: x.source, sortOrder: String(x.sortOrder) }} />
+                        {x.retiredOn === null && <RetireContractRow entity="CloseoutDocumentRequirement" id={x.id} label={x.labelEn} today={org.today} />}
+                      </RowActions>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
         </Card>
 
         <Disclosure id="advanced" title="Advanced" summary="Copy stamp, recipients, Contract Document parts">

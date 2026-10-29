@@ -21,7 +21,7 @@ export function closeoutNext(f: CloseoutFacts): CloseoutNext {
   if (f.status === "CLOSED") return { state: "done", next: "The contract is closed", action: null };
   if (!AFTER_POSSESSION.includes(f.status)) return { state: "waiting", next: "Opens once the contract is in force", action: null };
   // Ruling 19: a contract paid on delivery order and invoice does not close in Phase 2.
-  if (f.supply) return { state: "waiting", next: "Closing is not built for supply contracts", action: null };
+  if (f.supply) return { state: "waiting", next: "Supply contracts are not closed here yet", action: null };
   const cpc = f.cpc;
   if (!cpc) return f.status === "ACTIVE" ? { state: "waiting", next: "Practical completion not certified", action: "RAISE_CPC" } : { state: "waiting", next: "Practical completion not certified", action: null };
   if (open(cpc)) return { state: "in-progress", next: `Practical completion certificate ${STATE_WORDS[cpc.status] ?? ""}`.trim(), action: "OPEN_CERTIFICATE", certificateId: cpc.id };

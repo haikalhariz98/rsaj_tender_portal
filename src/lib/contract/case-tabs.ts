@@ -23,9 +23,9 @@ export const CASE_TABS: Readonly<Record<CaseTabStep, readonly string[]>> = {
   // overview: the contract's Overview opens the Project stage (F-1).
   // Phase 2 close-out stage A: "time" after "variations" (EOT is allowed once practically complete, so it stays open then).
   project: ["overview", "team", "site", "payments", "variations", "time", "documents", "submissions"],
-  // Phase 2 close-out stage B (plan §3.2): Completion and Defects. Stage D adds Close ("closure") for the performance card, ahead of stage C, which
-  // adds the final account before it and the checklist on it.
-  "close-out": ["completion", "defects", "closure"],
+  // Phase 2 close-out stage B (plan §3.2): Completion and Defects. Stage D added Close ("closure") for the performance card; stage C adds the Final
+  // account before it and the checklist on it.
+  "close-out": ["completion", "defects", "final-account", "closure"],
 };
 
 /// The case-level tab: it has no stage.

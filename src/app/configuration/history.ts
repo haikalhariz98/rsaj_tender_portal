@@ -93,6 +93,8 @@ const ENTITIES = new Set([
   "ContractDocumentPart",
   "ContractPolicy",
   "ControlledCopyRecipient",
+  // Phase 2 close-out stage C: Settings › Contract controls › Close-out documents.
+  "CloseoutDocumentRequirement",
   "DistributionRecipient",
   "EvaluationAspect",
   "EvaluationModel",

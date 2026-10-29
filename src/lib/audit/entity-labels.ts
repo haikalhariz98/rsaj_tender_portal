@@ -82,6 +82,19 @@ export const RECORD_TYPE_WORDS: Readonly<Record<string, Words>> = {
   PeriodAgreement: w("Contract period agreement"),
   LadWaiver: w("Waiver of damages"),
   ContractBaseline: w("Baseline version"),
+  // Phase 2 close-out stages B, D and C: completion, defects, securities, the performance report, the final account and the close.
+  PracticalCompletion: w("Practical completion"),
+  DefectItem: w("Defect"),
+  DefectEvent: w("Defect, what happened"),
+  DefectSchedule: w("Schedule of Defects"),
+  MakingGood: w("Making good of defects"),
+  SecurityRelease: w("Security returned"),
+  PerformanceReport: w("Contractor performance"),
+  FinalAccount: w("Final account"),
+  FinalAccountLine: w("Final account line"),
+  FinalPackEntry: w("Final account pack"),
+  ContractClosure: w("Contract closed"),
+  CloseoutDocumentRequirement: w("Close-out document"),
 };
 
 /// The record types 6.13's supervision writes to the contract's trail (each registered above).
@@ -93,6 +106,10 @@ export const PAYMENT_ENTITIES = ["PaymentCalendar", "OpeningPosition", "InterimV
 
 /// Phase 2 close-out stage A: the record types the time acts and the extensions' issue write to the contract's trail (each registered above).
 export const TIME_ENTITIES = ["ContractMatter", "DelayNotice", "EotClaim", "EotReason", "ExtensionOfTime", "LossExpenseClaim", "PeriodExtension", "PeriodAgreement", "LadWaiver", "ContractBaseline", "NonCompletion", "ApprovalInstance", "ApprovalStep", "CommitteeDecision"] as const;
+
+/// Phase 2 close-out: the record types completion, defects, securities, the performance report, the final account and the close write to the contract's
+/// trail (each registered above).
+export const CLOSEOUT_ENTITIES = ["PracticalCompletion", "DefectItem", "DefectEvent", "DefectSchedule", "MakingGood", "SecurityRelease", "PerformanceReport", "FinalAccount", "FinalAccountLine", "FinalPackEntry", "ContractClosure"] as const;
 
 /// The record types 6.13's variations and adjustments write to the contract's trail (each registered above), with a
 /// variation's approval route and its steps and the matters tabled from it, written under the contract's label.

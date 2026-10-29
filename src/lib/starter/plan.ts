@@ -93,6 +93,8 @@ export const ALLOWED_MODELS: readonly string[] = [
   "AuthorityRole",
   "AwardPolicy",
   "CertificateKindSetting",
+  // Phase 2 close-out stage C (ruling 8): the final account's pack documents the RSAJ pack states.
+  "CloseoutDocumentRequirement",
   "CodeFormat",
   "Committee",
   "ContractBasis",

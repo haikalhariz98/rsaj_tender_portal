@@ -87,6 +87,7 @@ export async function finalSendFaults(tx: Tx, l: LoadedContract, certificateId: 
 export async function finalMovedFaults(tx: Tx, l: LoadedContract, fa: FinalRow, completionDate: string): Promise<Finding[]> {
   const now = await finalNow(tx, l, fa, completionDate);
   if (!now) return [{ code: "FINAL_BASIS_MOVED", level: "block", data: { items: "the contract's baseline" } }];
+  if (now.unreadable.length) return now.unreadable;
   const moved = finalBasisMoved(fa.judgedUnder as unknown as FinalJudged, now.judged);
   if (moved.length) return moved;
   return now.account.recommended === senFromDecimal(fa.recommended) ? [] : [{ code: "FINAL_BASIS_MOVED", level: "block", data: { items: "the payment recommended" } }];
@@ -184,5 +185,7 @@ export async function finalRaiseCheckOf(tx: Tx, l: LoadedContract) {
     live: rows.final ? { number: rows.final.certificate.number } : null,
     parties: parties.map((x) => x.name),
   });
-  return { faults, r, basis, account: r && !faults.length ? finalAccountOf(r.input) : null };
+  // An interim whose figures do not add up is never read on a guess: it refuses the raise by name.
+  const all = [...faults, ...(r?.unreadable ?? [])];
+  return { faults: all, r, basis, account: r && !all.length ? finalAccountOf(r.input) : null };
 }

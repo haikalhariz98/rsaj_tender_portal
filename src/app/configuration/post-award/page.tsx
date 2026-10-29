@@ -21,6 +21,7 @@ import { BASE_WORDS, BASIS_WORDS, SCHEDULE_FORM_WORDS } from "@/lib/variation/la
 import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/variation/types";
 
 
+import { FINAL_BASIS_WORDS } from "@/lib/closeout/final-words";
 import { EditClockRule, EditContractorPortalSigning, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditReleasePolicy, EditTimePolicy, EditVariationPolicy } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
@@ -31,7 +32,7 @@ const VARIATION_KINDS = ["VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION",
 /// Phase 2 close-out stage A: the certificates the extensions raise, approved on their matter's own route.
 const TIME_KINDS = ["EOT", "CONTRACT_PERIOD_AGREEMENT"] as const;
 /// Phase 2 close-out stage B: the completion certificates.
-const COMPLETION_KINDS = ["PRACTICAL_COMPLETION", "SCHEDULE_OF_DEFECTS", "MAKING_GOOD_DEFECTS"] as const;
+const COMPLETION_KINDS = ["PRACTICAL_COMPLETION", "SCHEDULE_OF_DEFECTS", "MAKING_GOOD_DEFECTS", "FINAL"] as const;
 /// What an unset clock does, in words.
 const CLOCK_UNSET: Readonly<Record<ContractClock, string>> = {
   ORAL_CONFIRM: "An instruction first given orally shows no day the contractor's confirmation is due by: the screen says the clock is not set (advisory).",
@@ -217,8 +218,9 @@ export default async function PostAwardControlsPage() {
             <KeyValues
               columns={2}
               items={[
-                settingLine("The retention balance is released", read(RELEASE_WORDS[p?.retentionBalanceReleaseAt ?? ""] ?? null, "Never twice. With no defects liability period, with the final payment.", p?.retentionBalanceReleaseProvenance, "The balance is not released."), <EditReleasePolicy values={{ retentionBalanceReleaseAt: p?.retentionBalanceReleaseAt ?? null, retentionBalanceReleaseProvenance: p?.retentionBalanceReleaseProvenance ?? null, performanceBondReleaseAt: p?.performanceBondReleaseAt ?? null, performanceBondReleaseProvenance: p?.performanceBondReleaseProvenance ?? null }} />),
+                settingLine("The retention balance is released", read(RELEASE_WORDS[p?.retentionBalanceReleaseAt ?? ""] ?? null, "Never twice. With no defects liability period, with the final payment.", p?.retentionBalanceReleaseProvenance, "The balance is not released."), <EditReleasePolicy values={{ retentionBalanceReleaseAt: p?.retentionBalanceReleaseAt ?? null, retentionBalanceReleaseProvenance: p?.retentionBalanceReleaseProvenance ?? null, performanceBondReleaseAt: p?.performanceBondReleaseAt ?? null, performanceBondReleaseProvenance: p?.performanceBondReleaseProvenance ?? null, finalPreviousBasis: p?.finalPreviousBasis ?? null, finalAccountProvenance: p?.finalAccountProvenance ?? null }} />),
                 settingLine("The performance bond is returned", read(RELEASE_WORDS[p?.performanceBondReleaseAt ?? ""] ?? null, "Once.", p?.performanceBondReleaseProvenance, "The bond is not returned.")),
+                settingLine("The final account's previous payments", read(p?.finalPreviousBasis ? FINAL_BASIS_WORDS[p.finalPreviousBasis] : null, "Only how the blocks print: the payment is the same.", p?.finalAccountProvenance, "The final account is not raised.")),
               ]}
             />
           </CardBody>

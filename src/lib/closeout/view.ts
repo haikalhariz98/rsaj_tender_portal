@@ -24,7 +24,7 @@ import { loadFinal } from "./final-load";
 import { closureFactsOf, finalRouteFactsOf } from "./final-write";
 import { closeoutFaultText, SECURITY_KIND_WORDS } from "./labels";
 import { defectState } from "./defects";
-import { defectFactsOf, dlpOfRow, loadCloseout, openLineCount, releaseEventsOf, type CloseoutRows } from "./load";
+import { defectFactsOf, dlpOfRow, finalPaidOf, loadCloseout, openLineCount, releaseEventsOf, type CloseoutRows } from "./load";
 import { cmgdFigureLines, cmgdSnapshotOf } from "./making-good";
 import { closeoutNext } from "./next";
 import { loadReport } from "@/lib/performance/load";
@@ -34,10 +34,12 @@ import type { BalanceEvent, CloseoutFacts, Finding } from "./types";
 
 const sum = (t: Tiers) => t.MAIN + t.NSC + t.NS;
 
-/// Every advance a guarantee secures is fully recouped on issued interims (null: it secures none). Shared by the act and the screen.
-export function advanceRecoupedOf(p: PaymentRows, securityId: string): boolean | null {
+/// Every advance a guarantee secures is fully recouped on issued interims (null: it secures none). Shared by the act and the screen. Stage C: once the
+/// final certificate is paid, what no interim recouped was recovered on it (its less block), so the advance is settled.
+export function advanceRecoupedOf(p: PaymentRows, securityId: string, finalPaid = false): boolean | null {
   const advances = p.advancePayments.filter((a) => a.security?.id === securityId && a.certificate.status === "ISSUED");
   if (!advances.length) return null;
+  if (finalPaid) return true;
   const issued = issuedInterims(p);
   return advances.every((a) => senFromDecimal(a.amount) - recoupedOf(issued, a.id) <= 0n);
 }
@@ -79,7 +81,7 @@ export async function closeoutView(l: LoadedContract, today: string | null) {
   const closeFaults = closureFaults(close.facts);
   const retention = retentionOf(p);
   const judged = securities.map((s) => {
-    const input: SecurityReturnInput = { kind: s.kind, form: s.form, status: s.status, returned: !!s.release, officialReceiptRef: "receipt given at the act", performanceEvent: events.performance, retentionEvent: events.retention, advanceRecouped: advanceRecoupedOf(p, s.id) };
+    const input: SecurityReturnInput = { kind: s.kind, form: s.form, status: s.status, returned: !!s.release, officialReceiptRef: "receipt given at the act", performanceEvent: events.performance, retentionEvent: events.retention, advanceRecouped: advanceRecoupedOf(p, s.id, finalPaidOf(rows)) };
     const faults: Finding[] = securityReturnFaults(input);
     return { s, faults, returnable: faults.length === 0, label: `${SECURITY_KIND_WORDS[s.kind] ?? "Security"}${s.instrumentRef ? ` ${s.instrumentRef}` : ""}` };
   });

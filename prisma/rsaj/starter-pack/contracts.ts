@@ -64,6 +64,16 @@ const POST_AWARD_GROUPS = [
   group("PostAwardPolicy", "Close-out · performance bond returned", { performanceBondReleaseAt: "MAKING_GOOD" }, { requirement: "FR-CMP-016", source: "SK009 §7.7.3–7.7.4. FR-FIN-012 reads the bond with the final payment instead." }, { provenance: "performanceBondReleaseProvenance" }),
 ];
 
+// ------------------------------------------------------------------ the final account's pack (FR-FIN-008; ruling 8)
+
+/// Ruling 8 (close-out, 2026-10-27): the documents the final account's pack needs besides the contract's own certificates, each STATED.
+const PACK = { requirement: "FR-FIN-008", source: "CPD/INT-SFA-INDEN" };
+export const CLOSEOUT_DOCUMENTS = list("CloseoutDocumentRequirement", "Close-out document", [
+  { code: "as_built_drawings", values: { labelEn: "As-built drawings", source: PACK.source }, ...PACK },
+  { code: "cidb_levy_certificate", values: { labelEn: "CIDB levy certificate", source: PACK.source }, ...PACK },
+  { code: "water_charges_receipt", values: { labelEn: "Receipt of water charges", source: PACK.source }, ...PACK },
+]);
+
 // ------------------------------------------------------------------ the finance system's numbers (FR-REQ-002, FR-AWD-006)
 
 /// Consumed, never minted: the portal only checks a number against its shape. Each format is its own list, so it loads beside the organisation's
@@ -77,6 +87,6 @@ export const ERP_FORMATS = [
 ];
 
 export const CONTRACTS = {
-  lists: [COPY_RECIPIENTS, ...AWARD_RETURN_NOTICES, CONTROLLED_COPIES, ...ERP_FORMATS],
+  lists: [COPY_RECIPIENTS, ...AWARD_RETURN_NOTICES, CONTROLLED_COPIES, CLOSEOUT_DOCUMENTS, ...ERP_FORMATS],
   groups: [...AWARD_GROUPS, ...CONTRACT_GROUPS, ...POST_AWARD_GROUPS],
 };

@@ -46,6 +46,7 @@ export const CASE_TAB_WORDS: Readonly<Record<string, Words>> = {
   time: w("Time"),
   completion: w("Completion"),
   defects: w("Defects"),
+  "final-account": w("Final account"),
   closure: w("Close"),
   // Plan step 6 (PW-11): renamed in words only; the tab ids are unchanged (`case-tabs.ts`). The contract's certificates are "Certificates"; the one Documents list is "Documents".
   documents: w("Certificates"),
@@ -91,6 +92,10 @@ export const CASE_LINK_ACTION_WORDS = {
   RELEASE_RETENTION: w("Open retention"),
   RETURN_SECURITY: w("Open securities"),
   SCORE_PERFORMANCE: w("Open performance"),
+  RAISE_FINAL_ACCOUNT: w("Raise the final account"),
+  OPEN_FINAL_ACCOUNT: w("Open the final account"),
+  RECORD_FINAL_PAYMENT: w("Open the certificate"),
+  CLOSE_CONTRACT: w("Close the contract"),
 } as const;
 
 export const CASE_HEADER_WORDS = {

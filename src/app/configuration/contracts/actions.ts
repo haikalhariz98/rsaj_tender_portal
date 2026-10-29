@@ -27,3 +27,8 @@ export async function retireContractRow(prev: FormState, data: FormData): Promis
   const proposed = await stageEdit("contracts.retireContractRow", prev, data);
   return proposed;
 }
+
+export async function saveCloseoutDocument(prev: FormState, data: FormData): Promise<FormState> {
+  const proposed = await stageEdit("contracts.saveCloseoutDocument", prev, data);
+  return proposed;
+}
