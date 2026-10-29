@@ -90,11 +90,11 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
       </nav>
     </>
   );
-  const openBase = at({ item: null });
+  const itemHrefBase = at({ item: null });
   const newItem = ctx.open ? (
     <NewItemDrawer
       contractId={contractId}
-      openBase={openBase}
+      itemHrefBase={itemHrefBase}
       types={TYPE_OPTIONS}
       priorities={PRIORITY_OPTIONS}
       impacts={IMPACT_OPTIONS}
@@ -198,7 +198,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
     const narrowed = q.view !== "open" || q.type || q.assignee || q.priority || q.q;
     body = (
       <>
-        {ctx.open && <QuickAdd contractId={contractId} openBase={openBase} types={QUICK_TYPES} />}
+        {ctx.open && <QuickAdd contractId={contractId} itemHrefBase={itemHrefBase} types={QUICK_TYPES} />}
         <DataList
           flat
           selectable={false}

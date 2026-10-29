@@ -26,8 +26,8 @@ const itemHref = (base: string, ref: string) => `${base}${base.includes("?") ? "
 
 // ------------------------------------------------------------------ New item
 
-/// The New item drawer. `openBase` is the Work address without an item; the new item's panel opens on it once raised.
-export function NewItemDrawer({ contractId, openBase, types, priorities, impacts, severities, people, documents }: { contractId: string; openBase: string; types: Option[]; priorities: Option[]; impacts: Option[]; severities: Option[]; people: Option[]; documents: Option[] }) {
+/// The New item drawer. `itemHrefBase` is the Work address without an item; the new item's panel opens on it once raised.
+export function NewItemDrawer({ contractId, itemHrefBase, types, priorities, impacts, severities, people, documents }: { contractId: string; itemHrefBase: string; types: Option[]; priorities: Option[]; impacts: Option[]; severities: Option[]; people: Option[]; documents: Option[] }) {
   const router = useRouter();
   const save = useCallback<SaveAction>(
     async (_prev, data) => {
@@ -39,10 +39,10 @@ export function NewItemDrawer({ contractId, openBase, types, priorities, impacts
       next.set("happenedAt", day && time ? `${day}T${time}` : "");
       const r = await createWorkItem(next);
       if (r.refused) return toState(r);
-      if (r.ref) router.push(itemHref(openBase, r.ref), { scroll: false });
+      if (r.ref) router.push(itemHref(itemHrefBase, r.ref), { scroll: false });
       return { ok: true };
     },
-    [router, openBase],
+    [router, itemHrefBase],
   );
   const own = (...ts: string[]) => ({ name: "type", in: ts });
   return (
@@ -177,7 +177,7 @@ export function ItemActions({ contractId, itemId, from, itemLabel, primary, disa
 // ------------------------------------------------------------------ quick add
 
 /// The List's quick-add row: a type that needs only a title, and the title; Enter raises it and opens its panel. Types that need more (a due date, a severity) are raised from New item.
-export function QuickAdd({ contractId, openBase, types }: { contractId: string; openBase: string; types: Option[] }) {
+export function QuickAdd({ contractId, itemHrefBase, types }: { contractId: string; itemHrefBase: string; types: Option[] }) {
   const router = useRouter();
   const gate = useActGate();
   const [type, setType] = useState(types.find((t) => t.value === "TASK")?.value ?? types[0]?.value ?? "");
@@ -202,7 +202,7 @@ export function QuickAdd({ contractId, openBase, types }: { contractId: string; 
             if (r.refused) setMessage(r.refused);
             else if (r.ref) {
               setTitle("");
-              router.push(itemHref(openBase, r.ref), { scroll: false });
+              router.push(itemHref(itemHrefBase, r.ref), { scroll: false });
             }
           } catch {
             setMessage("That didn't save. Try again.");
