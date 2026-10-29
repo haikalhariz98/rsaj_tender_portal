@@ -4,7 +4,10 @@
  *
  * demo_con13's defects liability period runs a full twelve months from 26 Oct 2026 (stage B's demo, prisma/demo-closeout.ts), so the rest of its life is told
  * on the demo clock from November 2026 to November 2027, through the product's own acts (prisma/demo-acts.ts):
- * - November 2026: interim 3 paid; interim 4 (raised by the time demo) approved, issued and paid;
+ * - November 2026: interim 3 paid; interim 4 (raised by the time demo) approved, issued and paid; the washout valve (commenced pending approval in
+ *   September) approved at the Variation Orders Committee's second sitting, instructed, measured, ordered and put on an issued adjustment of the
+ *   contract sum (ruling 8 of the stage C review: a variation not on one refuses the final account), so the demo has no commenced-pending variation left;
+ * - the final certificate's contractor and witness blocks are recorded by the office from the paper (ruling 2: never signed in the portal);
  * - October 2027: the final defects inspection, then the certificate of making good defects, approved by the Finance Director (the S.O.'s office) and
  *   signed by the S.O. and the contractor: the contract's making good is complete;
  * - November 2027: the retention balance released, the performance bond and the advance payment guarantee returned; the contractor performance report
@@ -20,7 +23,7 @@
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
-import { act } from "./demo-acts";
+import { act, actRoute } from "./demo-acts";
 import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
@@ -81,6 +84,59 @@ async function configure(db: Db, organisationId: string) {
   }
 }
 
+type Signing = { order: number; person?: string; name?: string; ic?: string; decision?: "SUPPORTED"; on: string };
+type Helpers = { approve: (certId: string, on: string, decidedOn: string) => Promise<void>; sign: (certId: string, on: string, blocks: Signing[]) => Promise<void>; holder: Record<string, string> };
+
+/// The washout valve (DEMO/VO/003, demo-lifecycle.ts), from its pending prior approval to an issued adjustment of the contract sum, through the product's
+/// own acts, as the air valves went in July (demo-lifecycle.ts). Written once: a variation already on an adjustment is left as it is.
+async function washoutValve(db: Db, id: string, h: Helpers) {
+  const description = "Additional washout valve at chainage 1+400";
+  const v = await db.variation.findFirst({ where: { contractId: id, description }, select: { id: true, status: true, estimate: true } });
+  if (!v || v.status === "CLOSED") return;
+  if (await db.sumAdjustmentLine.findFirst({ where: { variationCertificate: { variationId: v.id } }, select: { id: true } })) return;
+  const V = await import("../src/app/projects/[id]/variation-actions");
+  const C = await import("../src/app/committees/actions");
+  const gopal = `${P}p7`;
+  const latestCert = async (kind: string) => (await db.certificate.findFirstOrThrow({ where: { contractId: id, kind: kind as never }, orderBy: [{ openedAt: "desc" }, { id: "desc" }] })).id;
+  const contractor = { name: "Tan Mei Hua", ic: "000000-00-0013" };
+  const three = (on: string): Signing[] => [{ order: 1, person: people.chen, decision: "SUPPORTED", on }, { order: 2, person: people.bala, on }, { order: 3, name: contractor.name, ic: contractor.ic, on }];
+
+  // The committee's second sitting (scheduled for 14 Oct, the valve tabled at it by the lifecycle demo), held and minuted.
+  const sitting = await db.meeting.findFirstOrThrow({ where: { committeeId: `${P}c8`, reference: "DEMO/VOC/2/2026" } });
+  await act("2026-11-18T09:00", "VOC sitting 2 opened", C.changeStatus, { meetingId: sitting.id, to: "IN_PROGRESS" });
+  for (const p of [people.bala, gopal, people.chen]) await act("2026-11-18T09:05", `VOC 2 attendance ${p}`, C.recordAttendance, { meetingId: sitting.id, personId: p, attended: "yes" });
+  const matter = (await db.committeeDecision.findFirstOrThrow({ where: { meetingId: sitting.id, variationId: v.id } })).id;
+  const { POST: vote } = await import("../src/app/api/committees/decisions/[id]/votes/route");
+  for (const p of [people.bala, gopal]) await actRoute("2026-11-18T09:30", `VOC 2 vote ${p}`, () => vote(new Request("http://demo/api", { method: "POST", body: JSON.stringify({ onBehalfOf: p, choice: "SETUJU", votedAt: "2026-11-18" }) }), { params: Promise.resolve({ id: matter }) } as never));
+  await act("2026-11-18T10:00", "VOC 2 outcome", C.recordOutcome, { decisionId: matter, outcome: "CARRIED", outcomeNote: "" });
+  await act("2026-11-18T11:00", "VOC 2 minutes", C.saveMinutes, { meetingId: sitting.id, minutes: "The Committee recommended the additional washout valve at chainage 1+400, commenced pending approval (demo)." });
+  await act("2026-11-19T09:00", "VOC 2 minuted", C.changeStatus, { meetingId: sitting.id, to: "MINUTED" });
+
+  // Its prior approval: the committee's step cited where the outcome did not cite it, then each office's step.
+  const route = (await db.variationApproval.findFirstOrThrow({ where: { variationId: v.id, event: "PRIOR" }, include: { approvalInstance: { include: { steps: { orderBy: { sequence: "asc" } } } } } })).approvalInstance;
+  const voc = route.steps.find((x) => x.committeeCode === "VOC");
+  if (voc && voc.decision === "PENDING") await act("2026-11-19T10:00", "VOC 2 cited", V.citeVariationCommittee, { id, variationId: v.id, stepId: voc.id, committeeDecisionId: matter });
+  for (const st of route.steps.filter((x) => !x.committeeCode)) {
+    const who = h.holder[st.roleCode ?? ""];
+    if (!who) throw new Error(`demo close, the washout valve: no demo holder for ${st.roleCode}`);
+    await act("2026-11-19T11:00", `washout valve approved by ${st.roleCode}`, V.decideVariationApprovalStep, { id, variationId: v.id, stepId: st.id, decision: "DONE", personId: who, decidedOn: "2026-11-19", receivedOn: "2026-11-19", reason: "" });
+  }
+  await h.sign((await db.variation.findUniqueOrThrow({ where: { id: v.id } })).applicationCertificateId!, "2026-11-19", [{ order: 1, person: people.bala, on: "2026-11-19" }]);
+
+  // The S.O.'s instruction, the valve measured at its estimate, its order and the adjustment of the contract sum.
+  await act("2026-11-20T10:00", "washout valve instructed", V.raiseInstruction, { id, variationId: v.id, instructionDescription: description, personId: people.bala });
+  await h.sign(await latestCert("SO_INSTRUCTION"), "2026-11-20", [{ order: 1, person: people.bala, on: "2026-11-20" }]);
+  await act("2026-11-23T10:00", "washout valve measured", V.addMeasurement, { id, variationId: v.id, heading: description, itemRef: "W1", description: "Washout valve chamber complete, 150 mm washout valve and its scour pipe", rateSource: "CONTRACT_RATE", bqItemRef: "4.5", quantity: "1.000", unit: "nr", baseRate: v.estimate.toFixed(2), direction: "ADDITION", measuredOn: "2026-11-23", coveredUp: "no", recordsNote: "Measured on completion of the chamber (demo).", personId: people.bala });
+  await act("2026-11-24T09:00", "washout valve order", V.raiseVariationOrder, { id, variationId: v.id, orderDescription: description, valuationClauseId: `${P}cl2`, personId: people.bala });
+  const orderCert = await latestCert("VARIATION");
+  await h.sign(orderCert, "2026-11-24", three("2026-11-25"));
+  const order = (await db.variationCertificate.findFirstOrThrow({ where: { certificateId: orderCert } })).id;
+  await act("2026-11-26T10:00", "adjustment 2 raised", V.raiseSumAdjustment, { id, personId: people.bala, orderIds: order });
+  const adjustment = await latestCert("SUM_ADJUSTMENT");
+  await h.approve(adjustment, "2026-11-27", "2026-11-30");
+  await h.sign(adjustment, "2026-11-30", three("2026-12-01"));
+}
+
 /// `configure`: only the fresh `demo:load` writes the configuration (rulings 12c, 20z: none on a loaded database).
 export async function loadCloseDemo(db: Db, organisationId: string, opts: { configure: boolean }): Promise<{ notes: string[] }> {
   const c = await db.contract.findUnique({ where: { id: CON }, select: { status: true, awardId: true } });
@@ -138,6 +194,11 @@ export async function loadCloseDemo(db: Db, organisationId: string, opts: { conf
     await sign(ic4, "2026-11-04", [{ order: 1, person: people.chen, decision: "SUPPORTED", on: "2026-11-05" }, { order: 2, person: people.bala, on: "2026-11-05" }, { order: 3, name: contractor.name, ic: contractor.ic, on: "2026-11-05" }, { order: 4, name: "Ahmad bin Contoh", on: "2026-11-05" }]);
     await pay(ic4, "2026-11-16", "PV/2026/1104");
   }
+
+  // November 2026: the washout valve, commenced pending approval in September, is approved by the Variation Orders Committee's second sitting,
+  // instructed, measured, ordered and put on an adjustment of the contract sum. Ruling 8 of the close-out stage C review: a variation not on an
+  // issued adjustment refuses the final account (nothing could add it after the final certificate), and the valve was built.
+  await washoutValve(db, id, { approve, sign, holder });
 
   // October 2027: the period ended on 25 Oct; the final defects inspection, then the certificate of making good defects.
   await act("2027-10-27T09:00", "CMGD raised", K.raiseMakingGood, { id, madeGoodOn: "2026-10-28", finalInspectionOn: "2027-10-26", personId: people.bala });
