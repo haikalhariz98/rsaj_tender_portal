@@ -1,0 +1,130 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  ACTION_WORDS,
+  enumValueWords,
+  fieldFaultText,
+  IMPACT_WORDS,
+  itemRefText,
+  moveFaultText,
+  NOTICE_TITLE_WORDS,
+  PRIORITY_WORDS,
+  RESULT_WORDS,
+  SEVERITY_WORDS,
+  STATUS_WORDS,
+  TYPE_SHORT,
+  TYPE_WORDS,
+  VIEW_EMPTY_WORDS,
+  VIEW_WORDS,
+  whoCanWords,
+  type WhoNames,
+} from "./labels";
+import { WORK_ITEM_TYPES, type FieldFault, type MoveFault } from "./types";
+
+/** Work items' words: every value has words, none is a code (AGENTS.md rule 5), and every refusal is one sentence that names who can. */
+
+const CODE = /\b[A-Z]{2,}_[A-Z_]+\b|\b(TO_DO|URGENT|NORMAL|RFI_|[a-z]+[A-Z][a-zA-Z]*)\b/;
+const who: WhoNames = { raiser: "Hafiz", assignee: "Aisyah", lead: { roleLabel: "S.O.", names: ["Nurul"] } };
+
+describe("every enum value has words, and none is its key", () => {
+  it.each([
+    ["type", TYPE_WORDS, [...WORK_ITEM_TYPES]],
+    ["status", STATUS_WORDS, ["TO_DO", "IN_PROGRESS", "IN_REVIEW", "DONE", "CANCELLED"]],
+    ["priority", PRIORITY_WORDS, ["LOW", "NORMAL", "HIGH", "URGENT"]],
+    ["impact", IMPACT_WORDS, ["NONE", "COST", "TIME", "COST_AND_TIME"]],
+    ["result", RESULT_WORDS, ["NOT_YET", "PASSED", "FAILED"]],
+    ["severity", SEVERITY_WORDS, ["NEAR_MISS", "FIRST_AID", "MEDICAL_TREATMENT", "LOST_TIME", "DANGEROUS_OCCURRENCE"]],
+    ["action", ACTION_WORDS, ["START", "SEND_FOR_REVIEW", "MARK_DONE", "SEND_BACK", "CANCEL", "REOPEN"]],
+    ["view", VIEW_WORDS, ["open", "mine", "late", "unassigned", "ncr", "done"]],
+    ["empty view", VIEW_EMPTY_WORDS, ["open", "mine", "late", "unassigned", "ncr", "done"]],
+    ["notice", NOTICE_TITLE_WORDS, ["WORK_ITEM_ASSIGNED", "WORK_ITEM_TO_CHECK", "WORK_ITEM_RETURNED", "WORK_ITEM_COMMENT"]],
+  ] as const)("%s", (_, map, keys) => {
+    expect(Object.keys(map).sort()).toEqual([...keys].sort());
+    for (const [k, v] of Object.entries(map)) {
+      // "RFI" is both the key and the word the trade uses; every other word differs from its key.
+      if (k !== "RFI") expect(v.en, k).not.toBe(k);
+      expect(v.en, k).not.toMatch(CODE);
+      // The word budget for chips, columns and statuses (0008 §13): 1–3 words.
+      if (_ !== "notice") expect(v.en.split(" ").length, k).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it("the short type words follow 0008 (§4.4, §5.2)", () => {
+    expect(WORK_ITEM_TYPES.map((t) => itemRefText(t, 1))).toEqual(["RFI 1", "SI 1", "Insp 1", "Incident 1", "Act 1", "Defect 1", "Task 1"]);
+    expect(Object.keys(TYPE_SHORT)).toEqual([...WORK_ITEM_TYPES]);
+  });
+
+  it("a stored enum value reads in words; a column with no enum, or an unknown value, gives null", () => {
+    expect(enumValueWords("status", "IN_REVIEW")).toBe("In review");
+    expect(enumValueWords("inspectionResult", "FAILED")).toBe("Failed");
+    expect(enumValueWords("title", "TO_DO")).toBeNull();
+    expect(enumValueWords("status", "toString")).toBeNull();
+  });
+});
+
+describe("who can", () => {
+  it("names the people of each action, in one sentence", () => {
+    expect(whoCanWords("MARK_DONE", who).en).toBe("Hafiz, who raised it, or the S.O. (Nurul) can mark this done.");
+    expect(whoCanWords("SEND_FOR_REVIEW", who).en).toBe("Only Aisyah, the assignee, can send this for review.");
+    expect(whoCanWords("START", who).en).toBe("Aisyah, the assignee, Hafiz, who raised it, or the S.O. (Nurul) can start this.");
+    expect(whoCanWords("EDIT", { ...who, lead: null }).en).toBe("Aisyah, the assignee, or Hafiz, who raised it, can edit this.");
+    expect(whoCanWords("REOPEN", { ...who, lead: null }).en).toBe("Only Hafiz, who raised it, can reopen this.");
+    expect(whoCanWords("CANCEL", { ...who, lead: { roleLabel: "Superintending Officer", names: ["Nurul", "Faiz"] } }).en).toBe("Hafiz, who raised it, or the Superintending Officer (Nurul, Faiz) can cancel this.");
+    expect(whoCanWords("SEND_FOR_REVIEW", { ...who, assignee: null }).en).toBe("Nobody can send this for review now.");
+    // An office with nobody in it today is no lead.
+    expect(whoCanWords("MARK_DONE", { ...who, lead: { roleLabel: "S.O.", names: [] } }).en).toBe("Only Hafiz, who raised it, can mark this done.");
+  });
+});
+
+describe("every refusal is worded, with no code", () => {
+  const moves: MoveFault[] = [
+    { code: "CONTRACT_READ_ONLY" },
+    { code: "NOT_A_MOVE", from: "IN_PROGRESS", to: "TO_DO" },
+    { code: "MOVED_ALREADY", by: "Aisyah", at: "2026-11-05T02:00:00.000Z" },
+    { code: "MOVED_ALREADY", by: null, at: "" },
+    { code: "ONLY_ASSIGNEE" },
+    { code: "ONLY_RAISER_OR_LEAD" },
+    { code: "ANSWER_NEEDED" },
+    { code: "RESULT_NOT_PASSED" },
+    { code: "REASON_NEEDED" },
+    { code: "COMMENT_NEEDED" },
+  ];
+  const fields: FieldFault[] = [
+    { code: "TITLE_NEEDED" },
+    { code: "TOO_LONG", field: "title", max: 200 },
+    { code: "TOO_LONG", field: "description", max: 10_000 },
+    { code: "DUE_NEEDED" },
+    { code: "SEVERITY_NEEDED" },
+    { code: "HAPPENED_AT_NEEDED" },
+    { code: "HAPPENED_IN_FUTURE" },
+    { code: "NOT_THIS_TYPE", field: "answer" },
+    { code: "NOT_EDITABLE", whoCan: { en: "Only Hafiz, who raised it, can edit this." } },
+    { code: "CLOSED_ITEM" },
+    { code: "ASSIGNEE_INACTIVE" },
+    { code: "DEFECT_AFTER_COMPLETION" },
+    { code: "OTHER_CONTRACT" },
+  ];
+
+  it("move faults", () => {
+    for (const f of moves) {
+      const t = moveFaultText(f, "MARK_DONE", who);
+      expect(t, f.code).not.toMatch(CODE);
+      expect(t, f.code).toMatch(/^[A-Z].*\.$/);
+    }
+    expect(moveFaultText({ code: "NOT_A_MOVE", from: "IN_PROGRESS", to: "TO_DO" }, null, who)).toBe("This can't go from In progress to To do.");
+    expect(moveFaultText({ code: "MOVED_ALREADY", by: "Aisyah", at: "" }, null, who)).toBe("Aisyah changed this a moment ago.");
+    expect(moveFaultText({ code: "ONLY_RAISER_OR_LEAD" }, "MARK_DONE", who)).toBe("Hafiz, who raised it, or the S.O. (Nurul) can mark this done.");
+    expect(moveFaultText({ code: "CONTRACT_READ_ONLY" }, null, who)).toBe("Closed. Read only.");
+  });
+
+  it("field faults", () => {
+    for (const f of fields) {
+      const t = fieldFaultText(f);
+      expect(t, f.code).not.toMatch(CODE);
+      expect(t, f.code).toMatch(/^[A-Z].*\.$/);
+    }
+    expect(fieldFaultText({ code: "TOO_LONG", field: "description", max: 10_000 })).toBe("Description is over 10,000 characters.");
+    expect(fieldFaultText({ code: "NOT_THIS_TYPE", field: "inspectionResult" })).toBe("This type has no result.");
+    expect(fieldFaultText({ code: "DEFECT_AFTER_COMPLETION" })).toBe("List defects in Close-out › Defects.");
+  });
+});
