@@ -8,6 +8,7 @@ import {
   ChevronRight,
   DownloadIcon,
   SearchIcon,
+  SpinnerIcon,
 } from "@/components/icons";
 import { useLanguage, useSay } from "@/components/i18n/language-context";
 import { AvatarStack, Avatar } from "@/components/ui/avatar";
@@ -1124,6 +1125,7 @@ function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }) {
   const [value, setValue] = useState(cell.value);
   const [refused, setRefused] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const refusedId = useId();
   const [seen, setSeen] = useState(cell.value);
   if (seen !== cell.value) {
     setSeen(cell.value);
@@ -1133,17 +1135,21 @@ function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }) {
     return (
       <span className="inline-flex items-center gap-1.5">
         <span>{cell.options.find((o) => o.value === cell.value)?.label ?? dash}</span>
-        <MoreText text={cell.disabledWhy} label={sayWith(WORDS.whoCanChange, language, { label: cell.label.toLowerCase() })} />
+        <MoreText text={cell.disabledWhy} label={sayWith(WORDS.whoCanChange, language, { label: cell.label })} />
       </span>
     );
   }
   return (
     <div className="min-w-0">
+      {/* The spinner sits beside the chip, inside its height (h-9), so a working cell is no taller than a resting one. */}
+      <div className="flex items-center gap-1.5">
       <Select
         variant="chip"
         aria-label={cell.label}
         searchable={cell.searchable}
         aria-disabled={pending || undefined}
+        aria-describedby={refused ? refusedId : undefined}
+        aria-invalid={refused ? true : undefined}
         value={value}
         onChange={(e) => {
           // Not `disabled` while pending (a disabled trigger drops focus): a pick made meanwhile is ignored.
@@ -1175,8 +1181,10 @@ function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }) {
           </option>
         ))}
       </Select>
+      {pending && <SpinnerIcon size={14} className="shrink-0 text-brand-700" />}
+      </div>
       {refused && (
-        <div role="alert" className="mt-1 break-words text-[12.5px] text-rose-700">
+        <div id={refusedId} role="status" className="mt-1 break-words text-[12.5px] text-rose-700">
           {refused}
         </div>
       )}

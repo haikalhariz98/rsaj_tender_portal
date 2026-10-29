@@ -1,5 +1,5 @@
 import { ListPageSkeleton } from "@/components/ui/skeleton";
 
 export default function Loading() {
-  return <ListPageSkeleton label="Loading Inbox" />;
+  return <ListPageSkeleton chips={0} cardHeader header={{ actions: 0 }} />;
 }

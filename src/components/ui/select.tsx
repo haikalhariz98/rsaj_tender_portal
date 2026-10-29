@@ -569,6 +569,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
       aria-describedby={aria["aria-describedby"]}
       aria-invalid={invalid}
       aria-required={isRequired || undefined}
+      aria-disabled={props["aria-disabled"]}
       disabled={disabled}
       title={props.title}
       onClick={() => {
@@ -581,7 +582,9 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
         // A button clicks on Space's key-up; the key-down already did the work.
         if (e.key === " ") e.preventDefault();
       }}
-      className={
+      className={cx(
+        // Busy, not unavailable: the trigger keeps its focus (a `disabled` button loses it) but reads as working.
+        "aria-disabled:cursor-progress aria-disabled:opacity-60",
         chip
           ? cx(
               "inline-flex h-9 w-auto max-w-full items-center gap-1.5 rounded-full border border-line-2 bg-surface px-3.5 text-[13px] font-medium text-ink transition outline-none",
@@ -596,8 +599,8 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
                 multiple && "h-auto min-h-10 py-1.5",
                 "aria-expanded:border-brand-500 aria-expanded:ring-4 aria-expanded:ring-brand-500/15",
               ),
-            )
-      }
+            ),
+      )}
     >
       {chip && chipLabel && <span>{chipLabel}</span>}
       {chip && !chipLabel && !hasValue ? (

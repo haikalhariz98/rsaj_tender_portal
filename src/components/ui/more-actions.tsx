@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 import { useSay } from "@/components/i18n/language-context";
 import { MoreIcon } from "@/components/icons";
@@ -19,25 +19,62 @@ import { moreItemClass } from "./more-item-class";
 export function MoreActions({ children, label, compact, closeOnPick }: { children: ReactNode; label?: string; compact?: boolean; closeOnPick?: boolean }) {
   const say = useSay();
   const root = useRef<HTMLDetailsElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const close = (refocus: boolean) => {
+    if (!root.current) return;
+    root.current.open = false;
+    if (refocus) root.current.querySelector("summary")?.focus();
+  };
+  // The panel is drawn in the top layer, placed from the button, so a scroller around the menu (the Board's) cannot clip it.
+  const place = useCallback(() => {
+    const summary = root.current?.querySelector("summary");
+    const p = pop.current;
+    if (!summary || !p) return;
+    const r = summary.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth;
+    const vh = window.innerHeight;
+    p.style.right = `${Math.max(8, vw - r.right)}px`;
+    p.style.left = "auto";
+    if (p.offsetHeight > vh - r.bottom - 12 && r.top > vh - r.bottom) {
+      p.style.top = "auto";
+      p.style.bottom = `${vh - r.top + 8}px`;
+    } else {
+      p.style.bottom = "auto";
+      p.style.top = `${r.bottom + 8}px`;
+    }
+  }, []);
+  useLayoutEffect(() => {
+    const p = pop.current;
+    if (!p) return;
+    try {
+      if (open) p.showPopover?.();
+      else p.hidePopover?.();
+    } catch {
+      /* already in that state */
+    }
+    if (open) place();
+  }, [open, place]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || !root.current?.open) return;
-      root.current.open = false;
-      root.current.querySelector("summary")?.focus();
-    };
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close(true);
     const onDown = (e: MouseEvent) => {
-      if (root.current?.open && !root.current.contains(e.target as Node)) root.current.open = false;
+      if (!root.current?.contains(e.target as Node)) close(false);
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onDown);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
     return () => {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
     };
-  }, []);
+  }, [open, place]);
   const name = label ?? say(COMPONENT_WORDS.moreActions);
   return (
-    <details ref={root} className="relative">
+    <details ref={root} className="relative" onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary
         aria-label={name}
         title={name}
@@ -46,8 +83,19 @@ export function MoreActions({ children, label, compact, closeOnPick }: { childre
         <MoreIcon size={compact ? 16 : 18} />
       </summary>
       <div
-        className="absolute right-0 z-30 mt-2 flex min-w-52 flex-col rounded-2xl border border-line bg-surface p-1.5 shadow-pop"
-        onClick={closeOnPick ? (e) => ((e.target as HTMLElement).closest("button,a") ? root.current?.removeAttribute("open") : undefined) : undefined}
+        ref={pop}
+        popover="manual"
+        style={{ position: "fixed", inset: "auto", margin: 0 }}
+        className="z-30 flex min-w-52 flex-col rounded-2xl border border-line bg-surface p-1.5 text-left text-ink shadow-pop"
+        onClick={
+          closeOnPick
+            ? (e) => {
+                // A link navigates; a button leaves the page where it is, so focus goes back to the menu's button.
+                const hit = (e.target as HTMLElement).closest("button,a");
+                if (hit) close(hit.tagName === "BUTTON");
+              }
+            : undefined
+        }
       >
         {children}
       </div>

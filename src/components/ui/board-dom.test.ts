@@ -38,6 +38,8 @@ const key = async (el: Element, k: string) => {
   await act(async () => void el.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true })));
 };
 const details = (id: string) => host.querySelector<HTMLDetailsElement>(`[data-card-id="${id}"] details`)!;
+// A browser reports a details opening with a `toggle` event, a task later; the menu listens from then.
+const openIt = (id: string) => act(async () => { details(id).open = true; await new Promise((r) => setTimeout(r, 0)); });
 const inColumn = (n: number, id: string) => host.querySelector(`[data-board-column]:nth-of-type(${n}) [data-card-id="${id}"]`);
 
 describe("Board keyboard", () => {
@@ -67,7 +69,7 @@ describe("a card's Move to menu", () => {
 
   it("Escape closes it and returns focus to its button", async () => {
     await draw();
-    await act(async () => void (details("1").open = true));
+    await openIt("1");
     details("1").querySelector("button")!.focus();
     await key(document.body, "Escape");
     expect(details("1").open).toBe(false);
@@ -76,7 +78,7 @@ describe("a card's Move to menu", () => {
 
   it("a click outside closes it", async () => {
     await draw();
-    await act(async () => void (details("1").open = true));
+    await openIt("1");
     await act(async () => void document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
     expect(details("1").open).toBe(false);
   });
@@ -86,7 +88,7 @@ describe("a card's Move to menu", () => {
     const moved = CARDS.map((c) => (c.id === "1" ? { ...c, columnId: "doing" } : c));
     const move = vi.fn<BoardMove>(async () => void root.render(createElement(Board, { columns, cards: moved, move, label: "Work board" })));
     await draw(move);
-    details("1").open = true;
+    await openIt("1");
     const pick = [...details("1").querySelectorAll("button")].find((b) => b.textContent === "In progress")!;
     pick.focus();
     await act(async () => void pick.click());
@@ -98,10 +100,11 @@ describe("a card's Move to menu", () => {
 
   it("a refusal puts the card back, says why, and focus is on it", async () => {
     await draw(async () => ({ refused: "Only Hafiz can do that." }));
-    details("1").open = true;
+    await openIt("1");
     await act(async () => void details("1").querySelector("button")!.click());
     expect(inColumn(1, "1")).not.toBeNull();
-    expect(host.querySelector('[role="alert"]')?.textContent).toBe("Only Hafiz can do that.");
+    expect(host.querySelector('[role="status"]')?.textContent).toBe("Card 1: Only Hafiz can do that.");
+    expect(link("1").getAttribute("aria-describedby")).toBe(host.querySelector('[role="status"]')?.id);
     expect(document.activeElement).toBe(link("1"));
   });
 });

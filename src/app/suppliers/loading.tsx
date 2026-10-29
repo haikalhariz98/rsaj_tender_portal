@@ -1,5 +1,5 @@
 import { ListPageSkeleton } from "@/components/ui/skeleton";
 
 export default function Loading() {
-  return <ListPageSkeleton label="Loading Suppliers" />;
+  return <ListPageSkeleton tabs />;
 }

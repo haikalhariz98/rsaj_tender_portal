@@ -26,6 +26,7 @@ export function Avatar({
   name,
   size = "sm",
   muted,
+  decorative,
   children,
   className,
 }: {
@@ -33,12 +34,15 @@ export function Avatar({
   name?: string;
   size?: keyof typeof SIZES;
   muted?: boolean;
+  /// The name is written beside it: hide the initials from a screen reader and drop the tooltip.
+  decorative?: boolean;
   children?: ReactNode;
   className?: string;
 }) {
   return (
     <span
-      title={name}
+      title={decorative ? undefined : name}
+      aria-hidden={decorative || undefined}
       className={cx(
         "inline-grid shrink-0 place-items-center rounded-full font-bold ring-2 ring-surface",
         SIZES[size],

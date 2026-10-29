@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useOptimistic, useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useOptimistic, useRef, useState, useTransition, type KeyboardEvent } from "react";
 
 import { useSay } from "@/components/i18n/language-context";
 import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
 
 import { Avatar } from "./avatar";
 import { Badge } from "./badge";
+import { cx } from "./cx";
 import { MoreActions, MoreItem } from "./more-actions";
 import { MoreText } from "./more-text";
 
@@ -58,6 +59,7 @@ export function Board({
   moveLabel,
   olderLabel,
   emptyColumn,
+  headingLevel = 2,
 }: {
   columns: BoardColumn[];
   cards: BoardCard[];
@@ -68,14 +70,25 @@ export function Board({
   moveLabel?: string;
   olderLabel?: string;
   emptyColumn?: string;
+  /// The level of each column's heading, to sit under the page's own (default 2).
+  headingLevel?: 2 | 3 | 4;
 }) {
   const say = useSay();
   moreLabel ??= say(WORDS.seeAll);
   moveLabel ??= say(WORDS.moveTo);
   olderLabel ??= say(WORDS.olderInList);
   emptyColumn ??= say(WORDS.nothingHere);
-  const [shown, place] = useOptimistic(cards, (cur, p: { id: string; to: string }) => cur.map((c) => (c.id === p.id ? { ...c, columnId: p.to } : c)));
-  const [refused, setRefused] = useState<string | null>(null);
+  // A card may only move into a column this board draws: no id that names none reaches the screen or a count.
+  const usable = useMemo(() => {
+    const ids = new Set(columns.map((k) => k.id));
+    return cards.map((c) => (c.moves.every((m) => ids.has(m)) ? c : { ...c, moves: c.moves.filter((m) => ids.has(m)) }));
+  }, [cards, columns]);
+  const [shown, place] = useOptimistic(usable, (cur, p: { id: string; to: string }) => cur.map((c) => (c.id === p.id ? { ...c, columnId: p.to } : c)));
+  const [refused, setRefused] = useState<{ card: BoardCard; text: string } | null>(null);
+  // The card being dragged and where it may land: the board shows the landing places and holds still (no text selection) meanwhile.
+  const [drag, setDrag] = useState<BoardCard | null>(null);
+  const refusedId = useId();
+  const Heading = `h${headingLevel}` as "h2";
   const [pending, start] = useTransition();
   // The card whose link takes focus back once it has been drawn: a move (or its revert) re-creates the card in another column and focus would be lost.
   const refocus = useRef<string | null>(null);
@@ -95,9 +108,9 @@ export function Board({
       data.set("to", to);
       try {
         const r = await move(data);
-        if (r?.refused) setRefused(r.refused);
+        if (r?.refused) setRefused({ card, text: r.refused });
       } catch {
-        setRefused(say(WORDS.didNotSave));
+        setRefused({ card, text: say(WORDS.didNotSave) });
       }
     });
   }
@@ -138,11 +151,11 @@ export function Board({
   return (
     <div>
       {refused && (
-        <p role="alert" className="mb-3 rounded-xl bg-rose-50 px-4 py-2.5 text-[13.5px] text-rose-700">
-          {refused}
+        <p id={refusedId} role="status" className="mb-3 rounded-xl bg-rose-50 px-4 py-2.5 text-[13.5px] text-rose-700">
+          <span className="font-semibold">{refused.card.title}</span>: {refused.text}
         </p>
       )}
-      <div ref={root} role="group" aria-label={label} onKeyDown={onKeyDown} className="flex gap-3 overflow-x-auto pb-2">
+      <div ref={root} role="group" aria-label={label} onKeyDown={onKeyDown} className={cx("flex gap-3 overflow-x-auto pb-2", drag && "select-none")}>
         {columns.map((col) => {
           const inCol = shown.filter((c) => c.columnId === col.id);
           const headId = `${names}-${col.id}`;
@@ -158,13 +171,14 @@ export function Board({
                 e.preventDefault();
                 if (dragging.current) go(dragging.current, col.id);
                 dragging.current = null;
+                setDrag(null);
               }}
-              className="flex w-72 shrink-0 flex-col rounded-2xl bg-sunken p-2.5"
+              className={cx("flex w-72 shrink-0 flex-col rounded-2xl bg-sunken p-2.5", drag?.moves.includes(col.id) && drag.columnId !== col.id && "ring-2 ring-brand-300")}
             >
-              <h3 id={headId} className="flex items-center justify-between px-1.5 pt-1 pb-2.5 text-[13px] font-semibold text-ink-2">
+              <Heading id={headId} className="flex items-center justify-between px-1.5 pt-1 pb-2.5 text-[13px] font-semibold text-ink-2">
                 {col.label}
                 <span className="text-ink-3 tabular-nums">{col.total}</span>
-              </h3>
+              </Heading>
               <ul className="flex min-h-12 flex-col gap-2">
                 {inCol.map((c) => (
                   <li
@@ -174,26 +188,31 @@ export function Board({
                     draggable={c.moves.length > 0}
                     onDragStart={(e) => {
                       dragging.current = c;
+                      setDrag(c);
                       // Firefox starts no drag without data; the move effect shows the right cursor.
                       e.dataTransfer.setData("text/plain", c.id);
                       e.dataTransfer.effectAllowed = "move";
                     }}
-                    onDragEnd={() => (dragging.current = null)}
+                    inert={drag?.id === c.id}
+                    onDragEnd={() => {
+                      dragging.current = null;
+                      setDrag(null);
+                    }}
                     className="relative rounded-xl border border-line/70 bg-surface p-3 shadow-card">
-                    <Link href={c.href} draggable={false} className="block pr-7 text-[14px] font-semibold break-words text-ink no-underline hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+                    <Link href={c.href} draggable={false} aria-describedby={refused?.card.id === c.id ? refusedId : undefined} className="block pr-7 text-[14px] font-semibold break-words text-ink no-underline hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
                       {c.title}
                     </Link>
                     {c.sub && <div className="text-[12.5px] break-words text-ink-3">{c.sub}</div>}
                     {(c.badges?.length || c.assignee) && (
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        {c.badges?.map((b) => (
-                          <Badge key={b.text} tone={b.tone}>
+                        {c.badges?.map((b, i) => (
+                          <Badge key={i} tone={b.tone}>
                             {b.text}
                           </Badge>
                         ))}
                         {c.assignee && (
                           <span className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-3">
-                            <Avatar name={c.assignee} size="xs" />
+                            <Avatar name={c.assignee} size="xs" decorative />
                             {c.assignee}
                           </span>
                         )}
@@ -206,7 +225,7 @@ export function Board({
                             .filter((to) => to !== c.columnId)
                             .map((to) => (
                               <MoreItem key={to} onClick={() => go(c, to)}>
-                                {columns.find((k) => k.id === to)?.label ?? to}
+                                {columns.find((k) => k.id === to)?.label}
                               </MoreItem>
                             ))}
                         </MoreActions>
@@ -224,12 +243,12 @@ export function Board({
               </ul>
               {col.olderHref && !!col.olderCount && (
                 <Link href={col.olderHref} className="px-1.5 pt-2.5 text-[13px] font-semibold text-brand-700 no-underline hover:underline">
-                  {olderLabel} ({col.olderCount}) ›
+                  {olderLabel} ({col.olderCount}) <span aria-hidden="true">›</span>
                 </Link>
               )}
               {col.moreHref && col.total > inCol.length && (
                 <Link href={col.moreHref} className="px-1.5 pt-2.5 text-[13px] font-semibold text-brand-700 no-underline hover:underline">
-                  {moreLabel} ({col.total})
+                  {moreLabel} ({col.total}) <span aria-hidden="true">›</span>
                 </Link>
               )}
             </section>

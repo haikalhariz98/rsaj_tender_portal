@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
 
+import { SpinnerIcon } from "@/components/icons";
+
 import { cx } from "./cx";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "subtle" | "danger" | "destructive" | "link";
@@ -44,23 +46,26 @@ export function buttonClass(
 
 type Common = { variant?: ButtonVariant; size?: ButtonSize; icon?: ReactNode; block?: boolean };
 
+/// `pending`: the act is under way; a spinner sits beside the label and the button is disabled.
 export function Button({
   variant,
   size,
   icon,
   block,
+  pending,
   className,
   children,
   type = "button",
   ...props
-}: Common & ButtonHTMLAttributes<HTMLButtonElement>) {
+}: Common & { pending?: boolean } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       type={type}
       className={buttonClass(variant, size, cx(block && "w-full", className))}
       {...props}
+      disabled={props.disabled || pending}
     >
-      {icon}
+      {pending ? <SpinnerIcon size={size === "sm" ? 14 : 16} aria-hidden="true" /> : icon}
       {children}
     </button>
   );
