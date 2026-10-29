@@ -101,6 +101,11 @@ describe("the address names the view", () => {
     expect(open({ ...base, tab: "history" })).toMatchObject({ history: true, tab: null });
     expect(open({ ...base, stage: "signing", tab: "history" })).toMatchObject({ history: true, stage: "signing" });
   });
+  it("work is case-level: it keeps a stage that draws it, else the live one, else Project", () => {
+    expect(open({ ...base, tab: "work" })).toMatchObject({ tab: "work", history: false, stage: "project" });
+    expect(open({ ...base, stage: "close-out", tab: "work" })).toMatchObject({ tab: "work", stage: "close-out" });
+    expect(open({ ...base, stage: "award", tab: "work" })).toMatchObject({ tab: "work", stage: "project" });
+  });
   it("an unknown tab or stage falls back to the default step", () => {
     const standing: CaseStanding = { kind: "LIVE", stage: "ON_SITE" };
     const steps = caseSteps({ visibility: "WHOLE", standing, ...base.facts });

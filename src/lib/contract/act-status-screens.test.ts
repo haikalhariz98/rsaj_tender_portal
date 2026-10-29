@@ -193,6 +193,14 @@ const RECORDS_NOTHING: Readonly<Record<string, string>> = {
 const GATE_EXCEPTIONS: Readonly<Record<string, string>> = {
   ...RECORDS_NOTHING,
   OwnerAttachments: "The attachments panel: each purpose is judged by the document store through ownerState, in the table's words (BD-613-115), and the screen and the store give the same answer (contract-act-status.test.ts).",
+  // Workspace 3a step 5 (flagged, stricter: each is a named, reached exception). The Work tab's acts are all `work-actions.ts`, which asks the WORK_ITEM row first under the contract's lock; the
+  // tab's own pieces read the gate (useActGate) or are the shared pieces below.
+  ListFacets: "The Work toolbar's dropdowns: choosing goes to another address (router.push) and records nothing.",
+  Board: "The Work board: a card moves only through moveWorkItem, which asks the WORK_ITEM row first; cardMoves gives no move while the contract is shut, and the tab is inside the WORK_ITEM ActGate.",
+  SelectCell: "The list's and the panel's inline choice: its action is a Work act (WORK_ITEM row first); the cell is drawn read only, with the table's words, while the contract is shut (editWhy).",
+  WorkPanelShell: "The item panel's frame: it closes by changing the address and records nothing; what is inside it is followed from WorkItemPanel.",
+  Activity: "The item's feed: it filters what is already shown (All or Comments) and records nothing.",
+  Composer: "The comment box: its action is commentOnWorkItem (WORK_ITEM row first); WorkItemPanel draws it only while the row is open (ctx.open).",
 };
 
 const SOURCES: Sources = new Map(walk("src").filter((f) => /\.tsx?$/.test(f) && !f.includes("/generated/") && !/\.test\.tsx?$/.test(f)).map((f) => [f, readFileSync(f, "utf8")]));
@@ -340,6 +348,16 @@ const GATED_BY_PARENT: Readonly<Record<string, string>> = {
   InstructionPanel: "VariationPage",
   MeasurementPanel: "VariationPage",
   OrderPanel: "VariationPage",
+  // Workspace 3a step 5: the Work tab's pieces, each rendered by its parent inside WorkPanel's WORK_ITEM gate; the controls read the gate themselves (useActGate).
+  WorkItemPanel: "WorkPanel",
+  QuickAdd: "WorkPanel",
+  WorkPanelShell: "WorkItemPanel",
+  PanelHead: "WorkPanelShell",
+  FieldEdit: "WorkItemPanel",
+  LinkPicker: "WorkItemPanel",
+  UnlinkButton: "WorkItemPanel",
+  AttachFiles: "WorkItemPanel",
+  ItemActions: "WorkItemPanel",
 };
 
 /// The pages whose families depend on the record: each asks one function for its gates, and wraps its header's acts and
@@ -348,6 +366,8 @@ const PAGE_GATES: Readonly<Record<string, RegExp[]>> = {
   CertificatePage: [/const gates = certificateGates\(cert\.kind as CertificateKind, cert\.status as CertificateStatus, l\.contract\.status as ContractStatus\);/, /<ActGate blocker=\{gates\.acts\}>\{action\}<\/ActGate>/, /<ActGate blocker=\{gates\.void\}>/, /<ActGate blocker=\{gates\.acts\}>\s*<Tabs /],
   // C-2 (wave C step C5): the case page is the contract's page now. Its header offers one drawer, Start preparation, inside the FORMATION family's gate; every other act is in a panel that gates itself.
   CasePage: [/const formationShut = status \? actStatusBlocker\("FORMATION", status\) : null;/, /<ActGate blocker=\{formationShut\}><StartPreparationDrawer /],
+  // Workspace 3a step 5: the Work tab asks the WORK_ITEM row once and states it to every drawer and control beneath.
+  WorkPanel: [/const shut = actStatusBlocker\("WORK_ITEM", ctx\.contractStatus\);/, /<ActGate blocker=\{shut\}>/],
   VariationPage: [/const gate = actStatusBlocker\("VARIATION", l\.contract\.status as ContractStatus\);/, /<ActGate blocker=\{gate\}>\s*\{action\}/, /<ActGate blocker=\{gate\}>\s*<Tabs /],
   // Phase 2 close-out stage A: the extension-of-time claim's page asks the EOT row and wraps its header's acts and its body.
   EotClaimPage: [/const refused = actStatusFault\("EOT", l\.contract\.status as ContractStatus\);/, /<ActGate blocker=\{gate\}>\s*\{action\}/, /<ActGate blocker=\{gate\}>\s*<div className="flex flex-col gap-6">/],

@@ -36,7 +36,7 @@ const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 const isChosen = (f: FormDataEntryValue): f is File => f instanceof File && (f.size > 0 || f.name !== "");
 
 /// Stage each chosen file (or reuse what an earlier press stored). Never throws: a refusal is a form state naming the file.
-export async function stageFiles(data: FormData, staged: Map<string, string>): Promise<{ ok: true; ids: string[] } | { ok: false; state: FormState }> {
+export async function stageFiles(data: FormData, staged: Map<string, string>, stagedFor: string = STAGED_FOR_PROJECT_DOCUMENT): Promise<{ ok: true; ids: string[] } | { ok: false; state: FormState }> {
   const files = data.getAll("file").filter(isChosen);
   if (files.length === 0) return { ok: false, state: { ok: false, errors: { file: "Choose at least one file." } } };
   const ids: string[] = [];
@@ -49,7 +49,7 @@ export async function stageFiles(data: FormData, staged: Map<string, string>): P
     const one = new FormData();
     one.set("file", file);
     one.set("title", file.name);
-    const answer = await postUpload(one, { stagedFor: STAGED_FOR_PROJECT_DOCUMENT });
+    const answer = await postUpload(one, { stagedFor });
     if (!answer.ok) return { ok: false, state: { ok: false, errors: { file: `${file.name}: ${answer.message}` } } };
     staged.set(fileKey(file), answer.versionId);
     ids.push(answer.versionId);

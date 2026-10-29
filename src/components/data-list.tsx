@@ -280,6 +280,7 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
         <div className="min-w-0">
           <Link
             href={cell.href}
+            scroll={cell.scroll}
             className={cx("block font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline", line)}
           >
             {cell.text}
@@ -1119,7 +1120,7 @@ export function ListSearch({ server, placeholder }: { server: Pick<ServerMode, "
 }
 
 /// The "select" cell: an inline choice that calls the caller's action. It shows the pick at once and reverts, saying the refusal, if the action refuses or throws.
-function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }) {
+export function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }) {
   const say = useSay();
   const { language } = useLanguage();
   const [value, setValue] = useState(cell.value);

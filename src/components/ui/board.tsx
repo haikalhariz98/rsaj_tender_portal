@@ -199,7 +199,7 @@ export function Board({
                       setDrag(null);
                     }}
                     className="relative rounded-xl border border-line/70 bg-surface p-3 shadow-card">
-                    <Link href={c.href} draggable={false} aria-describedby={refused?.card.id === c.id ? refusedId : undefined} className="block pr-7 text-[14px] font-semibold break-words text-ink no-underline hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+                    <Link href={c.href} scroll={false} draggable={false} aria-describedby={refused?.card.id === c.id ? refusedId : undefined} className="block pr-7 text-[14px] font-semibold break-words text-ink no-underline hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
                       {c.title}
                     </Link>
                     {c.sub && <div className="text-[12.5px] break-words text-ink-3">{c.sub}</div>}

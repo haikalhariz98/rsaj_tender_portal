@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { AWARD_TAB_IDS, CASE_TABS, HISTORY_TAB, awardTabToCase, caseTabToStep, parseCaseStepKey, stageTab, type CaseTabStep } from "./case-tabs";
+import { AWARD_TAB_IDS, CASE_TABS, HISTORY_TAB, WORK_TAB, awardTabToCase, caseTabToStep, parseCaseStepKey, stageStrip, stageTab, type CaseTabStep } from "./case-tabs";
 
 
 // The contract page's eleven tabs, as persisted `?tab=` links carry them (F0-5).
@@ -21,9 +21,9 @@ describe("the tab ids are today's (scanned from the pages)", () => {
   });
   // C-2 (wave C step C5): /projects/[id] is the case page. It lists no tab ids of its own: it draws CASE_TABS' (and History), so the
   // eleven tabs the contract page had are all still reachable, each under its stage.
-  it("/projects/[id] draws its tabs from CASE_TABS, and every tab the contract page had is in a stage or is History", () => {
+  it("/projects/[id] draws its tabs from CASE_TABS (through stageStrip, which only adds Work), and every tab the contract page had is in a stage or is History", () => {
     // Phase 2 close-out stage B (flagged, faithful): every stage draws its tabs, close-out included.
-    expect(readFileSync(join(process.cwd(), "src/app/projects/[id]/page.tsx"), "utf8")).toMatch(/const stageTabs = CASE_TABS\[stage\];/);
+    expect(readFileSync(join(process.cwd(), "src/app/projects/[id]/page.tsx"), "utf8")).toMatch(/\.\.\.stageStrip\(stage\)\.map\(/);
     const staged = new Set<string>([...Object.values(CASE_TABS).flat(), HISTORY_TAB]);
     for (const id of CONTRACT_TAB_IDS) expect(staged.has(id), id).toBe(true);
   });
@@ -132,5 +132,21 @@ describe("the Close-out stage's tabs (Phase 2 close-out stage B, plan §3.2)", (
     expect(CASE_TABS["close-out"]).toEqual(["completion", "defects", "final-account", "closure"]);
     for (const tab of ["completion", "defects", "final-account", "closure"]) for (const c of [true, false]) expect(caseTabToStep(tab, c)).toEqual({ stage: "close-out", tab });
     expect(stageTab("close-out", undefined)).toBe("completion");
+  });
+});
+
+// Workspace 3a step 5 (flagged stricter: new cases only; no existing expectation changed).
+describe("the Work tab (case-level, drawn in two strips)", () => {
+  it("is after Overview in the Project strip and last, before History, in the Close-out strip; no other strip has it", () => {
+    expect(stageStrip("project").slice(0, 2)).toEqual(["overview", WORK_TAB]);
+    expect(stageStrip("close-out").at(-1)).toBe(WORK_TAB);
+    for (const s of ["award", "before-signing", "signing"] as const) expect(stageStrip(s)).toEqual(CASE_TABS[s]);
+  });
+  it("is not in CASE_TABS, so the old addresses and the one-stage rule are unchanged", () => {
+    expect(Object.values(CASE_TABS).flat()).not.toContain(WORK_TAB);
+  });
+  it("a stage-less ?tab=work is case-level on a contract and nothing before one", () => {
+    expect(caseTabToStep(WORK_TAB, true)).toEqual({ work: true });
+    expect(caseTabToStep(WORK_TAB, false)).toBeNull();
   });
 });

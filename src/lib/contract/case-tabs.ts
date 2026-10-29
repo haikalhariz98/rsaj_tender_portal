@@ -31,6 +31,18 @@ export const CASE_TABS: Readonly<Record<CaseTabStep, readonly string[]>> = {
 /// The case-level tab: it has no stage.
 export const HISTORY_TAB = "history";
 
+/// Work (workspace 3a, plan §4): case-level like History, but drawn only in the Project strip (after Overview) and the Close-out strip (last, before History).
+/// It is not in `CASE_TABS`, so every tab there still sits under one stage and every old address resolves as before.
+export const WORK_TAB = "work";
+export const WORK_STAGES: readonly CaseTabStep[] = ["project", "close-out"];
+
+/// The tab ids a stage's strip draws, Work included where it belongs.
+export function stageStrip(stage: CaseTabStep): readonly string[] {
+  const own = CASE_TABS[stage];
+  if (!WORK_STAGES.includes(stage)) return own;
+  return stage === "project" ? [own[0], WORK_TAB, ...own.slice(1)] : [...own, WORK_TAB];
+}
+
 /// The ten tab ids `/awards/[id]` had before it became a redirect, for the old `?tab=` links that are still followed (C-6).
 export const AWARD_TAB_IDS: readonly string[] = ["overview", "approval", "instrument", "distribution", "return", "notices", "conditions", "securities", "routing", "history"];
 
@@ -58,13 +70,14 @@ export function awardTabToCase(tab: string | undefined): { stage?: CaseStepKey; 
  * A stage-less `?tab=` on /projects/[id], as persisted links carry (F0-5):
  * - "overview": Project on a contract (F-1), Award on an award-only case;
  * - "securities": Before signing, on either id;
- * - "history": case level;
+ * - "history" and "work": case level (`work` keeps the live stage, which `resolveCaseView` picks);
  * - any other known tab: its one stage;
  * - an unknown tab, or none: null (the default step).
  */
-export function caseTabToStep(tab: string | undefined, hasContract: boolean): { stage: CaseTabStep; tab: string } | { history: true } | null {
+export function caseTabToStep(tab: string | undefined, hasContract: boolean): { stage: CaseTabStep; tab: string } | { history: true } | { work: true } | null {
   if (tab === undefined) return null;
   if (tab === HISTORY_TAB) return { history: true };
+  if (tab === WORK_TAB) return hasContract ? { work: true } : null;
   if (tab === "overview") return { stage: hasContract ? "project" : "award", tab };
   const stage = (Object.keys(CASE_TABS) as CaseTabStep[]).find((s) => CASE_TABS[s].includes(tab));
   return stage ? { stage, tab } : null;

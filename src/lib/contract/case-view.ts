@@ -7,7 +7,7 @@
  * the page only turns the answer into the Award stage's refusal (AC-18).
  */
 
-import { caseTabToStep, HISTORY_TAB, parseCaseStepKey, stageTab } from "./case-tabs";
+import { caseTabToStep, HISTORY_TAB, parseCaseStepKey, stageTab, WORK_STAGES, WORK_TAB } from "./case-tabs";
 import { defaultCaseStep, type CaseStep, type CaseStepKey } from "./case-steps";
 import type { CaseStanding } from "./case-stage";
 import type { CaseVisibility } from "./case-visibility";
@@ -45,6 +45,10 @@ export function resolveCaseView(i: CaseViewInput): CaseView {
     stage = named ?? fallback;
     tab = null;
     history = true;
+  } else if (i.tab === WORK_TAB && i.hasContract) {
+    // Work is case-level too: the step bar keeps the stage in the address, else the live one, and falls to Project where neither draws a Work tab.
+    stage = named && WORK_STAGES.includes(named) ? named : WORK_STAGES.includes(fallback) ? fallback : "project";
+    tab = WORK_TAB;
   } else if (named) {
     stage = named;
     tab = stageTab(named, i.tab);

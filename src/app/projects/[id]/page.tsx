@@ -3,7 +3,7 @@ import { FundingCard } from "./funding-card";
 import { ImpactCard } from "./impact-card";
 import { MoreText } from "@/components/ui/more-text";
 import { billItemOptions } from "@/lib/contract/bill-items";
-import type { ComponentProps, ReactNode } from "react";
+import { Suspense, type ComponentProps, type ReactNode } from "react";
 import Link from "next/link";
 import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker, actStatusText } from "@/lib/contract/act-status";
@@ -26,7 +26,7 @@ import { caseStage } from "@/lib/contract/case-stage";
 import { caseSteps, defaultCaseStep, earlierOpenSteps, SIGNED_CONTRACT_STATUSES, type CaseAction, type CaseFacts } from "@/lib/contract/case-steps";
 import { nextLine, primaryAction } from "@/lib/contract/primary-action";
 import { MoreActions } from "@/components/ui/more-actions";
-import { CASE_TABS, HISTORY_TAB } from "@/lib/contract/case-tabs";
+import { HISTORY_TAB, stageStrip, WORK_TAB } from "@/lib/contract/case-tabs";
 import { caseHistorySources, resolveCaseView } from "@/lib/contract/case-view";
 import { CASE_ACTION_AT, caseHref, keepQuery } from "@/lib/contract/links";
 import type { HiddenAct } from "@/lib/supervision/authority";
@@ -34,7 +34,7 @@ import { buildAwardView, type AwardPanelId } from "./award/award-view";
 import { possessionBlockerOf, signingActOf, startState } from "./signing-acts";
 
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
-import { AwardIcon, BuildingIcon, CalendarIcon, CheckIcon, ClipboardIcon, ClockIcon, FileIcon, FilesIcon, InboxIcon, RouteIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
+import { AwardIcon, BuildingIcon, CalendarIcon, CheckIcon, ClipboardIcon, ListIcon, ClockIcon, FileIcon, FilesIcon, InboxIcon, RouteIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs, type TabSpec } from "@/components/tabs";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
@@ -76,6 +76,8 @@ import { BaselinePanel } from "./baseline-panel";
 import { KickOffCard } from "./kick-off-card";
 import { DocumentsPanel } from "./documents-panel";
 import { SubmissionsTab } from "./submissions-tab";
+import { WorkPanel } from "./work-panel";
+import { WorkSkeleton } from "./work-skeleton";
 import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
 import { FormationPanel } from "./formation-panels";
 import { loadSupplyClaims, paymentRouteOf } from "@/lib/project-docs/supply-read";
@@ -124,6 +126,7 @@ const TAB_ICON: Readonly<Record<string, ReactNode>> = {
   time: <CalendarIcon size={15} />,
   documents: <FilesIcon size={15} />,
   submissions: <InboxIcon size={15} />,
+  work: <ListIcon size={15} />,
 };
 
 
@@ -225,7 +228,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const people: Option[] = needsPeople ? (await db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })).map((p) => ({ value: p.id, label: p.name })) : [];
   const supervisionTabs = ["overview", "team", "site", "payments", "variations", "time"];
   const projectTab = lc && stage === "project" && !view.history ? contractTab : null;
-  const closeoutTab = lc && stage === "close-out" && !view.history ? contractTab : null;
+  // Work is case-level: it reads nothing of the supervision, payment or close-out readers (one tab's data at a time).
+  const closeoutTab = lc && stage === "close-out" && !view.history && contractTab !== WORK_TAB ? contractTab : null;
   if (lc && ((projectTab && supervisionTabs.includes(projectTab)) || closeoutTab)) {
     const v = await supervisionOf();
     if (!hiddenActs.length) hiddenActs = hiddenOf(v);
@@ -299,6 +303,12 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
         ) : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
       case "documents":
         return documentFacts ? <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} /> : null;
+      case WORK_TAB:
+        return (
+          <Suspense fallback={<WorkSkeleton />}>
+            <WorkPanel actor={actor} l={lc} sp={sp} />
+          </Suspense>
+        );
       case "submissions":
         return <SubmissionsTab l={lc} actor={actor} organisationId={l.org.id} contractId={c.id} status={status!} docs={docs} docsAfter={docsAfter} earlier={earlier} />;
       default:
@@ -314,9 +324,8 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
     </div>
   );
 
-  const stageTabs = CASE_TABS[stage];
   const tabs: TabSpec[] = [
-    ...stageTabs.map((tabId): TabSpec => {
+    ...stageStrip(stage).map((tabId): TabSpec => {
       return { id: tabId, label: t(CASE_TAB_WORDS[tabId]), icon: TAB_ICON[tabId], lazy: true, panel: !view.history && view.tab === tabId ? panelFor(tabId) : null };
     }),
     { id: HISTORY_TAB, label: t(COMPONENT_WORDS.history), icon: <ClockIcon size={15} />, lazy: true, panel: view.history ? historyPanel : null },

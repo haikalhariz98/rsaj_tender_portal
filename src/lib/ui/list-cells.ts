@@ -25,7 +25,7 @@ export type Cell =
   | { kind: "badge"; text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }
   | { kind: "chip"; text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }
   | { kind: "person"; name: string; sub?: string }
-  | { kind: "link"; text: string; href: string; sub?: string }
+  | { kind: "link"; text: string; href: string; sub?: string; /** `false`: following it keeps the scroll position (a link that opens a panel beside the list). */ scroll?: false }
   /// A link that is an act: a button that calls a server action with `fields`, which does its work and then redirects (the inbox's notice, AC-47). Not an anchor, so a prefetch never runs it.
   | { kind: "open"; text: string; action: (data: FormData) => Promise<void>; fields: Record<string, string>; sub?: string }
   /// A file to save: a plain anchor with the `download` attribute (never a client-side Link, which could prefetch it and write a log row for a download nobody made).

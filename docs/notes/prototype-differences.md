@@ -23,6 +23,7 @@ const NO_PROTOTYPE_COUNTERPART = [
   { screen: /\/configuration\/bid-sealing/, guard: "src/app/configuration/bid-sealing/screen-content.test.ts", why: "SR-13: online sealed bids have no screen in the sample" },
   { screen: /\/configuration\/security/, guard: "src/app/configuration/bid-sealing/screen-content.test.ts", why: "SR-13: the unseal passphrase minimum is a v2 setting; the sample's security screen predates it" },
   { screen: /\/configuration\/tender-documents/, guard: "src/app/configuration/bid-sealing/screen-content.test.ts", why: "SR-13: per-part online upload rules are v2; the tender-documents screen has no sample counterpart" },
+  { screen: /\/projects\/[^/]+\?tab=work/, guard: "src/app/projects/[id]/work-screen.test.ts", why: "Workspace 3a (design note 0008): the case's Work tab (List, Board and the item panel) is new; the sample has no work items. Differences from the sibling tabs: its New item button is secondary, as Documents' is, since the page header holds the case's one primary; a quick-add row raises only the types that need a title alone; Due is edited in the item panel, not in the list" },
 ];
 
 /**
