@@ -9,7 +9,7 @@ import { gradeOf, reportTotal, scoreFaults } from "./score";
 
 /**
  * Contractor performance's rules (plan closeout-plan.md §6.3, stage D). The weights, scale and bands are an invented fixture, not RSAJ's forms.
- * The plan's fixture pairs scores 4,3,5,4,3 with 74.0000; at weights 0.30/0.25/0.20/0.15/0.10 on a scale of 5 those give 77.0000, and
+ * The plan once paired scores 4,3,5,4,3 with 74.0000 (corrected at the stage D review); at weights 0.30/0.25/0.20/0.15/0.10 on a scale of 5 those give 77.0000, and
  * 4,3,5,3,3 give 74.0000 (6.16's figure came from its six-criterion form). Both are pinned.
  */
 
