@@ -14,7 +14,7 @@ import { actCtx, type ActCtx, ActRefusal, afterAct, NO_ZONE_STATE, recordedFor, 
 import type { Finding } from "@/lib/performance/form";
 import { performanceRefusal, totalText } from "@/lib/performance/labels";
 import { formSnapshotOf, issuedFormFor, snapshotOfForm } from "@/lib/performance/load";
-import { editFaults, openFaults, verifyFaults } from "@/lib/performance/report";
+import { editFaults, openFactsOf, openFaults, verifyFaults } from "@/lib/performance/report";
 import { gradeOf, reportTotal, scoreFaults } from "@/lib/performance/score";
 import { capacityText } from "@/lib/supervision/authority";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
@@ -79,11 +79,11 @@ export async function openPerformanceReport(_prev: FormState, data: FormData): P
       code ? c.tx.contractType.findFirst({ where: { organisationId: c.l.org.id, code }, select: { nameEn: true } }) : Promise.resolve(null),
       c.tx.performanceReport.findUnique({ where: { contractId: c.l.contract.id }, select: { id: true } }),
     ]);
-    const fs = openFaults({ cpcIssued: rows.cpc?.certificate.status === "ISSUED", dlpApplies: !!rows.cpc?.dlpStart, cmgdIssued: rows.cmgd?.certificate.status === "ISSUED", formIssued: !!form, typeName: type?.nameEn ?? null, live: !!live });
+    const fs = openFaults({ ...openFactsOf(rows, c.l.award.dlpMonths), formIssued: !!form, typeName: type?.nameEn ?? null, live: !!live });
     if (fs.length) refuse("Not opened:", fs);
     const snap = snapshotOfForm(form!);
     const row = await c.tx.performanceReport.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, supplierId: c.l.award.vendorId ?? null, formId: form!.id, formSnapshot: snap as unknown as Prisma.InputJsonValue, personId: who.person.id, recordedAt: c.now } });
-    await audit(c, row.id, "CREATE", diffFields(null, { form: `${snap.name}, version ${snap.version}`, criteria: snap.criteria.length, scoresFrom1To: snap.scaleMax, supplier: c.l.award.vendorId ? c.l.award.awardeeName : "not linked to the supplier register", openedBy: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }));
+    await audit(c, row.id, "CREATE", diffFields(null, { form: `${snap.name}, version ${snap.version}`, criteria: snap.criteria.length, scoreRange: snap.scaleMax, supplier: c.l.award.vendorId ? c.l.award.awardeeName : "not linked to the supplier register", openedBy: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }));
     await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
     return { ok: true };
   });
@@ -102,20 +102,29 @@ export async function savePerformanceScores(_prev: FormState, data: FormData): P
     const snap = formSnapshotOf(r);
     const errors: Record<string, string> = {};
     const next = new Map<number, { score: number; note: string }>();
+    const saved = new Map(r.scores.map((x) => [x.criterionOrder, x]));
     for (const k of snap.criteria) {
       const raw = String(data.get(`score_${k.order}`) ?? "").trim();
-      if (!raw) continue;
+      const note = String(data.get(`note_${k.order}`) ?? "").trim().slice(0, 2000);
+      if (!raw) {
+        // Never dropped quietly: a note needs its score, and a saved score is not cleared.
+        if (saved.has(k.order)) errors[`score_${k.order}`] = "A saved score cannot be cleared. Choose a score.";
+        else if (note) errors[`note_${k.order}`] = "Choose a score for this note, or clear the note.";
+        continue;
+      }
       const n = Number(raw);
       if (!Number.isInteger(n) || n < 1 || n > snap.scaleMax) errors[`score_${k.order}`] = `1 to ${snap.scaleMax}.`;
-      else next.set(k.order, { score: n, note: String(data.get(`note_${k.order}`) ?? "").trim().slice(0, 2000) });
+      else next.set(k.order, { score: n, note });
     }
     if (Object.keys(errors).length) throw new ActRefusal({ ok: false, errors });
-    const before = Object.fromEntries(r.scores.map((s) => [`criterion${s.criterionOrder}`, `${s.score}${s.note ? ` (${s.note})` : ""}`]));
+    // The trail holds the scores under the one registered SULIT field, so a reader the gate refuses sees a lock, never the figures.
+    const text = (m: ReadonlyMap<number, { score: number; note: string }>) =>
+      snap.criteria.filter((k) => m.has(k.order)).map((k) => `${k.label} ${m.get(k.order)!.score}${m.get(k.order)!.note ? ` (${m.get(k.order)!.note})` : ""}`).join("; ") || null;
+    const before = text(saved);
     for (const [order, v] of next) {
       await c.tx.performanceScore.upsert({ where: { reportId_criterionOrder: { reportId: r.id, criterionOrder: order } }, create: { organisationId: c.l.org.id, reportId: r.id, criterionOrder: order, score: v.score, note: v.note }, update: { score: v.score, note: v.note } });
     }
-    const after = { ...before, ...Object.fromEntries([...next].map(([o, v]) => [`criterion${o}`, `${v.score}${v.note ? ` (${v.note})` : ""}`])) };
-    await audit(c, r.id, "UPDATE", diffFields(before, after));
+    await audit(c, r.id, "UPDATE", diffFields({ performanceScores: before }, { performanceScores: text(new Map([...saved, ...next])) }));
     return { ok: true };
   });
 }

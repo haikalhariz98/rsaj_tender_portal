@@ -117,9 +117,11 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
   const reading = today ? standing({ status, registeredOn: day(s.registeredOn) }, s.standingEvents.map(standingEventFacts), states.filter((x) => x.mandatory).map((x) => ({ typeLabel: x.type.label, state: x.state })), { autoSuspendOnLapse: cfg.policy?.autoSuspendOnLapse ?? null }, today) : null;
   const linkedCount = s.partiesTotal + s.awards.filter((a) => !a.awardeePartyId).length;
   // Phase 4b: how many versions of its bank details the supplier has sent (a count, never a value), and where its registration stands, for the header.
-  const [creditorCount, sentOnline] = await Promise.all([
+  const [creditorCount, sentOnline, filedReports] = await Promise.all([
     db.creditorProfile.count({ where: { supplierId: s.id, organisationId: org.id, submittedAt: { not: null } } }),
     db.supplierApplication.findFirst({ where: { supplierId: s.id, organisationId: org.id, channel: "PORTAL", submittedAt: { not: null } }, orderBy: { submittedAt: "asc" }, select: { receivedOn: true } }),
+    // A count of filed contractor performance reports: the number is not SULIT, the totals and grades are.
+    db.performanceReport.count({ where: { supplierId: s.id, organisationId: org.id, verifiedAt: { not: null } } }),
   ]);
   const waitingForApplicant = status === "APPLICANT" && s.applications.length === 0 && s.portalApplications.length > 0;
 
@@ -128,12 +130,12 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
     { id: "documents", label: "Documents", icon: <FileIcon size={15} />, count: s.documents.length, panel: <DocumentsPanel l={l} cfg={cfg} people={peopleOptions} /> },
     { id: "applications", label: "Applications", icon: <ClipboardIcon size={15} />, count: s.applications.length, panel: <ApplicationsPanel actor={actor} l={l} cfg={cfg} people={peopleOptions} blacklist={reading?.blacklist ?? null} cancellation={reading?.cancellation ?? null} sulit={sulit} waitingForApplicant={waitingForApplicant} summaryOpen={tab === "applications"} /> },
     // Phase 4b: the supplier's bank details, SULIT. Read only while this tab is the one open (it reads the details, and the reading is logged).
-    { id: "creditor", label: "Creditor profile", icon: <LockIcon size={15} />, count: creditorCount, lazy: true, panel: tab === "creditor" ? <CreditorPanel actor={actor} l={l} version={version ?? null} /> : null },
+    { id: "creditor", label: "Creditor", icon: <LockIcon size={15} />, count: creditorCount, lazy: true, panel: tab === "creditor" ? <CreditorPanel actor={actor} l={l} version={version ?? null} /> : null },
     { id: "standing", label: "Standing", icon: <ShieldIcon size={15} />, count: s.standingEvents.length, panel: <StandingPanel l={l} cfg={cfg} reading={reading} people={peopleOptions} fromAward={fromAward ?? null} /> },
     { id: "eligibility", label: "Eligibility", icon: <ScaleIcon size={15} />, panel: <EligibilityPanel l={l} exerciseId={exercise ?? null} /> },
     { id: "participation", label: "Participation", icon: <LinkIcon size={15} />, count: linkedCount, panel: <ParticipationPanel l={l} people={peopleOptions} /> },
     // Phase 2 close-out stage D: the performance reports filed on its contracts, SULIT. Read only while this tab is open (the reading is logged).
-    { id: "performance", label: "Performance", icon: <ChartIcon size={15} />, lazy: true, panel: tab === "performance" ? <PerformancePanel actor={actor} supplier={{ id: s.id, reference: s.reference, organisationId: org.id, timeZone: org.timeZone }} /> : null },
+    { id: "performance", label: "Performance", icon: <ChartIcon size={15} />, count: filedReports, lazy: true, panel: tab === "performance" ? <PerformancePanel actor={actor} supplier={{ id: s.id, reference: s.reference, organisationId: org.id, timeZone: org.timeZone }} /> : null },
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel sulit={sulit} entries={history.entries} total={history.total} timeZone={org.timeZone} /> },
   ];
   const issues = states.filter((x) => x.mandatory && x.state !== "VALID" && x.state !== "NOT_APPLICABLE");

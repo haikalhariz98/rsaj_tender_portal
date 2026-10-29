@@ -56,8 +56,9 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "totalScore", scope: "evaluation", what: "an evaluation total score" },
   { field: "cprPercent", scope: "supplier", what: "a contractor performance percentage" },
   // Phase 2 close-out stage D (plan §6.2): a filed contractor performance report's total and grade.
-  { field: "scoreTotal", scope: "supplier", what: "a contractor performance report's total" },
-  { field: "gradeLabel", scope: "supplier", what: "a contractor performance report's grade" },
+  { field: "scoreTotal", scope: "supplier", alsoIn: ["contract"], what: "a contractor performance report's total" },
+  { field: "gradeLabel", scope: "supplier", alsoIn: ["contract"], what: "a contractor performance report's grade" },
+  { field: "performanceScores", scope: "supplier", alsoIn: ["contract"], what: "a contractor performance report's scores and notes" },
   { field: "estimatePaperCopy", scope: "exercise", what: "the figure on the company estimate's paper copy, entered at finalising an opening (6.7 C-1)" },
   { field: "committedEstimate", scope: "requisition", what: "the department estimate as committed against a budget code, in a commitment's audit row (6.7 re-review: it was written as amount)" },
   { field: "letterQuote", scope: "exercise", what: "how a bidder's withdrawal letter identifies its envelope, quoted from the letter (6.6 CR-4)" },

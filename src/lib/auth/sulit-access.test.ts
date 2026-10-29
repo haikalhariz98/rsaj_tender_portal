@@ -150,6 +150,12 @@ describe("sulitAccess", () => {
     expect(sulitAccess(person, ctx({ scope: "exercise", named: true }), "score")).toEqual({ state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" });
     expect(sulitAccess(person, ctx({ named: true }), "notRegistered")).toEqual({ state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" });
   });
+  it("a contractor performance report's total, grade and scores are granted on the contract scope to a reader with the permission", () => {
+    for (const field of ["scoreTotal", "gradeLabel", "performanceScores"]) {
+      expect(sulitAccess(person, ctx({ scope: "contract", organisationPermission: held }), field), field).toEqual({ state: "GRANTED", basis: "ORGANISATION_PERMISSION" });
+      expect(sulitAccess(person, ctx({ scope: "contract" }), field).state, field).toBe("WITHHELD");
+    }
+  });
   it("is deterministic over every scope and field: no field in the registry is refused as unregistered on its own scope", () => {
     for (const f of SULIT_FIELDS) expect(sulitAccess(person, ctx({ scope: f.scope, named: true }), f.field).state, f.field).toBe("GRANTED");
   });

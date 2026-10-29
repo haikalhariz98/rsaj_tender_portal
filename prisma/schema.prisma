@@ -497,6 +497,7 @@ model Organisation {
   securityReleases         SecurityRelease[]
   // Phase 2 close-out stage D: the contractor performance forms and reports.
   performanceForms         PerformanceForm[]
+  performanceFormSeries    PerformanceFormSeries[]
   performanceCriteria      PerformanceCriterion[]
   performanceGradeBands    PerformanceGradeBand[]
   performanceReports       PerformanceReport[]
@@ -12571,6 +12572,16 @@ model PerformanceForm {
   @@unique([organisationId, contractTypeCode, version])
 }
 
+/// The highest version number ever given to a contract type's form, so a discarded draft's number is never given again.
+model PerformanceFormSeries {
+  organisationId   String
+  organisation     Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractTypeCode String
+  lastVersion      Int
+
+  @@id([organisationId, contractTypeCode])
+}
+
 enum PerformanceFormStatus {
   DRAFT
   ISSUED
@@ -12589,6 +12600,7 @@ model PerformanceCriterion {
   /// CHECK > 0. The weights of a form total exactly 1.0000 at issue.
   weight         Decimal         @db.Decimal(9, 4)
 
+  @@unique([formId, sortOrder])
   @@index([formId])
 }
 

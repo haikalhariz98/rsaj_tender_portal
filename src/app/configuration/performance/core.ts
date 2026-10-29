@@ -8,8 +8,8 @@ import { db } from "@/lib/db";
 import { dayToDate } from "@/lib/dates";
 import { CONFIG_TEXT, decimalField } from "@/lib/evaluation/config";
 import { exerciseOrg } from "@/lib/method/repo";
-import { formIssueFaults, SCALE_TOPS } from "@/lib/performance/form";
-import { performanceRefusal } from "@/lib/performance/labels";
+import { formIssueFaults, SCALE_TOPS, weightFromPercent } from "@/lib/performance/form";
+import { performanceFaultText, performanceRefusal, weightText } from "@/lib/performance/labels";
 import { snapshotOfForm, type FormRow } from "@/lib/performance/load";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, staffForPermission, toAuditActor } from "@/app/_auth/actor";
@@ -91,14 +91,14 @@ export async function saveForm(_prev: FormState, data: FormData): Promise<FormSt
   const r = new FormReader(data);
   const v = {
     nameEn: r.text("nameEn", "Name", { required: true, max: 200 }),
-    scaleMax: r.choice("scaleMax", "Scores run from 1 to", SCALES, { required: true }),
-    provenance: r.choice("provenance", "Where this came from", PROVENANCE, { required: true }),
-    source: r.text("source", "Source", { max: 400 }),
+    scaleMax: r.choice("scaleMax", "Score range", SCALES, { required: true }),
+    provenance: r.choice("provenance", "Source", PROVENANCE, { required: true }),
+    source: r.text("source", "Reference", { max: 400 }),
   };
   const typeCode = id ? null : r.text("contractTypeCode", "Contract type", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
   const row = { nameEn: v.nameEn, scaleMax: Number(v.scaleMax), provenance: v.provenance!, source: v.source };
-  const words = (x: typeof row) => ({ form: x.nameEn, scoresFrom1To: x.scaleMax, provenance: x.provenance, source: x.source || null });
+  const words = (x: typeof row) => ({ form: x.nameEn, scoreRange: x.scaleMax, provenance: x.provenance, source: x.source || null });
   if (id) {
     return inDraft(actor, id, async (tx, org, f) => {
       await tx.performanceForm.update({ where: { id: f.id, organisationId: org }, data: row });
@@ -111,7 +111,10 @@ export async function saveForm(_prev: FormState, data: FormData): Promise<FormSt
     const type = await tx.contractType.findFirst({ where: { organisationId: o.id, code: typeCode! }, select: { nameEn: true } });
     if (!type) return { ok: false, errors: { contractTypeCode: "Choose one of the organisation's contract types." } } as FormState;
     const last = await tx.performanceForm.findFirst({ where: { organisationId: o.id, contractTypeCode: typeCode! }, orderBy: { version: "desc" }, select: { version: true } });
-    const version = (last?.version ?? 0) + 1;
+    // The series remembers a discarded draft's number, so it is never given again.
+    const series = await tx.performanceFormSeries.findUnique({ where: { organisationId_contractTypeCode: { organisationId: o.id, contractTypeCode: typeCode! } }, select: { lastVersion: true } });
+    const version = Math.max(series?.lastVersion ?? 0, last?.version ?? 0) + 1;
+    await tx.performanceFormSeries.upsert({ where: { organisationId_contractTypeCode: { organisationId: o.id, contractTypeCode: typeCode! } }, create: { organisationId: o.id, contractTypeCode: typeCode!, lastVersion: version }, update: { lastVersion: version } });
     const f = await tx.performanceForm.create({ data: { organisationId: o.id, contractTypeCode: typeCode!, version, ...row } });
     await audit(tx, toAuditActor(actor), o.id, f.id, formLabel(f), "CREATE", diffFields(null, { ...words(row), contractType: type.nameEn, version, status: "Draft" }));
     await noteDraftMaker(tx, { organisationId: o.id, entity: ENTITY, entityId: f.id, actor });
@@ -214,24 +217,29 @@ export async function saveCriterion(_prev: FormState, data: FormData): Promise<F
   const criterionId = String(data.get("criterionId") ?? "");
   const r = new FormReader(data);
   const v = {
-    sortOrder: r.int("sortOrder", "Order", { required: true, min: 1 }),
+    sortOrder: r.int("sortOrder", "Order", { min: 1 }),
     labelEn: r.text("labelEn", "Criterion", { required: true, max: 300 }),
     guideEn: r.text("guideEn", "How it is scored", { max: 4000 }),
-    weight: dec(r, data, "weight", { min: 0, minExclusive: true, max: 1 }),
+    weight: weightFromPercent(String(data.get("weight") ?? "")),
   };
+  if (v.weight == null) r.reject("weight", "A percentage from 0 to 100, up to two places, such as 25 or 12.5.");
   if (r.failed) return { ok: false, errors: r.errors };
-  const row = { sortOrder: v.sortOrder!, labelEn: v.labelEn, guideEn: v.guideEn, weight: v.weight! };
-  const words = (x: { sortOrder: number; labelEn: string; guideEn: string; weight: { toString(): string } }) => ({ criterion: x.labelEn, order: x.sortOrder, weight: x.weight.toString(), guide: x.guideEn || null });
+  const row = { sortOrder: v.sortOrder, labelEn: v.labelEn, guideEn: v.guideEn, weight: v.weight! };
+  const words = (x: { sortOrder: number; labelEn: string; guideEn: string; weight: { toString(): string } }) => ({ criterion: x.labelEn, order: x.sortOrder, weight: weightText(x.weight), guide: x.guideEn || null });
   return inDraft(actor, formId, async (tx, org, f) => {
     const self = criterionId ? f.criteria.find((c) => c.id === criterionId) : null;
     if (criterionId && !self) return GONE;
     const label = `${formLabel(f)} · ${row.labelEn}`;
+    // The order is the next number unless one is given; two criteria never share one (and the table refuses it too).
+    const sortOrder = row.sortOrder ?? self?.sortOrder ?? Math.max(0, ...f.criteria.map((c) => c.sortOrder)) + 1;
+    if (f.criteria.some((c) => c.id !== self?.id && c.sortOrder === sortOrder)) return { ok: false, errors: { sortOrder: performanceFaultText({ code: "CRITERION_ORDER_REPEATED", level: "block" }) } } as FormState;
+    const data2 = { ...row, sortOrder };
     if (self) {
-      await tx.performanceCriterion.update({ where: { id: self.id, organisationId: org }, data: row });
-      await audit(tx, toAuditActor(actor), org, f.id, label, "UPDATE", diffFields(words(self), words(row)));
+      await tx.performanceCriterion.update({ where: { id: self.id, organisationId: org }, data: data2 });
+      await audit(tx, toAuditActor(actor), org, f.id, label, "UPDATE", diffFields(words(self), words(data2)));
     } else {
-      await tx.performanceCriterion.create({ data: { ...row, organisationId: org, formId: f.id } });
-      await audit(tx, toAuditActor(actor), org, f.id, label, "CREATE", diffFields(null, words(row)));
+      await tx.performanceCriterion.create({ data: { ...data2, organisationId: org, formId: f.id } });
+      await audit(tx, toAuditActor(actor), org, f.id, label, "CREATE", diffFields(null, words(data2)));
     }
     return { ok: true };
   });
@@ -245,7 +253,7 @@ export async function removeCriterion(_prev: FormState, data: FormData): Promise
     const c = f.criteria.find((x) => x.id === criterionId);
     if (!c) return GONE;
     await tx.performanceCriterion.delete({ where: { id: c.id, organisationId: org } });
-    await audit(tx, toAuditActor(actor), org, f.id, `${formLabel(f)} · ${c.labelEn}`, "DELETE", snapshotFields({ criterion: c.labelEn, weight: c.weight.toString() }));
+    await audit(tx, toAuditActor(actor), org, f.id, `${formLabel(f)} · ${c.labelEn}`, "DELETE", snapshotFields({ criterion: c.labelEn, weight: weightText(c.weight) }));
     return { ok: true };
   });
 }

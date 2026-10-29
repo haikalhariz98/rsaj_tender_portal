@@ -30,6 +30,11 @@ export interface OpenFacts {
   dlpApplies: boolean;
   cmgdIssued: boolean;
 }
+/// The opening facts, computed once: the CPC's frozen DLP once it is issued; before it, the award's months (none set reads as none). The row shapes are the close-out rows'.
+export function openFactsOf(rows: { cpc: { certificate: { status: string }; dlpStart: Date | null; dlpEnd: Date | null } | null; cmgd: { certificate: { status: string } } | null }, awardDlpMonths: number | null): OpenFacts {
+  const cpcIssued = rows.cpc?.certificate.status === "ISSUED";
+  return { cpcIssued, dlpApplies: cpcIssued ? !!(rows.cpc!.dlpStart && rows.cpc!.dlpEnd) : (awardDlpMonths ?? 0) > 0, cmgdIssued: rows.cmgd?.certificate.status === "ISSUED" };
+}
 export const reportOpens = (f: OpenFacts): boolean => f.cmgdIssued || (f.cpcIssued && !f.dlpApplies);
 
 /// Why a report may not be opened. `typeName`: the contract type's label, for the form not set by name (ruling 10's FORM_NOT_SET; coded PERFORMANCE_FORM_NOT_SET, as FORM_NOT_SET is a retired certificate code). Null: no type.

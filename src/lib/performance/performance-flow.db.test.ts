@@ -23,7 +23,7 @@ vi.mock("@/app/_auth/act", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
-import { issueForm, saveBand, saveCriterion, saveForm } from "@/app/configuration/performance/actions";
+import { discardForm, issueForm, saveBand, saveCriterion, saveForm } from "@/app/configuration/performance/actions";
 import { assessPerformanceReport, openPerformanceReport, savePerformanceScores, verifyPerformanceReport } from "@/app/projects/[id]/performance-actions";
 import { raisePracticalCompletion } from "@/app/projects/[id]/closeout-actions";
 import { recordCertificateSignature, sendCertificateToSigning } from "@/app/projects/[id]/certificates/[certId]/actions";
@@ -62,21 +62,21 @@ describe("close-out stage D through its acts", () => {
   it("D1: a form is drafted, refused at issue with weights of 0.95, issued at 1.00 by someone who did not make it", async () => {
     expect((await as(o.so, () => saveForm({ ok: false }, form({ contractTypeCode: TYPE, nameEn: "Works performance (test)", scaleMax: "5", provenance: "ASSUMED", source: "" })))).ok).toBe(true);
     formId = (await db.performanceForm.findFirstOrThrow({ where: { organisationId: o.organisationId } })).id;
-    for (const [i, w] of ["0.30", "0.25", "0.20", "0.15", "0.05"].entries()) expect((await as(o.so, () => saveCriterion({ ok: false }, form({ formId, sortOrder: String(i + 1), labelEn: `Criterion ${i + 1}`, guideEn: "", weight: w })))).ok).toBe(true);
+    for (const [i, w] of ["30", "25", "20", "15", "5"].entries()) expect((await as(o.so, () => saveCriterion({ ok: false }, form({ formId, sortOrder: String(i + 1), labelEn: `Criterion ${i + 1}`, guideEn: "", weight: w })))).ok).toBe(true);
     for (const [label, lowerPct] of [["E", "0"], ["D", "40"], ["C", "50"], ["B", "60"], ["A", "80"]]) expect((await as(o.so, () => saveBand({ ok: false }, form({ formId, label, lowerPct })))).ok).toBe(true);
     const maker = await as(o.so, () => issueForm({ ok: false }, form({ id: formId, issuedByPersonId: o.so })));
     expect(maker.ok).toBe(false);
     expect(maker.message).toMatch(/You made this draft/);
     const short = await as(o.other, () => issueForm({ ok: false }, form({ id: formId, issuedByPersonId: o.other })));
     expect(short.ok).toBe(false);
-    expect(short.message).toMatch(/The weights total 0.95, not exactly 1/);
+    expect(short.message).toMatch(/The weights total 95%, not exactly 100%/);
     const last = await db.performanceCriterion.findFirstOrThrow({ where: { formId, sortOrder: 5 } });
-    expect((await as(o.so, () => saveCriterion({ ok: false }, form({ formId, criterionId: last.id, sortOrder: "5", labelEn: "Criterion 5", guideEn: "", weight: "0.10" })))).ok).toBe(true);
+    expect((await as(o.so, () => saveCriterion({ ok: false }, form({ formId, criterionId: last.id, sortOrder: "5", labelEn: "Criterion 5", guideEn: "", weight: "10" })))).ok).toBe(true);
     const ok = await as(o.other, () => issueForm({ ok: false }, form({ id: formId, issuedByPersonId: o.other })));
     expect(ok.ok, ok.message).toBe(true);
     const f = await db.performanceForm.findUniqueOrThrow({ where: { id: formId } });
     expect([f.status, f.issuedByPersonId]).toEqual(["ISSUED", o.other]);
-    const frozen = await as(o.so, () => saveCriterion({ ok: false }, form({ formId, sortOrder: "6", labelEn: "Late", guideEn: "", weight: "0.10" })));
+    const frozen = await as(o.so, () => saveCriterion({ ok: false }, form({ formId, sortOrder: "6", labelEn: "Late", guideEn: "", weight: "10" })));
     expect(frozen.ok).toBe(false);
   });
 
@@ -93,6 +93,35 @@ describe("close-out stage D through its acts", () => {
     expect(early.message).toMatch(/Opens once the certificate of making good defects is issued/);
   });
 
+  it("a contract whose type has no issued form is refused by the type's name", async () => {
+    const code = `pf_lighting_${randomId()}`;
+    await db.contractType.create({ data: { organisationId: o.organisationId, code, nameEn: "Lighting (test)", completionVariant: "STANDARD" } });
+    const k = await activeContract(o, { dueIn: -20, contractTypeCode: code, dlpApplies: false });
+    await practicallyComplete(k);
+    const r = await as(o.so, () => openPerformanceReport({ ok: false }, form({ id: k.contractId })));
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/Lighting \(test\) contracts have no issued performance form/);
+  });
+
+  it("a discarded draft's version is not given again, and two criteria never share an order", async () => {
+    const code = `pf_series_${randomId()}`;
+    await db.contractType.create({ data: { organisationId: o.organisationId, code, nameEn: "Series (test)", completionVariant: "STANDARD" } });
+    const start = () => as(o.so, () => saveForm({ ok: false }, form({ contractTypeCode: code, nameEn: "Series form", scaleMax: "5", provenance: "ASSUMED", source: "" })));
+    expect((await start()).ok).toBe(true);
+    const first = await db.performanceForm.findFirstOrThrow({ where: { organisationId: o.organisationId, contractTypeCode: code } });
+    const added = (order: string) => as(o.so, () => saveCriterion({ ok: false }, form({ formId: first.id, ...(order ? { sortOrder: order } : {}), labelEn: "A criterion", guideEn: "", weight: "50" })));
+    expect((await added("1")).ok).toBe(true);
+    const repeated = await added("1");
+    expect(repeated.ok).toBe(false);
+    expect(repeated.errors?.sortOrder).toMatch(/share an order/);
+    expect((await added("")).ok).toBe(true);
+    expect((await db.performanceCriterion.findMany({ where: { formId: first.id }, orderBy: { sortOrder: "asc" } })).map((c) => c.sortOrder)).toEqual([1, 2]);
+    await expect(db.performanceCriterion.create({ data: { organisationId: o.organisationId, formId: first.id, sortOrder: 2, labelEn: "Twin", weight: "0.1" } })).rejects.toThrow();
+    expect((await as(o.so, () => discardForm({ ok: false }, form({ id: first.id, reason: "Started in error." })))).ok).toBe(true);
+    expect((await start()).ok).toBe(true);
+    expect((await db.performanceForm.findFirstOrThrow({ where: { organisationId: o.organisationId, contractTypeCode: code } })).version).toBe(2);
+  });
+
   it("D2: with no DLP the report opens at the CPC; scored, assessed by the S.O., refused to the assessor, verified by a second person", async () => {
     const k = await activeContract(o, { dueIn: -20, contractTypeCode: TYPE, dlpApplies: false });
     await practicallyComplete(k);
@@ -102,10 +131,14 @@ describe("close-out stage D through its acts", () => {
     expect((await as(o.so, () => openPerformanceReport({ ok: false }, form({ id: k.contractId })))).message).toMatch(/already has its report/);
     const part = await as(o.so, () => savePerformanceScores({ ok: false }, form({ id: k.contractId, score_1: "4", score_2: "3", score_3: "5", score_4: "3" })));
     expect(part.ok, part.message).toBe(true);
+    const orphan = await as(o.so, () => savePerformanceScores({ ok: false }, form({ id: k.contractId, score_1: "4", note_5: "No score yet." })));
+    expect(orphan.errors?.note_5).toMatch(/Choose a score for this note/);
+    const cleared = await as(o.so, () => savePerformanceScores({ ok: false }, form({ id: k.contractId, score_1: "" })));
+    expect(cleared.errors?.score_1).toMatch(/cannot be cleared/);
     const missing = await as(o.so, () => assessPerformanceReport({ ok: false }, form({ id: k.contractId })));
     expect(missing.ok).toBe(false);
     expect(missing.message).toMatch(/Score Criterion 5/);
-    expect((await as(o.so, () => savePerformanceScores({ ok: false }, form({ id: k.contractId, score_5: "3", note_5: "Tidy site." })))).ok).toBe(true);
+    expect((await as(o.so, () => savePerformanceScores({ ok: false }, form({ id: k.contractId, score_1: "4", score_2: "3", score_3: "5", score_4: "3", score_5: "3", note_5: "Tidy site." })))).ok).toBe(true);
     const assessed = await as(o.so, () => assessPerformanceReport({ ok: false }, form({ id: k.contractId })));
     expect(assessed.ok, assessed.message).toBe(true);
     const a = await db.performanceReport.findUniqueOrThrow({ where: { id: report.id } });

@@ -28,17 +28,17 @@ const EMPTY: ChecklistFacts = {
   sulitReadersDecided: false,
   contractorPortalSigning: false,
   awardReturnClassSet: false,
-  contractTypes: { active: 0, withRoute: 0 },
+  contractTypes: { active: 0, withRoute: 0, withForm: 0 },
 };
 const state = (f: Partial<ChecklistFacts>, key: string) => buildChecklist({ ...EMPTY, ...f }).find((i) => i.key === key)!;
 const matrix = (m: Partial<MatrixFact>): MatrixFact => ({ issued: true, effectiveFrom: "2026-01-01", effectiveTo: null, issuedBy: { name: "Aini", at: new Date("2026-02-01") }, offices: ["A"], ...m });
 
 describe("the checklist", () => {
-  it("has the twenty items, the email sender left out until step 7", () => {
+  it("has the twenty-one items, the email sender left out until step 7", () => {
     const items = buildChecklist(EMPTY);
-    expect(items).toHaveLength(20);
+    expect(items).toHaveLength(21);
     expect(items.every((i) => i.state === "todo")).toBe(true);
-    expect(progressOf(items)).toEqual({ done: 0, total: 20 });
+    expect(progressOf(items)).toEqual({ done: 0, total: 21 });
   });
 
   it("organisation: the setup name, or a missing field, is not done", () => {
@@ -116,14 +116,16 @@ describe("the checklist", () => {
     expect(buildChecklist({ ...EMPTY, awardReturnClassSet: true }).some((i) => i.key === "award-return-class")).toBe(false);
     expect(state({ contractorPortalSigning: true }, "award-return-class")).toMatchObject({ state: "todo", section: "contracts-payments", label: "Class for returned award documents" });
     expect(state({ contractorPortalSigning: true, awardReturnClassSet: true }, "award-return-class").state).toBe("done");
-    expect(buildChecklist({ ...EMPTY, contractorPortalSigning: true })).toHaveLength(21);
+    expect(buildChecklist({ ...EMPTY, contractorPortalSigning: true })).toHaveLength(22);
   });
 
   it("how each contract type is paid: done only when every active type has a route; no active type is not done (Wave V V9)", () => {
     expect(state({}, "payment-route")).toMatchObject({ state: "todo", section: "contracts-payments", label: "How each contract type is paid", href: "/configuration/reference-data" });
-    expect(state({ contractTypes: { active: 4, withRoute: 3 } }, "payment-route").state).toBe("todo");
-    expect(state({ contractTypes: { active: 4, withRoute: 4 } }, "payment-route").state).toBe("done");
-    expect(state({ contractTypes: { active: 1, withRoute: 0 } }, "payment-route").state).toBe("todo");
+    expect(state({ contractTypes: { active: 4, withRoute: 3, withForm: 0 } }, "payment-route").state).toBe("todo");
+    expect(state({ contractTypes: { active: 4, withRoute: 4, withForm: 0 } }, "payment-route").state).toBe("done");
+    expect(state({ contractTypes: { active: 1, withRoute: 0, withForm: 0 } }, "payment-route").state).toBe("todo");
+    expect(state({ contractTypes: { active: 4, withRoute: 0, withForm: 3 } }, "performance-forms").state).toBe("todo");
+    expect(state({ contractTypes: { active: 4, withRoute: 0, withForm: 4 } }, "performance-forms").state).toBe("done");
   });
 
   it("go-live: off links to the one-person changes, on does not", () => {

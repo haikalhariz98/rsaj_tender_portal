@@ -23,8 +23,8 @@ const PROVENANCE: Option[] = [
   { value: "ASSUMED", label: "Assumed, to be confirmed" },
 ];
 const sourceFields: Field[] = [
-  { kind: "select", name: "provenance", label: "Where this came from", required: true, placeholder: "Choose", options: PROVENANCE },
-  { kind: "text", name: "source", label: "Source" },
+  { kind: "select", name: "provenance", label: "Source", required: true, placeholder: "Choose", options: PROVENANCE },
+  { kind: "text", name: "source", label: "Reference", hint: "The clause, form or report it comes from." },
 ];
 
 export function FormDrawer({ types, form }: { types: Option[]; form?: { id: string; values: Record<string, string> } }) {
@@ -32,22 +32,22 @@ export function FormDrawer({ types, form }: { types: Option[]; form?: { id: stri
     <RecordEditor
       title={form ? "Edit the form" : "New performance form"}
       description="Each form belongs to one contract type."
-      fields={[hidden("id"), ...(form ? [] : [{ kind: "select", name: "contractTypeCode", label: "Contract type", required: true, placeholder: types.length ? "Choose" : "No contract types", options: types } as Field]), { kind: "text", name: "nameEn", label: "Name", required: true }, { kind: "select", name: "scaleMax", label: "Scores run", required: true, placeholder: "Choose", options: SCALES }, ...sourceFields]}
+      fields={[hidden("id"), ...(form ? [] : [{ kind: "select", name: "contractTypeCode", label: "Contract type", required: true, placeholder: types.length ? "Choose" : "No contract types", options: types } as Field]), { kind: "text", name: "nameEn", label: "Name", required: true }, { kind: "select", name: "scaleMax", label: "Score range", required: true, placeholder: "Choose", options: SCALES }, ...sourceFields]}
       values={form ? { id: form.id, ...form.values } : undefined}
       action={saveForm}
       submitLabel={form ? "Save" : "Create"}
-      trigger={form ? { label: "Edit", className: moreItemClass() } : { label: "New form", className: primary }}
+      trigger={form ? { label: "Edit", className: moreItemClass() } : { label: "New form", icon: true }}
     />
   );
 }
 
-export function CriterionDrawer({ formId, next }: { formId: string; next: number }) {
+export function CriterionDrawer({ formId }: { formId: string }) {
   return (
     <RecordEditor
       title="Add a criterion"
-      description="The weights of a form total exactly 1."
-      fields={[hidden("formId"), { kind: "number", name: "sortOrder", label: "Order", required: true, min: 1 }, { kind: "text", name: "labelEn", label: "Criterion", required: true }, { kind: "text", name: "weight", label: "Weight", required: true, hint: "Up to four places, such as 0.25." }, { kind: "textarea", name: "guideEn", label: "How it is scored" }]}
-      values={{ formId, sortOrder: String(next) }}
+      description="The weights of a form total exactly 100%."
+      fields={[hidden("formId"), { kind: "text", name: "labelEn", label: "Criterion", required: true }, { kind: "text", name: "weight", label: "Weight (%)", required: true, hint: "Such as 25 or 12.5." }, { kind: "textarea", name: "guideEn", label: "How it is scored" }]}
+      values={{ formId }}
       action={saveCriterion}
       submitLabel="Add"
       trigger={{ label: "Add criterion", className: secondary }}
@@ -86,17 +86,17 @@ export function RemoveRowDrawer({ formId, kind, options }: { formId: string; kin
   );
 }
 
-export function IssueFormDrawer({ id, blocker }: { id: string; blocker: string | null }) {
+export function IssueFormDrawer({ id, blocker, twoPerson }: { id: string; blocker: string | null; twoPerson: boolean }) {
   return (
     <RecordEditor
       title="Issue the form"
-      description="Frozen once issued. Reports pin it. Someone who did not make the draft issues it."
+      description={`Frozen once issued. Reports pin it.${twoPerson ? " Someone who did not make the draft issues it." : ""}`}
       fields={[hidden("id"), actorField("PerformanceForm.issuedBy", { name: "issuedByPersonId" })]}
       values={{ id }}
       action={issueForm}
       submitLabel="Issue"
       submitBlock={blocker}
-      trigger={{ label: "Issue", className: primary }}
+      trigger={{ label: "Issue", className: blocker ? secondary : primary }}
       size="sm"
     />
   );

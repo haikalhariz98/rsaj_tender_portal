@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { formatMark, parseFixed } from "@/lib/evaluation/fixed";
 
-import { formIssueFaults, type FormSnapshot } from "./form";
-import { performanceFaultText, totalText } from "./labels";
-import { editFaults, openFaults, performanceFiled, performanceNotFiled, performanceState, reportOpens, verifyFaults } from "./report";
+import { formIssueFaults, weightFromPercent, type FormSnapshot } from "./form";
+import { performanceFaultText, totalText, weightText } from "./labels";
+import { editFaults, openFactsOf, openFaults, performanceFiled, performanceNotFiled, performanceState, reportOpens, verifyFaults } from "./report";
 import { gradeOf, reportTotal, scoreFaults } from "./score";
 
 /**
@@ -30,7 +30,10 @@ describe("formIssueFaults", () => {
   it("refuses 0.11 for the last weight, and 0.95 in all", () => {
     expect(codes(formIssueFaults({ ...form, criteria: criteria.map((c, i) => (i === 4 ? { ...c, weight: "0.1100" } : c)) }))).toEqual(["WEIGHTS_NOT_ONE"]);
     const short = formIssueFaults({ ...form, criteria: criteria.map((c, i) => (i === 4 ? { ...c, weight: "0.0500" } : c)) });
-    expect(performanceFaultText(short[0])).toBe("The weights total 0.95, not exactly 1.");
+    expect(performanceFaultText(short[0])).toBe("The weights total 95%, not exactly 100%.");
+  });
+  it("refuses two criteria with one order", () => {
+    expect(codes(formIssueFaults({ ...form, criteria: criteria.map((c, i) => (i === 4 ? { ...c, order: 1 } : c)) }))).toEqual(["CRITERION_ORDER_REPEATED"]);
   });
   it("refuses no criteria, a scale outside 2 to 10, no grades, grades not from 0, two grades at one score, and a second issued form for the type", () => {
     expect(codes(formIssueFaults({ ...form, criteria: [] }))).toEqual(["NO_CRITERIA"]);
@@ -42,6 +45,19 @@ describe("formIssueFaults", () => {
     expect(codes(formIssueFaults({ ...form, bands: bands.slice(1) }))).toEqual(["BANDS_NOT_FROM_ZERO"]);
     expect(codes(formIssueFaults({ ...form, bands: [...bands, { label: "D2", lowerPct: "40.0000", sortOrder: 6 }] }))).toEqual(["BAND_REPEATED"]);
     expect(codes(formIssueFaults({ ...form, otherIssued: true }))).toEqual(["TYPE_HAS_ISSUED_FORM"]);
+  });
+});
+
+describe("weightFromPercent", () => {
+  it("shows a stored weight as a percentage", () => {
+    expect(weightText("0.3000")).toBe("30%");
+    expect(weightText("0.1250")).toBe("12.5%");
+  });
+  it("holds a percentage as a fraction, to two places", () => {
+    expect(weightFromPercent("25")).toBe("0.2500");
+    expect(weightFromPercent("12.5%")).toBe("0.1250");
+    expect(weightFromPercent("100")).toBe("1.0000");
+    for (const bad of ["0", "101", "12.345", "-5", "abc", ""]) expect(weightFromPercent(bad), bad).toBeNull();
   });
 });
 
@@ -89,6 +105,15 @@ describe("the report's life", () => {
     expect(reportOpens({ ...none, cpcIssued: true })).toBe(false);
     expect(reportOpens({ ...none, cpcIssued: true, cmgdIssued: true })).toBe(true);
     expect(reportOpens({ cpcIssued: true, dlpApplies: false, cmgdIssued: false })).toBe(true);
+  });
+  it("reads the DLP from the issued CPC, and from the award's months before it", () => {
+    const cert = (status: string) => ({ status });
+    const day = new Date();
+    expect(openFactsOf({ cpc: null, cmgd: null }, 12)).toEqual({ cpcIssued: false, dlpApplies: true, cmgdIssued: false });
+    expect(openFactsOf({ cpc: null, cmgd: null }, 0).dlpApplies).toBe(false);
+    expect(openFactsOf({ cpc: null, cmgd: null }, null).dlpApplies).toBe(false);
+    expect(openFactsOf({ cpc: { certificate: cert("ISSUED"), dlpStart: null, dlpEnd: null }, cmgd: null }, 12).dlpApplies).toBe(false);
+    expect(openFactsOf({ cpc: { certificate: cert("ISSUED"), dlpStart: day, dlpEnd: day }, cmgd: { certificate: cert("ISSUED") } }, null)).toEqual({ cpcIssued: true, dlpApplies: true, cmgdIssued: true });
   });
   it("refuses FORM_NOT_SET by name, NOT_YET_OPEN, and a second report", () => {
     const f = openFaults({ cpcIssued: true, dlpApplies: false, cmgdIssued: false, formIssued: false, typeName: "Works", live: false });

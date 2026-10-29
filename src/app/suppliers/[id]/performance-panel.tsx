@@ -17,13 +17,18 @@ import { sulitGate } from "@/app/_auth/sulit";
  * contracts, verified by a second person. The total and the grade are SULIT (supplier scope), read behind the page's gate, and logged when read;
  * the supplier never sees them. Read only while this tab is open.
  */
+/// The newest this many are listed (the tab count says how many are filed); the list has no server-side paging.
+const REPORT_CAP = 200;
+
 export async function PerformancePanel({ actor, supplier }: { actor: StaffActor; supplier: { id: string; reference: string; organisationId: string; timeZone: string | null } }) {
-  const gate: Sulit<true> = await sulitGate(actor, { scope: "supplier", entity: "Supplier", id: supplier.id, label: supplier.reference }, ["scoreTotal", "gradeLabel"]);
   const reports = await db.performanceReport.findMany({
     where: { supplierId: supplier.id, organisationId: supplier.organisationId, verifiedAt: { not: null } },
     include: { contract: { select: { id: true, number: true } } },
     orderBy: { verifiedAt: "desc" },
+    take: REPORT_CAP,
   });
+  // The reading is logged, so it is made only when there is a report to read.
+  const gate: Sulit<true> | null = reports.length ? await sulitGate(actor, { scope: "supplier", entity: "Supplier", id: supplier.id, label: supplier.reference }, ["scoreTotal", "gradeLabel"]) : null;
   const rows: Row[] = reports.map((r) => {
     const snap = formSnapshotOf(r);
     const total = fixedOf(r.scoreTotal);
@@ -32,7 +37,7 @@ export async function PerformancePanel({ actor, supplier }: { actor: StaffActor;
       search: `${r.contract.number} ${snap.name}`,
       cells: {
         contract: { kind: "link", text: r.contract.number, href: `/projects/${r.contract.id}?stage=close-out&tab=closure`, sub: `${snap.name}, version ${snap.version}` },
-        result: sulitCell(gate, () => ({ kind: "text", text: total != null ? `${totalText(total)} · grade ${r.gradeLabel}` : "Not assessed" })),
+        result: sulitCell(gate!, () => ({ kind: "text", text: total != null ? `${totalText(total)} · grade ${r.gradeLabel}` : "Not assessed" })),
         filed: { kind: "text", text: formatOrgDay(r.verifiedAt, supplier.timeZone) },
       },
     };

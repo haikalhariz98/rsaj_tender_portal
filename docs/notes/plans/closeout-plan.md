@@ -650,7 +650,7 @@ No timestamps are named here.
 | `src/lib/closeout/final-account.ts` | `finalPreconditionFaults`, `finalAccountOf`, `finalRouteFaults` | **The 6.13 B5 fixture: final sum 1,115,308.60; less 1,053,875.43; deduct 10,761.00; recommended 50,672.17.** Both `finalPreviousBasis` readings give the same recommended (a property test over 200 seeded histories). At most three OTHER lines. Rounding ±0.99 accepted, ±1.00 refused. FINANCE_TOTAL_DIFFERS. |
 | `src/lib/closeout/closure.ts` | `closureFaults` | Each code alone; the design guarantee bond never blocks; a supply contract is refused SUPPLY_NOT_BUILT. |
 | `src/lib/closeout/next.ts` | `closeoutNext` | One row per line of the table in §3.2 (table-driven). |
-| `src/lib/performance/{form,score}.ts` | `formIssueFaults`, `reportTotal`; grading through `evaluation/bands.ts` | Weights 0.30/0.25/0.20/0.15/0.10 issue clean, and 0.11 refuses. With scale 5, scores 4,3,5,4,3 give **74.0000** (fixture). Grade 39.995 gives E, 40.0000 gives D, 80 gives A (fixture bands, through `placeInBands`). |
+| `src/lib/performance/{form,score}.ts` | `formIssueFaults`, `reportTotal`; grading through `evaluation/bands.ts` | Weights 0.30/0.25/0.20/0.15/0.10 issue clean, and 0.11 refuses. With scale 5, scores 4,3,5,3,3 give **74.0000** (fixture; 4,3,5,4,3 give 77.0000, corrected at the stage D review). Grade 39.995 gives E, 40.0000 gives D, 80 gives A (fixture bands, through `placeInBands`). |
 
 ## 7. Where Phase 2 meets Phase 3 (the work-item engine)
 
@@ -807,6 +807,8 @@ ships as one unit; check `git status` before each schema step.
 
 ### Stage C — Final account and close
 
+> Stage C demo note (stage D review, S1): seed the verified performance report on the demo's closed contract here, through the acts, once a contract can close.
+
 **C1. Schema.** Owns the `closeout_final` migration and the `types.ts` additions. Done when it applies. Tests: CHECK db tests.
 
 **C2. Pure rules.**
@@ -861,7 +863,7 @@ ships as one unit; check `git status` before each schema step.
 - Done when the filed report shows on both, behind SULIT on the supplier.
 
 **D4. Demo, the walk, and handover.**
-- The demo's closed contract carries a verified report.
+- The demo's closed contract carries a verified report. **Moved to stage C's demo** (stage D review, S1): no contract can close before stage C, so stage D does not seed it.
 - Walk every close-out screen at 1280 and 1440.
 - Run the full suite and the text-snapshot diff.
 - Remove the backlog row "Built and tested, not wired" for each rule now called (all except `prelims.ts`). This is a backlog

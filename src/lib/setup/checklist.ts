@@ -40,7 +40,7 @@ export interface ChecklistFacts {
   contractorPortalSigning: boolean;
   awardReturnClassSet: boolean;
   /// Wave V V9: the contract types not retired, and how many of them have a payment route (`ContractType.paymentRoute`).
-  contractTypes: { active: number; withRoute: number };
+  contractTypes: { active: number; withRoute: number; withForm: number };
 }
 
 const filled = (s: string | null) => !!s && s.trim() !== "";
@@ -83,6 +83,7 @@ export function buildChecklist(f: ChecklistFacts): ChecklistItem[] {
     { key: "budget", section: "contracts-payments", kind: "set", label: "Budget check source", href: "/configuration/budget?tab=controls", state: stateOf(f.budgetCheckSet), detail: "Where a requisition's budget is checked (FR-REQ-007)." },
     // No active type is not done: there is nothing yet to say how a contract is paid.
     { key: "payment-route", section: "contracts-payments", kind: "set", label: "How each contract type is paid", href: "/configuration/reference-data", state: stateOf(f.contractTypes.active > 0 && f.contractTypes.withRoute === f.contractTypes.active), detail: "Certified claim, or delivery order and invoice. Invoices are sent online only on a type paid by delivery order and invoice." },
+    { key: "performance-forms", section: "contracts-payments", kind: "set", label: "Performance form per contract type", href: "/configuration/performance", state: stateOf(f.contractTypes.active > 0 && f.contractTypes.withForm === f.contractTypes.active), detail: "A contract cannot start its contractor performance report until its type has an issued form." },
     ...(f.contractorPortalSigning ? [{ key: "award-return-class", section: "contracts-payments" as const, kind: "set" as const, label: "Class for returned award documents", href: "/configuration/documents", state: stateOf(f.awardReturnClassSet), detail: "A SULIT class. Until it is set, a contractor cannot send its signed award return online." }] : []),
     {
       key: "two-person",

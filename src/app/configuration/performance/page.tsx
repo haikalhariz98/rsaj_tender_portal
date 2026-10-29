@@ -16,7 +16,7 @@ import { fixedOf, formatMark } from "@/lib/evaluation/fixed";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 import { formIssueFaults } from "@/lib/performance/form";
-import { FORM_STATUS_WORDS, performanceFaultText } from "@/lib/performance/labels";
+import { FORM_STATUS_WORDS, performanceFaultText, weightText } from "@/lib/performance/labels";
 import { loadForms, snapshotOfForm } from "@/lib/performance/load";
 import { storedDay } from "@/lib/dates";
 import { requireStaff } from "@/app/_auth/actor";
@@ -61,8 +61,8 @@ export default async function PerformanceFormsPage() {
       const otherIssued = forms.some((x) => x.id !== f.id && x.contractTypeCode === f.contractTypeCode && x.status === "ISSUED");
       const faults = draft ? formIssueFaults({ name: f.nameEn, scaleMax: f.scaleMax, criteria: snap.criteria, bands: snap.bands, otherIssued }) : [];
       const maker = draft ? draftIssueFault({ makerPersonIds: (await loadDraftMakers(db, "PerformanceForm", f.id)).personIds, issuerPersonId: actor.personId, twoPersonChanges: twoPerson, eligiblePersonIds: eligible }) : null;
-      const criteria: Row[] = f.criteria.map((c) => ({ id: c.id, search: c.labelEn, cells: { criterion: { kind: "stack", title: `${c.sortOrder}. ${c.labelEn}`, sub: c.guideEn || undefined }, weight: { kind: "text", text: formatMark(fixedOf(c.weight)!, 2) } } }));
-      const grades: Row[] = f.grades.map((b) => ({ id: b.id, search: b.label, cells: { grade: { kind: "text", text: b.label }, from: { kind: "text", text: `${formatMark(fixedOf(b.lowerPct)!, 2)}%` } } }));
+      const criteria: Row[] = f.criteria.map((c) => ({ id: c.id, search: c.labelEn, cells: { criterion: { kind: "stack", title: `${c.sortOrder}. ${c.labelEn}`, sub: c.guideEn || undefined }, weight: { kind: "text", text: weightText(c.weight) } } }));
+      const grades: Row[] = f.grades.map((b) => ({ id: b.id, search: b.label, cells: { grade: { kind: "text", text: b.label }, from: { kind: "text", text: `${formatMark(fixedOf(b.lowerPct)!, 0)}%` } } }));
       const label = `${f.nameEn}, version ${f.version}`;
       return (
         <Card key={f.id} className="overflow-hidden">
@@ -73,9 +73,9 @@ export default async function PerformanceFormsPage() {
             actions={
               <span className="flex items-center gap-2">
                 <HistoryButton entity="PerformanceForm" entityId={f.id} label={label} />
-                {draft && <CriterionDrawer formId={f.id} next={f.criteria.length + 1} />}
+                {draft && <CriterionDrawer formId={f.id} />}
                 {draft && <BandDrawer formId={f.id} />}
-                {draft && <IssueFormDrawer id={f.id} blocker={maker?.en ?? (faults.length ? faults.map(performanceFaultText).join(" ") : null)} />}
+                {draft && <IssueFormDrawer id={f.id} twoPerson={twoPerson} blocker={maker?.en ?? (faults.length ? faults.map(performanceFaultText).join(" ") : null)} />}
                 {(draft || f.status === "ISSUED") && (
                   <MoreActions>
                     {draft && <FormDrawer types={typeOptions} form={{ id: f.id, values: { nameEn: f.nameEn, scaleMax: String(f.scaleMax), provenance: f.provenance, source: f.source } }} />}
@@ -93,7 +93,7 @@ export default async function PerformanceFormsPage() {
               columns={3}
               items={[
                 { label: "Contract type", value: typeName(f.contractTypeCode) },
-                { label: "Scores", value: `1 to ${f.scaleMax}` },
+                { label: "Score range", value: `1 to ${f.scaleMax}` },
                 { label: "Source", value: `${PROVENANCE_WORDS[f.provenance] ?? "Not said"}${f.source ? ` · ${f.source}` : ""}` },
                 ...(f.issuedAt ? [{ label: "Issued", value: formatOrgDay(f.issuedAt, org.timeZone) }] : []),
                 ...(f.retiredOn ? [{ label: "Retired from", value: formatDate(storedDay(f.retiredOn)) }] : []),
@@ -113,13 +113,14 @@ export default async function PerformanceFormsPage() {
       <PageHeader
         title="Performance forms"
         info={{ title: "Performance forms", text: "The contractor performance form of each contract type: what is scored, its weights and its grades. Each type has one issued form, and there is no general form. A report pins the form it was started on." }}
-        actions={<FormDrawer types={typeOptions} />}
+        badge={withoutForm.length > 0 ? <Badge tone="warn" dot>{withoutForm.length === 1 ? "1 type without a form" : `${withoutForm.length} types without a form`}</Badge> : types.length > 0 ? <Badge tone="ok" dot>All set</Badge> : undefined}
+        actions={cards.length ? <FormDrawer types={typeOptions} /> : undefined}
       />
       <div className="flex flex-col gap-6">
-        {withoutForm.length > 0 && <Callout tone="warn" title="Contract types with no issued form">{withoutForm.map((t) => t.nameEn).join(", ")}. Their contracts cannot start a performance report.</Callout>}
+        {withoutForm.length > 0 && cards.length > 0 && <Callout tone="warn" title="Contract types with no issued form">{withoutForm.map((t) => t.nameEn).join(", ")}. Their contracts cannot start a performance report.</Callout>}
         {cards.length ? cards : (
           <Card>
-            <EmptyState title="No performance forms" />
+            <EmptyState title="No performance forms yet" action={<FormDrawer types={typeOptions} />} />
           </Card>
         )}
       </div>
