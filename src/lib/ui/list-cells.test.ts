@@ -42,3 +42,10 @@ describe("cellText and the export columns, as before the move", () => {
     expect(canExport([{ key: "p", label: "P", sulit: true }])).toBe(false);
   });
 });
+
+describe("the select cell's text", () => {
+  it("is the label of the chosen option, so search and the export carry words, not keys", () => {
+    const cell = { kind: "select" as const, name: "to", value: "IN_PROGRESS", label: "Status", options: [{ value: "IN_PROGRESS", label: "In progress" }], action: async () => {}, fields: {} };
+    expect(cellText(cell)).toBe("In progress");
+  });
+});

@@ -51,7 +51,10 @@ export type Cell =
   | { kind: "meter"; percent: number | null; threshold: number | null }
   /// A SULIT value the reader is not entitled to (Phase 3a, `Sulit<T>`): "SULIT · withheld", with the reason in words. It carries no value, so
   /// there is nothing to search, sort or export. Give the row no sort key for the column, or the order would give the value away.
-  | { kind: "withheld"; words: string };
+  | { kind: "withheld"; words: string }
+  /// An inline choice that is an act: picking calls the server action with `fields` plus `name` = the chosen value. The action returns `{ refused }` (the words) to
+  /// refuse, and the cell reverts and says them. With `disabledWhy` the choice is read only: the current label shows, with who can change it in a popover.
+  | { kind: "select"; name: string; value: string; options: { value: string; label: string }[]; label: string; action: (data: FormData) => Promise<{ refused?: string } | void>; fields: Record<string, string>; disabledWhy?: string };
 
 export interface Column {
   key: string;
@@ -147,6 +150,8 @@ export function cellText(cell: Cell | undefined, lang: Language = "en"): string 
       return cell.percent == null ? "" : `${cell.percent}%`;
     case "withheld":
       return "";
+    case "select":
+      return cell.options.find((o) => o.value === cell.value)?.label ?? "";
   }
 }
 

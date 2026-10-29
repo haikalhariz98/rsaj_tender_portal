@@ -25,6 +25,12 @@ export function drawerPanelClass(size: DrawerSize = "md", extra?: string): strin
   return cx("flex h-full max-w-[96vw] flex-col overscroll-contain bg-surface shadow-pop", DRAWER_WIDTH[size], extra);
 }
 
+/// A side panel that is NOT modal: no scrim, so the list or board beside it stays clickable and scrollable (the Work item's panel, 0008). Same widths and shell as a drawer,
+/// pinned to the right edge under the top bar's height by the caller's wrapper. Pair with `DrawerHeader`, and give it `role="complementary"` and a label, not `aria-modal`.
+export function sidePanelClass(size: DrawerSize = "lg", extra?: string): string {
+  return cx("flex h-full max-w-[96vw] flex-col overscroll-contain border-l border-line bg-surface shadow-pop", DRAWER_WIDTH[size], extra);
+}
+
 /// A confirmation with nothing to fill in opens as a small box in the middle, sized to its
 /// words, rather than a full-height panel that is mostly empty (founder, 2026-10-05).
 export const CONFIRM_SCRIM = "fixed inset-0 z-50 flex items-center justify-center overscroll-contain bg-ink/30 p-4 text-left font-normal whitespace-normal backdrop-blur-[2px]";

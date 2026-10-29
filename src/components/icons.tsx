@@ -385,3 +385,18 @@ export const SpinnerIcon = (p: IconProps) => (
     <path d="M21 12a9 9 0 0 0-9-9" />
   </Icon>
 );
+
+export const BoardIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3.5" y="4" width="5" height="16" rx="1.5" />
+    <rect x="10.5" y="4" width="5" height="10" rx="1.5" />
+    <rect x="17.5" y="4" width="3" height="13" rx="1.5" />
+  </Icon>
+);
+
+export const ListIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M9 6h11M9 12h11M9 18h11" />
+    <path d="M4 6h.01M4 12h.01M4 18h.01" />
+  </Icon>
+);

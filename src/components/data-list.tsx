@@ -303,6 +303,8 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
       return <Meter percent={cell.percent} threshold={cell.threshold} />;
     case "withheld":
       return <SulitWithheld words={cell.words} compact />;
+    case "select":
+      return <SelectCell cell={cell} />;
     case "chips":
       return cell.items.length === 0 ? (
         dash
@@ -623,21 +625,7 @@ export function DataList({
           )}
 
           {searchable && server && (
-            <Form action={server.action} className="relative min-w-40 flex-1 sm:max-w-80" role="search">
-              {Object.entries(server.keep ?? {}).map(([name, value]) => (
-                <input key={name} type="hidden" name={name} value={value} />
-              ))}
-              <SearchIcon size={15} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-4" />
-              <input
-                key={server.q ?? ""}
-                type="search"
-                name="q"
-                defaultValue={server.q ?? ""}
-                className={cx(smallControl, "w-full pl-9 outline-none placeholder:text-ink-4 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15")}
-                placeholder={searchPlaceholder ?? say(WORDS.searchPlaceholder)}
-                aria-label={say(WORDS.searchThisList)}
-              />
-            </Form>
+            <ListSearch server={server} placeholder={searchPlaceholder ?? say(WORDS.searchPlaceholder)} />
           )}
           {searchable && !server && (
             <div className="relative min-w-40 flex-1 sm:max-w-80">
@@ -1101,6 +1089,91 @@ export function DataList({
               </button>
             </nav>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/// The server-mode search box: a GET form to the list's own address (name "q"), keeping the hidden inputs. Exported so the Work board draws the same box above its columns.
+export function ListSearch({ server, placeholder }: { server: Pick<ServerMode, "action" | "keep" | "q">; placeholder: string }) {
+  const say = useSay();
+  return (
+    <Form action={server.action} className="relative min-w-40 flex-1 sm:max-w-80" role="search">
+      {Object.entries(server.keep ?? {}).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
+      ))}
+      <SearchIcon size={15} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-4" />
+      <input
+        key={server.q ?? ""}
+        type="search"
+        name="q"
+        defaultValue={server.q ?? ""}
+        className={cx(smallControl, "w-full pl-9 outline-none placeholder:text-ink-4 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15")}
+        placeholder={placeholder}
+        aria-label={say(WORDS.searchThisList)}
+      />
+    </Form>
+  );
+}
+
+/// The "select" cell: an inline choice that calls the caller's action. It shows the pick at once and reverts, saying the refusal, if the action refuses or throws.
+function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }) {
+  const [value, setValue] = useState(cell.value);
+  const [refused, setRefused] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const [seen, setSeen] = useState(cell.value);
+  if (seen !== cell.value) {
+    setSeen(cell.value);
+    setValue(cell.value);
+  }
+  if (cell.disabledWhy) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <span>{cell.options.find((o) => o.value === cell.value)?.label ?? dash}</span>
+        <MoreText text={cell.disabledWhy} label={`Who can change ${cell.label.toLowerCase()}`} />
+      </span>
+    );
+  }
+  return (
+    <div className="min-w-0">
+      <Select
+        variant="chip"
+        aria-label={cell.label}
+        searchable={false}
+        disabled={pending}
+        value={value}
+        onChange={(e) => {
+          const next = e.target.value;
+          const before = value;
+          setValue(next);
+          setRefused(null);
+          const data = new FormData();
+          for (const [k, v] of Object.entries(cell.fields)) data.set(k, v);
+          data.set(cell.name, next);
+          start(async () => {
+            try {
+              const r = await cell.action(data);
+              if (r?.refused) {
+                setValue(before);
+                setRefused(r.refused);
+              }
+            } catch {
+              setValue(before);
+              setRefused("That did not save. Try again.");
+            }
+          });
+        }}
+      >
+        {cell.options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </Select>
+      {refused && (
+        <div role="alert" className="mt-1 break-words text-[12.5px] text-rose-700">
+          {refused}
         </div>
       )}
     </div>
