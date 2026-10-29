@@ -83,6 +83,7 @@ export interface FinalAccount {
   faults: Finding[];
 }
 
+// The form's own definition, not a threshold: FR-FIN-006 "up to three other permitted deductions", the §8 formula "Σ(3 other deductions)" (ruling 6).
 export const MAX_OTHER_FINAL_DEDUCTIONS = 3;
 const sum = (xs: readonly Sen[]) => xs.reduce((a, x) => a + x, 0n);
 const TIER_WORDS = { MAIN: "main contractor", NSC: "nominated sub-contractors", NS: "nominated suppliers" } as const;

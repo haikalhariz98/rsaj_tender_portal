@@ -444,12 +444,16 @@ the guarantee or official receipt numbers of the securities held.
 **Figures (`finalAccountOf`, pure; the 6.13 plan B5 fixture, recommended 50,672.17):**
 - **Final sum** = the original sum plus the net of the issued adjustments (FR-FIN-003). It is never keyed.
 - **Less:** previous interim payments (by the switch), retention released (MAIN, NSC, NS), advance repaid.
+  What each reading deducts (ruling 5 of the stage C review, as built): BEFORE_DEDUCTIONS takes each interim's carry-forward as previous, so the
+  deduct block carries only what no interim took and the advance line is what is not yet recouped; AS_PAID takes each interim's payment as paid, so
+  the deduct block carries every deduction and the advance line is the whole advance. The payment is the same either way.
 - **Deduct:**
   - computed: LAD net of waivers and credits, with the waiver letter's reference;
   - keyed while DRAFT (`addFinalDeduction`, `removeFinalDeduction`, with the kind from a Select): PREMIUMS_PERKESO, WAGES,
     NON_COMPLIANCE, MAKING_GOOD_COST, DIMINUTION, OTHER (at most three), and LAD_ROUNDING (−1.00 < r < 1.00 through
     `lad/rounding.ts`).
-- The split per party uses `payment/waterfall.ts` (FR-FIN-011).
+- The split per party uses `payment/waterfall.ts` (FR-FIN-011), on each live party's keyed total due on the final account (`FinalPartyLine`, ruling 4
+  of the stage C review); PARTY_DUE_NOT_RECORDED names a party with none, NOMINATED_PARTY_NOT_RECORDED a valued tier with no party.
 - `judgedUnder` records every certificate, release, waiver and credit read.
 
 **Before it is sent for approval (`finalRouteFaults`):**
