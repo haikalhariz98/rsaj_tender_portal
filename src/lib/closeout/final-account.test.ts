@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseSen, type Sen } from "@/lib/money";
 
+import { closeoutFaultText, owedByContractor } from "./labels";
 import { finalAcceptanceFaults, finalAccountOf, finalBasisMoved, finalPreconditionFaults, finalRouteFaults, type FinalAccountInput, type FinalInterim, type FinalJudged } from "./final-account";
 
 const rm = (v: string): Sen => parseSen(v);
@@ -124,6 +125,8 @@ describe("finalAccountOf: what the contractor is owed less what it was paid (pro
   }
 });
 
+const fixtureAccount = () => finalAccountOf(fixture);
+
 describe("finalAccountOf: keyed deductions", () => {
   const withKeyed = (keyed: FinalAccountInput["keyed"]) => finalAccountOf({ ...fixture, keyed });
   it("allows three other deductions and refuses a fourth", () => {
@@ -147,6 +150,14 @@ describe("finalAccountOf: keyed deductions", () => {
   it("refuses a payment below nothing, naming the shortfall", () => {
     const r = withKeyed([{ kind: "DIMINUTION", label: "Diminution", amount: rm("60000.00") }]);
     expect(r.faults).toEqual([{ code: "FINAL_NEGATIVE", level: "block", data: { amount: rm("5827.88").toString() } }]);
+  });
+  // Ruling 3 (code review of close-out stage C): the amount owed is shown, never 0, and the contract stays open.
+  it("shows what the contractor owes, 5,827.88, and says the contract stays open", () => {
+    const r = withKeyed([{ kind: "DIMINUTION", label: "Diminution", amount: rm("60000.00") }]);
+    expect(owedByContractor(r.recommended)).toEqual({ label: "Owed by the contractor", value: "RM5,827.88", note: "The contract stays open until recovering an amount the contractor owes is built." });
+    expect(closeoutFaultText(r.faults[0])).toBe("The deductions exceed what is due: the contractor owes RM5,827.88. Recovering it is not built yet, so no final certificate is raised and the contract stays open.");
+    expect(owedByContractor(0n)).toBeNull();
+    expect(owedByContractor(fixtureAccount().recommended)).toBeNull();
   });
 });
 

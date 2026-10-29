@@ -4,7 +4,7 @@
  */
 
 import { formatDate } from "@/lib/format";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, type Sen } from "@/lib/money";
 
 import type { DefectState, Finding } from "./types";
 
@@ -87,7 +87,8 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   ROUNDING_WITHOUT_LAD: () => "There are no damages to round.",
   LAD_ROUNDING_OUT_OF_RANGE: () => "A rounding lies between −RM1.00 and RM1.00.",
   LAD_ROUNDING_BELOW_NOTHING: () => "The rounding would take the damages below nothing.",
-  FINAL_NEGATIVE: (d) => `The deductions exceed what is due by ${d.amount ? formatMoney(BigInt(String(d.amount))) : "an amount"}. Recovering from the contractor is not built: check the deductions.`,
+  // Ruling 3 (code review of close-out stage C): what the contractor owes is said, and that the contract stays open; never a payment of nothing.
+  FINAL_NEGATIVE: (d) => `The deductions exceed what is due: the contractor owes ${d.amount ? formatMoney(BigInt(String(d.amount))) : "an amount"}. Recovering it is not built yet, so no final certificate is raised and the contract stays open.`,
   PACK_INCOMPLETE: (d) => `The pack is missing: ${s(d.items, "documents")}. Add each, or mark it not applicable.`,
   DECLARATION_NOT_TAKEN_UP: () => "The contractor's statutory declaration is not taken up and linked.",
   FINANCE_NOT_CONFIRMED: () => "Finance has not confirmed what it paid on the interim and advance certificates.",
@@ -123,3 +124,10 @@ export const SECURITY_FORM_WORDS: Readonly<Record<string, string>> = { BANK_GUAR
 
 /// "n withdrawn, not made good" (ruling 4), or null where none was.
 export const withdrawnWords = (n: number): string | null => (n > 0 ? `${n} withdrawn, not made good` : null);
+
+/// Ruling 3 (code review of close-out stage C): a final account below nothing is shown as what the contractor owes, never as nothing, with the
+/// contract left open (FINAL_NEGATIVE still refuses the raise). Null where the payment is not below nothing.
+export function owedByContractor(recommended: Sen): { label: string; value: string; note: string } | null {
+  if (recommended >= 0n) return null;
+  return { label: "Owed by the contractor", value: formatMoney(-recommended), note: "The contract stays open until recovering an amount the contractor owes is built." };
+}

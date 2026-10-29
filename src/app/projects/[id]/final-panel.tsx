@@ -4,7 +4,7 @@ import { ActGate } from "@/components/act-gate";
 import { DataList, type Row } from "@/components/data-list";
 import { CheckIcon, ClipboardIcon, FileIcon, ShieldCheckIcon, WalletIcon } from "@/components/icons";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/feedback";
+import { Callout, EmptyState } from "@/components/ui/feedback";
 import { MoreActions } from "@/components/ui/more-actions";
 import { KeyValues } from "@/components/ui/stat";
 import { STATUS_WORDS } from "@/lib/certificate/labels";
@@ -12,7 +12,7 @@ import { withdrawnCount, type FrozenLine } from "@/lib/closeout/defects";
 import { FINAL_BASIS_WORDS } from "@/lib/closeout/final-words";
 import { financePaidOf, loadRequirements, takenUpDeclarations } from "@/lib/closeout/final-load";
 import { finalRaiseCheckOf } from "@/lib/closeout/final-write";
-import { closeoutFaultText, closeoutRefusal, withdrawnWords } from "@/lib/closeout/labels";
+import { closeoutFaultText, closeoutRefusal, owedByContractor, withdrawnWords } from "@/lib/closeout/labels";
 import { survivingOf } from "@/lib/closeout/closure";
 import type { CloseoutView } from "@/lib/closeout/view";
 import { actStatusBlocker } from "@/lib/contract/act-status";
@@ -48,14 +48,18 @@ export async function FinalAccountPanel({ l, v, people, today, hidden }: Props) 
 
   if (!fa) {
     const check = await finalRaiseCheckOf(db, l);
-    const blocker = shut ?? (check.faults.length ? closeoutRefusal("", check.faults) : null);
+    // The account's own refusals too (a payment below nothing), so the raise is not offered where it would refuse.
+    const blocker = shut ?? (check.faults.length ? closeoutRefusal("", check.faults) : check.account?.faults.length ? closeoutRefusal("", check.account.faults) : null);
+    // Ruling 3 (code review of close-out stage C): below nothing, it is what the contractor owes, and the contract stays open.
+    const owed = check.account ? owedByContractor(check.account.recommended) : null;
     return (
       <ActGate blocker={shut}>
         <Card id="figures" className="overflow-hidden">
           <CardHeader icon={<WalletIcon size={17} />} title="Final account" info={{ label: "About the final account", text: "The final contract sum less what was paid before and the deductions. Computed from the contract's issued certificates, never keyed." }} actions={!hidden.includes("SO_ONLY") ? <RaiseFinalDrawer id={id} people={people} blocker={blocker} /> : undefined} />
           {check.account ? (
             <CardBody>
-              <KeyValues columns={2} items={[{ label: "Final contract sum", value: formatMoney(check.account.finalSum) }, { label: "Less", value: formatMoney(check.account.less) }, { label: "Deduct", value: formatMoney(check.account.deduct) }, { label: "Payment recommended", value: formatMoney(check.account.recommended) }]} />
+              <KeyValues columns={2} items={[{ label: "Final contract sum", value: formatMoney(check.account.finalSum) }, { label: "Less", value: formatMoney(check.account.less) }, { label: "Deduct", value: formatMoney(check.account.deduct) }, owed ? { label: owed.label, value: owed.value } : { label: "Payment recommended", value: formatMoney(check.account.recommended) }]} />
+              {owed && <Callout tone="warn" className="mt-4">{owed.note}</Callout>}
             </CardBody>
           ) : (
             <EmptyState size="sm" title="Not raised" />
