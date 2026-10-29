@@ -20,9 +20,11 @@ import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/mo
 import { asCorrected } from "@/lib/payment/correction";
 import { damagesOf, freePending, issuedAdjustmentsOf, issuedAdvances, issuedInterims, waiversToApplyOf, type PaymentRows } from "@/lib/payment/load";
 import { eotClaimState } from "@/lib/time/claim-state";
+import { commencedPending, standsApproved } from "@/lib/variation/application";
+import { factsOf, loadVariations } from "@/lib/variation/load";
 import { claimStateFactsOf } from "@/lib/time/view";
 
-import type { FinalAccountInput, FinalInterim, FinalJudged } from "./final-account";
+import { variationsOpenOf, type FinalAccountInput, type FinalInterim, type FinalJudged } from "./final-account";
 import type { FinalBasis, Finding, KeyedFinalKind } from "./types";
 
 type Baseline = NonNullable<ReturnType<typeof import("@/lib/payment/load").baselineOn>>;
@@ -158,6 +160,21 @@ export async function openWorkOf(tx: Tx, l: LoadedContract, exceptCertificateId:
   const certs = await tx.certificate.findMany({ where: { contractId: l.contract.id, status: { in: ["DRAFT", "IN_ROUTING", "SIGNING"] }, ...(exceptCertificateId ? { id: { not: exceptCertificateId } } : {}) }, select: { kind: true, number: true }, orderBy: [{ openedAt: "asc" }, { id: "asc" }] });
   const inProgress = certs.map((c) => `${KIND_WORDS[c.kind as CertificateKind].en}${c.number ? ` ${c.number}` : " (in progress)"}`);
   return { eotOpen, lossOpen, mattersOpen, inProgress };
+}
+
+/// Ruling 8 (code review of close-out stage C): the contract's variations not on an issued adjustment, named, as `variationsOpenOf` reads them.
+/// A closed variation was never approved (an approved one is not closed), so it is left out; on an issued adjustment means its order is on a
+/// line of an ISSUED Certificate of Adjustment of Contract Sum.
+export async function variationsOpenNow(tx: Tx, contractId: string): Promise<string[]> {
+  const rows = await loadVariations(contractId, tx);
+  return variationsOpenOf(
+    rows
+      .filter((v) => v.status !== "CLOSED")
+      .map((v) => {
+        const f = factsOf(v);
+        return { reference: v.reference ?? "a variation not yet numbered", approved: standsApproved(f), commencedPending: commencedPending(f), adjusted: v.orders.some((o) => o.certificate.status === "ISSUED" && o.adjustmentLines.some((a) => a.sumAdjustment.certificate.status === "ISSUED")) };
+      }),
+  );
 }
 
 /// A STATUTORY_DECLARATION project document of the contract whose latest version is marked TAKEN_UP (FR-FIN-007).

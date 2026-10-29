@@ -35,8 +35,8 @@ import { ladWindowFaults } from "./completion";
 import { defectState, frozenLinesOf, isOpenLine } from "./defects";
 import { closeoutRefusal } from "./labels";
 import { defectFactsOf, liveLadWindows, loadCloseout } from "./load";
-import { finalAcceptanceFaults } from "./final-account";
-import { loadFinal } from "./final-load";
+import { finalAcceptanceFaults, variationsNotAdjusted } from "./final-account";
+import { loadFinal, variationsOpenNow } from "./final-load";
 import { finalMovedFaults } from "./final-write";
 import { cmgdFiguresMoved } from "./making-good";
 import { cmgdFiguresNow } from "./view";
@@ -175,6 +175,9 @@ export async function finalIssueRefusal(tx: Tx, l: LoadedContract, cert: Cert): 
   if (rows.cpc?.certificate.status !== "ISSUED") return closeoutRefusal("Not issued:", [{ code: "CPC_NOT_ISSUED", level: "block" }]);
   // PRACTICALLY_COMPLETE → FINAL_CERTIFICATE_ISSUED only where no defects liability period applies (ADR 0031), judged by this act.
   if (rows.cpc.dlpStart && rows.cmgd?.certificate.status !== "ISSUED") return closeoutRefusal("Not issued:", [{ code: "MAKING_GOOD_NOT_ISSUED_FINAL", level: "block" }]);
+  // Ruling 8: a variation approved (or commenced) since the raise is not in what it read, so it is asked again here, by name.
+  const open = variationsNotAdjusted(await variationsOpenNow(tx, l.contract.id));
+  if (open.length) return closeoutRefusal("Not issued:", open);
   const moved = await finalMovedFaults(tx, l, fa, storedDay(rows.cpc.completionDate));
   if (moved.length) return closeoutRefusal("Not issued:", moved);
   return statusRefusal(tx, l, cert, "FINAL_CERTIFICATE_ISSUED", "FINAL_CERTIFICATE");

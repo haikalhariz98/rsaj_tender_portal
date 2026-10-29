@@ -19,7 +19,7 @@ import { performanceNotFiled } from "@/lib/performance/report";
 
 import { closureFaults, type ClosureFacts } from "./closure";
 import { finalAccountOf, finalBasisMoved, finalPreconditionFaults, finalRouteFaults, type FinalAccount, type FinalJudged } from "./final-account";
-import { declarationTakenUp, finalInputOf, financePaidOf, keyedOf, loadFinal, loadRequirements, openWorkOf, type FinalRow } from "./final-load";
+import { declarationTakenUp, finalInputOf, financePaidOf, keyedOf, loadFinal, loadRequirements, openWorkOf, variationsOpenNow, type FinalRow } from "./final-load";
 import { SECURITY_KIND_WORDS } from "./labels";
 import { loadCloseout, openLineCount, releaseEventsOf } from "./load";
 import type { FinalBasis, Finding } from "./types";
@@ -64,7 +64,7 @@ export async function finalNow(tx: Tx, l: LoadedContract, fa: Pick<FinalRow, "pr
 
 /// What sending the FINAL for approval needs (§4.6; ruling 17), as the contract stands.
 export async function finalRouteFactsOf(tx: Tx, l: LoadedContract, fa: FinalRow, today: string | null) {
-  const [requirements, report, p] = await Promise.all([loadRequirements(l.org.id, today, tx), loadReport(l.contract.id, tx), loadPayment(l.contract.id, tx)]);
+  const [requirements, report, p, variationsOpen] = await Promise.all([loadRequirements(l.org.id, today, tx), loadReport(l.contract.id, tx), loadPayment(l.contract.id, tx), variationsOpenNow(tx, l.contract.id)]);
   const met = new Set(fa.packEntries.map((e) => e.requirementId));
   return {
     pack: requirements.map((r) => ({ label: r.labelEn, met: met.has(r.id) })),
@@ -72,6 +72,7 @@ export async function finalRouteFactsOf(tx: Tx, l: LoadedContract, fa: FinalRow,
     financeConfirmed: fa.financeConfirmedTotal == null ? null : senFromDecimal(fa.financeConfirmedTotal),
     financePaid: financePaidOf(p),
     performance: performanceNotFiled(report),
+    variationsOpen,
   };
 }
 
@@ -158,12 +159,13 @@ export const closeFaultsOf = async (tx: Tx, l: LoadedContract) => closureFaults(
  * no keyed line yet. The act calls it on its locked transaction; the Final account tab calls it to offer the raise or say why not.
  */
 export async function finalRaiseCheckOf(tx: Tx, l: LoadedContract) {
-  const [rows, p, policy, work, parties] = await Promise.all([
+  const [rows, p, policy, work, parties, variationsOpen] = await Promise.all([
     loadCloseout(l.contract.id, tx),
     loadPayment(l.contract.id, tx),
     tx.postAwardPolicy.findUnique({ where: { organisationId: l.org.id }, select: { finalPreviousBasis: true, ladWaiverApplication: true } }),
     openWorkOf(tx, l, null),
     tx.contractParty.findMany({ where: { contractId: l.contract.id }, select: { name: true } }),
+    variationsOpenNow(tx, l.contract.id),
   ]);
   const baseline = finalBaselineOf(l);
   const basis = (policy?.finalPreviousBasis ?? null) as FinalBasis | null;
@@ -185,6 +187,7 @@ export async function finalRaiseCheckOf(tx: Tx, l: LoadedContract) {
     waiversMoved: policy?.ladWaiverApplication ? (r?.moved ?? []).map((m) => String(m.data?.waiver ?? "a waiver")) : [],
     live: rows.final ? { number: rows.final.certificate.number } : null,
     parties: parties.map((x) => x.name),
+    variationsOpen,
   });
   // An interim whose figures do not add up is never read on a guess: it refuses the raise by name.
   const all = [...faults, ...(r?.unreadable ?? [])];

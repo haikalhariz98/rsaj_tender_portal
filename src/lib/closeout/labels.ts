@@ -81,6 +81,7 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   FINAL_BASIS_NOT_SET: () => "What the final account counts as previous payments is not set. See Configuration › Post-award.",
   WAIVER_SETTING_NOT_SET: () => "An approved damages waiver is not applied, and when waivers are applied is not set. See Configuration › Post-award.",
   PARTY_SPLIT_NOT_BUILT: (d) => `What each nominated party or assignee is due on the final account is not recorded yet, so the payment cannot be split (${s(d.items, "the contract's parties")}).`,
+  VARIATIONS_NOT_ADJUSTED: (d) => `The final sum counts only issued adjustments of the contract sum, and nothing adds a variation after the final certificate. Not on an issued adjustment: ${s(d.items, "a variation")}.`,
   NEGATIVE_DEDUCTION: (d) => `${s(d.label, "A deduction")} is below nothing.`,
   TOO_MANY_OTHER_DEDUCTIONS: (d) => `At most ${s(d.max, "three")} other deductions.`,
   ROUNDING_ONCE: () => "The damages are rounded once.",

@@ -168,6 +168,8 @@ export interface FinalPreconditionFacts {
   live: { number: string | null } | null;
   /// Nominated parties and assignees on the contract: what each is due on the final is not recorded, so the split cannot be made.
   parties: readonly string[];
+  /// Ruling 8 (code review of close-out stage C): variations not on an issued adjustment, named (`variationsOpenOf`).
+  variationsOpen: readonly string[];
 }
 
 export function finalPreconditionFaults(f: FinalPreconditionFacts): Finding[] {
@@ -184,8 +186,27 @@ export function finalPreconditionFaults(f: FinalPreconditionFacts): Finding[] {
   if (f.waiversUnapplied > 0 && !f.waiverSetting) b("WAIVER_SETTING_NOT_SET");
   if (f.waiversMoved.length) b("WAIVER_MOVED", { items: f.waiversMoved.join("; ") });
   if (f.parties.length) b("PARTY_SPLIT_NOT_BUILT", { items: f.parties.join("; ") });
+  out.push(...variationsNotAdjusted(f.variationsOpen));
   return out;
 }
+
+/// A variation as the final account reads it (ruling 8): whether it stands approved, is commenced pending a decision, and is on an issued
+/// Certificate of Adjustment of Contract Sum.
+export interface VariationAdjustFact {
+  reference: string;
+  approved: boolean;
+  commencedPending: boolean;
+  adjusted: boolean;
+}
+
+/// Ruling 8 (FR-FIN-003): the final sum is the original sum plus the issued adjustments only, and nothing can add a variation after the final
+/// issues, so each variation approved and not on an issued adjustment, and each commenced and not yet decided, is named, in order.
+export function variationsOpenOf(vs: readonly VariationAdjustFact[]): string[] {
+  return vs.flatMap((v) => (v.approved && !v.adjusted ? [`${v.reference} (approved, not on an issued adjustment)`] : v.commencedPending ? [`${v.reference} (commenced, not yet decided)`] : []));
+}
+
+/// VARIATIONS_NOT_ADJUSTED, naming each, asked at the raise, at the send and at the issue (empty: none).
+export const variationsNotAdjusted = (open: readonly string[]): Finding[] => (open.length ? [{ code: "VARIATIONS_NOT_ADJUSTED", level: "block", data: { items: open.join("; ") } }] : []);
 
 // ------------------------------------------------------------------ before it is sent for approval (§4.6; ruling 17)
 
@@ -198,6 +219,8 @@ export interface FinalRouteFacts {
   financePaid: Sen;
   /// Stage D's `performanceNotFiled` (null: filed).
   performance: Finding | null;
+  /// Ruling 8: variations not on an issued adjustment, read again at the send (`judgedUnder` lists only what the raise read).
+  variationsOpen: readonly string[];
 }
 
 export function finalRouteFaults(f: FinalRouteFacts): Finding[] {
@@ -208,6 +231,7 @@ export function finalRouteFaults(f: FinalRouteFacts): Finding[] {
   if (f.financeConfirmed == null) out.push({ code: "FINANCE_NOT_CONFIRMED", level: "block" });
   else if (f.financeConfirmed !== f.financePaid) out.push({ code: "FINANCE_TOTAL_DIFFERS", level: "block", data: { confirmed: f.financeConfirmed.toString(), computed: f.financePaid.toString() } });
   if (f.performance) out.push(f.performance);
+  out.push(...variationsNotAdjusted(f.variationsOpen));
   return out;
 }
 

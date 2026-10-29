@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseSen, type Sen } from "@/lib/money";
 
 import { closeoutFaultText, owedByContractor } from "./labels";
+import { variationsNotAdjusted, variationsOpenOf } from "./final-account";
 import { finalAcceptanceFaults, finalAccountOf, finalBasisMoved, finalPreconditionFaults, finalRouteFaults, type FinalAccountInput, type FinalInterim, type FinalJudged } from "./final-account";
 
 const rm = (v: string): Sen => parseSen(v);
@@ -162,7 +163,7 @@ describe("finalAccountOf: keyed deductions", () => {
 });
 
 describe("finalPreconditionFaults (§4.6)", () => {
-  const ready = { cpcIssued: true, dlpApplies: true, cmgdIssued: true, inProgress: [], valuationOpen: false, eotOpen: [], lossExpenseOpen: [], basis: "AS_PAID" as const, waiversUnapplied: 0, waiverSetting: null, waiversMoved: [], live: null, parties: [] };
+  const ready = { cpcIssued: true, dlpApplies: true, cmgdIssued: true, inProgress: [], valuationOpen: false, eotOpen: [], lossExpenseOpen: [], basis: "AS_PAID" as const, waiversUnapplied: 0, waiverSetting: null, waiversMoved: [], live: null, parties: [], variationsOpen: [] };
   const codes = (o: Partial<typeof ready> | Record<string, unknown>) => finalPreconditionFaults({ ...ready, ...o } as never).map((f) => f.code);
   it("passes when everything is done", () => expect(codes({})).toEqual([]));
   it.each([
@@ -177,6 +178,7 @@ describe("finalPreconditionFaults (§4.6)", () => {
     [{ waiversMoved: ["LW/1"] }, "WAIVER_MOVED"],
     [{ live: { number: null } }, "FINAL_LIVE"],
     [{ parties: ["Syarikat NSC"] }, "PARTY_SPLIT_NOT_BUILT"],
+    [{ variationsOpen: ["VO/3 (approved, not on an issued adjustment)"] }, "VARIATIONS_NOT_ADJUSTED"],
   ])("refuses %o alone", (o, code) => expect(codes(o)).toEqual([code]));
   it("needs no CMGD where no defects liability period applies, and a set switch once waivers wait", () => {
     expect(codes({ dlpApplies: false, cmgdIssued: false })).toEqual([]);
@@ -185,7 +187,7 @@ describe("finalPreconditionFaults (§4.6)", () => {
 });
 
 describe("finalRouteFaults (§4.6, ruling 17)", () => {
-  const ready = { pack: [{ label: "As-built drawings", met: true }], declarationTakenUp: true, financeConfirmed: 500n, financePaid: 500n, performance: null };
+  const ready = { pack: [{ label: "As-built drawings", met: true }], declarationTakenUp: true, financeConfirmed: 500n, financePaid: 500n, performance: null, variationsOpen: [] };
   const codes = (o: Record<string, unknown>) => finalRouteFaults({ ...ready, ...o } as never).map((f) => f.code);
   it("passes when everything is in", () => expect(codes({})).toEqual([]));
   it("refuses each, alone", () => {
@@ -193,6 +195,8 @@ describe("finalRouteFaults (§4.6, ruling 17)", () => {
     expect(codes({ declarationTakenUp: false })).toEqual(["DECLARATION_NOT_TAKEN_UP"]);
     expect(codes({ financeConfirmed: null })).toEqual(["FINANCE_NOT_CONFIRMED"]);
     expect(codes({ performance: { code: "PERFORMANCE_NOT_FILED", level: "block" } })).toEqual(["PERFORMANCE_NOT_FILED"]);
+    // Ruling 8: asked again at the send (a variation approved after the raise is not in what the raise read).
+    expect(codes({ variationsOpen: ["VO/4 (approved, not on an issued adjustment)"] })).toEqual(["VARIATIONS_NOT_ADJUSTED"]);
   });
   it("FINANCE_TOTAL_DIFFERS names both totals, by one sen", () => {
     expect(finalRouteFaults({ ...ready, financeConfirmed: 501n })).toEqual([{ code: "FINANCE_TOTAL_DIFFERS", level: "block", data: { confirmed: "501", computed: "500" } }]);
@@ -216,5 +220,18 @@ describe("finalAcceptanceFaults", () => {
   it("is quiet on a signed contractor block, and on a refusal by any other block", () => {
     expect(finalAcceptanceFaults([sig({})])).toEqual([]);
     expect(finalAcceptanceFaults([sig({ blockKind: "WITNESS", refused: true })])).toEqual([]);
+  });
+});
+
+// Close-out stage C review, ruling 8 (FR-FIN-003): the final sum counts only issued adjustments, so a variation not on one refuses, by name.
+describe("variationsOpenOf", () => {
+  const v = (reference: string, o: Partial<{ approved: boolean; commencedPending: boolean; adjusted: boolean }>) => ({ reference, approved: false, commencedPending: false, adjusted: false, ...o });
+  it("names each variation approved and not on an issued adjustment, and each commenced and not yet decided, in order", () => {
+    const open = variationsOpenOf([v("VO/1", { approved: true, adjusted: true }), v("VO/2", { approved: true }), v("VO/3", { commencedPending: true }), v("VO/4", {})]);
+    expect(open).toEqual(["VO/2 (approved, not on an issued adjustment)", "VO/3 (commenced, not yet decided)"]);
+    expect(variationsNotAdjusted(open)).toEqual([{ code: "VARIATIONS_NOT_ADJUSTED", level: "block", data: { items: "VO/2 (approved, not on an issued adjustment); VO/3 (commenced, not yet decided)" } }]);
+  });
+  it("is quiet when every approved variation is on an issued adjustment and none is commenced pending", () => {
+    expect(variationsNotAdjusted(variationsOpenOf([v("VO/1", { approved: true, adjusted: true }), v("VO/2", {})]))).toEqual([]);
   });
 });
