@@ -623,3 +623,9 @@ Step 4 (`e8854a03`) and step 2 (`02d34575`, `25ecb3c5`) were built ahead of step
   which some browsers may treat as cancelling the drag; the MoreActions menu now sits in the top layer (check its placement on
   the Board and on every existing screen that uses it); SidePanel confirms before discarding a comment only when the caller wires
   `useRequestClose(onClose)` into `DrawerHeader`.
+- **From step 1 (`8e37c02b`), for step 3:** status and `closedAt` change in the same UPDATE (else `23514 WorkItem_closed_at`);
+  Cancel writes a non-blank `cancelReason` in that write. Every write asks the `WORK_ITEM` act-status row under
+  `withLockedContract`. Remove the three `NOT_BUILT` entries in `act-wiring-scan.test.ts` when the slots are wired.
+  `withLockedOwner` returns null for `workItem`, so the acts attach files themselves (`STAGED_FOR_WORK_ITEM`, `workItemFacts`,
+  `workItemLabel`). `workNoticeDrafts` returns `NoticeDraft[]`. The acts must never change an item's `type` or `contractId` (no
+  trigger holds them). Open: a work item's file is not protected from version withdrawal as PA047 protects project files.
