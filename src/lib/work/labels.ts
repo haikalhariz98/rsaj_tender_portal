@@ -131,7 +131,7 @@ export function latenessWords(l: Lateness): string | null {
   return l.state === "LATE" ? `${l.days} ${l.days === 1 ? "day" : "days"} late` : null;
 }
 
-/// The people a who-can sentence names, resolved by the caller. `lead` is W-4's office: its configured label ("S.O.") and the names of those in it today.
+/// The people a who-can sentence names, resolved by the caller (`assignee` the raiser's own name when they hold the item). `lead` is W-4's office: its configured label ("S.O.") and the names of those in it today.
 export interface WhoNames {
   raiser: string;
   assignee: string | null;
@@ -143,7 +143,8 @@ export function whoCanWords(action: WorkAction | "EDIT", who: WhoNames): Words {
   // An appositive ("Hafiz, who raised it") closes with a comma before "can".
   const raiser = { text: `${who.raiser}, who raised it`, appositive: true };
   const lead = who.lead && who.lead.names.length > 0 ? { text: `the ${who.lead.roleLabel} (${who.lead.names.join(", ")})`, appositive: false } : null;
-  const assignee = who.assignee ? { text: `${who.assignee}, the assignee`, appositive: true } : null;
+  // The raiser who holds their own item is named once, as the raiser.
+  const assignee = who.assignee && who.assignee !== who.raiser ? { text: `${who.assignee}, the assignee`, appositive: true } : null;
   const people = action === "SEND_FOR_REVIEW" ? [assignee] : action === "START" || action === "EDIT" ? [assignee, raiser, lead] : [raiser, lead];
   const named = people.filter((p) => p !== null);
   const verb = ACTION_VERB[action];

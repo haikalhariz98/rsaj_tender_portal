@@ -1,7 +1,8 @@
 /**
  * Forty items on one contract, for the views' and the board's tests, and for step 3's store test to seed so `workWhere` is run against a database and
  * compared with `inView` (plan §3.4). Every view, filter and sort key is hit: every type and status, late and not, no due date, unassigned, the reader's own,
- * failed inspections open and closed, and ties on due day and priority. Deterministic: no clock.
+ * failed inspections open and closed, and ties on due day and priority. Deterministic: no clock. Each row keeps the §3.1 CHECKs it can see (an RFI or SI
+ * has a due day); step 3's seed adds what `BoardItem` does not carry: a safety incident's severity and time, and a cancelled row's reason.
  */
 
 import type { BoardItem } from "./board";
@@ -28,7 +29,7 @@ export const FIXTURE_ITEMS: BoardItem[] = Array.from({ length: 40 }, (_, i) => {
     status,
     raisedBy: i % 3 === 0 ? "hafiz" : "nurul",
     assignee: ASSIGNEES[i % 4],
-    dueOn: DUES[i % 6],
+    dueOn: DUES[i % 6] ?? (type === "RFI" || type === "SITE_INSTRUCTION" ? "2026-11-20" : null),
     answer: type === "RFI" && i % 2 === 0 ? "150 c/c governs" : "",
     inspectionResult: type === "INSPECTION" ? RESULTS[i % 3] : null,
     title: `${TITLES[i % 5]} ${i}`,

@@ -33,9 +33,10 @@ function resolve(from: string, spec: string): string | null {
 }
 
 /// The run-time import closure of a file: the files it reaches, and the packages named on the way.
-function closure(entry: string): { files: Set<string>; packages: Set<string> } {
+function closure(entry: string): { files: Set<string>; packages: Set<string>; unresolved: string[] } {
   const files = new Set<string>();
   const packages = new Set<string>();
+  const unresolved: string[] = [];
   const walk = (f: string) => {
     if (files.has(f)) return;
     files.add(f);
@@ -44,10 +45,11 @@ function closure(entry: string): { files: Set<string>; packages: Set<string> } {
       const r = resolve(f, spec);
       if (r) walk(r);
       else if (!spec.startsWith(".") && !spec.startsWith("@/")) packages.add(spec);
+      else unresolved.push(`${path.relative(ROOT, f)}: ${spec}`);
     }
   };
   walk(entry);
-  return { files, packages };
+  return { files, packages, unresolved };
 }
 
 const modules = readdirSync(HERE).filter((n) => /\.ts$/.test(n) && !/\.test\.ts$/.test(n) && !ALLOWED.has(n));
@@ -58,7 +60,9 @@ describe("src/lib/work is pure", () => {
   });
 
   it.each(modules)("%s reaches no database, Next or generated client, directly or not", (name) => {
-    const { files, packages } = closure(path.join(HERE, name));
+    const { files, packages, unresolved } = closure(path.join(HERE, name));
+    // An import the scan cannot follow is a hole in it, not a pass.
+    expect(unresolved).toEqual([]);
     expect([...files].filter((f) => FORBIDDEN_FILES.includes(f) || f.includes(`${path.sep}generated${path.sep}`))).toEqual([]);
     expect([...packages].filter((p) => FORBIDDEN_PACKAGES.test(p))).toEqual([]);
   });

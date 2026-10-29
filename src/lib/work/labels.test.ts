@@ -71,6 +71,9 @@ describe("who can", () => {
     expect(whoCanWords("REOPEN", { ...who, lead: null }).en).toBe("Only Hafiz, who raised it, can reopen this.");
     expect(whoCanWords("CANCEL", { ...who, lead: { roleLabel: "Superintending Officer", names: ["Nurul", "Faiz"] } }).en).toBe("Hafiz, who raised it, or the Superintending Officer (Nurul, Faiz) can cancel this.");
     expect(whoCanWords("SEND_FOR_REVIEW", { ...who, assignee: null }).en).toBe("Nobody can send this for review now.");
+    // The raiser who holds the item is named once.
+    expect(whoCanWords("START", { ...who, assignee: "Hafiz" }).en).toBe("Hafiz, who raised it, or the S.O. (Nurul) can start this.");
+    expect(whoCanWords("EDIT", { ...who, assignee: "Hafiz", lead: null }).en).toBe("Only Hafiz, who raised it, can edit this.");
     // An office with nobody in it today is no lead.
     expect(whoCanWords("MARK_DONE", { ...who, lead: { roleLabel: "S.O.", names: [] } }).en).toBe("Only Hafiz, who raised it, can mark this done.");
   });
