@@ -575,3 +575,27 @@ OQ-7 to OQ-10 also take the defaults. Every open question is closed; WS-10 stays
   files are staged outside it (W-8), as ADR 0042 D8 requires.
 - **The board's drag on Windows browsers.** HTML5 drag and drop has no keyboard path, so the status-menu button is the
   accessible route, and the test drives it.
+
+## 11. Handoff from steps 2 and 4 (built early, 2026-10-29)
+
+Step 4 (`e8854a03`) and step 2 (`02d34575`, `25ecb3c5`) were built ahead of step 1. Steps 1, 3 and 5 must match:
+
+- **Enums:** the values and declaration order of `src/lib/work/types.ts` (`WORK_ORDER_BY` relies on `type asc` following
+  `WORK_ITEM_TYPES` and `priority desc` with LOW < NORMAL < HIGH < URGENT).
+- **Column and form-field names** used by `workWhere`, `FieldEdit` and `FIELD_WORDS`: `type`, `number`, `status`, `title`,
+  `description`, `priority`, `dueOn`, `location`, `assigneePersonId`, `answer`, `impact`, `inspectionResult`, `severity`,
+  `happenedAt`, `fromDocumentId`, `cancelReason`.
+- **Done window:** the schema has no closed day. Step 1 adds `closedAt`, or step 3 uses the organisation's day of `updatedAt`.
+- **Length CHECKs** use `char_length` (bounds count code points).
+- **Notice titles:** `kinds.ts` labels match `NOTICE_TITLE_WORDS`; `notices.ts` then drops its own kind type.
+- **`MOVED_ALREADY.by`** is a display name from the audit row, not a Person id.
+- **Activity** expects audit entities `WorkItem`, `WorkItemLink`, `DocumentAttachment` (the label-prefix query).
+- **A safety incident with no time zone** is refused today as HAPPENED_AT_NEEDED, which is the wrong wording: add a time-zone
+  fault or refuse first with time-zone words.
+- **`happenedAt` in the audit** is written as an ISO string (`renderValue` cuts a `Date` to its UTC day); Activity shows it in
+  the organisation's time zone.
+- **`moveFaults`** takes a fifth argument, `MoveContext { contractOpen, reason?, comment?, lastMove? }`.
+- **Shared pieces:** the `select` cell, Board `move` and Composer actions return `{ refused?: string } | void`; step 3's actions
+  return refusal words rather than throw. The Board takes `cardMoves(...)` output per card. `LinkIcon` serves as the chain icon.
+- **Still to check on screen (step 5/6):** Board Enter-to-open, arrow keys, outside-click closing its menu, and the text-snapshot
+  diff of existing lists (step 4's Done-when, not run: no sign-in).
