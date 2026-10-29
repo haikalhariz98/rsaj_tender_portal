@@ -51,7 +51,7 @@ Tailwind utilities.
   (`src/components/tabs.tsx`) is the only tab strip; `DataList` is the only list.
   Also: `Card`/`CardHeader`/`CardBody`, `Badge`/`Chip`/`Dot`, `Button`/`ButtonLink`/
   `IconButton`, `Stat`/`KeyValues`, `Callout`/`EmptyState`/`Meter`, `Field`/`Input`/
-  `Select`, `Avatar`. If a screen needs something they cannot do, extend the shared
+  `Select`, `Avatar`, `Skeleton` (grey loading shapes, never a "Loading…" line). If a screen needs something they cannot do, extend the shared
   component — a one-off variant is how two screens stop matching.
 - **Check a change against its siblings before calling it done.** A screen is not
   finished when it looks right alone; open the neighbouring screens in the same area

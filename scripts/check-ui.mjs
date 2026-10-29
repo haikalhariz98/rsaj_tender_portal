@@ -82,6 +82,12 @@ for (const file of MIGRATED.flatMap(files).filter((f) => /\.tsx?$/.test(f))) {
       if (/<Option\b/.test(line)) problems.push(`${file}:${i + 1}  <Option> in a server component reaches Select empty — write <option>`);
     });
   }
+  // A bare "Loading…" line is a placeholder that jumps; use Skeleton (src/components/ui/skeleton.tsx).
+  if (/\.tsx$/.test(file)) {
+    lines.forEach((line, i) => {
+      if (/>\s*Loading(…|\.\.\.)\s*</.test(line) || /^\s*Loading(…|\.\.\.)\s*$/.test(line)) problems.push(`${file}:${i + 1}  bare "Loading…" text — use a Skeleton`);
+    });
+  }
   lines.forEach((line, i) => {
     for (const cls of FORBIDDEN) {
       if (new RegExp(`className=[{"'\`][^>]*\\b${cls}(__|--|\\b)`).test(line)) {
