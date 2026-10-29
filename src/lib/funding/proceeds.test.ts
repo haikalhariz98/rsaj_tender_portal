@@ -62,6 +62,24 @@ describe("contractFigures (FS-8)", () => {
     expect([f.committed, f.certified, f.paid, f.certifiedPartial]).toEqual([10_000_000n, 5_950_000n, 5_950_000n, false]);
   });
 
+  // Close-out stage C (flagged, stricter): the final certificate's payment recommended now counts as certified, once, beside the interims'.
+  it("the final certificate's payment is certified too", () => {
+    const lines = (o: Record<string, string>) => ({ figures: { totals: Object.entries(o).map(([key, value]) => ({ key, value })) } });
+    const m = contractMoney(
+      {
+        id: "k2", number: "C/2", status: "FINAL_CERTIFICATE_ISSUED", contractSum: new Prisma.Decimal("100000.00"),
+        award: { awardeeName: "Tank Sdn Bhd", exercise: { contractTypeCode: null, requisition: { fundingSourceId: "sukuk" } } },
+        fundingAllocations: [], sumAdjustments: [], supplyInvoicePayments: [],
+        certificates: [
+          { kind: "INTERIM_PAYMENT", number: "IPC 1", sequence: 1, issueSnapshot: lines({ recommended: "90000.00" }), financePayment: null },
+          { kind: "FINAL", number: "FC 1", sequence: null, issueSnapshot: lines({ recommended: "9500.00" }), financePayment: null },
+        ],
+      } as unknown as Parameters<typeof contractMoney>[0],
+      false,
+    );
+    expect(m.certified).toEqual({ ok: true, sen: 9_950_000n });
+  });
+
   it("a terminated contract commits its certified figure plus the retention still held on its latest interim (amendment 15)", () => {
     const f = figures(money({ status: "TERMINATED", adjustments: adj(9_999n), certified: { ok: true, sen: 40_000n }, retentionHeld: { ok: true, sen: 4_000n } }));
     expect(f.committed).toBe(44_000n);

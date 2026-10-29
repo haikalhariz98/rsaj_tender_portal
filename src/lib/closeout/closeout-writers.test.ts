@@ -8,14 +8,15 @@ import { lex, rawCallText, rawCalls, spans } from "@/lib/scan/source";
 
 /**
  * Phase 2 close-out stage B (plan closeout-plan.md §6.2, single-writer scans): each new table has its named writers, file#function, and no other
- * code writes it. The retention release keeps its one writer here (stage C adds the final certificate's payment). As run1b-writers.test.ts:
+ * code writes it. The retention release has its second writer, the final certificate's payment (stage C, CO-6). As run1b-writers.test.ts:
  * a delegate write, a nested relation write, and raw SQL that inserts into, updates or deletes from one of these tables (a lock is a read).
  */
 
 const ROOT = path.join(__dirname, "../../..");
 const schema = readFileSync(path.join(ROOT, "prisma/schema.prisma"), "utf8");
 // Stage D adds the performance forms and reports (plan §6.2: each new table has one named writer file).
-const MODELS = ["PracticalCompletion", "DefectItem", "DefectEvent", "DefectSchedule", "MakingGood", "SecurityRelease", "RetentionRelease", "PerformanceForm", "PerformanceCriterion", "PerformanceGradeBand", "PerformanceReport", "PerformanceScore"] as const;
+// Stage C adds the final account, its lines and pack, the close-out documents and the close.
+const MODELS = ["PracticalCompletion", "DefectItem", "DefectEvent", "DefectSchedule", "MakingGood", "SecurityRelease", "RetentionRelease", "PerformanceForm", "PerformanceCriterion", "PerformanceGradeBand", "PerformanceReport", "PerformanceScore", "FinalAccount", "FinalAccountLine", "FinalPackEntry", "CloseoutDocumentRequirement", "ContractClosure"] as const;
 type Model = (typeof MODELS)[number];
 
 const ACTS = "src/app/projects/[id]/closeout-actions.ts";
@@ -24,6 +25,7 @@ const PORTAL = "src/lib/portal/projects/defect-store.ts";
 const CONFIG = "src/app/configuration/performance/core.ts";
 const PERF = "src/app/projects/[id]/performance-actions.ts";
 const DEMO = "prisma/demo-closeout.ts";
+const FINAL = "src/app/projects/[id]/final-actions.ts";
 const WRITERS: Readonly<Record<Model, readonly string[]>> = {
   PracticalCompletion: [`${ACTS}#raisePracticalCompletion`, `${AT_ISSUE}#cpcAtIssue`],
   DefectItem: [`${ACTS}#addCpcDefect`, `${ACTS}#removeCpcDefect`, `${ACTS}#reportDefect`],
@@ -31,12 +33,19 @@ const WRITERS: Readonly<Record<Model, readonly string[]>> = {
   DefectSchedule: [`${ACTS}#raiseDefectSchedule`, `${AT_ISSUE}#scheduleAtIssue`],
   MakingGood: [`${ACTS}#raiseMakingGood`, `${AT_ISSUE}#cmgdAtIssue`],
   SecurityRelease: [`${ACTS}#returnSecurity`],
-  RetentionRelease: ["src/app/projects/[id]/payment-actions.ts#releaseRetention"],
+  // Stage C (flagged, as the plan says): Finance's payment of the FINAL writes the balance under FINAL_PAYMENT, in its transaction.
+  RetentionRelease: ["src/app/projects/[id]/payment-actions.ts#releaseRetention", "src/lib/closeout/final-write.ts#afterFinalPayment"],
   PerformanceForm: [`${CONFIG}#saveForm`, `${CONFIG}#discardForm`, `${CONFIG}#retireForm`, `${CONFIG}#issueForm`, `${DEMO}#configure`],
   PerformanceCriterion: [`${CONFIG}#saveCriterion`, `${CONFIG}#removeCriterion`, `${DEMO}#configure`],
   PerformanceGradeBand: [`${CONFIG}#saveBand`, `${CONFIG}#removeBand`, `${DEMO}#configure`],
   PerformanceReport: [`${PERF}#openPerformanceReport`, `${PERF}#assessPerformanceReport`, `${PERF}#verifyPerformanceReport`],
   PerformanceScore: [`${PERF}#savePerformanceScores`],
+  FinalAccount: [`${FINAL}#raiseFinalAccount`, `${FINAL}#recompute`, `${FINAL}#linkDeclaration`, `${FINAL}#confirmFinalPayments`],
+  FinalAccountLine: [`${FINAL}#raiseFinalAccount`, `${FINAL}#addFinalDeduction`, `${FINAL}#removeFinalDeduction`],
+  FinalPackEntry: [`${FINAL}#recordPackEntry`],
+  // Retired through `retireContractRow`'s generic handle (read by its own list, not this scan); the RSAJ pack's rows are written by its loader.
+  CloseoutDocumentRequirement: ["src/app/configuration/contracts/core.ts#saveCloseoutDocument"],
+  ContractClosure: [`${FINAL}#closeContract`],
 };
 
 const delegateOf = (m: string) => m[0].toLowerCase() + m.slice(1);

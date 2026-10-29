@@ -21,8 +21,9 @@ export function financeFaults(i: { issued: boolean; already: boolean; batchNo: s
   return out;
 }
 
-/// The figure Finance pays on a certificate kind, from its issued figures (null: none).
-export const PAID_FIGURE: Readonly<Record<string, string>> = { INTERIM_PAYMENT: "recommended", ADVANCE_PAYMENT: "advanceAmount" };
+/// The figure Finance pays on a certificate kind, from its issued figures (null: none). Phase 2 close-out stage C: the final certificate's
+/// payment recommended (plan §4.6), so Use of proceeds' "certified" counts the final payment too.
+export const PAID_FIGURE: Readonly<Record<string, string>> = { INTERIM_PAYMENT: "recommended", ADVANCE_PAYMENT: "advanceAmount", FINAL: "recommended" };
 
 /// A figure frozen in an issue snapshot, by key, from its lines or its totals (null: not there).
 export function snapshotFigure(issueSnapshot: unknown, key: string): string | null {

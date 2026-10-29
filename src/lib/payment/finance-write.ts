@@ -7,6 +7,7 @@
 import { diffFields } from "@/lib/audit/diff";
 import type { ActWriter } from "@/lib/auth/act-writer";
 import { writeAudit } from "@/lib/audit/record";
+import { afterFinalPayment } from "@/lib/closeout/final-write";
 import { certificateLabel } from "@/lib/certificate/repo";
 import { CertificateRefusal, type CertCtx } from "@/lib/certificate/write";
 import { dayToDate, storedDay } from "@/lib/dates";
@@ -32,6 +33,8 @@ export async function recordFinancePayment(c: CertCtx, i: { batchNo: string; pai
   await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "FinancePayment", entityId: row.id, entityLabel: `${certificateLabel(c.l, cert)} · paid by Finance`, reason: "" }, "CREATE",
     diffFields(null, { batchNo: i.batchNo.trim(), paidOn: i.paidOn, amountPaid: amount, recordedFor: person.name, note: i.note.trim() || null }));
   await i.act.write(c.tx, row.id);
+  // Close-out stage C (CO-6, flagged): the FINAL's payment writes the retention balance where its event is the final payment, in this transaction.
+  if (cert.kind === "FINAL") await afterFinalPayment(c, i.paidOn, person.id);
 }
 
 /**

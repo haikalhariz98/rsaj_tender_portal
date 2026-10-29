@@ -374,12 +374,12 @@ export async function returnSecurity(_prev: FormState, data: FormData): Promise<
     // F4: a return the CMGD authorises is not dated before the CMGD's issue.
     const early = trigger === "MAKING_GOOD" ? beforeCertificateFault(storedDay(returnedOn), cmgdIssuedOn(rows)) : null;
     if (early) refuse("Not returned:", [early]);
-    // Ruling 16: no route of its own; the certificate that authorised it is named (the CMGD at MAKING_GOOD; the final certificate arrives with stage C).
-    const certificateId = trigger === "MAKING_GOOD" && rows.cmgd?.certificate.status === "ISSUED" ? rows.cmgd.certificate.id : null;
+    // Ruling 16: no route of its own; the certificate that authorised it is named (the CMGD at MAKING_GOOD; the paid final certificate at FINAL_PAYMENT).
+    const certificateId = trigger === "MAKING_GOOD" && rows.cmgd?.certificate.status === "ISSUED" ? rows.cmgd.certificate.id : trigger === "FINAL_PAYMENT" && rows.final?.certificate.status === "ISSUED" ? rows.final.certificate.id : null;
     const who = await recordedFor(c, act, { principalOrSo: true }, storedDay(returnedOn));
     const row = await c.tx.securityRelease.create({ data: { organisationId: c.l.org.id, securityId: s.id, contractId: c.l.contract.id, trigger, certificateId, returnedOn, officialReceiptRef: receipt.trim(), personId: who.person.id, note: note.trim(), recordedAt: c.now } });
     const label = `${SECURITY_KIND_WORDS[s.kind]} ${s.instrumentRef || ""}`.trim();
-    await audit(c, "SecurityRelease", row.id, `${c.label} · ${label}`, "CREATE", diffFields(null, { returned: `${label} (${SECURITY_FORM_WORDS[s.form]}), ${formatMoney(senFromDecimal(s.value))}`, returnedOn: storedDay(returnedOn), authorisedBy: certificateId ? `the certificate of making good defects ${rows.cmgd?.certificate.number ?? ""}`.trim() : trigger === "ADVANCE_RECOUPED" ? "the advance fully recouped" : null, officialReceipt: receipt.trim() || null, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }), note.trim());
+    await audit(c, "SecurityRelease", row.id, `${c.label} · ${label}`, "CREATE", diffFields(null, { returned: `${label} (${SECURITY_FORM_WORDS[s.form]}), ${formatMoney(senFromDecimal(s.value))}`, returnedOn: storedDay(returnedOn), authorisedBy: certificateId ? (trigger === "FINAL_PAYMENT" ? `the final certificate ${rows.final?.certificate.number ?? ""}`.trim() : `the certificate of making good defects ${rows.cmgd?.certificate.number ?? ""}`.trim()) : trigger === "ADVANCE_RECOUPED" ? "the advance fully recouped" : null, officialReceipt: receipt.trim() || null, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }), note.trim());
     await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
     return { ok: true };
   });

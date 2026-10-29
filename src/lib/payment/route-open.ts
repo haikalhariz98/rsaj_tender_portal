@@ -26,6 +26,8 @@ import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { holdersFor } from "@/lib/requisition/holders";
 import { soRouteFaults, SO_ROUTED_DOMAINS } from "@/lib/closeout/so-route";
+import { finalSendFaults } from "@/lib/closeout/final-write";
+import { closeoutRefusal } from "@/lib/closeout/labels";
 import { loadSupervision, methodKeyOf, soOfficeOn } from "@/lib/supervision/load";
 
 import { paymentRefusal } from "./labels";
@@ -48,6 +50,12 @@ export async function submitForApproval(c: CertCtx, act: ActWriter) {
   const person = await c.tx.person.findFirst({ where: { id: act.subjectPersonId, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
   if (!person) throw new CertificateRefusal("Not sent for approval.", { personId: "Choose who sends it. They may not decide it." });
 
+  // Close-out stage C (plan §4.6; ruling 17): the FINAL goes for approval only with its pack, the declaration, Finance's confirmation and the
+  // verified performance report.
+  if (cert.kind === "FINAL") {
+    const fs = await finalSendFaults(c.tx, c.l, cert.id, c.today);
+    if (fs.length) throw new CertificateRefusal(closeoutRefusal("Not sent for approval:", fs));
+  }
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const figures = snap ? applyOverrides(snap, cert.overrides) : null;
   const policy = await c.tx.postAwardPolicy.findUnique({ where: { organisationId: c.l.org.id }, select: { paymentRouteFigure: true } });

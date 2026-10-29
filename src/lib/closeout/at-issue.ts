@@ -8,6 +8,8 @@
  * - The Schedule of Defects: after issue, the lines still open frozen into its `frozenLines`. It writes no status.
  * - The CMGD: refused while a line is open or open work would be stranded in MAKING_GOOD_COMPLETE; after issue, every line frozen with its end
  *   state (a withdrawn one with its reason), then the status MAKING_GOOD_COMPLETE (its one writer).
+ * - The FINAL (stage C): refused while it reads a contract with a defects liability period and no CMGD, while anything its account read has
+ *   moved since its raise (FINAL_BASIS_MOVED), or while open work would be stranded in FINAL_CERTIFICATE_ISSUED; after issue, that status.
  * A status is written only through `contractTransition` with the writer `STATUS_WRITTEN_BY` names.
  */
 
@@ -33,6 +35,8 @@ import { ladWindowFaults } from "./completion";
 import { defectState, frozenLinesOf, isOpenLine } from "./defects";
 import { closeoutRefusal } from "./labels";
 import { defectFactsOf, liveLadWindows, loadCloseout } from "./load";
+import { loadFinal } from "./final-load";
+import { finalMovedFaults } from "./final-write";
 import { cmgdFiguresMoved } from "./making-good";
 import { cmgdFiguresNow } from "./view";
 
@@ -60,8 +64,8 @@ export async function openItemsOf(tx: Tx, l: LoadedContract, exceptCertificateId
   return out;
 }
 
-/// Write the status the issue writes, through its one writer, from where the contract stands (the lock holds it).
-async function writeStatus(tx: Tx, actor: AuditActor, l: LoadedContract, to: ContractStatus, act: StatusWriter): Promise<string | null> {
+/// Write the status the issue writes (or the close, stage C), through its one writer, from where the contract stands (the lock holds it).
+export async function writeStatus(tx: Tx, actor: AuditActor, l: LoadedContract, to: ContractStatus, act: StatusWriter): Promise<string | null> {
   const from = l.contract.status as ContractStatus;
   if (contractTransition(from, to, { act })) return `Not issued: the contract cannot move to “${CONTRACT_STATUS_WORDS[to].en}” from “${CONTRACT_STATUS_WORDS[from].en}”.`;
   const moved = await tx.contract.updateMany({ where: { id: l.contract.id, status: from }, data: { status: to } });
@@ -154,4 +158,23 @@ export async function cmgdAtIssue(tx: Tx, actor: AuditActor, l: LoadedContract, 
   const withdrawn = frozen.filter((x) => x.state === "WITHDRAWN").length;
   await writeAudit(tx, { actor, organisationId: l.org.id, entity: "MakingGood", entityId: mg.id, entityLabel: `${contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } })} · making good of defects ${number}`, reason: "" }, "UPDATE", diffFields({ defectsCertified: null }, { defectsCertified: `${frozen.length - withdrawn} made good${withdrawn ? `, ${withdrawn} withdrawn, not made good` : ""}` }));
   return writeStatus(tx, actor, l, "MAKING_GOOD_COMPLETE", "MAKING_GOOD");
+}
+
+// ------------------------------------------------------------------ the final certificate (stage C)
+
+export async function finalIssueRefusal(tx: Tx, l: LoadedContract, cert: Cert): Promise<string | null> {
+  await tx.$queryRaw`SELECT id FROM "FinalAccount" WHERE "certificateId" = ${cert.id} FOR UPDATE`;
+  const fa = await loadFinal(l.contract.id, tx);
+  if (!fa || fa.certificateId !== cert.id) return "Not issued: the certificate has no final account recorded with it.";
+  const rows = await loadCloseout(l.contract.id, tx);
+  if (rows.cpc?.certificate.status !== "ISSUED") return closeoutRefusal("Not issued:", [{ code: "CPC_NOT_ISSUED", level: "block" }]);
+  // PRACTICALLY_COMPLETE → FINAL_CERTIFICATE_ISSUED only where no defects liability period applies (ADR 0031), judged by this act.
+  if (rows.cpc.dlpStart && rows.cmgd?.certificate.status !== "ISSUED") return closeoutRefusal("Not issued:", [{ code: "MAKING_GOOD_NOT_ISSUED_FINAL", level: "block" }]);
+  const moved = await finalMovedFaults(tx, l, fa, storedDay(rows.cpc.completionDate));
+  if (moved.length) return closeoutRefusal("Not issued:", moved);
+  return statusRefusal(tx, l, cert, "FINAL_CERTIFICATE_ISSUED", "FINAL_CERTIFICATE");
+}
+
+export async function finalAtIssue(tx: Tx, actor: AuditActor, l: LoadedContract): Promise<string | null> {
+  return writeStatus(tx, actor, l, "FINAL_CERTIFICATE_ISSUED", "FINAL_CERTIFICATE");
 }

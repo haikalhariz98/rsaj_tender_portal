@@ -502,6 +502,12 @@ model Organisation {
   performanceGradeBands    PerformanceGradeBand[]
   performanceReports       PerformanceReport[]
   performanceScores        PerformanceScore[]
+  // Phase 2 close-out stage C: the final account and the close.
+  finalAccounts            FinalAccount[]
+  finalAccountLines        FinalAccountLine[]
+  closeoutDocumentRequirements CloseoutDocumentRequirement[]
+  finalPackEntries         FinalPackEntry[]
+  contractClosures         ContractClosure[]
   variationApprovals       VariationApproval[]
   variationInstructions    VariationInstruction[]
   variationMeasurements    VariationMeasurement[]
@@ -766,6 +772,10 @@ model Person {
   performanceReportsOpened   PerformanceReport[]   @relation("PerformanceReportOpenedBy")
   performanceReportsAssessed PerformanceReport[]   @relation("PerformanceReportAssessedBy")
   performanceReportsVerified PerformanceReport[]   @relation("PerformanceReportVerifiedBy")
+  finalAccountsRaised    FinalAccount[]            @relation("FinalAccountRaisedBy")
+  finalAccountsConfirmed FinalAccount[]            @relation("FinalFinanceConfirmedBy")
+  finalPackEntries       FinalPackEntry[]          @relation("FinalPackEntryRecordedBy")
+  contractsClosed        ContractClosure[]         @relation("ContractClosedBy")
   variationRoutesSent    VariationApproval[]       @relation("VariationRouteSentBy")
   instructionsRecorded   VariationInstruction[]    @relation("InstructionRecordedBy")
   measurementsRecorded   VariationMeasurement[]    @relation("MeasurementRecordedBy")
@@ -4304,6 +4314,9 @@ model Contract {
   securityReleases       SecurityRelease[]
   /// Phase 2 close-out stage D: its contractor performance report.
   performanceReport      PerformanceReport?
+  /// Phase 2 close-out stage C: its final accounts (one live) and its close.
+  finalAccounts          FinalAccount[]
+  closure                ContractClosure?
   /// ADR 0046: its funding split (SF-05) and impact figures (SF-04).
   fundingAllocations     FundingAllocation[]
   impacts                ProjectImpact[]
@@ -10481,6 +10494,8 @@ model Certificate {
   defectSchedule        DefectSchedule?
   makingGood            MakingGood?
   securityReleases      SecurityRelease[]
+  /// Phase 2 close-out stage C: the final account this FINAL certificate is the certificate of.
+  finalAccount          FinalAccount?
 
   @@unique([organisationId, number])
   @@unique([contractId, kind, sequence])
@@ -12664,6 +12679,136 @@ model PerformanceScore {
   @@unique([reportId, criterionOrder])
 }
 
+/// Phase 2 close-out stage C (plan closeout-plan.md §4.6, §6.2): which block of the final account a line is in.
+enum FinalBlock {
+  LESS
+  DEDUCT
+}
+
+/// The final account's lines (CPD/SFA(T)). The less block: previous interim payments, retention released, the advance repaid. The deduct
+/// block: damages (computed), and the keyed deductions. A keyed kind may also be computed from the interim certificates (CHECK by hand).
+enum FinalLineKind {
+  PREVIOUS_INTERIM
+  RETENTION_RELEASED_MAIN
+  RETENTION_RELEASED_NSC
+  RETENTION_RELEASED_NS
+  ADVANCE_REPAID_MAIN
+  ADVANCE_REPAID_NSC
+  LAD
+  LAD_WAIVED
+  LAD_CREDIT
+  LAD_ROUNDING
+  PREMIUMS_PERKESO
+  WAGES
+  NON_COMPLIANCE
+  MAKING_GOOD_COST
+  DIMINUTION
+  OTHER
+}
+
+/// FR-FIN-001, 003–013 (CO-8): the final account of the FINAL certificate. Its figures are computed from the contract's issued certificates,
+/// never keyed, apart from the keyed deductions while the certificate is a draft. `previousBasis` is frozen at raise; `judgedUnder` names every
+/// certificate, release, waiver and credit read, so the issue is refused if any moved. Finance's confirmation is all three columns or none.
+model FinalAccount {
+  id                         String             @id @default(cuid())
+  organisationId             String
+  organisation               Organisation       @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  certificateId              String             @unique
+  certificate                Certificate        @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  contractId                 String
+  contract                   Contract           @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  finalSum                   Decimal            @db.Decimal(18, 2)
+  recommended                Decimal            @db.Decimal(18, 2)
+  previousBasis              FinalPreviousBasis
+  judgedUnder                Json
+  /// FR-FIN-007: the contractor's statutory declaration, a STATUTORY_DECLARATION project document of the contract marked TAKEN_UP.
+  declarationDocumentId      String?
+  declarationDocument        ProjectDocument?   @relation("FinalDeclaration", fields: [declarationDocumentId], references: [id], onDelete: Restrict)
+  /// FR-FIN-004: Finance's confirmed total of what it paid on the interim and advance certificates. CHECK: all three or none.
+  financeConfirmedTotal      Decimal?           @db.Decimal(18, 2)
+  financeConfirmedByPersonId String?
+  financeConfirmedBy         Person?            @relation("FinalFinanceConfirmedBy", fields: [financeConfirmedByPersonId], references: [id], onDelete: Restrict)
+  financeConfirmedAt         DateTime?
+  personId                   String
+  person                     Person             @relation("FinalAccountRaisedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt                 DateTime
+
+  finalLines  FinalAccountLine[]
+  packEntries FinalPackEntry[]
+
+  @@index([contractId])
+}
+
+/// One line of the final account. CHECKs by hand: the block follows the kind; a keyed line is of a keyed kind; making-good costs and diminution
+/// are only ever keyed; a keyed LAD rounding lies strictly between −1.00 and 1.00.
+model FinalAccountLine {
+  id             String        @id @default(cuid())
+  organisationId String
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  finalAccountId String
+  finalAccount   FinalAccount  @relation(fields: [finalAccountId], references: [id], onDelete: Cascade)
+  block          FinalBlock
+  kind           FinalLineKind
+  amount         Decimal       @db.Decimal(18, 2)
+  label          String
+  /// The records the figure was read from (certificate, release, waiver ids); empty for a keyed line.
+  sourceIds      Json
+  keyed          Boolean
+  recordedAt     DateTime
+
+  @@index([finalAccountId])
+}
+
+/// FR-FIN-008 (CO-8, ruling 8): a document the final account's pack needs besides the contract's own issued certificates. Configuration,
+/// shipped empty; the RSAJ pack seeds three STATED rows.
+model CloseoutDocumentRequirement {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  labelEn        String
+  sortOrder      Int
+  provenance     Provenance
+  source         String           @default("")
+  retiredOn      DateTime?
+  entries        FinalPackEntry[]
+
+  @@index([organisationId])
+}
+
+/// One requirement of the pack, met by a project document of the contract or marked not applicable with a reason (CHECK: exactly one).
+model FinalPackEntry {
+  id                  String                      @id @default(cuid())
+  organisationId      String
+  organisation        Organisation                @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  finalAccountId      String
+  finalAccount        FinalAccount                @relation(fields: [finalAccountId], references: [id], onDelete: Cascade)
+  requirementId       String
+  requirement         CloseoutDocumentRequirement @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  projectDocumentId   String?
+  projectDocument     ProjectDocument?            @relation("FinalPackDocument", fields: [projectDocumentId], references: [id], onDelete: Restrict)
+  notApplicableReason String                      @default("")
+  personId            String
+  person              Person                      @relation("FinalPackEntryRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt          DateTime
+
+  @@unique([finalAccountId, requirementId])
+}
+
+/// FR-FIN-014 (CO-10): the contract closed, once. The preconditions as checked and what survives the close (the design guarantee bond).
+model ContractClosure {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String       @unique
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  closedOn       DateTime
+  preconditions  Json
+  surviving      Json
+  personId       String
+  person         Person       @relation("ContractClosedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+}
+
 model Variation {
   id             String       @id @default(cuid())
   organisationId String
@@ -13784,6 +13929,9 @@ model ProjectDocument {
   approvers ProjectDocumentApprover[]
   /// Phase 2 close-out stage B: the defect events it is the evidence of.
   defectEvidence DefectEvent[]
+  /// Phase 2 close-out stage C: the final account it is the statutory declaration of, and the pack entries it meets.
+  finalDeclarationOf FinalAccount[]   @relation("FinalDeclaration")
+  finalPackEntries   FinalPackEntry[] @relation("FinalPackDocument")
   /// ADR 0042 D10: the kick-off meeting whose minutes this document is, if it is.
   kickOffMinutesOf KickOffMeeting? @relation("KickOffMinutes")
   /// ADR 0045 D7: Finance's payment of this supply claim, once recorded.

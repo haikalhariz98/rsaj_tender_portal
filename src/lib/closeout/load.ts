@@ -6,6 +6,7 @@
  */
 
 import type { Tx } from "@/lib/audit/record";
+import { CORRECTIONS } from "@/lib/payment/correction";
 import { dayOrNull as day, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { liveDecisionsByScope } from "@/lib/lad/basis";
@@ -18,7 +19,7 @@ import type { BalanceEvent, DefectFact, Dlp, ReleaseEvent } from "./types";
 const certSelect = { id: true, status: true, number: true, kind: true, issueSnapshot: true } as const;
 
 export async function loadCloseout(contractId: string, client: Tx = db) {
-  const [completions, schedules, makingGoods, lines] = await Promise.all([
+  const [completions, schedules, makingGoods, lines, finals] = await Promise.all([
     client.practicalCompletion.findMany({ where: { contractId }, include: { certificate: { select: certSelect }, person: { select: { name: true } } }, orderBy: { recordedAt: "asc" } }),
     client.defectSchedule.findMany({ where: { contractId }, include: { certificate: { select: certSelect } }, orderBy: { recordedAt: "asc" } }),
     client.makingGood.findMany({ where: { contractId }, include: { certificate: { select: certSelect } }, orderBy: { recordedAt: "asc" } }),
@@ -27,12 +28,15 @@ export async function loadCloseout(contractId: string, client: Tx = db) {
       include: { events: { include: { person: { select: { name: true } }, evidenceDocument: { select: { id: true, title: true } } }, orderBy: [{ recordedAt: "asc" }, { id: "asc" }] }, reportedBy: { select: { name: true } } },
       orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
     }),
+    // Stage C: the final certificate, and whether Finance's payment of it is recorded (the FINAL_PAYMENT event).
+    client.finalAccount.findMany({ where: { contractId }, select: { id: true, certificate: { select: { ...certSelect, financePayment: { select: { id: true, ...CORRECTIONS } } } } }, orderBy: { recordedAt: "asc" } }),
   ]);
   const live = <T extends { certificate: { status: string } }>(rows: readonly T[]) => [...rows].reverse().find((r) => r.certificate.status !== "VOID") ?? null;
   const cpc = live(completions);
   const schedule = live(schedules);
   const cmgd = live(makingGoods);
-  return { completions, schedules, makingGoods, lines, cpc, schedule, cmgd };
+  const final = live(finals);
+  return { completions, schedules, makingGoods, lines, cpc, schedule, cmgd, final };
 }
 export type CloseoutRows = Awaited<ReturnType<typeof loadCloseout>>;
 
@@ -61,10 +65,10 @@ export async function liveLadWindows(contractId: string, client: Tx = db): Promi
 }
 
 /// Where the retention balance's and the performance bond's events stand on this contract (CO-6): the switches read with the CPC's frozen DLP
-/// (none: MAKING_GOOD reads as FINAL_PAYMENT), the CMGD and its final inspection. Finance's payment of the final certificate arrives with stage C.
+/// (none: MAKING_GOOD reads as FINAL_PAYMENT), the CMGD and its final inspection, and (stage C) Finance's payment of the final certificate.
 export function releaseEventsOf(rows: CloseoutRows, policy: { retentionBalanceReleaseAt: string | null; performanceBondReleaseAt: string | null } | null): { retention: BalanceEvent; performance: BalanceEvent } {
   const cpcIssued = rows.cpc?.certificate.status === "ISSUED";
-  const facts = { dlpApplies: cpcIssued ? !!rows.cpc!.dlpStart : true, cmgdIssued: rows.cmgd?.certificate.status === "ISSUED", finalInspectionRecorded: !!rows.cmgd?.finalInspectionOn, finalPaid: false };
+  const facts = { dlpApplies: cpcIssued ? !!rows.cpc!.dlpStart : true, cmgdIssued: rows.cmgd?.certificate.status === "ISSUED", finalInspectionRecorded: !!rows.cmgd?.finalInspectionOn, finalPaid: finalPaidOf(rows) };
   return { retention: balanceEventOf((policy?.retentionBalanceReleaseAt ?? null) as ReleaseEvent | null, facts), performance: balanceEventOf((policy?.performanceBondReleaseAt ?? null) as ReleaseEvent | null, facts) };
 }
 
@@ -73,3 +77,6 @@ export const cmgdIssuedOn = (rows: CloseoutRows): string | null => (rows.cmgd?.c
 
 /// The issued schedule's day to make good by, for the overdue reading.
 export const scheduleRectifyBy = (rows: CloseoutRows): string | null => (rows.schedule?.certificate.status === "ISSUED" ? day(rows.schedule.rectifyBy) : null);
+
+/// Stage C: the final certificate is issued and Finance's payment of it is recorded.
+export const finalPaidOf = (rows: CloseoutRows): boolean => rows.final?.certificate.status === "ISSUED" && !!rows.final.certificate.financePayment;

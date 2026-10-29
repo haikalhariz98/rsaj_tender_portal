@@ -18,7 +18,11 @@ import { issuedInterims, loadPayment, loadPaymentConfig, releaseStateOf, type Pa
 import type { Tiers } from "@/lib/payment/retention";
 
 import { dlpOffsetsDue, DLP_EVENT_KEY } from "./dlp";
-import { SECURITY_KIND_WORDS } from "./labels";
+import { closureFaults } from "./closure";
+import { finalRouteFaults } from "./final-account";
+import { loadFinal } from "./final-load";
+import { closureFactsOf, finalRouteFactsOf } from "./final-write";
+import { closeoutFaultText, SECURITY_KIND_WORDS } from "./labels";
 import { defectState } from "./defects";
 import { defectFactsOf, dlpOfRow, loadCloseout, openLineCount, releaseEventsOf, type CloseoutRows } from "./load";
 import { cmgdFigureLines, cmgdSnapshotOf } from "./making-good";
@@ -69,6 +73,10 @@ export async function closeoutView(l: LoadedContract, today: string | null) {
     loadReport(l.contract.id),
   ]);
   const events = releaseEventsOf(rows, cfg.policy);
+  // Stage C: the final account, what its send still needs, and the close's checklist.
+  const [final, close] = await Promise.all([loadFinal(l.contract.id), closureFactsOf(db, l)]);
+  const routeFaults = final?.certificate.status === "DRAFT" ? finalRouteFaults(await finalRouteFactsOf(db, l, final, today)) : [];
+  const closeFaults = closureFaults(close.facts);
   const retention = retentionOf(p);
   const judged = securities.map((s) => {
     const input: SecurityReturnInput = { kind: s.kind, form: s.form, status: s.status, returned: !!s.release, officialReceiptRef: "receipt given at the act", performanceEvent: events.performance, retentionEvent: events.retention, advanceRecouped: advanceRecoupedOf(p, s.id) };
@@ -84,9 +92,12 @@ export async function closeoutView(l: LoadedContract, today: string | null) {
     retention: { balanceDue: retention.balance > 0n, event: events.retention },
     securities: judged.filter((x) => !x.s.release).map((x) => ({ id: x.s.id, label: x.label, returnable: x.returnable })),
     performance: performanceState(report),
+    supply: close.facts.supply,
+    final: final ? { id: final.certificateId, status: final.certificate.status as "DRAFT", paid: !!final.certificate.financePayment, firstMissing: routeFaults[0] ? closeoutFaultText(routeFaults[0]) : null } : null,
+    closeBlocked: closeFaults[0] ? closeoutFaultText(closeFaults[0]) : null,
     today: today ?? "9999-12-31",
   };
-  return { rows, p, cfg, facts, next: closeoutNext(facts), events, retention, securities: judged, report };
+  return { rows, p, cfg, facts, next: closeoutNext(facts), events, retention, securities: judged, report, final, close, closeFaults, routeFaults };
 }
 export type CloseoutView = Awaited<ReturnType<typeof closeoutView>>;
 

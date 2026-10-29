@@ -370,6 +370,12 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("PerformanceReport", "person", "Started by"),
   slot("PerformanceReport", "assessedBy", "Scored by"),
   slot("PerformanceReport", "verifiedBy", "Verified by"),
+  // Phase 2 close-out stage C: the final account is raised for the S.O. as the other certificates are; Finance confirms what it paid; the pack's
+  // entries are recorded; the contract is closed for the S.O. or the Principal Representative.
+  paper("FinalAccount", "person", "Raised by"),
+  paper("FinalAccount", "financeConfirmedBy", "Confirmed by"),
+  paper("FinalPackEntry", "person", "Recorded by"),
+  paper("ContractClosure", "person", "Closed by"),
   paper("Variation", "originator", "Originated by"),
   paper("Variation", "reviewedBy", "Reviewed by"),
   paper("Variation", "principal", "Passed on by"),

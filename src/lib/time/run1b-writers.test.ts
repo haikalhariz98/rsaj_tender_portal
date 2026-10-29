@@ -40,7 +40,8 @@ const WRITERS: Readonly<Record<Model, readonly string[]>> = {
   PeriodExtension: [`${TIME}#recordPeriodExtension`, `${TIME}#sendPeriodExtension`],
   PeriodAgreement: [`${TIME}#raisePeriodAgreement`, `${AT_ISSUE}#periodAtIssue`],
   // Review M2: a voided interim's waivers are unapplied by the void, so the next interim applies them again.
-  LadWaiver: [`${DAMAGES}#recordLadWaiver`, `${DAMAGES}#sendLadWaiver`, `${DAMAGES}#resendLadWaiver`, `${PAYMENT}#raiseInterimCertificate`, "src/lib/certificate/write.ts#unapplyWaivers"],
+  // Close-out stage C (flagged, a writer added as the plan says): the final account applies the approved waivers no interim applied, as an interim's raise does.
+  LadWaiver: [`${DAMAGES}#recordLadWaiver`, `${DAMAGES}#sendLadWaiver`, `${DAMAGES}#resendLadWaiver`, `${PAYMENT}#raiseInterimCertificate`, "src/lib/certificate/write.ts#unapplyWaivers", "src/app/projects/[id]/final-actions.ts#raiseFinalAccount"],
 };
 
 const delegateOf = (m: string) => m[0].toLowerCase() + m.slice(1);

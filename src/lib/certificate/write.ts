@@ -496,6 +496,22 @@ export async function acknowledgeCopy(c: CertCtx, copyId: string, on: string) {
   await audit(c, "IssuedCopy", row.id, `${labelOf(c)} · copy ${row.copyNo}`, "UPDATE", diffFields({ acknowledgedOn: null }, { acknowledgedOn: on }));
 }
 
+// ------------------------------------------------------------------ a draft's figures, refigured by its domain act
+
+/**
+ * Close-out stage C (plan §4.6): a draft's computed figures replaced by the act that keys its domain's lines (the final account's deductions), only
+ * while it is a draft whose route is not pending or approved (a route freezes the figures, as an override does), on the caller's locked
+ * transaction. Audited on the certificate. Returns false where it is no longer such a draft.
+ */
+export async function refigureDraft(c: { tx: Tx; actor: AuditActor; l: LoadedContract }, certificateId: string, computed: ComputedSnapshot, label: string, why: string): Promise<boolean> {
+  const route = await c.tx.approvalInstance.findFirst({ where: { certificateId }, orderBy: { openedAt: "desc" }, select: { status: true } });
+  if (route?.status === "PENDING" || route?.status === "APPROVED") return false;
+  const moved = await c.tx.certificate.updateMany({ where: { id: certificateId, organisationId: c.l.org.id, status: "DRAFT" }, data: { computedSnapshot: computed as unknown as Prisma.InputJsonValue } });
+  if (moved.count !== 1) return false;
+  await audit(c, "Certificate", certificateId, label, "UPDATE", diffFields({ figures: null }, { figures: why }));
+  return true;
+}
+
 // ------------------------------------------------------------------ void
 
 /// Void a certificate before issue, with a reason. A route still waiting is refused on the route first.
@@ -509,7 +525,8 @@ export async function voidCertificate(c: CertCtx, reason: string) {
   if (cert.approvalInstances.some((i) => i.status === "PENDING")) refuse("Not voided:", one("VOID_ROUTE_PENDING"));
   await moveTo(c, "VOID", { voidReason: reason.trim(), voidedAt: c.now });
   await audit(c, "Certificate", cert.id, labelOf(c), "UPDATE", diffFields({ stage: STATUS_WORDS[s].en }, { stage: STATUS_WORDS.VOID.en }), reason.trim());
-  if (cert.kind === "INTERIM_PAYMENT") await unapplyWaivers(c);
+  // Close-out stage C: a voided final account's waivers are not applied any more either.
+  if (cert.kind === "INTERIM_PAYMENT" || cert.kind === "FINAL") await unapplyWaivers(c);
 }
 
 /// Review M2: the waivers a voided interim applied are not applied any more, so the next interim applies them again (the credit is not lost).

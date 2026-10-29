@@ -4,6 +4,7 @@
  */
 
 import { formatDate } from "@/lib/format";
+import { formatMoney } from "@/lib/money";
 
 import type { DefectState, Finding } from "./types";
 
@@ -70,6 +71,39 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   EVENT_NOT_SET: (d) => `When the ${s(d.setting, "security")} is released is not set. See Configuration › Post-award.`,
   EVENT_NOT_REACHED: (d) => `Returned once ${EVENT_WORDS[String(d.event)] ?? "its event is reached"}.`,
   OFFICIAL_RECEIPT_REQUIRED: () => "Give the official receipt's reference for a cash or banker's draft security.",
+  // The final account (stage C)
+  FINAL_LIVE: (d) => `A final certificate${d.number ? ` (${d.number})` : ""} is already raised. Void it to raise another.`,
+  MAKING_GOOD_NOT_ISSUED_FINAL: () => "The certificate of making good defects is not issued yet.",
+  CERTIFICATES_IN_PROGRESS: (d) => `Finish or void first: ${s(d.items, "the certificates in progress")}.`,
+  VALUATION_OPEN: () => "An interim valuation is open. Raise its certificate or withdraw it under Payments first.",
+  EOT_OPEN: (d) => `An extension of time is not finished: ${s(d.items, "a claim")}. Determine it, or certify it once approved.`,
+  LOSS_EXPENSE_NOT_VALUED: (d) => `Loss and expense is not valued or decided: ${s(d.items, "a claim")}.`,
+  FINAL_BASIS_NOT_SET: () => "What the final account counts as previous payments is not set. See Configuration › Post-award.",
+  WAIVER_SETTING_NOT_SET: () => "An approved damages waiver is not applied, and when waivers are applied is not set. See Configuration › Post-award.",
+  PARTY_SPLIT_NOT_BUILT: (d) => `What each nominated party or assignee is due on the final account is not recorded yet, so the payment cannot be split (${s(d.items, "the contract's parties")}).`,
+  NEGATIVE_DEDUCTION: (d) => `${s(d.label, "A deduction")} is below nothing.`,
+  TOO_MANY_OTHER_DEDUCTIONS: (d) => `At most ${s(d.max, "three")} other deductions.`,
+  ROUNDING_ONCE: () => "The damages are rounded once.",
+  ROUNDING_WITHOUT_LAD: () => "There are no damages to round.",
+  LAD_ROUNDING_OUT_OF_RANGE: () => "A rounding lies between −RM1.00 and RM1.00.",
+  LAD_ROUNDING_BELOW_NOTHING: () => "The rounding would take the damages below nothing.",
+  FINAL_NEGATIVE: (d) => `The deductions exceed what is due by ${d.amount ? formatMoney(BigInt(String(d.amount))) : "an amount"}. Recovering from the contractor is not built: check the deductions.`,
+  PACK_INCOMPLETE: (d) => `The pack is missing: ${s(d.items, "documents")}. Add each, or mark it not applicable.`,
+  DECLARATION_NOT_TAKEN_UP: () => "The contractor's statutory declaration is not taken up and linked.",
+  FINANCE_NOT_CONFIRMED: () => "Finance has not confirmed what it paid on the interim and advance certificates.",
+  FINANCE_TOTAL_DIFFERS: (d) => `Finance confirmed ${d.confirmed ? formatMoney(BigInt(String(d.confirmed))) : "a total"}, but its recorded payments add to ${d.computed ? formatMoney(BigInt(String(d.computed))) : "another"}.`,
+  FINAL_INTERIM_UNREADABLE: (d) => `The interim certificate ${s(d.number, "")} cannot be read: its deductions do not add up to what it carried forward less what it paid.`.replace("  ", " "),
+  WAIVER_MOVED: (d) => `An approved waiver's damages moved since it was sent: ${s(d.items, "a waiver")}. Send it again first.`,
+  FINAL_SENT: () => "The final certificate has left draft, or its route is open. Void it to change the account.",
+  FINAL_ACCOUNT_MISSING: () => "The certificate has no final account recorded with it.",
+  FINAL_BASIS_MOVED: (d) => `What the final account read has changed since it was raised (${s(d.items, "its figures")}). Void it and raise it again.`,
+  // The close (stage C)
+  SUPPLY_NOT_BUILT: () => "Closing is not built for supply contracts.",
+  FINAL_NOT_PAID: (d) => (d.issued === "yes" ? "Finance's payment of the final certificate is not recorded." : "The final certificate is not issued."),
+  MATTERS_OPEN: (d) => `A route is still open: ${s(d.items, "a matter")}.`,
+  RETENTION_HELD: (d) => `Retention of ${d.amount ? formatMoney(BigInt(String(d.amount))) : "an amount"} is still held.`,
+  SECURITY_NOT_RETURNED: (d) => `Not returned: ${s(d.items, "a security")}.`,
+  PERFORMANCE_NOT_FILED: () => "The contractor performance report is not verified.",
   // Issue
   WORK_WOULD_BE_STRANDED: (d) => `Finish or close first: ${s(d.items, "open work")}. Nothing could finish it once this certificate issues.`,
   SO_ROUTE_MISMATCH: (d) => `The route's approving office is not the contract's S.O. (${s(d.so, "the S.O.")}) today. Correct the approval matrix's row.`,

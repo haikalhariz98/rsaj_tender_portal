@@ -5,7 +5,7 @@
  * Payment and variation keep their own hooks.
  *
  * Stage A (time) has the EOT certificate and the contract period agreement. Practical completion, the Schedule of
- * Defects and the certificate of making good defects join in stage B, the final certificate in stage C. A hook that
+ * Defects and the certificate of making good defects joined in stage B, the final certificate in stage C. A hook that
  * writes the contract's status goes through `contractTransition` with the writer `STATUS_WRITTEN_BY` names, and is first
  * refused WORK_WOULD_BE_STRANDED (`strandedFaults`) while any open item belongs to a family that `ACT_STATUS` refuses in
  * the status it writes.
@@ -17,7 +17,7 @@ import { ACT_STATUS, certificateAct, type ContractAct } from "@/lib/contract/act
 import type { LoadedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { MATTER_FAMILY, type ContractMatterKind } from "@/lib/matter/matter";
-import { cmgdAtIssue, cmgdIssueRefusal, cpcAtIssue, cpcIssueRefusal, scheduleAtIssue, scheduleIssueRefusal } from "@/lib/closeout/at-issue";
+import { cmgdAtIssue, cmgdIssueRefusal, cpcAtIssue, cpcIssueRefusal, finalAtIssue, finalIssueRefusal, scheduleAtIssue, scheduleIssueRefusal } from "@/lib/closeout/at-issue";
 import { eotAtIssue, eotIssueRefusal, periodAtIssue, periodIssueRefusal } from "@/lib/time/at-issue";
 
 import type { CertificateKind, Finding } from "./types";
@@ -36,6 +36,8 @@ export const KIND_ISSUE_HOOK: Readonly<Partial<Record<CertificateKind, IssueHook
   PRACTICAL_COMPLETION: { refusal: cpcIssueRefusal, after: cpcAtIssue },
   SCHEDULE_OF_DEFECTS: { refusal: scheduleIssueRefusal, after: scheduleAtIssue },
   MAKING_GOOD_DEFECTS: { refusal: cmgdIssueRefusal, after: cmgdAtIssue },
+  // Stage C (plan §4.6): the FINAL is refused FINAL_BASIS_MOVED, then writes FINAL_CERTIFICATE_ISSUED.
+  FINAL: { refusal: finalIssueRefusal, after: finalAtIssue },
 };
 
 /// An item of work still open on the contract, with the family of the act that would finish it.

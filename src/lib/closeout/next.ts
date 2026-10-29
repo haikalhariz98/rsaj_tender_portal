@@ -1,7 +1,7 @@
 /**
  * The close-out step's next line and its one main button (plan closeout-plan.md §3.2; ADR 0047 Consequences). Pure: the case page renders
  * what this says and decides nothing. Stage B's rows: practical completion, the defects liability period, the Schedule of Defects, the CMGD,
- * and the releases after it. Stage C adds the final account's and the close's rows after them.
+ * and the releases after it; stage D's performance report; stage C's final account, its payment and the close.
  */
 
 import { formatDate } from "@/lib/format";
@@ -20,6 +20,8 @@ const AFTER_POSSESSION = ["ACTIVE", "PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLET
 export function closeoutNext(f: CloseoutFacts): CloseoutNext {
   if (f.status === "CLOSED") return { state: "done", next: "The contract is closed", action: null };
   if (!AFTER_POSSESSION.includes(f.status)) return { state: "waiting", next: "Opens once the contract is in force", action: null };
+  // Ruling 19: a contract paid on delivery order and invoice does not close in Phase 2.
+  if (f.supply) return { state: "waiting", next: "Closing is not built for supply contracts", action: null };
   const cpc = f.cpc;
   if (!cpc) return f.status === "ACTIVE" ? { state: "waiting", next: "Practical completion not certified", action: "RAISE_CPC" } : { state: "waiting", next: "Practical completion not certified", action: null };
   if (open(cpc)) return { state: "in-progress", next: `Practical completion certificate ${STATE_WORDS[cpc.status] ?? ""}`.trim(), action: "OPEN_CERTIFICATE", certificateId: cpc.id };
@@ -42,5 +44,12 @@ export function closeoutNext(f: CloseoutFacts): CloseoutNext {
   if (due) return { state: "in-progress", next: `${due.label} to return`, action: "RETURN_SECURITY" };
   // Stage D (ruling 17): the report is filed before the final certificate is sent for approval.
   if (f.performance !== "VERIFIED") return { state: "in-progress", next: f.performance === "ASSESSED" ? "Contractor performance to verify" : "Contractor performance not filed", action: "SCORE_PERFORMANCE" };
-  return { state: "in-progress", next: "Final account not raised", action: null };
+  // Stage C: the final account, its payment, the close.
+  const fin = f.final;
+  if (!fin) return { state: "in-progress", next: "Final account not raised", action: "RAISE_FINAL_ACCOUNT" };
+  if (fin.status === "DRAFT") return { state: "in-progress", next: fin.firstMissing ?? "Final account ready to send for approval", action: fin.firstMissing ? "OPEN_FINAL_ACCOUNT" : "OPEN_CERTIFICATE", certificateId: fin.id };
+  if (open(fin)) return { state: "in-progress", next: `Final certificate ${STATE_WORDS[fin.status] ?? ""}`.trim(), action: "OPEN_CERTIFICATE", certificateId: fin.id };
+  if (!fin.paid) return { state: "in-progress", next: "Waiting for Finance's payment", action: "RECORD_FINAL_PAYMENT", certificateId: fin.id };
+  if (f.closeBlocked) return { state: "in-progress", next: f.closeBlocked, action: null };
+  return { state: "in-progress", next: "Ready to close", action: "CLOSE_CONTRACT" };
 }

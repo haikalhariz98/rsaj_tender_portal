@@ -103,7 +103,8 @@ describe("what is counted", () => {
   });
   it("awarded is issued or accepted; waiting for payment is an issued payable certificate with no payment", () => {
     expect(insightsWhere.awardsIssued(ORG, none, fy, null, []).status).toEqual({ in: ["ISSUED", "ACCEPTED"] });
-    expect([...PAYABLE_KINDS].sort()).toEqual(["ADVANCE_PAYMENT", "INTERIM_PAYMENT"]);
+    // Changed for close-out stage C (flagged, stricter): the final certificate is payable too.
+    expect([...PAYABLE_KINDS].sort()).toEqual(["ADVANCE_PAYMENT", "FINAL", "INTERIM_PAYMENT"]);
     expect(insightsWhere.awaitingPayment(ORG, none, [])).toMatchObject({ status: "ISSUED", financePayment: { is: null } });
   });
 });

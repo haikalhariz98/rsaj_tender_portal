@@ -1,6 +1,6 @@
 /**
  * Close-out's shared types (Phase 2 close-out stage B; plan closeout-plan.md §6.1; ADR 0047). Days are YYYY-MM-DD, an end is exclusive.
- * Stage C adds the final account's and the close's facts and actions here.
+ * Stage C adds the final account's and the close's facts and actions (plan §6.1, §4.6, §4.7).
  */
 
 import type { CertificateStatus } from "@/lib/certificate/types";
@@ -64,10 +64,39 @@ export interface CloseoutFacts {
   securities: readonly { id: string; label: string; returnable: boolean }[];
   /// Stage D (ruling 17): where the contractor performance report stands; it opens at the CMGD, or the CPC where no DLP applies.
   performance: "NONE" | "OPEN" | "ASSESSED" | "VERIFIED";
+  /// Stage C: paid on delivery order and invoice (ruling 19: such a contract does not close in Phase 2).
+  supply: boolean;
+  /// Stage C: the FINAL certificate that is not void, whether Finance's payment of it is recorded, and (in draft) the first thing still
+  /// missing before it may be sent, in words.
+  final: (StageCertificate & { paid: boolean; firstMissing: string | null }) | null;
+  /// Stage C: the close's checklist: the first refusal in words, or null when every check passes.
+  closeBlocked: string | null;
   today: Day;
 }
 
-export type CloseoutAction = "RAISE_CPC" | "OPEN_CERTIFICATE" | "ADD_DEFECT" | "RAISE_SCHEDULE" | "RAISE_CMGD" | "RELEASE_RETENTION" | "RETURN_SECURITY" | "SCORE_PERFORMANCE";
+export type CloseoutAction =
+  | "RAISE_CPC"
+  | "OPEN_CERTIFICATE"
+  | "ADD_DEFECT"
+  | "RAISE_SCHEDULE"
+  | "RAISE_CMGD"
+  | "RELEASE_RETENTION"
+  | "RETURN_SECURITY"
+  | "SCORE_PERFORMANCE"
+  | "RAISE_FINAL_ACCOUNT"
+  | "OPEN_FINAL_ACCOUNT"
+  | "RECORD_FINAL_PAYMENT"
+  | "CLOSE_CONTRACT";
+
+// ------------------------------------------------------------------ stage C: the final account (CO-8, §4.6, §6.2)
+
+export type FinalBasis = "BEFORE_DEDUCTIONS" | "AS_PAID";
+export type FinalBlock = "LESS" | "DEDUCT";
+export const FINAL_LINE_KINDS = ["PREVIOUS_INTERIM", "RETENTION_RELEASED_MAIN", "RETENTION_RELEASED_NSC", "RETENTION_RELEASED_NS", "ADVANCE_REPAID_MAIN", "ADVANCE_REPAID_NSC", "LAD", "LAD_WAIVED", "LAD_CREDIT", "LAD_ROUNDING", "PREMIUMS_PERKESO", "WAGES", "NON_COMPLIANCE", "MAKING_GOOD_COST", "DIMINUTION", "OTHER"] as const;
+export type FinalLineKind = (typeof FINAL_LINE_KINDS)[number];
+/// The deductions an officer keys while the certificate is a draft (`addFinalDeduction`; the CHECK's keyed set).
+export const KEYED_FINAL_KINDS = ["PREMIUMS_PERKESO", "WAGES", "NON_COMPLIANCE", "MAKING_GOOD_COST", "DIMINUTION", "OTHER", "LAD_ROUNDING"] as const;
+export type KeyedFinalKind = (typeof KEYED_FINAL_KINDS)[number];
 
 export interface CloseoutNext {
   state: "waiting" | "in-progress" | "done";

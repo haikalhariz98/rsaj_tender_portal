@@ -260,6 +260,8 @@ export const CERT_ALLOW: CertAllow = {
   [`${W_} › recordSignature`]: { ops: ["certificateSignature.create", "certificate.updateMany"] },
   [`${W_} › issue`]: { ops: ["certificateDocument.create"] },
   [`${W_} › correctCertificateDate`]: { ops: ["certificate.updateMany"] },
+  // Close-out stage C (flagged, as designed: the core keeps the write): a draft's figures refigured by its domain act (the final account's keyed lines).
+  [`${W_} › refigureDraft`]: { ops: ["certificate.updateMany"] },
   [`${AS} › startAwardSheet`]: { ops: ["awardRoutingSheet.create"] },
   [`${AS} › recordAwardReceived`]: { ops: ["awardRoutingSheet.update"] },
   [`${AS} › recordAwardCheck`]: { ops: ["routingCheck.create"] },
