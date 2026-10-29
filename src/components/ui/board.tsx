@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useId, useOptimistic, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useOptimistic, useRef, useState, useTransition, type KeyboardEvent } from "react";
 
-import { MoreIcon } from "@/components/icons";
+import { useSay } from "@/components/i18n/language-context";
+import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
 
+import { Avatar } from "./avatar";
 import { Badge } from "./badge";
-import { cx } from "./cx";
-import { iconButtonClass } from "./button";
+import { MoreActions, MoreItem } from "./more-actions";
+import { MoreText } from "./more-text";
 
 /**
  * Columns of cards, as data (so a server component can hand them over). A card moves three ways that end in the same call: drag and drop, the card's own
@@ -26,7 +28,7 @@ export interface BoardCard {
   badges?: { text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }[];
   /// The person it is with, as a name.
   assignee?: string;
-  /// Column ids this card may move into. Empty: it cannot move, and `stuckWhy` says why.
+  /// Column ids this card may move into. Empty: it cannot move, and `stuckWhy` says why (an info popover on the card).
   moves: string[];
   stuckWhy?: string;
   /// Sent with the move: the card's own identifiers (item id, the type…), beside `from` and `to`.
@@ -40,6 +42,9 @@ export interface BoardColumn {
   total: number;
   /// Where the rest of a capped column is (the list view filtered to it).
   moreHref?: string;
+  /// Done: what closed before the board's window is in the list, whatever the cap. A link shows when `olderCount` is more than none.
+  olderHref?: string;
+  olderCount?: number;
 }
 
 export type BoardMove = (data: FormData) => Promise<{ refused?: string } | void>;
@@ -49,9 +54,10 @@ export function Board({
   cards,
   move,
   label,
-  moreLabel = "See all",
-  moveLabel = "Move to",
-  emptyColumn = "Nothing here",
+  moreLabel,
+  moveLabel,
+  olderLabel,
+  emptyColumn,
 }: {
   columns: BoardColumn[];
   cards: BoardCard[];
@@ -60,11 +66,19 @@ export function Board({
   label: string;
   moreLabel?: string;
   moveLabel?: string;
+  olderLabel?: string;
   emptyColumn?: string;
 }) {
+  const say = useSay();
+  moreLabel ??= say(WORDS.seeAll);
+  moveLabel ??= say(WORDS.moveTo);
+  olderLabel ??= say(WORDS.olderInList);
+  emptyColumn ??= say(WORDS.nothingHere);
   const [shown, place] = useOptimistic(cards, (cur, p: { id: string; to: string }) => cur.map((c) => (c.id === p.id ? { ...c, columnId: p.to } : c)));
   const [refused, setRefused] = useState<string | null>(null);
-  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  // The card whose link takes focus back once it has been drawn: a move (or its revert) re-creates the card in another column and focus would be lost.
+  const refocus = useRef<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const dragging = useRef<BoardCard | null>(null);
   const names = useId();
@@ -72,8 +86,8 @@ export function Board({
   function go(card: BoardCard, to: string) {
     if (to === card.columnId || !card.moves.includes(to)) return;
     setRefused(null);
-    setMenuFor(null);
-    startTransition(async () => {
+    refocus.current = card.id;
+    start(async () => {
       place({ id: card.id, to });
       const data = new FormData();
       for (const [k, v] of Object.entries(card.fields)) data.set(k, v);
@@ -83,10 +97,18 @@ export function Board({
         const r = await move(data);
         if (r?.refused) setRefused(r.refused);
       } catch {
-        setRefused("That did not save. Try again.");
+        setRefused(say(WORDS.didNotSave));
       }
     });
   }
+
+  // Focus follows the card: after the optimistic drawing, and again once the move has settled (a refusal puts the card back).
+  useEffect(() => {
+    if (!refocus.current) return;
+    const id = refocus.current;
+    [...(root.current?.querySelectorAll<HTMLElement>("[data-card-id]") ?? [])].find((el) => el.dataset.cardId === id)?.querySelector("a")?.focus();
+    if (!pending) refocus.current = null;
+  }, [shown, pending]);
 
   // Arrow keys: the cards are in DOM order column by column, so up and down are the neighbours in the column, left and right the same row in the next column.
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
@@ -145,8 +167,20 @@ export function Board({
               </h3>
               <ul className="flex min-h-12 flex-col gap-2">
                 {inCol.map((c) => (
-                  <li key={c.id} data-board-card draggable={c.moves.length > 0} onDragStart={() => (dragging.current = c)} onDragEnd={() => (dragging.current = null)} className="relative rounded-xl border border-line/70 bg-surface p-3 shadow-card">
-                    <Link href={c.href} className="block pr-7 text-[14px] font-semibold break-words text-ink no-underline hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+                  <li
+                    key={c.id}
+                    data-board-card
+                    data-card-id={c.id}
+                    draggable={c.moves.length > 0}
+                    onDragStart={(e) => {
+                      dragging.current = c;
+                      // Firefox starts no drag without data; the move effect shows the right cursor.
+                      e.dataTransfer.setData("text/plain", c.id);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragEnd={() => (dragging.current = null)}
+                    className="relative rounded-xl border border-line/70 bg-surface p-3 shadow-card">
+                    <Link href={c.href} draggable={false} className="block pr-7 text-[14px] font-semibold break-words text-ink no-underline hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
                       {c.title}
                     </Link>
                     {c.sub && <div className="text-[12.5px] break-words text-ink-3">{c.sub}</div>}
@@ -157,54 +191,42 @@ export function Board({
                             {b.text}
                           </Badge>
                         ))}
-                        {c.assignee && <span className="text-[12.5px] text-ink-3">{c.assignee}</span>}
+                        {c.assignee && (
+                          <span className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-3">
+                            <Avatar name={c.assignee} size="xs" />
+                            {c.assignee}
+                          </span>
+                        )}
                       </div>
                     )}
                     {c.moves.length > 0 ? (
                       <div className="absolute top-2 right-2">
-                        <button
-                          type="button"
-                          aria-haspopup="menu"
-                          aria-expanded={menuFor === c.id}
-                          aria-label={`${moveLabel}: ${c.title}`}
-                          className={iconButtonClass("sm", false, "size-7")}
-                          onClick={() => setMenuFor(menuFor === c.id ? null : c.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Escape") setMenuFor(null);
-                          }}
-                        >
-                          <MoreIcon size={16} />
-                        </button>
-                        {menuFor === c.id && (
-                          <ul role="menu" aria-label={moveLabel} className="absolute right-0 z-20 mt-1 w-48 rounded-xl border border-line bg-surface p-1 shadow-pop">
-                            {c.moves
-                              .filter((to) => to !== c.columnId)
-                              .map((to, n) => (
-                                <li key={to} role="none">
-                                  <button
-                                    autoFocus={n === 0}
-                                    type="button"
-                                    role="menuitem"
-                                    className={cx("block w-full rounded-lg px-3 py-2 text-left text-[13.5px] text-ink hover:bg-sunken focus-visible:bg-sunken focus-visible:outline-none")}
-                                    onClick={() => go(c, to)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Escape") setMenuFor(null);
-                                    }}
-                                  >
-                                    {columns.find((k) => k.id === to)?.label ?? to}
-                                  </button>
-                                </li>
-                              ))}
-                          </ul>
-                        )}
+                        <MoreActions compact closeOnPick label={`${moveLabel}: ${c.title}`}>
+                          {c.moves
+                            .filter((to) => to !== c.columnId)
+                            .map((to) => (
+                              <MoreItem key={to} onClick={() => go(c, to)}>
+                                {columns.find((k) => k.id === to)?.label ?? to}
+                              </MoreItem>
+                            ))}
+                        </MoreActions>
                       </div>
                     ) : (
-                      c.stuckWhy && <span className="sr-only">{c.stuckWhy}</span>
+                      c.stuckWhy && (
+                        <div className="absolute top-2.5 right-2.5">
+                          <MoreText text={c.stuckWhy} label={`${say(WORDS.whyNotMoved)}: ${c.title}`} />
+                        </div>
+                      )
                     )}
                   </li>
                 ))}
                 {inCol.length === 0 && <li className="px-1.5 py-3 text-[13px] text-ink-3">{emptyColumn}</li>}
               </ul>
+              {col.olderHref && !!col.olderCount && (
+                <Link href={col.olderHref} className="px-1.5 pt-2.5 text-[13px] font-semibold text-brand-700 no-underline hover:underline">
+                  {olderLabel} ({col.olderCount}) ›
+                </Link>
+              )}
               {col.moreHref && col.total > inCol.length && (
                 <Link href={col.moreHref} className="px-1.5 pt-2.5 text-[13px] font-semibold text-brand-700 no-underline hover:underline">
                   {moreLabel} ({col.total})

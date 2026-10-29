@@ -44,10 +44,12 @@ export type MoveFault =
   | { code: "MOVED_ALREADY"; by: string | null; at: string } // the row is no longer at the status the reader saw
   | { code: "ONLY_ASSIGNEE" }
   | { code: "ONLY_RAISER_OR_LEAD" }
+  | { code: "ONLY_ASSIGNEE_RAISER_OR_LEAD" } // START: the assignee may begin it too
   | { code: "ANSWER_NEEDED" } // RFI to In review or Done with no answer
   | { code: "RESULT_NOT_PASSED" } // Inspection to In review or Done unless Passed
   | { code: "REASON_NEEDED" } // Cancel
-  | { code: "COMMENT_NEEDED" }; // Send back
+  | { code: "COMMENT_NEEDED" } // Send back
+  | { code: "TOO_LONG"; field: "cancelReason" | "comment"; max: number }; // Cancel's reason, Send back's comment
 
 export type FieldFault =
   | { code: "TITLE_NEEDED" }
@@ -55,11 +57,13 @@ export type FieldFault =
   | { code: "DUE_NEEDED" } // RFI, SI
   | { code: "SEVERITY_NEEDED" }
   | { code: "HAPPENED_AT_NEEDED" }
+  | { code: "NEEDS_TIME_ZONE" } // a safety incident's time is a wall clock in the organisation's zone, and none is set
   | { code: "HAPPENED_IN_FUTURE" }
   | { code: "NOT_THIS_TYPE"; field: string }
   | { code: "NOT_EDITABLE"; whoCan: Words } // W-3
   | { code: "CLOSED_ITEM" } // Done or Cancelled: reopen first
-  | { code: "ASSIGNEE_INACTIVE" }
+  | { code: "ASSIGNEE_NOT_ELIGIBLE" } // not in `activeIds`: inactive, another organisation's, or unable to read the case
+  | { code: "COMMENT_EMPTY" }
   | { code: "DEFECT_AFTER_COMPLETION" } // OQ-4 default
   | { code: "OTHER_CONTRACT" }; // a link or "From" document on another contract
 
@@ -80,6 +84,8 @@ export interface WorkNoticeEvent {
   actorId: string;
   raisedBy: string;
   assignee: string | null;
-  occurrence: string; // the audit row's or the comment's id
+  /// The audit row's id (`writeAudit` returns it) or the comment's id.
+  occurrence: string;
+  /// Active people of the item's organisation who may READ the case (a notice must not link someone to a case they cannot open). The caller builds it.
   activeIds: ReadonlySet<string>;
 }

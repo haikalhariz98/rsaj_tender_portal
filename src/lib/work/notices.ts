@@ -10,7 +10,8 @@
  *
  * A body holds the item's reference, its title and the contract's number only: never an amount and never a contact's or a supplier's name (WS-9), since a
  * stored notice is read without a gate. The occurrence is the audit row's or the comment's id, so a retried act tells nobody twice and each comment tells
- * once. Due tomorrow and Late are not built (OQ-5: no runner). Pure.
+ * once. The occurrence is `writeAudit`'s returned id (M2). `activeIds` are the active people of the organisation who may READ the case (the caller builds it).
+ * Due tomorrow and Late are not built (OQ-5: no runner). Pure.
  */
 
 import type { NoticeDraft } from "@/lib/inbox/notices";
@@ -36,7 +37,7 @@ export interface NoticeItem {
 
 /// The address a notice opens: the case's Work tab with the item's panel.
 export const workItemHref = (item: Pick<NoticeItem, "contractId" | "type" | "number">): string =>
-  `${caseHref({ awardId: item.contractId, contractId: item.contractId }, { tab: "work" })}&item=${encodeURIComponent(itemRef(item.type, item.number))}`;
+  `${caseHref({ awardId: "", contractId: item.contractId }, { tab: "work" })}&item=${encodeURIComponent(itemRef(item.type, item.number))}`;
 
 function recipients(e: WorkNoticeEvent): string[] {
   const named = e.kind === "WORK_ITEM_TO_CHECK" ? [e.raisedBy] : e.kind === "WORK_ITEM_COMMENT" ? [e.raisedBy, e.assignee] : [e.assignee];

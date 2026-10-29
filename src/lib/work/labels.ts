@@ -113,6 +113,7 @@ export const FIELD_WORDS: Readonly<Record<string, Words>> = {
   happenedAt: w("Happened"),
   fromDocumentId: w("From"),
   cancelReason: w("Reason"),
+  comment: w("Comment"),
 };
 
 /// The words of a stored enum value in a column, for Activity; null when the column holds no enum.
@@ -155,6 +156,8 @@ export function whoCanWords(action: WorkAction | "EDIT", who: WhoNames): Words {
   return w(`${named.slice(0, -1).map((p) => `${p.text},`).join(" ")} or ${tail} can ${verb}.`);
 }
 
+const tooLongText = (field: string, max: number): string => `${FIELD_WORDS[field]?.en ?? "This"} is over ${max.toLocaleString("en")} characters.`;
+
 /// A refused move in one sentence. `action` is the move's (move.ts `actionOf`); the who-can faults name the people of that action.
 export function moveFaultText(f: MoveFault, action: WorkAction | null, who: WhoNames): string {
   switch (f.code) {
@@ -166,7 +169,10 @@ export function moveFaultText(f: MoveFault, action: WorkAction | null, who: WhoN
       return `${f.by ?? "Someone"} changed this a moment ago.`;
     case "ONLY_ASSIGNEE":
     case "ONLY_RAISER_OR_LEAD":
+    case "ONLY_ASSIGNEE_RAISER_OR_LEAD":
       return whoCanWords(action ?? "EDIT", who).en;
+    case "TOO_LONG":
+      return tooLongText(f.field, f.max);
     case "ANSWER_NEEDED":
       return "Write the answer first.";
     case "RESULT_NOT_PASSED":
@@ -184,13 +190,17 @@ export function fieldFaultText(f: FieldFault): string {
     case "TITLE_NEEDED":
       return "Give it a title.";
     case "TOO_LONG":
-      return `${FIELD_WORDS[f.field]?.en ?? "This"} is over ${f.max.toLocaleString("en")} characters.`;
+      return tooLongText(f.field, f.max);
     case "DUE_NEEDED":
       return "Pick a due date.";
     case "SEVERITY_NEEDED":
       return "Pick a severity.";
     case "HAPPENED_AT_NEEDED":
       return "Say when it happened.";
+    case "NEEDS_TIME_ZONE":
+      return "Set the organisation's time zone first.";
+    case "COMMENT_EMPTY":
+      return "Write a comment first.";
     case "HAPPENED_IN_FUTURE":
       return "That time hasn't come yet.";
     case "NOT_THIS_TYPE":
@@ -199,8 +209,8 @@ export function fieldFaultText(f: FieldFault): string {
       return f.whoCan.en;
     case "CLOSED_ITEM":
       return "Reopen it first.";
-    case "ASSIGNEE_INACTIVE":
-      return "That person is no longer active.";
+    case "ASSIGNEE_NOT_ELIGIBLE":
+      return "Pick someone active who can see this contract.";
     case "DEFECT_AFTER_COMPLETION":
       return "List defects in Close-out › Defects.";
     case "OTHER_CONTRACT":

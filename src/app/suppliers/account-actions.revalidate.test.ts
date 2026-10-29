@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({ revalidated: [] as string[], closed: null as string | null }));
 
 vi.mock("next/cache", () => ({ revalidatePath: (path: string) => void h.revalidated.push(path) }));
-vi.mock("@/lib/db", () => ({ db: { $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ supplierContact: { findFirst: async () => ({ id: "c1", isPrimary: false }), update: async () => ({}) }, auditEntry: { create: async () => ({}) } }) } }));
+vi.mock("@/lib/db", () => ({ db: { $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ supplierContact: { findFirst: async () => ({ id: "c1", isPrimary: false }), update: async () => ({}) }, auditEntry: { create: async () => ({ id: "audit-1" }) } }) } }));
 vi.mock("@/lib/suppliers/write", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/suppliers/write")>()),
   withLockedSupplier: async (tx: unknown, _org: string, supplierId: string, fn: (tx: unknown, l: unknown) => Promise<unknown>) =>

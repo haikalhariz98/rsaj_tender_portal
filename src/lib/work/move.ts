@@ -16,6 +16,7 @@
  * what the move still needs. Someone who may not read the contract's stages is nobody on the item.
  */
 
+import { TEXT_MAX, textLength } from "./bounds";
 import { whoCanWords, type WhoNames } from "./labels";
 import type { MoveFault, PrimaryActions, WorkAction, WorkActor, WorkItemFacts, WorkStatus } from "./types";
 
@@ -81,7 +82,7 @@ export function moveFaults(item: WorkItemFacts, actor: WorkActor, to: WorkStatus
   const out: MoveFault[] = [];
   switch (action) {
     case "START":
-      if (!(r.assignee || raiserOrLead)) out.push({ code: "ONLY_RAISER_OR_LEAD" });
+      if (!(r.assignee || raiserOrLead)) out.push({ code: "ONLY_ASSIGNEE_RAISER_OR_LEAD" });
       break;
     case "SEND_FOR_REVIEW":
       if (selfHeld) return notAMove;
@@ -96,10 +97,12 @@ export function moveFaults(item: WorkItemFacts, actor: WorkActor, to: WorkStatus
     case "SEND_BACK":
       if (!raiserOrLead) out.push({ code: "ONLY_RAISER_OR_LEAD" });
       if (!ctx.comment?.trim()) out.push({ code: "COMMENT_NEEDED" });
+      else if (textLength(ctx.comment) > TEXT_MAX) out.push({ code: "TOO_LONG", field: "comment", max: TEXT_MAX });
       break;
     case "CANCEL":
       if (!raiserOrLead) out.push({ code: "ONLY_RAISER_OR_LEAD" });
       if (!ctx.reason?.trim()) out.push({ code: "REASON_NEEDED" });
+      else if (textLength(ctx.reason) > TEXT_MAX) out.push({ code: "TOO_LONG", field: "cancelReason", max: TEXT_MAX });
       break;
     case "REOPEN":
       if (!raiserOrLead) out.push({ code: "ONLY_RAISER_OR_LEAD" });
@@ -135,6 +138,6 @@ export function primaryActions(item: WorkItemFacts, reader: WorkActor, ctx: { co
   const menu = offered.filter((a) => a !== primary);
   const refusedByPerson = primary
     ? undefined
-    : judged.find((j) => PRIMARY_ELIGIBLE.includes(j.action) && j.faults.some((f) => f.code === "ONLY_ASSIGNEE" || f.code === "ONLY_RAISER_OR_LEAD"));
+    : judged.find((j) => PRIMARY_ELIGIBLE.includes(j.action) && j.faults.some((f) => f.code === "ONLY_ASSIGNEE" || f.code === "ONLY_RAISER_OR_LEAD" || f.code === "ONLY_ASSIGNEE_RAISER_OR_LEAD"));
   return { primary, menu, disabled: refusedByPerson ? { action: refusedByPerson.action, whoCan: whoCanWords(refusedByPerson.action, ctx.who) } : null };
 }

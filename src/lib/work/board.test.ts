@@ -34,6 +34,15 @@ describe("boardColumns", () => {
     expect(FIXTURE_ITEMS.some((i) => i.status === "DONE" && i.closedOn! <= "2026-10-22")).toBe(true);
   });
 
+  it("Done counts what is older than the window apart from the cap, for the Older link", () => {
+    const done = cols.find((c) => c.column === "DONE")!;
+    const older = FIXTURE_ITEMS.filter((i) => i.status === "DONE" && i.closedOn! <= "2026-10-22").length;
+    expect(older).toBeGreaterThan(0);
+    expect(done.older).toBe(older);
+    expect(cols.filter((c) => c.column !== "DONE").map((c) => c.older)).toEqual([0, 0, 0]);
+    expect(boardColumns(FIXTURE_ITEMS, null).find((c) => c.column === "DONE")!.older).toBe(0);
+  });
+
   it("with no time zone the window cannot be judged: every Done item shows, capped", () => {
     const done = boardColumns(FIXTURE_ITEMS, null).find((c) => c.column === "DONE")!;
     expect(done.total).toBe(FIXTURE_ITEMS.filter((i) => i.status === "DONE").length);
@@ -63,6 +72,9 @@ describe("cardMoves", () => {
   });
   it("Done reopens to To do, for the raiser or the lead", () => {
     expect(cardMoves(card({ status: "DONE" }), as("nurul"), ctx)).toEqual({ moves: ["TO_DO"], stuckWhy: null });
+  });
+  it("a Done card's assignee is told who can reopen it", () => {
+    expect(cardMoves(card({ status: "DONE" }), as("aisyah"), ctx)).toEqual({ moves: [], stuckWhy: "Hafiz, who raised it, or the S.O. (Nurul) can reopen this." });
   });
   it("an RFI with no answer may still be dropped in In review: the act says what is missing", () => {
     expect(cardMoves(card({ type: "RFI", status: "IN_PROGRESS" }), as("aisyah"), ctx).moves).toEqual(["IN_REVIEW"]);

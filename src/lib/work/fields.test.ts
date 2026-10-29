@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { COMPLETED_CONTRACT_STATUSES } from "@/lib/contract/case-stage";
 
 import { LOCATION_MAX, TEXT_MAX, TITLE_MAX } from "./bounds";
-import { fieldFaults, newItemFaults, parseFieldEdit, parseNewItem, typeHasField, type FieldFacts, type NewItem } from "./fields";
+import { commentFaults, fieldFaults, mayEdit, newItemFaults, parseFieldEdit, parseNewItem, typeHasField, type FieldFacts, type NewItem } from "./fields";
 import type { WhoNames } from "./labels";
 import { WORK_ITEM_TYPES, type WorkActor, type WorkItemFacts, type WorkItemType } from "./types";
 
@@ -11,7 +11,7 @@ import { WORK_ITEM_TYPES, type WorkActor, type WorkItemFacts, type WorkItemType 
 
 const KL = "Asia/Kuala_Lumpur";
 const NOW = new Date("2026-11-05T02:00:00.000Z"); // 10:00 on 5 Nov in KL
-const FACTS: FieldFacts = { now: NOW, activeIds: new Set(["aisyah", "hafiz"]), fromDocumentOnContract: true };
+const FACTS: FieldFacts = { now: NOW, activeIds: new Set(["aisyah", "hafiz"]), timeZone: KL, fromDocumentOnContract: true };
 const form = (o: Record<string, string>) => new Map(Object.entries(o));
 
 describe("parseNewItem", () => {
@@ -96,6 +96,11 @@ describe("newItemFaults: what each type requires", () => {
     expect(newItemFaults(base("SAFETY_INCIDENT", { severity: "NEAR_MISS", happenedAt: NOW }), ACTIVE)).toEqual([]);
     expect(newItemFaults(base("SAFETY_INCIDENT", { severity: "NEAR_MISS", happenedAt: new Date(NOW.getTime() + 60_000) }), ACTIVE)).toEqual([{ code: "HAPPENED_IN_FUTURE" }]);
   });
+  it("a safety incident's time with no organisation time zone asks for the zone, not for the time", () => {
+    const noZone = { ...ACTIVE, timeZone: null };
+    expect(newItemFaults(base("SAFETY_INCIDENT", { severity: "NEAR_MISS" }), noZone)).toEqual([{ code: "NEEDS_TIME_ZONE" }]);
+    expect(newItemFaults(base("TASK"), noZone)).toEqual([]);
+  });
   it("another type's own field, when given, is NOT_THIS_TYPE", () => {
     expect(newItemFaults(base("TASK", { answer: "Yes" }), ACTIVE)).toEqual([{ code: "NOT_THIS_TYPE", field: "answer" }]);
     expect(newItemFaults(base("DEFECT", { impact: "COST" }), ACTIVE)).toEqual([{ code: "NOT_THIS_TYPE", field: "impact" }]);
@@ -108,7 +113,7 @@ describe("newItemFaults: what each type requires", () => {
     expect(newItemFaults(base("SITE_INSTRUCTION", { dueOn: "2026-11-10", impact: "COST" }), ACTIVE)).toEqual([]);
   });
   it("an inactive assignee, and a From document on another contract, are refused", () => {
-    expect(newItemFaults(base("TASK", { assigneePersonId: "gone" }), ACTIVE)).toEqual([{ code: "ASSIGNEE_INACTIVE" }]);
+    expect(newItemFaults(base("TASK", { assigneePersonId: "gone" }), ACTIVE)).toEqual([{ code: "ASSIGNEE_NOT_ELIGIBLE" }]);
     expect(newItemFaults(base("TASK", { assigneePersonId: "aisyah" }), ACTIVE)).toEqual([]);
     expect(newItemFaults(base("ACTION", { fromDocumentId: "doc1" }), { ...ACTIVE, fromDocumentOnContract: false })).toEqual([{ code: "OTHER_CONTRACT" }]);
     expect(newItemFaults(base("ACTION", { fromDocumentId: "doc1" }), ACTIVE)).toEqual([]);
@@ -161,6 +166,14 @@ describe("parseFieldEdit", () => {
   });
 });
 
+describe("commentFaults", () => {
+  it("empty or blank is refused; over the bound is too long; anything else is fine", () => {
+    expect(commentFaults("  ")).toEqual([{ code: "COMMENT_EMPTY" }]);
+    expect(commentFaults("a".repeat(TEXT_MAX + 1))).toEqual([{ code: "TOO_LONG", field: "comment", max: TEXT_MAX }]);
+    expect(commentFaults("a".repeat(TEXT_MAX))).toEqual([]);
+  });
+});
+
 describe("fieldFaults: who edits, and when (W-3)", () => {
   const who: WhoNames = { raiser: "Hafiz", assignee: "Aisyah", lead: { roleLabel: "S.O.", names: ["Nurul"] } };
   const item = (o: Partial<WorkItemFacts> = {}): WorkItemFacts => ({ id: "w1", type: "RFI", number: 12, status: "IN_PROGRESS", raisedBy: "hafiz", assignee: "aisyah", dueOn: "2026-11-10", answer: "", inspectionResult: null, ...o });
@@ -175,6 +188,12 @@ describe("fieldFaults: who edits, and when (W-3)", () => {
     expect(fieldFaults(item(), as("hafiz", false), { field: "priority", value: "HIGH" }, f).map((x) => x.code)).toEqual(["NOT_EDITABLE"]);
   });
 
+  it("mayEdit is the raiser, the assignee or the lead who may read the contract", () => {
+    expect([item(), item({ assignee: null })].map((i) => mayEdit(i, as("aisyah")))).toEqual([true, false]);
+    expect(mayEdit(item(), as("nurul"))).toBe(true);
+    expect(mayEdit(item(), as("nurul", false))).toBe(false);
+  });
+
   it("a Done or Cancelled item is closed until reopened, before who is asked", () => {
     for (const status of ["DONE", "CANCELLED"] as const) expect(fieldFaults(item({ status }), as("other"), { field: "title", value: "x" }, f)).toEqual([{ code: "CLOSED_ITEM" }]);
   });
@@ -184,7 +203,7 @@ describe("fieldFaults: who edits, and when (W-3)", () => {
     expect(fieldFaults(item({ type: "TASK" }), as("hafiz"), { field: "dueOn", value: null }, f)).toEqual([]);
     expect(fieldFaults(item({ type: "TASK" }), as("hafiz"), { field: "answer", value: "x" }, f)).toEqual([{ code: "NOT_THIS_TYPE", field: "answer" }]);
     expect(fieldFaults(item(), as("hafiz"), { field: "title", value: "" }, f)).toEqual([{ code: "TITLE_NEEDED" }]);
-    expect(fieldFaults(item(), as("hafiz"), { field: "assigneePersonId", value: "gone" }, f)).toEqual([{ code: "ASSIGNEE_INACTIVE" }]);
+    expect(fieldFaults(item(), as("hafiz"), { field: "assigneePersonId", value: "gone" }, f)).toEqual([{ code: "ASSIGNEE_NOT_ELIGIBLE" }]);
     expect(fieldFaults(item(), as("hafiz"), { field: "assigneePersonId", value: null }, f)).toEqual([]); // unassigned is valid (W-6)
     expect(fieldFaults(item({ type: "SAFETY_INCIDENT" }), as("hafiz"), { field: "happenedAt", value: new Date(NOW.getTime() + 1) }, f)).toEqual([{ code: "HAPPENED_IN_FUTURE" }]);
     expect(fieldFaults(item({ type: "SAFETY_INCIDENT" }), as("hafiz"), { field: "severity", value: null }, f)).toEqual([{ code: "SEVERITY_NEEDED" }]);

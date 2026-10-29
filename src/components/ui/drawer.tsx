@@ -42,3 +42,6 @@ export function confirmPanelClass(extra?: string): string {
 /// The drawer's header is a client component (it carries the language switch and says "Close" in the language being read), so it lives in its own
 /// file; this module stays free of hooks, because server components import the scrim and panel classes from it.
 export { DrawerHeader } from "./drawer-header";
+
+/// The non-modal side panel with its keyboard rule (also a client component, so it lives in its own file).
+export { SidePanel } from "./side-panel";

@@ -7,6 +7,7 @@
  * - A type's own field on another type is NOT_THIS_TYPE (an answer only on an RFI; impact on an RFI or SI; a result on an inspection; severity and when on a
  *   safety incident; "From" on an action item).
  * - Editing: a Done or Cancelled item is closed until reopened; only its raiser, its assignee or the lead edit it (W-3).
+ * - Who may edit is `mayEdit`. `FieldFacts.activeIds` is the active people of the item's organisation who may READ the case; an assignee outside it is refused.
  * - Raising a Defect on a contract past practical completion is refused (OQ-4): the defect belongs in Close-out › Defects until 3b links the two.
  */
 
@@ -23,6 +24,16 @@ const PRIORITIES: readonly WorkPriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
 const IMPACTS: readonly WorkImpact[] = ["NONE", "COST", "TIME", "COST_AND_TIME"];
 const RESULTS: readonly InspectionResult[] = ["NOT_YET", "PASSED", "FAILED"];
 const SEVERITIES: readonly IncidentSeverity[] = ["NEAR_MISS", "FIRST_AID", "MEDICAL_TREATMENT", "LOST_TIME", "DANGEROUS_OCCURRENCE"];
+
+/// W-3: only its raiser, its assignee or the lead edit an item, and only a reader of the contract.
+export const mayEdit = (item: Pick<WorkItemFacts, "raisedBy" | "assignee">, actor: WorkActor): boolean =>
+  actor.mayReadContract && (actor.personId === item.raisedBy || actor.personId === item.assignee || actor.leadIds.includes(actor.personId));
+
+/// A comment's faults (empty, over the text bound): `Composer`'s action asks before it saves.
+export function commentFaults(body: string): FieldFault[] {
+  if (body.trim() === "") return [{ code: "COMMENT_EMPTY" }];
+  return textLength(body) > TEXT_MAX ? [{ code: "TOO_LONG", field: "comment", max: TEXT_MAX }] : [];
+}
 
 /// One field's change, named by its column (so Activity and a fault name it the same way).
 export type FieldEdit =
@@ -52,7 +63,10 @@ const DUE_REQUIRED: readonly WorkItemType[] = ["RFI", "SITE_INSTRUCTION"];
 /// What the rules need beside the edit, read by the store: the clock (for "happened"), who is active, whether a "From" document is on the item's contract.
 export interface FieldFacts {
   now: Date;
+  /// Active people of the item's organisation who may READ the case (the caller builds it): an assignee outside it is ASSIGNEE_NOT_ELIGIBLE.
   activeIds: ReadonlySet<string>;
+  /// The organisation's zone: a safety incident's time cannot be judged without one (NEEDS_TIME_ZONE).
+  timeZone: string | null;
   /// The picked "From" project document is on the item's own contract. Unread (no document picked): ignored.
   fromDocumentOnContract: boolean;
 }
@@ -135,10 +149,10 @@ function valueFaults(type: WorkItemType, e: FieldEdit, facts: FieldFacts): Field
     case "severity":
       return e.value === null ? [{ code: "SEVERITY_NEEDED" }] : [];
     case "happenedAt":
-      if (e.value === null) return [{ code: "HAPPENED_AT_NEEDED" }];
+      if (e.value === null) return [{ code: facts.timeZone === null ? "NEEDS_TIME_ZONE" : "HAPPENED_AT_NEEDED" }];
       return e.value.getTime() > facts.now.getTime() ? [{ code: "HAPPENED_IN_FUTURE" }] : [];
     case "assigneePersonId":
-      return e.value !== null && !facts.activeIds.has(e.value) ? [{ code: "ASSIGNEE_INACTIVE" }] : [];
+      return e.value !== null && !facts.activeIds.has(e.value) ? [{ code: "ASSIGNEE_NOT_ELIGIBLE" }] : [];
     case "fromDocumentId":
       return e.value !== null && !facts.fromDocumentOnContract ? [{ code: "OTHER_CONTRACT" }] : [];
     default:
@@ -151,8 +165,7 @@ const judge = (type: WorkItemType, e: FieldEdit, facts: FieldFacts): FieldFault[
 /// One field's edit on an item (W-3): a closed item refuses alone, then a reader who is not its raiser, assignee or lead, then the value.
 export function fieldFaults(item: WorkItemFacts, actor: WorkActor, edit: FieldEdit, facts: FieldFacts & { who: WhoNames }): FieldFault[] {
   if (!isOpen(item.status)) return [{ code: "CLOSED_ITEM" }];
-  const on = actor.mayReadContract && (actor.personId === item.raisedBy || actor.personId === item.assignee || actor.leadIds.includes(actor.personId));
-  if (!on) return [{ code: "NOT_EDITABLE", whoCan: whoCanWords("EDIT", facts.who) }];
+  if (!mayEdit(item, actor)) return [{ code: "NOT_EDITABLE", whoCan: whoCanWords("EDIT", facts.who) }];
   return judge(item.type, edit, facts);
 }
 

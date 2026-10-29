@@ -585,7 +585,7 @@ Step 4 (`e8854a03`) and step 2 (`02d34575`, `25ecb3c5`) were built ahead of step
 - **Column and form-field names** used by `workWhere`, `FieldEdit` and `FIELD_WORDS`: `type`, `number`, `status`, `title`,
   `description`, `priority`, `dueOn`, `location`, `assigneePersonId`, `answer`, `impact`, `inspectionResult`, `severity`,
   `happenedAt`, `fromDocumentId`, `cancelReason`.
-- **Done window:** the schema has no closed day. Step 1 adds `closedAt`, or step 3 uses the organisation's day of `updatedAt`.
+- **Done window (decided):** step 1 adds a `closedAt` column, set on Done and Cancelled and cleared on reopen; `BoardItem.closedOn` is the organisation's day of it. Not `updatedAt`.
 - **Length CHECKs** use `char_length` (bounds count code points).
 - **Notice titles:** `kinds.ts` labels match `NOTICE_TITLE_WORDS`; `notices.ts` then drops its own kind type.
 - **`MOVED_ALREADY.by`** is a display name from the audit row, not a Person id.
@@ -599,3 +599,23 @@ Step 4 (`e8854a03`) and step 2 (`02d34575`, `25ecb3c5`) were built ahead of step
   return refusal words rather than throw. The Board takes `cardMoves(...)` output per card. `LinkIcon` serves as the chain icon.
 - **Still to check on screen (step 5/6):** Board Enter-to-open, arrow keys, outside-click closing its menu, and the text-snapshot
   diff of existing lists (step 4's Done-when, not run: no sign-in).
+
+### Review fixes to steps 2 and 4 (2026-10-29) and what they hand on
+
+- **Audit occurrence (M2):** `writeAudit` now returns the new audit row's id (`Promise<string>`; existing callers ignore it). A work act takes it as
+  `WorkNoticeEvent.occurrence`, so a retried act tells nobody twice.
+- **Activity:** `activityFeed(comments, auditRows, timeZone, names?)` has no filter: the All / Comments filter is the `Activity` component's alone. `happenedAt`
+  shows as day and clock in the organisation's zone (`formatOrgDateTime`), marked when no zone is set; `dueOn` stays a plain day.
+- **People sets:** `FieldFacts.activeIds` and `WorkNoticeEvent.activeIds` are the active people of the item's organisation who may READ the case; the caller
+  builds them. An assignee outside the set is `ASSIGNEE_NOT_ELIGIBLE` ("Pick someone active who can see this contract."; it replaces `ASSIGNEE_INACTIVE`).
+- **`FieldFacts.timeZone`** is new: a safety incident's time with no zone is `NEEDS_TIME_ZONE`, not `HAPPENED_AT_NEEDED`. Step 3 passes the zone.
+- **Faults:** START refused by person is `ONLY_ASSIGNEE_RAISER_OR_LEAD` (same words); Cancel's reason and Send back's comment over `TEXT_MAX` are `TOO_LONG`
+  (`field: "cancelReason" | "comment"`); `commentFaults(body)` judges a comment (`COMMENT_EMPTY`, `TOO_LONG`); `mayEdit(item, actor)` is exported and `fieldFaults` calls it.
+- **Board:** `boardColumns` returns `older` (Done items closed before the window, whatever the cap); the screen gives the Done column `olderHref` (the list's
+  Done view) and `olderCount`. A card with no move shows `stuckWhy` in an info popover; a Done card's assignee is told who can reopen it.
+- **`FIELD_WORDS.comment`** is words only (a fault names the comment), not a column step 1 must add.
+- **Step 3's database test** includes `%` and `_` search queries (they must match literally, not as LIKE wildcards).
+- **Plan §3.3 overrides 0008 §4.2 / §5.4** on who may move back to To do (reopen: raiser or lead) and on the assignee's Cancel (not theirs).
+- **For step 5:** there is no `date` cell kind yet, and the Due inline edit needs one (add it to `list-cells.ts` and `DataList` first, never a one-off). The
+  status select's options come from `cardMoves` and exclude Cancel and Send back (the panel's dialogs collect those). Check that `?item=` links use
+  `scroll={false}` so the list does not jump. `SidePanel` (`ui/side-panel.tsx`) is the panel's shell: Escape only from inside, focus back to the opener.

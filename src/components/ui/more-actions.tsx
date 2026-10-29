@@ -14,7 +14,9 @@ import { moreItemClass } from "./more-item-class";
 /// The "…" menu of a `PageHeader`: the secondary and the destructive actions, so the header keeps one or two primary buttons. Native
 /// `details`/`summary` (keyboard-operable with no script, as `Disclosure` is); the small effect only closes it on Escape, returning focus
 /// to the button, and on a click outside. Items are `MoreItem`s, or a form holding one (an action that posts).
-export function MoreActions({ children, label }: { children: ReactNode; label?: string }) {
+/// `compact`: the small button a card carries (the Board's "Move to"). `closeOnPick`: the menu closes when an item is pressed; leave it off where an item opens
+/// a dialog that is rendered inside the menu, which closing would unmount.
+export function MoreActions({ children, label, compact, closeOnPick }: { children: ReactNode; label?: string; compact?: boolean; closeOnPick?: boolean }) {
   const say = useSay();
   const root = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -39,11 +41,16 @@ export function MoreActions({ children, label }: { children: ReactNode; label?: 
       <summary
         aria-label={name}
         title={name}
-        className={cx(iconButtonClass("md", true), "cursor-pointer list-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 [&::-webkit-details-marker]:hidden")}
+        className={cx(iconButtonClass(compact ? "sm" : "md", !compact, compact ? "size-7" : undefined), "cursor-pointer list-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 [&::-webkit-details-marker]:hidden")}
       >
-        <MoreIcon size={18} />
+        <MoreIcon size={compact ? 16 : 18} />
       </summary>
-      <div className="absolute right-0 z-30 mt-2 flex min-w-52 flex-col rounded-2xl border border-line bg-surface p-1.5 shadow-pop">{children}</div>
+      <div
+        className="absolute right-0 z-30 mt-2 flex min-w-52 flex-col rounded-2xl border border-line bg-surface p-1.5 shadow-pop"
+        onClick={closeOnPick ? (e) => ((e.target as HTMLElement).closest("button,a") ? root.current?.removeAttribute("open") : undefined) : undefined}
+      >
+        {children}
+      </div>
     </details>
   );
 }

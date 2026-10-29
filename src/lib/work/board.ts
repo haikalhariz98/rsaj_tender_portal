@@ -12,8 +12,8 @@
 
 import { dayPlus } from "@/lib/dates";
 
-import { moveFaults, primaryActions } from "./move";
-import { READ_ONLY_WORDS, type WhoNames } from "./labels";
+import { isOpen, moveFaults, primaryActions } from "./move";
+import { READ_ONLY_WORDS, whoCanWords, type WhoNames } from "./labels";
 import type { BoardColumn, Day, MoveFault, WorkActor } from "./types";
 import { compareItems, type WorkRow } from "./views";
 
@@ -34,6 +34,8 @@ export interface BoardColumnOf<T extends BoardItem> {
   total: number;
   /// How many are not drawn.
   more: number;
+  /// Done only: closed before the window, so never on the board; the list holds them, whatever the cap (the board's "Older" link).
+  older: number;
 }
 
 /// Within the window: closed today or in the `BOARD_DONE_DAYS - 1` days before (a day after today, from another clock, still shows).
@@ -44,9 +46,10 @@ export function closedRecently(closedOn: Day | null, today: Day | null): boolean
 
 export function boardColumns<T extends BoardItem>(items: readonly T[], today: Day | null): BoardColumnOf<T>[] {
   return BOARD_COLUMNS.map((column) => {
-    const all = items.filter((i) => i.status === column && (column !== "DONE" || closedRecently(i.closedOn, today))).sort(compareItems);
+    const inColumn = items.filter((i) => i.status === column);
+    const all = inColumn.filter((i) => column !== "DONE" || closedRecently(i.closedOn, today)).sort(compareItems);
     const shown = all.slice(0, BOARD_COLUMN_CAP);
-    return { column, items: shown, total: all.length, more: all.length - shown.length };
+    return { column, items: shown, total: all.length, more: all.length - shown.length, older: inColumn.length - all.length };
   });
 }
 
@@ -57,5 +60,7 @@ const DROP_ALLOWS: readonly MoveFault["code"][] = ["ANSWER_NEEDED", "RESULT_NOT_
 export function cardMoves(item: WorkRow, reader: WorkActor, ctx: { contractOpen: boolean; who: WhoNames }): { moves: BoardColumn[]; stuckWhy: string | null } {
   if (!ctx.contractOpen) return { moves: [], stuckWhy: READ_ONLY_WORDS.en };
   const moves = BOARD_COLUMNS.filter((to) => to !== item.status && moveFaults(item, reader, to, item.status, { contractOpen: true }).every((f) => DROP_ALLOWS.includes(f.code)));
-  return { moves, stuckWhy: moves.length > 0 ? null : (primaryActions(item, reader, ctx).disabled?.whoCan.en ?? null) };
+  if (moves.length > 0) return { moves, stuckWhy: null };
+  // A closed card has no primary action to be refused: say who can reopen it.
+  return { moves, stuckWhy: primaryActions(item, reader, ctx).disabled?.whoCan.en ?? (isOpen(item.status) ? null : whoCanWords("REOPEN", ctx.who).en) };
 }

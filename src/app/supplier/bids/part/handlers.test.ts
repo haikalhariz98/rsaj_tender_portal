@@ -34,7 +34,7 @@ vi.mock("@/lib/db", () => {
     $executeRaw: vi.fn(async () => 1),
     exerciseSealingKey: { findFirst: vi.fn(async () => ({ id: "key_0000001" })) },
     onlineBidFile: { count: vi.fn(async () => 0), create: vi.fn(async (a: unknown) => { h.created.push(a); return {}; }) },
-    auditEntry: { create: vi.fn(async (a: unknown) => { h.audits.push(a); return {}; }) },
+    auditEntry: { create: vi.fn(async (a: unknown) => { h.audits.push(a); return { id: "audit-1" }; }) },
     sealedAccessEvent: { create: vi.fn(async (a: unknown) => { h.events.push(a); return {}; }) },
   };
   return { db: { $transaction: async (fn: (t: typeof tx) => unknown) => { h.txs += 1; return fn(tx); } } };

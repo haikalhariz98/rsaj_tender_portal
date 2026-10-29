@@ -18,7 +18,7 @@ describe("Board", () => {
   it("draws a link to open each card, and a Move menu only on a card that may move", () => {
     const out = board([card({}), card({ id: "2", title: "Locked", moves: [], stuckWhy: "Closed" })]);
     expect(out).toContain('href="/i/1"');
-    expect(out.match(/aria-haspopup="menu"/g)).toHaveLength(1);
+    expect(out.match(/<details/g)).toHaveLength(1);
     expect(out).toContain('draggable="true"');
     expect(out).toContain('draggable="false"');
     expect(out).toContain("Closed");
@@ -46,14 +46,25 @@ describe("the select cell", () => {
   });
 });
 
-describe("Activity and the side panel", () => {
+describe("Activity and the side panel classes", () => {
   it("lists entries and offers All and Comments", () => {
     const out = renderToStaticMarkup(createElement(Activity, { label: "Activity", entries: [{ id: "1", kind: "comment", who: "Aina", at: "today", text: "Done" }] }));
     expect(out).toContain("Comments");
     expect(out).toContain("Done");
   });
-  it("a side panel has no scrim and is not modal", () => {
+  it("a side panel's classes are a drawer's width and shell without the scrim (its behaviour is in board-dom.test.ts)", () => {
     expect(sidePanelClass("lg")).toContain("overscroll-contain");
     expect(sidePanelClass("lg")).toContain("w-[46rem]");
+    expect(sidePanelClass("lg")).not.toContain("fixed");
+  });
+});
+
+describe("the Done column's Older link", () => {
+  it("shows with its own count whatever the cap, and only when there is something older", () => {
+    const cols = (n: number) => [{ id: "a", label: "Done", total: 1, olderHref: "/x?view=done", olderCount: n }];
+    const draw = (n: number) => renderToStaticMarkup(createElement(Board, { columns: cols(n), cards: [], move: async () => {}, label: "Work board" }));
+    expect(draw(3)).toContain('href="/x?view=done"');
+    expect(draw(3)).toContain("Older: in the list");
+    expect(draw(0)).not.toContain("Older");
   });
 });

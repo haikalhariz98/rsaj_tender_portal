@@ -2,6 +2,9 @@
 
 import { useRef, useState, useTransition } from "react";
 
+import { useSay } from "@/components/i18n/language-context";
+import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
+
 import { Button } from "./button";
 import { Textarea } from "./field";
 import { formDataOf } from "./form-submit";
@@ -26,6 +29,7 @@ export function Composer({
   send?: string;
   max?: number;
 }) {
+  const say = useSay();
   const [refused, setRefused] = useState<string | null>(null);
   const [empty, setEmpty] = useState(true);
   const [pending, start] = useTransition();
@@ -46,7 +50,7 @@ export function Composer({
               setEmpty(true);
             }
           } catch {
-            setRefused("That did not save. Try again.");
+            setRefused(say(WORDS.didNotSave));
           }
         });
       }}

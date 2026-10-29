@@ -24,7 +24,7 @@ type Cell = "ok" | "RL" | "A" | "X";
 const cell = (faults: MoveFault[]): Cell => {
   if (faults.length === 0) return "ok";
   if (faults.length !== 1) throw new Error(`more than one fault: ${JSON.stringify(faults)}`);
-  return ({ ONLY_RAISER_OR_LEAD: "RL", ONLY_ASSIGNEE: "A", NOT_A_MOVE: "X" } as Record<string, Cell>)[faults[0].code] ?? (faults[0].code as Cell);
+  return ({ ONLY_RAISER_OR_LEAD: "RL", ONLY_ASSIGNEE_RAISER_OR_LEAD: "RL", ONLY_ASSIGNEE: "A", NOT_A_MOVE: "X" } as Record<string, Cell>)[faults[0].code] ?? (faults[0].code as Cell);
 };
 const row = (item: WorkItemFacts, to: WorkStatus) => ACTORS.map((a) => cell(moveFaults(item, a, to, item.status, FULL)));
 
@@ -91,7 +91,7 @@ describe.each([
 
 describe("who counts", () => {
   it("someone who may not read the contract's stages is nobody on the item, even its raiser or assignee", () => {
-    expect(moveFaults(task("TO_DO"), actor(A, false), "IN_PROGRESS", "TO_DO", FULL)).toEqual([{ code: "ONLY_RAISER_OR_LEAD" }]);
+    expect(moveFaults(task("TO_DO"), actor(A, false), "IN_PROGRESS", "TO_DO", FULL)).toEqual([{ code: "ONLY_ASSIGNEE_RAISER_OR_LEAD" }]);
     expect(moveFaults(task("IN_REVIEW"), actor(R, false), "DONE", "IN_REVIEW", FULL)).toEqual([{ code: "ONLY_RAISER_OR_LEAD" }]);
   });
 
@@ -144,6 +144,12 @@ describe("what a move also needs", () => {
     expect(moveFaults(task("IN_REVIEW"), actor(L), "IN_PROGRESS", "IN_REVIEW", { contractOpen: true })).toEqual([{ code: "COMMENT_NEEDED" }]);
     expect(moveFaults(task("IN_REVIEW"), actor(L), "IN_PROGRESS", "IN_REVIEW", { contractOpen: true, comment: " " })).toEqual([{ code: "COMMENT_NEEDED" }]);
     expect(moveFaults(task("IN_PROGRESS"), actor(O), "CANCELLED", "IN_PROGRESS", { contractOpen: true })).toEqual([{ code: "ONLY_RAISER_OR_LEAD" }, { code: "REASON_NEEDED" }]);
+  });
+  it("a reason or a comment over the text bound is refused, counted in code points", () => {
+    const long = "a".repeat(10_001);
+    expect(moveFaults(task("TO_DO"), actor(R), "CANCELLED", "TO_DO", { contractOpen: true, reason: long })).toEqual([{ code: "TOO_LONG", field: "cancelReason", max: 10_000 }]);
+    expect(moveFaults(task("IN_REVIEW"), actor(L), "IN_PROGRESS", "IN_REVIEW", { contractOpen: true, comment: long })).toEqual([{ code: "TOO_LONG", field: "comment", max: 10_000 }]);
+    expect(moveFaults(task("TO_DO"), actor(R), "CANCELLED", "TO_DO", { contractOpen: true, reason: "😀".repeat(10_000) })).toEqual([]);
   });
 });
 

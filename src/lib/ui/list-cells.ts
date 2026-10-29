@@ -54,7 +54,7 @@ export type Cell =
   | { kind: "withheld"; words: string }
   /// An inline choice that is an act: picking calls the server action with `fields` plus `name` = the chosen value. The action returns `{ refused }` (the words) to
   /// refuse, and the cell reverts and says them. With `disabledWhy` the choice is read only: the current label shows, with who can change it in a popover.
-  | { kind: "select"; name: string; value: string; options: { value: string; label: string }[]; label: string; action: (data: FormData) => Promise<{ refused?: string } | void>; fields: Record<string, string>; disabledWhy?: string };
+  | { kind: "select"; name: string; value: string; options: { value: string; label: string }[]; label: string; action: (data: FormData) => Promise<{ refused?: string } | void>; fields: Record<string, string>; disabledWhy?: string; /** Default: the Select's own rule (a search box above seven options). */ searchable?: boolean };
 
 export interface Column {
   key: string;

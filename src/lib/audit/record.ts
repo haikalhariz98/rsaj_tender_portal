@@ -30,15 +30,16 @@ export interface AuditContext {
   actor: AuditActor;
 }
 
+/// Returns the new audit row's id: a work-item notice's occurrence (a retried act tells nobody twice). Existing callers ignore it.
 export async function writeAudit(
   tx: Tx,
   ctx: AuditContext,
   action: "CREATE" | "UPDATE" | "DELETE",
   changes: FieldChange[],
-): Promise<void> {
+): Promise<string> {
   // While a two-person change is being rehearsed or applied (src/lib/ambient/ambient-tx.ts) the row is also kept, to be shown to the person who decides.
   captureAudit({ entity: ctx.entity, entityId: ctx.entityId, entityLabel: ctx.entityLabel, action, reason: ctx.reason ?? "", changes });
-  await tx.auditEntry.create({
+  const row = await tx.auditEntry.create({
     data: {
       organisationId: ctx.organisationId,
       entity: ctx.entity,
@@ -50,6 +51,7 @@ export async function writeAudit(
       ...actorColumns(ctx.actor),
     },
   });
+  return row.id;
 }
 
 /// Create a row and record it. `after` is what a reader should see recorded, which is
@@ -118,7 +120,6 @@ export async function loadAudit(
 ): Promise<AuditRow[]> {
   const organisation = await db.organisation.findUnique({
     where: { code: organisationCode },
-    select: { id: true },
   });
   if (!organisation) return [];
 

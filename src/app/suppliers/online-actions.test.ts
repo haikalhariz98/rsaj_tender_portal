@@ -58,6 +58,7 @@ vi.mock("@/lib/db", () => ({
         auditEntry: {
           create: async ({ data }: { data: { entity: string; entityLabel: string; action: string; changes: { field: string; before: unknown; after: unknown }[]; reason: string } }) => {
             h.audits.push({ entity: data.entity, label: data.entityLabel, action: data.action, changes: data.changes, reason: data.reason });
+        return { id: "audit-1" };
           },
         },
         securityPolicy: { findUnique: async () => (h.validityMinutes == null ? { resetCodeValidityMinutes: null } : { resetCodeValidityMinutes: h.validityMinutes }) },

@@ -893,7 +893,7 @@ export function DataList({
                   onClick={
                     rowOpens
                       ? (e) => {
-                          if ((e.target as HTMLElement).closest("button,a,input,label")) return;
+                          if ((e.target as HTMLElement).closest("button,a,input,label,[role=listbox],[role=option]")) return;
                           openRow(e.currentTarget);
                         }
                       : undefined
@@ -1119,6 +1119,8 @@ export function ListSearch({ server, placeholder }: { server: Pick<ServerMode, "
 
 /// The "select" cell: an inline choice that calls the caller's action. It shows the pick at once and reverts, saying the refusal, if the action refuses or throws.
 function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }) {
+  const say = useSay();
+  const { language } = useLanguage();
   const [value, setValue] = useState(cell.value);
   const [refused, setRefused] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -1131,7 +1133,7 @@ function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }) {
     return (
       <span className="inline-flex items-center gap-1.5">
         <span>{cell.options.find((o) => o.value === cell.value)?.label ?? dash}</span>
-        <MoreText text={cell.disabledWhy} label={`Who can change ${cell.label.toLowerCase()}`} />
+        <MoreText text={cell.disabledWhy} label={sayWith(WORDS.whoCanChange, language, { label: cell.label.toLowerCase() })} />
       </span>
     );
   }
@@ -1140,10 +1142,12 @@ function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }) {
       <Select
         variant="chip"
         aria-label={cell.label}
-        searchable={false}
-        disabled={pending}
+        searchable={cell.searchable}
+        aria-disabled={pending || undefined}
         value={value}
         onChange={(e) => {
+          // Not `disabled` while pending (a disabled trigger drops focus): a pick made meanwhile is ignored.
+          if (pending) return;
           const next = e.target.value;
           const before = value;
           setValue(next);
@@ -1160,7 +1164,7 @@ function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }) {
               }
             } catch {
               setValue(before);
-              setRefused("That did not save. Try again.");
+              setRefused(say(WORDS.didNotSave));
             }
           });
         }}

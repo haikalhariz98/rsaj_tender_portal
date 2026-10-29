@@ -76,6 +76,13 @@ export const COMPONENT_WORDS = {
   uploaded: w("Uploaded."),
   showFullDescription: w("More information"),
   moreActions: w("More actions"),
+  // Inline acts (the select cell, the board, the composer)
+  didNotSave: w("That did not save. Try again."),
+  whoCanChange: w("Who can change {label}"),
+  moveTo: w("Move to"),
+  seeAll: w("See all"),
+  olderInList: w("Older: in the list"),
+  whyNotMoved: w("Why this cannot move"),
   // The step bar (Stepper): a step's state, said after its name for a screen reader
   stepDone: w("done"),
   stepCurrent: w("waiting now"),
