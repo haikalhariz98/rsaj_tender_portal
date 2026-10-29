@@ -2,7 +2,8 @@
  * The close (Phase 2 close-out stage C; plan closeout-plan.md CO-10, §4.7; FR-FIN-014; rulings 4, 16, 17, 19). Pure.
  *
  * An audited act with no route of its own: the approvals behind it are the certificates' routes. It is allowed when nothing below refuses:
- * the final certificate issued and paid, no certificate or route still open, no defect open, no retention held, every security returned but
+ * the final certificate issued, every issued certificate of a payable kind paid (ruling 9 of the stage C review: FR-FIN-014 closes "on completion
+ * of final payment"), no certificate or route still open, no defect open, no retention held, every security returned but
  * the design guarantee bond (which survives the close) and the rejected ones, and the contractor performance report verified (checked again
  * here after the final's send, ruling 17: close refuses, it does not warn). A supply contract does not close in Phase 2 (ruling 19).
  */
@@ -14,9 +15,10 @@ import type { Finding } from "./types";
 
 export interface ClosureFacts {
   supply: boolean;
-  /// The FINAL certificate is issued, and Finance's payment of it is recorded.
+  /// The FINAL certificate is issued.
   finalIssued: boolean;
-  finalPaid: boolean;
+  /// Ruling 9: every ISSUED certificate of a payable kind (interim, advance, final) with no Finance payment recorded, named.
+  unpaid: readonly string[];
   /// Certificates in DRAFT, IN_ROUTING or SIGNING, and matters whose route is pending or not yet sent, named.
   certificatesInProgress: readonly string[];
   mattersOpen: readonly string[];
@@ -33,7 +35,8 @@ export function closureFaults(f: ClosureFacts): Finding[] {
   if (f.supply) return [{ code: "SUPPLY_NOT_BUILT", level: "block" }];
   const out: Finding[] = [];
   const b = (code: string, data: Record<string, string | number | null> = {}) => out.push({ code, level: "block", data });
-  if (!f.finalIssued || !f.finalPaid) b("FINAL_NOT_PAID", { issued: f.finalIssued ? "yes" : "no" });
+  if (!f.finalIssued) b("FINAL_NOT_ISSUED");
+  if (f.unpaid.length) b("CERTIFICATES_NOT_PAID", { items: f.unpaid.join("; ") });
   if (f.certificatesInProgress.length) b("CERTIFICATES_IN_PROGRESS", { items: f.certificatesInProgress.join("; ") });
   if (f.mattersOpen.length) b("MATTERS_OPEN", { items: f.mattersOpen.join("; ") });
   if (f.defectsOpen > 0) b("DEFECTS_OPEN", { n: f.defectsOpen });

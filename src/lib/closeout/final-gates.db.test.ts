@@ -10,6 +10,8 @@ import { activeContract, contractOrg, D, form, today, type TestContract, type Te
  * with no defects liability period, and writes the rows it needs directly (their own acts are tested elsewhere):
  * - ruling 8, in both orders: a variation approved before the raise refuses the raise; one approved while the FINAL is in routing refuses the
  *   send and the issue, by its reference.
+ * - ruling 9: the close is refused while an issued interim certificate has no Finance payment, naming it; and (the review's S5) while a matter's
+ *   route is open, written after the FINAL issued (its issue refuses stranded work, so it can only arrive after).
  */
 
 const h = vi.hoisted(() => ({ who: null as StaffActor | null }));
@@ -25,8 +27,8 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: (
 vi.mock("@/lib/integration/closeout", () => ({ manualCloseout: { retentionReleased: async () => undefined, closeRequested: async () => undefined } }));
 
 import { raisePracticalCompletion } from "@/app/projects/[id]/closeout-actions";
-import { raiseFinalAccount } from "@/app/projects/[id]/final-actions";
-import { recordCertificateSignature, sendCertificateForApproval, sendCertificateToSigning } from "@/app/projects/[id]/certificates/[certId]/actions";
+import { closeContract, raiseFinalAccount } from "@/app/projects/[id]/final-actions";
+import { recordCertificatePayment, recordCertificateSignature, sendCertificateForApproval, sendCertificateToSigning } from "@/app/projects/[id]/certificates/[certId]/actions";
 
 let o: TestOrg;
 const as = <T>(personId: string, fn: () => Promise<T>): Promise<T> => {
@@ -106,5 +108,27 @@ describe("ruling 8: a variation not on an issued adjustment refuses the final ac
     expect(issue.message).toContain(`Not issued: The final sum counts only issued adjustments`);
     expect(issue.message).toContain(ref);
     expect((await db.certificate.findUniqueOrThrow({ where: { id: cert } })).status).toBe("SIGNING");
+  });
+});
+
+describe("ruling 9 and S5: the close refuses an unpaid certificate and an open matter, by name", () => {
+  it("names an issued interim certificate with no Finance payment, and a matter whose route is open", async () => {
+    const k = await completed();
+    const ipc = `IPC/T/${randomId()}`;
+    await db.certificate.create({ data: { organisationId: o.organisationId, contractId: k.contractId, kind: "INTERIM_PAYMENT", status: "ISSUED", baselineId: k.baselineId, number: ipc, sequence: 90, issuedAt: new Date(Date.now() - 86_400_000), issueSnapshot: {}, certificateDate: D(today()), openedAt: new Date(), openedOn: D(today()) } });
+    expect((await as(o.so, () => raiseFinalAccount({ ok: false }, form({ id: k.contractId, personId: o.so })))).ok).toBe(true);
+    const cert = (await liveFinal(k)).certificateId;
+    await toSigning(cert, "final_payment");
+    const issued = await contractorSigns(cert);
+    expect(issued.ok, issued.message).toBe(true);
+    expect((await as(o.so, () => recordCertificatePayment({ ok: false }, form({ certId: cert, batchNo: `B-${randomId()}`, paidOn: today(), note: "", personId: o.so })))).ok).toBe(true);
+    const matter = `CM/EOT/${randomId()}`;
+    await db.contractMatter.create({ data: { organisationId: o.organisationId, contractId: k.contractId, kind: "EOT", reference: matter, personId: o.so, recordedAt: new Date() } });
+    const r = await as(o.so, () => closeContract({ ok: false }, form({ id: k.contractId, personId: o.so })));
+    expect(r.ok).toBe(false);
+    expect(r.message).toContain(`Finance's payment is not recorded on: Interim payment certificate ${ipc}.`);
+    expect(r.message).not.toContain("Final certificate");
+    expect(r.message).toMatch(/A route is still open: .*CM\/EOT\//);
+    expect((await db.contract.findUniqueOrThrow({ where: { id: k.contractId } })).status).toBe("FINAL_CERTIFICATE_ISSUED");
   });
 });

@@ -19,7 +19,7 @@ import { performanceNotFiled } from "@/lib/performance/report";
 
 import { closureFaults, type ClosureFacts } from "./closure";
 import { finalAccountOf, finalBasisMoved, finalPreconditionFaults, finalRouteFaults, type FinalAccount, type FinalJudged } from "./final-account";
-import { declarationTakenUp, finalInputOf, financePaidOf, keyedOf, loadFinal, loadRequirements, openWorkOf, variationsOpenNow, type FinalRow } from "./final-load";
+import { declarationTakenUp, finalInputOf, financePaidOf, keyedOf, loadFinal, loadRequirements, openWorkOf, unpaidCertificatesOf, variationsOpenNow, type FinalRow } from "./final-load";
 import { SECURITY_KIND_WORDS } from "./labels";
 import { loadCloseout, openLineCount, releaseEventsOf } from "./load";
 import type { FinalBasis, Finding } from "./types";
@@ -133,13 +133,14 @@ export async function closureFactsOf(tx: Tx, l: LoadedContract): Promise<{ facts
     l.ex.contractTypeCode ? tx.contractType.findFirst({ where: { organisationId: l.org.id, code: l.ex.contractTypeCode }, select: { paymentRoute: true } }) : null,
   ]);
   const work = await openWorkOf(tx, l, null);
+  const unpaid = await unpaidCertificatesOf(tx, l.contract.id);
   const label = (s: { kind: string; instrumentRef: string | null }) => `${SECURITY_KIND_WORDS[s.kind] ?? "Security"}${s.instrumentRef ? ` ${s.instrumentRef}` : ""}`;
   const ret = retentionOf(p);
   return {
     facts: {
       supply: type?.paymentRoute === "DELIVERY_ORDER_INVOICE",
       finalIssued: fa?.certificate.status === "ISSUED",
-      finalPaid: !!fa?.certificate.financePayment,
+      unpaid,
       certificatesInProgress: work.inProgress,
       mattersOpen: work.mattersOpen,
       defectsOpen: openLineCount(rows),

@@ -102,7 +102,8 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   FINAL_BASIS_MOVED: (d) => `What the final account read has changed since it was raised (${s(d.items, "its figures")}). Void it and raise it again.`,
   // The close (stage C)
   SUPPLY_NOT_BUILT: () => "Supply contracts are not closed here yet.",
-  FINAL_NOT_PAID: (d) => (d.issued === "yes" ? "Finance's payment of the final certificate is not recorded." : "The final certificate is not issued."),
+  FINAL_NOT_ISSUED: () => "The final certificate is not issued.",
+  CERTIFICATES_NOT_PAID: (d) => `Finance's payment is not recorded on: ${s(d.items, "a certificate")}.`,
   MATTERS_OPEN: (d) => `A route is still open: ${s(d.items, "a matter")}.`,
   RETENTION_HELD: (d) => `Retention of ${d.amount ? formatMoney(BigInt(String(d.amount))) : "an amount"} is still held.`,
   SECURITY_NOT_RETURNED: (d) => `Not returned: ${s(d.items, "a security")}.`,

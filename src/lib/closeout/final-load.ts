@@ -8,6 +8,7 @@
 import type { Tx } from "@/lib/audit/record";
 import { CORRECTIONS } from "@/lib/payment/correction";
 import { KIND_WORDS } from "@/lib/certificate/labels";
+import { PAID_FIGURE } from "@/lib/payment/finance";
 import type { CertificateKind } from "@/lib/certificate/types";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { db } from "@/lib/db";
@@ -175,6 +176,13 @@ export async function variationsOpenNow(tx: Tx, contractId: string): Promise<str
         return { reference: v.reference ?? "a variation not yet numbered", approved: standsApproved(f), commencedPending: commencedPending(f), adjusted: v.orders.some((o) => o.certificate.status === "ISSUED" && o.adjustmentLines.some((a) => a.sumAdjustment.certificate.status === "ISSUED")) };
       }),
   );
+}
+
+/// Ruling 9 (code review of close-out stage C): each ISSUED certificate of a payable kind (`PAID_FIGURE`: interim, advance, final) with no Finance
+/// payment recorded, named, oldest first; `kinds` narrows it (the final account's own warning reads the interims and advances only).
+export async function unpaidCertificatesOf(tx: Tx, contractId: string, kinds: readonly string[] = Object.keys(PAID_FIGURE)): Promise<string[]> {
+  const rows = await tx.certificate.findMany({ where: { contractId, status: "ISSUED", kind: { in: kinds as CertificateKind[] }, financePayment: { is: null } }, select: { kind: true, number: true }, orderBy: [{ issuedAt: "asc" }, { id: "asc" }] });
+  return rows.map((c) => `${KIND_WORDS[c.kind as CertificateKind].en}${c.number ? ` ${c.number}` : ""}`);
 }
 
 /// A STATUTORY_DECLARATION project document of the contract whose latest version is marked TAKEN_UP (FR-FIN-007).

@@ -154,7 +154,8 @@ describe("close-out stage C through its acts", () => {
 
   it("closes once the final is paid and the bond returned, and not before", async () => {
     const early = await as(o.so, () => closeContract({ ok: false }, form({ id: k.contractId, personId: o.so })));
-    expect(early.message).toMatch(/payment of the final certificate is not recorded/);
+    // Ruling 9 of the stage C review (faithful): the refusal now names each unpaid certificate, here the final.
+    expect(early.message).toMatch(/Finance's payment is not recorded on: Final certificate /);
     const paid = await as(o.so, () => recordCertificatePayment({ ok: false }, form({ certId: finalCert, batchNo: "B-FIN-1", paidOn: today(), note: "", personId: o.so })));
     expect(paid.ok, paid.message).toBe(true);
     const bond = await as(o.so, () => closeContract({ ok: false }, form({ id: k.contractId, personId: o.so })));

@@ -10,7 +10,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { STATUS_WORDS } from "@/lib/certificate/labels";
 import { withdrawnCount, type FrozenLine } from "@/lib/closeout/defects";
 import { FINAL_BASIS_WORDS } from "@/lib/closeout/final-words";
-import { financePaidOf, loadRequirements, takenUpDeclarations } from "@/lib/closeout/final-load";
+import { financePaidOf, loadRequirements, takenUpDeclarations, unpaidCertificatesOf } from "@/lib/closeout/final-load";
 import { finalRaiseCheckOf } from "@/lib/closeout/final-write";
 import { closeoutFaultText, closeoutRefusal, owedByContractor, withdrawnWords } from "@/lib/closeout/labels";
 import { survivingOf } from "@/lib/closeout/closure";
@@ -98,6 +98,8 @@ export async function FinalAccountPanel({ l, v, people, today, hidden }: Props) 
     };
   });
   const paid = financePaidOf(p);
+  // Ruling 9 (code review of close-out stage C): an interim or advance not yet paid is not in Finance's recorded payments; said here, refused at the close.
+  const unpaid = await unpaidCertificatesOf(db, id, ["INTERIM_PAYMENT", "ADVANCE_PAYMENT"]);
   const confirmed = fa.financeConfirmedTotal == null ? null : senFromDecimal(fa.financeConfirmedTotal);
   const issuedCount = await db.certificate.count({ where: { contractId: id, organisationId: l.org.id, status: "ISSUED" } });
   const certLink = <Link href={`/projects/${id}/certificates/${fa.certificateId}`}>{fa.certificate.number ?? STATUS_WORDS[fa.certificate.status as keyof typeof STATUS_WORDS]?.en ?? "Open"}</Link>;
@@ -152,6 +154,7 @@ export async function FinalAccountPanel({ l, v, people, today, hidden }: Props) 
               { label: "Agrees", value: confirmed == null ? "Not judged" : confirmed === paid ? "Yes" : "No" },
             ]}
           />
+          {unpaid.length > 0 && <Callout tone="warn" className="mt-4">{`${closeoutFaultText({ code: "CERTIFICATES_NOT_PAID", level: "warn", data: { items: unpaid.join("; ") } })} The contract does not close until each is paid.`}</Callout>}
         </CardBody>
       </Card>
 
@@ -180,7 +183,8 @@ export async function CloseCard({ l, v, people, today, hidden }: Props) {
     return { id: key, search: label, cells: { check: { kind: "stack", title: label, sub: fault ? closeoutFaultText(fault) : ok || undefined }, state: { kind: "chips", items: [{ text: failing.has(code) ? "Not met" : "Met", tone: failing.has(code) ? "warn" : "ok" }] } } };
   };
   const rows: Row[] = status === "CLOSED" ? [] : [
-    check("final", "Final certificate issued and paid", "FINAL_NOT_PAID", ""),
+    check("final", "Final certificate issued", "FINAL_NOT_ISSUED", ""),
+    check("paid", "Every certificate paid", "CERTIFICATES_NOT_PAID", ""),
     check("certs", "No certificate in progress", "CERTIFICATES_IN_PROGRESS", ""),
     check("matters", "No route open", "MATTERS_OPEN", ""),
     check("defects", "Defects made good", "DEFECTS_OPEN", withdrawn ?? ""),
