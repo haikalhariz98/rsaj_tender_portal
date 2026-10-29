@@ -280,12 +280,12 @@ describe("one lock order, the final account's acts and hooks (stage C)", () => {
   it("the send and the issue lock the FinalAccount by its certificate before they read it, inside the certificate's lock", () => {
     const hook = read("src/lib/closeout/at-issue.ts");
     const issue = hook.slice(hook.indexOf("export async function finalIssueRefusal("), hook.indexOf("export async function finalAtIssue("));
-    const at = issue.indexOf('FROM "FinalAccount" WHERE "certificateId" = ${cert.id} FOR UPDATE');
+    const at = issue.indexOf(`FROM "FinalAccount" WHERE "certificateId" = \${cert.id} FOR UPDATE`);
     expect(at).toBeGreaterThan(-1);
-    for (const read of ["certificateSignature.findMany(", "loadFinal(", "variationsOpenNow(", "finalMovedFaults("]) expect(issue.indexOf(read), read).toBeGreaterThan(at);
+    for (const r of ["certificateSignature.findMany(", "loadFinal(", "variationsOpenNow(", "finalMovedFaults("]) expect(issue.indexOf(r), r).toBeGreaterThan(at);
     const write = read("src/lib/closeout/final-write.ts");
     const send = write.slice(write.indexOf("export async function finalSendFaults("));
-    expect(send.indexOf('FROM "FinalAccount" WHERE "certificateId" = ${certificateId} FOR UPDATE')).toBeGreaterThan(-1);
+    expect(send.indexOf(`FROM "FinalAccount" WHERE "certificateId" = \${certificateId} FOR UPDATE`)).toBeGreaterThan(-1);
     expect(send.indexOf("FOR UPDATE")).toBeLessThan(send.indexOf("loadFinal("));
     // Both run on the certificate's own transaction, under withLockedCertificate (Contract, then Certificate).
     const certActs = read("src/app/projects/[id]/certificates/[certId]/actions.ts");
