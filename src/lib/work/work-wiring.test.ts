@@ -109,6 +109,12 @@ describe("the acts call the rules; the edge parses by hand and restates nothing"
   });
 });
 
+describe("the attribution is written where the scans can see it", () => {
+  it("no act.write hides behind a non-null assertion", () => {
+    expect(lex(store)).not.toMatch(/act!\.|act\?\./);
+  });
+});
+
 describe("a notice's body never holds a supplier's or a contact's name (WS-9)", () => {
   it("the store hands the notice rule only the item's reference facts; no supplier record is read by the work acts", () => {
     expect(lex(store)).not.toMatch(/\bsupplier\w*\b|awardeeName|contact\b/i);

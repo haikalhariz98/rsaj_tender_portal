@@ -38,8 +38,8 @@ import { contractorMayDownload } from "@/lib/project-docs/visibility";
 
 import { FILES_PER_ACT } from "./bounds";
 import { commentFaults, fieldFaults, mayEdit, newItemFaults, type EditableField, type FieldEdit, type NewItem } from "./fields";
-import { fieldFaultText, moveFaultText, whoCanWords, type WhoNames } from "./labels";
-import { activeAmong, leadOf, namesOf, workAuditPrefix } from "./load";
+import { fieldFaultText, moveFaultText, whoCanWords } from "./labels";
+import { activeAmong, leadOf, whoNamesOf, workAuditPrefix } from "./load";
 import { actionOf, isOpen, moveFaults, TARGET } from "./move";
 import { itemRef, nextNumber } from "./number";
 import { workNoticeDrafts, type NoticeItem } from "./notices";
@@ -121,16 +121,6 @@ const factsOf = (r: ItemRow): WorkItemFacts => ({ id: r.id, type: r.type, number
 /// Who is acting, as the rules read them. Every active person of the organisation reads a contract's Work (see `load.ts`).
 const actorOf = (who: StaffActor, lead: { ids: string[] }): WorkActor => ({ personId: who.personId, leadIds: lead.ids, mayReadContract: true });
 
-/// The people a who-can sentence names.
-async function whoNames(c: WorkCtx, r: Pick<ItemRow, "raisedByPersonId" | "assigneePersonId">, lead: { ids: string[]; roleLabel: string | null }): Promise<WhoNames> {
-  const names = await namesOf(c.tx, c.l.org.id, [r.raisedByPersonId!, r.assigneePersonId ?? "", ...lead.ids]);
-  return {
-    raiser: names.get(r.raisedByPersonId!) ?? "Someone",
-    assignee: r.assigneePersonId ? (names.get(r.assigneePersonId) ?? "Someone") : null,
-    lead: lead.roleLabel ? { roleLabel: lead.roleLabel, names: lead.ids.map((id) => names.get(id) ?? "Someone") } : null,
-  };
-}
-
 /// The audit view of an item's columns: a day as its day, an instant as an ISO string (`renderValue` would cut a `Date` to its UTC day).
 const columnView = (r: ItemRow, field: EditableField | "status" | "cancelReason"): unknown => (field === "dueOn" ? dayOrNull(r.dueOn) : field === "happenedAt" ? (r.happenedAt?.toISOString() ?? null) : r[field]);
 
@@ -195,7 +185,7 @@ export async function editField(c: WorkCtx, who: StaffActor, i: { itemId: string
   const lead = await leadOf(c.l, c.today, c.tx);
   const activeIds = await activeAmong(c.tx, c.l.org.id, [i.edit.field === "assigneePersonId" ? i.edit.value : null, who.personId]);
   const fromOk = i.edit.field !== "fromDocumentId" || i.edit.value === null || (await c.tx.projectDocument.findFirst({ where: { id: i.edit.value, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true } })) !== null;
-  const faults = fieldFaults(factsOf(row), actorOf(who, lead), i.edit, { now: c.now, activeIds, timeZone: c.l.org.timeZone, fromDocumentOnContract: fromOk, who: await whoNames(c, row, lead) });
+  const faults = fieldFaults(factsOf(row), actorOf(who, lead), i.edit, { now: c.now, activeIds, timeZone: c.l.org.timeZone, fromDocumentOnContract: fromOk, who: await whoNamesOf(c.tx, c.l.org.id, row, lead) });
   if (faults.length) refuse(faultsText(faults));
 
   const changes = diffFields({ [i.edit.field]: columnView(row, i.edit.field) }, { [i.edit.field]: editedView(i.edit) });
@@ -208,9 +198,10 @@ export async function editField(c: WorkCtx, who: StaffActor, i: { itemId: string
 
 // ------------------------------------------------------------------ move an item
 
-/// Who last changed the row, from the audit trail, for MOVED_ALREADY's words.
+/// Who last moved the row (its status), from the audit trail, for MOVED_ALREADY's words. A later edit of a title is not a move.
 async function lastMove(c: WorkCtx, itemId: string): Promise<{ by: string | null; at: string }> {
-  const e = await c.tx.auditEntry.findFirst({ where: { organisationId: c.l.org.id, entity: "WorkItem", entityId: itemId, action: "UPDATE" }, orderBy: [{ at: "desc" }, { id: "desc" }], include: { actorPerson: { select: { name: true } } } });
+  const rows = await c.tx.auditEntry.findMany({ where: { organisationId: c.l.org.id, entity: "WorkItem", entityId: itemId, action: "UPDATE" }, orderBy: [{ at: "desc" }, { id: "desc" }], take: 20, include: { actorPerson: { select: { name: true } } } });
+  const e = rows.find((r) => (r.changes as unknown as { field: string }[]).some((x) => x.field === "status")) ?? rows[0];
   return { by: e ? actorDisplayName(e) : null, at: e?.at.toISOString() ?? "" };
 }
 
@@ -223,12 +214,11 @@ export async function moveItem(c: WorkCtx, who: StaffActor, i: { itemId: string;
   const row = await lockedItem(c, i.itemId);
   const shut = actStatusFault("WORK_ITEM", c.l.contract.status as ContractStatus);
   const lead = await leadOf(c.l, c.today, c.tx);
-  const names = await whoNames(c, row, lead);
+  const names = await whoNamesOf(c.tx, c.l.org.id, row, lead);
   const action = actionOf(row.status, i.to);
   const faults = moveFaults(factsOf(row), actorOf(who, lead), i.to, i.expectedFrom, { contractOpen: shut === null, reason: i.reason, comment: i.comment, lastMove: row.status === i.expectedFrom ? null : await lastMove(c, row.id) });
   if (faults.length) refuse(moveFaultText(faults[0], action, names), faults[0].code === "MOVED_ALREADY" ? 409 : 422);
   if (!action) throw new Error("A move the table allows has an action.");
-  if (action === "SEND_BACK" && !act) throw new Error("Sending back writes a comment, which needs its attribution (beginAct).");
 
   const closed = TARGET[action] === "DONE" || TARGET[action] === "CANCELLED";
   const cancelReason = action === "CANCEL" ? i.reason!.trim() : undefined;
@@ -240,9 +230,10 @@ export async function moveItem(c: WorkCtx, who: StaffActor, i: { itemId: string;
   const auditId = await audit(c, who, row, "WorkItem", row.id, row.title, "UPDATE", diffFields({ status: row.status, ...(cancelReason === undefined ? {} : { cancelReason: row.cancelReason }) }, { status: i.to, ...(cancelReason === undefined ? {} : { cancelReason }) }), cancelReason ?? "");
 
   if (action === "SEND_BACK") {
+    if (!act) throw new Error("Sending back writes a comment, which needs its attribution (beginAct).");
     const written = await c.tx.workItemComment.create({ data: { organisationId: c.l.org.id, workItemId: row.id, body: i.comment!.trim(), internal: true, personId: who.personId, recordedAt: c.now }, select: { id: true } });
     await audit(c, who, row, "WorkItemComment", written.id, "comment", "CREATE", diffFields(null, { comment: i.comment!.trim() }));
-    await act!.write(c.tx, written.id);
+    await act.write(c.tx, written.id);
   }
   if (action === "SEND_FOR_REVIEW") await tell(c, who, row, row.assigneePersonId, "WORK_ITEM_TO_CHECK", auditId);
   if (action === "SEND_BACK") await tell(c, who, row, row.assigneePersonId, "WORK_ITEM_RETURNED", auditId);
@@ -269,7 +260,7 @@ export async function comment(c: WorkCtx, who: StaffActor, i: { itemId: string; 
 async function mayLink(c: WorkCtx, who: StaffActor, row: ItemRow): Promise<void> {
   if (!isOpen(row.status)) return refuse(fieldFaultText({ code: "CLOSED_ITEM" }));
   const lead = await leadOf(c.l, c.today, c.tx);
-  if (!mayEdit({ raisedBy: row.raisedByPersonId!, assignee: row.assigneePersonId }, actorOf(who, lead))) refuse(whoCanWords("EDIT", await whoNames(c, row, lead)).en);
+  if (!mayEdit({ raisedBy: row.raisedByPersonId!, assignee: row.assigneePersonId }, actorOf(who, lead))) refuse(whoCanWords("EDIT", await whoNamesOf(c.tx, c.l.org.id, row, lead)).en);
 }
 
 /// Link the item to another item or to a project document of the same contract. The panel reads links both ways, so B to A is refused where A to B exists.

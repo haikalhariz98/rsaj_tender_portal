@@ -21,9 +21,9 @@ import { loadStorePolicy } from "@/lib/documents/service";
 import { loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
 import { activityFeed, type ActivityLine } from "./activity";
-import { BOARD_COLUMN_CAP, boardColumns, type BoardColumnOf, type BoardItem } from "./board";
+import { BOARD_COLUMN_CAP, BOARD_DONE_DAYS, boardColumns, type BoardColumnOf, type BoardItem } from "./board";
 import { leadIds } from "./lead";
-import { itemRefText } from "./labels";
+import { itemRefText, type WhoNames } from "./labels";
 import { itemRef, parseItemRef } from "./number";
 import type { BoardColumn, Day, WorkStatus, WorkView } from "./types";
 import { WORK_ORDER_BY, workWhere, type WorkFilters } from "./views";
@@ -48,6 +48,16 @@ export async function activeAmong(client: Tx, organisationId: string, ids: reado
   const want = [...new Set(ids.filter((x): x is string => x !== null))];
   if (want.length === 0) return new Set();
   return new Set((await client.person.findMany({ where: { organisationId, isActive: true, id: { in: want } }, select: { id: true } })).map((r) => r.id));
+}
+
+/// The people a who-can sentence names (`primaryActions`, `cardMoves` and the faults' words), resolved by name. `lead` is `leadOf`'s.
+export async function whoNamesOf(client: Tx, organisationId: string, r: { raisedByPersonId: string | null; assigneePersonId: string | null }, lead: { ids: string[]; roleLabel: string | null }): Promise<WhoNames> {
+  const names = await namesOf(client, organisationId, [r.raisedByPersonId ?? "", r.assigneePersonId ?? "", ...lead.ids]);
+  return {
+    raiser: names.get(r.raisedByPersonId ?? "") ?? "Someone",
+    assignee: r.assigneePersonId ? (names.get(r.assigneePersonId) ?? "Someone") : null,
+    lead: lead.roleLabel ? { roleLabel: lead.roleLabel, names: lead.ids.map((id) => names.get(id) ?? "Someone") } : null,
+  };
 }
 
 /// W-4: the lead on the organisation's day: every holder and acting holder of the contract's S.O. office, and the office's label for the words.
@@ -205,7 +215,7 @@ export interface BoardInput {
 export async function loadBoard(i: BoardInput): Promise<BoardColumnOf<WorkCardRow>[]> {
   const openView: WorkView = i.view === "done" ? "open" : i.view;
   const doneShown = i.view === "open" || i.view === "done";
-  const windowStart = i.today === null ? null : instantAt(dayPlus(i.today, -13), "00:00", i.timeZone);
+  const windowStart = i.today === null ? null : instantAt(dayPlus(i.today, -(BOARD_DONE_DAYS - 1)), "00:00", i.timeZone);
   const cols = await Promise.all(
     (["TO_DO", "IN_PROGRESS", "IN_REVIEW", "DONE"] as const satisfies readonly BoardColumn[]).map(async (column) => {
       if (column === "DONE" && !doneShown) return { column, items: [] as WorkCardRow[], total: 0, older: 0 };

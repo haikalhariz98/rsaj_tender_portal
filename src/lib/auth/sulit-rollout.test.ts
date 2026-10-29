@@ -285,7 +285,7 @@ describe("a document is attached only by someone who may already open it (OD-2, 
         // No officer names a document to attach: the staged document is the actor's own and hangs on no exercise, and a project file is never SULIT or unclassified (`contractorMayDownload`,
         // judged again at the pin), because the contractor downloads it.
         "src/lib/project-docs/store.ts",
-        // Changed for workspace 3a step 3 (stricter: the list grows by exactly this one): a work item's files are pinned by the work act (`attachFiles`), the files the same officer staged for a work item
+        // Changed for workspace 3a step 3 (faithful: the list grows by exactly this one, under the conditions the project workspace's entry states): a work item's files are pinned by the work act (`attachFiles`), the files the same officer staged for a work item
         // (`stagedFileFaults`), of the class for project files, never SULIT or unclassified (`contractorMayDownload`, judged at the pin), because the contractor will download them (3b). No officer names a document.
         "src/lib/work/store.ts",
       ].sort(),

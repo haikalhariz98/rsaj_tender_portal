@@ -114,6 +114,9 @@ describe("moving an item", () => {
     expect(words).toBe(`${names.assignee} changed this a moment ago.`);
     expect((await auditOf(t.id)).length).toBe(audits);
     expect((await db.workItem.findUniqueOrThrow({ where: { id: t.id } })).status).toBe("IN_PROGRESS");
+    // A later edit of another field by someone else does not change who is named as having moved it.
+    ok(await as(p.raiser, () => editWorkField(form({ contractId: k.contractId, itemId: t.id, field: "title", value: "Renamed after the move" }))));
+    expect(refused(await move(p.bystander, k.contractId, t.id, "TO_DO", "IN_PROGRESS"))).toBe(`${names.assignee} changed this a moment ago.`);
   });
 
   it("who may move is the move table's: a bystander is told who can, Cancel needs a reason, and Done and Cancelled keep closedAt with the status", async () => {
@@ -229,6 +232,16 @@ describe("a terminated contract", () => {
     const list = await loadWorkList({ organisationId: org.organisationId, contractId: c, viewerId: p.raiser, view: "open", filters: {}, today: read.context.today, timeZone: read.context.timeZone, page: 0, size: 25 });
     expect(list.total).toBe(2);
     expect(await loadItem({ organisationId: org.organisationId, contractId: c, ref: itemRef("TASK", t.number), timeZone: read.context.timeZone })).not.toBeNull();
+  });
+
+  it("an act naming an item of another contract is refused as not found, and locks and changes nothing", async () => {
+    const other = await activeContract(org);
+    const foreign = await task(p.raiser, other.contractId);
+    const words = refused(await as(p.raiser, () => editWorkField(form({ contractId: k.contractId, itemId: foreign.id, field: "title", value: "Hijacked" }))));
+    expect(words).toBe("That item no longer exists.");
+    expect(refused(await move(p.raiser, k.contractId, foreign.id, "TO_DO", "IN_PROGRESS"))).toBe("That item no longer exists.");
+    expect((await db.workItem.findUniqueOrThrow({ where: { id: foreign.id } })).title).toBe(foreign.title);
+    expect(refused(await as(p.raiser, () => editWorkField(form({ contractId: "no-such-contract", itemId: foreign.id, field: "title", value: "x" }))))).toBe("That contract no longer exists.");
   });
 
   it("an address that names an item of another contract, or of nobody, reads as nothing", async () => {
