@@ -6,7 +6,7 @@ import { moreItemClass } from "@/components/ui/more-item-class";
 import { actorField } from "@/lib/auth/actor-field";
 import { KEYED_FINAL_OPTIONS } from "@/lib/closeout/final-words";
 
-import { addFinalDeduction, closeContract, confirmFinalPayments, linkDeclaration, raiseFinalAccount, recordPackEntry, removeFinalDeduction } from "./final-actions";
+import { addFinalDeduction, closeContract, confirmFinalPayments, linkDeclaration, raiseFinalAccount, recordFinalPartyDue, recordPackEntry, removeFinalDeduction } from "./final-actions";
 
 /**
  * The drawers of the final account and the close (Phase 2 close-out stage C; plan closeout-plan.md §3.2, §4.6, §4.7). Each posts to its act, which
@@ -44,6 +44,22 @@ export function AddDeductionDrawer({ id, blocker, main }: { id: string; blocker:
       submitLabel="Add"
       submitBlock={blocker}
       trigger={trig("Add a deduction", !main, main)}
+    />
+  );
+}
+
+/// Ruling 4 (code review of close-out stage C): what a live nominated party or assignee is due on the final account, a total (ADR 0025).
+export function PartyDueDrawer({ id, parties, blocker, main }: { id: string; parties: Option[]; blocker: string | null; main: boolean }) {
+  return (
+    <RecordEditor
+      title="Record what a party is due"
+      description="A total, as printed. Nothing where nothing is due."
+      fields={[hidden("id"), { kind: "select", name: "partyId", label: "Party", required: true, placeholder: "Choose", options: parties }, { kind: "money", name: "due", label: "Due on the final account", required: true }]}
+      values={{ id }}
+      action={recordFinalPartyDue}
+      submitLabel="Record"
+      submitBlock={blocker}
+      trigger={trig("Record what a party is due", false, main)}
     />
   );
 }

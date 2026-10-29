@@ -505,6 +505,7 @@ model Organisation {
   // Phase 2 close-out stage C: the final account and the close.
   finalAccounts            FinalAccount[]
   finalAccountLines        FinalAccountLine[]
+  finalPartyLines          FinalPartyLine[]
   closeoutDocumentRequirements CloseoutDocumentRequirement[]
   finalPackEntries         FinalPackEntry[]
   contractClosures         ContractClosure[]
@@ -11452,6 +11453,8 @@ model ContractParty {
   /// 6.13 Part A step 3: its lines on valuations, and the advances paid to it.
   partyLines      PartyLine[]
   advancePayments AdvancePayment[]
+  /// Close-out stage C review, ruling 4: what it is due on the final account.
+  finalPartyLines FinalPartyLine[]
 }
 
 /// A controlled set of site records handed to the Implementing Department (FR-SUP-009), the versions pinned.
@@ -12752,6 +12755,7 @@ model FinalAccount {
 
   finalLines  FinalAccountLine[]
   packEntries FinalPackEntry[]
+  partyLines  FinalPartyLine[]
 
   @@index([contractId])
 }
@@ -12774,6 +12778,24 @@ model FinalAccountLine {
   recordedAt     DateTime
 
   @@index([finalAccountId])
+}
+
+/// Close-out stage C review, ruling 4 (FR-FIN-011; ADR 0025 B1): what one live nominated party or assignee is due on the final account, keyed while
+/// the account is a draft, as a total only, as printed. The payment is split on it by `payment/waterfall.ts`. CHECK by hand: the amount is not below
+/// nothing. One line per party.
+model FinalPartyLine {
+  id             String        @id @default(cuid())
+  organisationId String
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  finalAccountId String
+  finalAccount   FinalAccount  @relation(fields: [finalAccountId], references: [id], onDelete: Cascade)
+  partyId        String
+  party          ContractParty @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  due            Decimal       @db.Decimal(18, 2)
+  recordedAt     DateTime
+
+  @@unique([finalAccountId, partyId])
+  @@index([partyId])
 }
 
 /// FR-FIN-008 (CO-8, ruling 8): a document the final account's pack needs besides the contract's own issued certificates. Configuration,

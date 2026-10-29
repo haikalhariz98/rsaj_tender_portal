@@ -39,6 +39,7 @@ describe("the figure it is routed on, from the figures as they stand (overrides 
     policy: { materialsPct: null, materialsProvenance: null, preExecutionLimit: null, preExecutionProvenance: null, remainder: null, remainderProvenance: null },
     issued: [],
     foreign: [],
+    liveKinds: [],
     adjustments: [],
     releases: [],
     advances: [],

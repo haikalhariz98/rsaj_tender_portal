@@ -12,6 +12,9 @@ import { activeContract, contractOrg, D, form, today, type TestContract, type Te
  *   send and the issue, by its reference.
  * - ruling 9: the close is refused while an issued interim certificate has no Finance payment, naming it; and (the review's S5) while a matter's
  *   route is open, written after the FINAL issued (its issue refuses stranded work, so it can only arrive after).
+ * - ruling 4: a final with one nominated sub-contractor: the send refuses until its due is recorded; the split is printed and frozen; it issues.
+ * - S5, both orders of a draft final and a new interim: an interim in progress refuses the raise (CERTIFICATES_IN_PROGRESS); an interim issued after
+ *   the raise refuses a keyed deduction (S2) and the issue, FINAL_BASIS_MOVED.
  */
 
 const h = vi.hoisted(() => ({ who: null as StaffActor | null }));
@@ -27,7 +30,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: (
 vi.mock("@/lib/integration/closeout", () => ({ manualCloseout: { retentionReleased: async () => undefined, closeRequested: async () => undefined } }));
 
 import { raisePracticalCompletion } from "@/app/projects/[id]/closeout-actions";
-import { closeContract, raiseFinalAccount } from "@/app/projects/[id]/final-actions";
+import { addFinalDeduction, closeContract, raiseFinalAccount, recordFinalPartyDue } from "@/app/projects/[id]/final-actions";
 import { recordCertificatePayment, recordCertificateSignature, sendCertificateForApproval, sendCertificateToSigning } from "@/app/projects/[id]/certificates/[certId]/actions";
 
 let o: TestOrg;
@@ -130,5 +133,62 @@ describe("ruling 9 and S5: the close refuses an unpaid certificate and an open m
     expect(r.message).not.toContain("Final certificate");
     expect(r.message).toMatch(/A route is still open: .*CM\/EOT\//);
     expect((await db.contract.findUniqueOrThrow({ where: { id: k.contractId } })).status).toBe("FINAL_CERTIFICATE_ISSUED");
+  });
+});
+
+describe("ruling 4: the final account's split, with one nominated sub-contractor", () => {
+  it("refuses the send until its due is recorded, prints and freezes the split, and issues", async () => {
+    const k = await completed();
+    const nsc = await db.contractParty.create({ data: { organisationId: o.organisationId, contractId: k.contractId, kind: "NOMINATED_SUBCONTRACTOR", name: "Syarikat Elektrik NSC", recordedAt: new Date() } });
+    expect((await as(o.so, () => raiseFinalAccount({ ok: false }, form({ id: k.contractId, personId: o.so })))).ok).toBe(true);
+    const fa = await liveFinal(k);
+    const send = await as(o.so, () => sendCertificateForApproval({ ok: false }, form({ certId: fa.certificateId, personId: o.so })));
+    expect(send.message).toContain("is due on the final account is not recorded: Syarikat Elektrik NSC.");
+    const r = await as(o.so, () => recordFinalPartyDue({ ok: false }, form({ id: k.contractId, partyId: nsc.id, due: "1000.00" })));
+    expect(r.ok, r.message).toBe(true);
+    const after = await db.finalAccount.findUniqueOrThrow({ where: { id: fa.id }, include: { certificate: true, partyLines: true } });
+    expect(after.partyLines.map((x) => x.due.toString())).toEqual(["1000"]);
+    const lines = (after.certificate.computedSnapshot as { lines: { key: string; labelEn: string; value: string }[] }).lines;
+    expect(lines.filter((x) => x.key.startsWith("party")).map((x) => `${x.labelEn}: ${x.value}`)).toEqual(["Paid to Syarikat Elektrik NSC: 1000.00", "Paid to the main contractor: 499000.00"]);
+    expect((after.judgedUnder as { parties: string[]; split: string }).parties).toEqual([nsc.id]);
+    expect(await db.auditEntry.count({ where: { entity: "FinalPartyLine", organisationId: o.organisationId } })).toBe(1);
+    const again = await as(o.so, () => sendCertificateForApproval({ ok: false }, form({ certId: fa.certificateId, personId: o.so })));
+    expect(again.message ?? "").not.toMatch(/is due on the final account/);
+    await toSigning(fa.certificateId, "final_payment");
+    const issued = await contractorSigns(fa.certificateId);
+    expect(issued.ok, issued.message).toBe(true);
+  });
+});
+
+/// An interim certificate as issued, its figures adding up (carried forward 100,000.00, nothing deducted), on a raised valuation.
+async function issuedInterim(k: TestContract, sequence: number) {
+  const figures = { lines: [{ key: "carryForward", value: "100000.00" }, { key: "nscWorks", value: "0.00" }], totals: [{ key: "totalDeductions", value: "0.00" }, { key: "recommended", value: "100000.00" }] };
+  const cert = await db.certificate.create({ data: { organisationId: o.organisationId, contractId: k.contractId, kind: "INTERIM_PAYMENT", status: "ISSUED", baselineId: k.baselineId, number: `IPC/T/${randomId()}`, sequence, issuedAt: new Date(), issueSnapshot: { figures }, certificateDate: D(today()), openedAt: new Date(), openedOn: D(today()) } });
+  await db.interimValuation.create({ data: { organisationId: o.organisationId, contractId: k.contractId, trigger: "CLAIM", triggerDate: D(today()), valuationDate: D(today()), status: "RAISED", certificateId: cert.id, judgedUnder: {}, mainWorks: "100000.00", jointOn: D(today()), method: "Measured.", contractorAnswer: "AGREED", personId: o.so, recordedAt: new Date(), recordedOn: D(today()) } });
+  return cert.id;
+}
+
+describe("S5: a draft final and a new interim, in both orders", () => {
+  it("an interim in progress refuses the raise, naming it", async () => {
+    const k = await completed();
+    await db.certificate.create({ data: { organisationId: o.organisationId, contractId: k.contractId, kind: "INTERIM_PAYMENT", status: "DRAFT", baselineId: k.baselineId, openedAt: new Date(), openedOn: D(today()) } });
+    const r = await as(o.so, () => raiseFinalAccount({ ok: false }, form({ id: k.contractId, personId: o.so })));
+    expect(r.ok).toBe(false);
+    expect(r.message).toContain("Finish or void first: Interim payment certificate (in progress).");
+  });
+
+  it("an interim issued after the raise refuses a keyed deduction and the issue, FINAL_BASIS_MOVED", async () => {
+    const k = await completed();
+    expect((await as(o.so, () => raiseFinalAccount({ ok: false }, form({ id: k.contractId, personId: o.so })))).ok).toBe(true);
+    const fa = await liveFinal(k);
+    await issuedInterim(k, 1);
+    const keyed = await as(o.so, () => addFinalDeduction({ ok: false }, form({ id: k.contractId, kind: "WAGES", label: "", amount: "10.00" })));
+    expect(keyed.ok).toBe(false);
+    expect(keyed.message).toMatch(/has changed since it was raised \(the interim certificates, .*the less block/);
+    expect(await db.finalAccountLine.count({ where: { finalAccountId: fa.id, keyed: true } })).toBe(0);
+    await toSigning(fa.certificateId, "final_payment");
+    const issue = await contractorSigns(fa.certificateId);
+    expect(issue.ok).toBe(false);
+    expect(issue.message).toMatch(/has changed since it was raised \(the interim certificates/);
   });
 });

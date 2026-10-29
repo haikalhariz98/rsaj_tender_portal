@@ -18,8 +18,8 @@ import { loadReport } from "@/lib/performance/load";
 import { performanceNotFiled } from "@/lib/performance/report";
 
 import { closureFaults, type ClosureFacts } from "./closure";
-import { finalAccountOf, finalBasisMoved, finalPreconditionFaults, finalRouteFaults, type FinalAccount, type FinalJudged } from "./final-account";
-import { declarationTakenUp, finalInputOf, financePaidOf, keyedOf, loadFinal, loadRequirements, openWorkOf, unpaidCertificatesOf, variationsOpenNow, type FinalRow } from "./final-load";
+import { finalAccountOf, finalBasisMoved, finalPreconditionFaults, finalRouteFaults, type FinalAccount, type FinalJudged, type FinalSplit } from "./final-account";
+import { declarationTakenUp, finalInputOf, finalSplitFor, financePaidOf, keyedOf, loadFinal, loadRequirements, openWorkOf, tierValueOf, unpaidCertificatesOf, variationsOpenNow, type FinalRow } from "./final-load";
 import { SECURITY_KIND_WORDS } from "./labels";
 import { loadCloseout, openLineCount, releaseEventsOf } from "./load";
 import type { FinalBasis, Finding } from "./types";
@@ -31,8 +31,9 @@ export const finalBaselineOf = (l: LoadedContract) => baselineOn(l, NOW_ON);
 
 const money = (v: Sen) => senToDecimalString(v);
 
-/// The certificate's figures: the final sum's two lines, each line of the blocks, and the totals recomputed from them (never keyed).
-export function finalSnapshotOf(today: string, a: FinalAccount): ComputedSnapshot {
+/// The certificate's figures: the final sum's two lines, each line of the blocks, and the totals recomputed from them (never keyed); then, where the
+/// contract has nominated parties or assignees, what each is paid of the payment and the main contractor's share (ruling 4, as the interim prints them).
+export function finalSnapshotOf(today: string, a: FinalAccount, split: FinalSplit | null): ComputedSnapshot {
   const m = (key: string, labelEn: string, v: Sen): FigureLine => ({ key, labelEn, type: "MONEY", value: money(v), overridable: false });
   const less = a.lines.filter((l) => l.block === "LESS").map((l, i) => m(`less${i + 1}`, l.label, l.amount));
   const deduct = a.lines.filter((l) => l.block === "DEDUCT").map((l, i) => m(`deduct${i + 1}`, l.label, l.amount));
@@ -41,7 +42,13 @@ export function finalSnapshotOf(today: string, a: FinalAccount): ComputedSnapsho
     version: 1,
     computedOn: today,
     rule: { en: "The final contract sum, less what was paid before, less the deductions" },
-    lines: [m("originalSum", "Original contract sum", a.originalSum), m("netAdjustment", "Net adjustment of the contract sum (issued adjustments)", a.netAdjustment), ...less, ...deduct],
+    lines: [
+      m("originalSum", "Original contract sum", a.originalSum),
+      m("netAdjustment", "Net adjustment of the contract sum (issued adjustments)", a.netAdjustment),
+      ...less,
+      ...deduct,
+      ...(split?.lines.length ? [...split.lines.map((x, i) => m(`party${i + 1}`, `Paid to ${x.name}`, x.paid)), m("partyContractor", "Paid to the main contractor", split.contractor)] : []),
+    ],
     // A block with no line has no total (a total is never empty): the payment reads the blocks that have one.
     totals: [
       t("finalSum", "Final contract sum", [["originalSum", 1], ["netAdjustment", 1]]),
@@ -53,19 +60,23 @@ export function finalSnapshotOf(today: string, a: FinalAccount): ComputedSnapsho
   };
 }
 
-/// The final account as it stands now, for a live row (the keyed lines it holds, the basis it froze), with the waivers already applied on it.
-export async function finalNow(tx: Tx, l: LoadedContract, fa: Pick<FinalRow, "previousBasis" | "finalLines" | "certificateId">, completionDate: string) {
+/// The final account as it stands now, for a live row (the keyed lines it holds, the basis it froze), with the waivers already applied on it, and
+/// its split (ruling 4) in what it was judged under.
+export async function finalNow(tx: Tx, l: LoadedContract, fa: Pick<FinalRow, "previousBasis" | "finalLines" | "certificateId" | "partyLines">, completionDate: string) {
   const baseline = finalBaselineOf(l);
   if (!baseline) return null;
   const p = await loadPayment(l.contract.id, tx);
   const r = finalInputOf(p, baseline, fa.previousBasis as FinalBasis, keyedOf(fa), completionDate, fa.certificateId);
-  return { ...r, p, account: finalAccountOf(r.input) };
+  const account = finalAccountOf(r.input);
+  const split = await finalSplitFor(tx, l.org.id, p, fa, account.recommended);
+  return { ...r, judged: { ...r.judged, ...split.judged }, p, account, split };
 }
 
 /// What sending the FINAL for approval needs (§4.6; ruling 17), as the contract stands.
 export async function finalRouteFactsOf(tx: Tx, l: LoadedContract, fa: FinalRow, today: string | null) {
   const [requirements, report, p, variationsOpen] = await Promise.all([loadRequirements(l.org.id, today, tx), loadReport(l.contract.id, tx), loadPayment(l.contract.id, tx), variationsOpenNow(tx, l.contract.id)]);
   const met = new Set(fa.packEntries.map((e) => e.requirementId));
+  const split = await finalSplitFor(tx, l.org.id, p, fa, senFromDecimal(fa.recommended));
   return {
     pack: requirements.map((r) => ({ label: r.labelEn, met: met.has(r.id) })),
     declarationTakenUp: await declarationTakenUp(tx, l.contract.id, fa.declarationDocumentId),
@@ -73,6 +84,7 @@ export async function finalRouteFactsOf(tx: Tx, l: LoadedContract, fa: FinalRow,
     financePaid: financePaidOf(p),
     performance: performanceNotFiled(report),
     variationsOpen,
+    split: split.faults,
   };
 }
 
@@ -91,6 +103,8 @@ export async function finalMovedFaults(tx: Tx, l: LoadedContract, fa: FinalRow, 
   if (now.unreadable.length) return now.unreadable;
   const moved = finalBasisMoved(fa.judgedUnder as unknown as FinalJudged, now.judged);
   if (moved.length) return moved;
+  // Ruling 4: the split refuses at issue as at the send (a party recorded since, or the remainder rule unset since).
+  if (now.split.faults.length) return now.split.faults;
   return now.account.recommended === senFromDecimal(fa.recommended) ? [] : [{ code: "FINAL_BASIS_MOVED", level: "block", data: { items: "the payment recommended" } }];
 }
 
@@ -160,12 +174,11 @@ export const closeFaultsOf = async (tx: Tx, l: LoadedContract) => closureFaults(
  * no keyed line yet. The act calls it on its locked transaction; the Final account tab calls it to offer the raise or say why not.
  */
 export async function finalRaiseCheckOf(tx: Tx, l: LoadedContract) {
-  const [rows, p, policy, work, parties, variationsOpen] = await Promise.all([
+  const [rows, p, policy, work, variationsOpen] = await Promise.all([
     loadCloseout(l.contract.id, tx),
     loadPayment(l.contract.id, tx),
     tx.postAwardPolicy.findUnique({ where: { organisationId: l.org.id }, select: { finalPreviousBasis: true, ladWaiverApplication: true } }),
     openWorkOf(tx, l, null),
-    tx.contractParty.findMany({ where: { contractId: l.contract.id }, select: { name: true } }),
     variationsOpenNow(tx, l.contract.id),
   ]);
   const baseline = finalBaselineOf(l);
@@ -187,10 +200,11 @@ export async function finalRaiseCheckOf(tx: Tx, l: LoadedContract) {
     waiverSetting: policy?.ladWaiverApplication ?? null,
     waiversMoved: policy?.ladWaiverApplication ? (r?.moved ?? []).map((m) => String(m.data?.waiver ?? "a waiver")) : [],
     live: rows.final ? { number: rows.final.certificate.number } : null,
-    parties: parties.map((x) => x.name),
+    tierValue: tierValueOf(p),
+    liveKinds: p.contractParties.filter((x) => !x.retiredOn).map((x) => x.kind),
     variationsOpen,
   });
   // An interim whose figures do not add up is never read on a guess: it refuses the raise by name.
   const all = [...faults, ...(r?.unreadable ?? [])];
-  return { faults: all, r, basis, account: r && !all.length ? finalAccountOf(r.input) : null };
+  return { faults: all, r, p, basis, account: r && !all.length ? finalAccountOf(r.input) : null };
 }

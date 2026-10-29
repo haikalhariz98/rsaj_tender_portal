@@ -222,6 +222,8 @@ export function paymentFaultWords(f: Finding): Words {
       return w("The payment recommended is below nothing: there is nothing to share.", "Bayaran yang disyorkan di bawah sifar.");
     case "DUE_NEGATIVE":
       return w("An amount due to a party is below nothing.", "Amaun kena dibayar kepada satu pihak di bawah sifar.");
+    case "NOMINATED_PARTY_NOT_RECORDED":
+      return en(`There is value for the ${d.tier === "NS" ? "nominated suppliers" : "nominated sub-contractors"}, but none is recorded on the contract, so their share would go to the main contractor. Record each under Project › Team first.`);
     // ------------------------------------------------ the advance (B2)
     case "ADVANCE_AMOUNT_REQUIRED":
       return w("Give the advance's amount.", "Nyatakan amaun pendahuluan.");

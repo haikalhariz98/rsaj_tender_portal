@@ -35,7 +35,7 @@ import { retentionReading, type RetentionReading, type Tiers } from "./retention
 import type { Day, Finding, KeyedDeductionKind, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
 import { issueClockFrom } from "./valuation";
 import { variationFaults } from "./variation-check";
-import { waterfall, type Waterfall } from "./waterfall";
+import { nominatedPartyFaults, waterfall, type Waterfall } from "./waterfall";
 
 export interface PartyLineIn {
   partyId: string;
@@ -87,6 +87,9 @@ export interface AssembleInput {
     remainderProvenance: Provenance | null;
   };
   issued: readonly IssuedInterim[];
+  /// The kinds of the contract's live parties (not retired): a nominated tier valued with none of its kind refuses (ruling 4 of the close-out
+  /// stage C review, NOMINATED_PARTY_NOT_RECORDED).
+  liveKinds: readonly ContractPartyKind[];
   /// Interim certificates issued on this contract that no valuation raised (none the product makes; an import's or an
   /// earlier build's). Their figures are not in this layout, so "previously certified" cannot be read from them: a
   /// valuation refuses while one stands, and the sequence still counts them as the issue does.
@@ -299,6 +302,7 @@ export function assembleInterim(i: AssembleInput): Assembled {
   const parties = v.parties.map((p) => ({ id: p.partyId, tier: (p.kind === "ASSIGNEE" ? "ASSIGNEE" : "NOMINATED") as "ASSIGNEE" | "NOMINATED", due: p.due }));
   const wf = result.figures ? waterfall(result.figures.recommended, parties, i.policy.remainder) : null;
   if (wf) faults.push(...wf.faults);
+  faults.push(...nominatedPartyFaults(nominated, i.liveKinds));
 
   const judgedUnder: JudgedUnder | null = result.figures
     ? {

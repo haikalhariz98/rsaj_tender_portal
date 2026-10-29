@@ -71,6 +71,7 @@ const INPUT: AssembleInput = {
   policy: { materialsPct: "75", materialsProvenance: "STATED", preExecutionLimit: 3, preExecutionProvenance: "STATED", remainder: "LARGEST_REMAINDER", remainderProvenance: "ASSUMED" },
   issued: [PRIOR],
   foreign: [],
+  liveKinds: ["NOMINATED_SUBCONTRACTOR", "NOMINATED_SUPPLIER"],
   adjustments: [s("57800.00"), s("-20000.00")],
   releases: [],
   advances: [{ id: "a1", party: "MAIN", amount: s("10000.00"), schedule: [{ sequence: 2, amount: s("5000.00") }, { sequence: 3, amount: s("5000.00") }] }],
@@ -97,6 +98,15 @@ describe("the worked example, assembled from the contract's records", () => {
   it("the waterfall on the payment recommended: everyone due is paid, the contractor takes the rest", () => {
     expect(a.waterfall!.sufficient).toBe(true);
     expect(senToDecimalString(a.waterfall!.contractor)).toBe("114606.00");
+  });  // Close-out stage C review, ruling 4 (stricter): a nominated tier with value and no live party of its kind on the contract is refused by name,
+  // never paid to the main contractor.
+  it("refuses NOMINATED_PARTY_NOT_RECORDED for a tier with value whose kind has no live party, naming the tier", () => {
+    const codes = (liveKinds: AssembleInput["liveKinds"]) => assembleInterim({ ...INPUT, liveKinds }).faults.filter((f) => f.code === "NOMINATED_PARTY_NOT_RECORDED").map((f) => f.data?.tier);
+    expect(codes(["NOMINATED_SUBCONTRACTOR", "NOMINATED_SUPPLIER"])).toEqual([]);
+    expect(codes(["NOMINATED_SUBCONTRACTOR"])).toEqual(["NS"]);
+    expect(codes(["ASSIGNEE"])).toEqual(["NSC", "NS"]);
+    // No nominated value: nothing to refuse.
+    expect(assembleInterim({ ...INPUT, liveKinds: [], valuation: { ...INPUT.valuation, parties: [] } }).faults.map((f) => f.code)).not.toContain("NOMINATED_PARTY_NOT_RECORDED");
   });
 });
 

@@ -11,6 +11,7 @@ export const INPUT_FOR_TESTS: AssembleInput = {
   policy: { materialsPct: null, materialsProvenance: null, preExecutionLimit: null, preExecutionProvenance: null, remainder: null, remainderProvenance: null },
   issued: [],
   foreign: [],
+  liveKinds: [],
   adjustments: [],
   releases: [],
   advances: [],

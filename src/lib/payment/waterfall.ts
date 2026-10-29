@@ -41,6 +41,16 @@ export interface Waterfall {
   faults: Finding[];
 }
 
+/**
+ * Close-out stage C review, ruling 4: a nominated tier (sub-contractors, suppliers) with value on the certificate and no live party of its kind on
+ * the contract would pay that tier's share to the main contractor, since the waterfall splits only among the parties it is given. Refused by name
+ * (NOMINATED_PARTY_NOT_RECORDED, naming the tier), on the interim and on the final account alike. `liveKinds`: the kinds of the contract's live parties.
+ */
+export function nominatedPartyFaults(tierValue: { NSC: Sen; NS: Sen }, liveKinds: readonly string[]): Finding[] {
+  const kindOf = { NSC: "NOMINATED_SUBCONTRACTOR", NS: "NOMINATED_SUPPLIER" } as const;
+  return (["NSC", "NS"] as const).filter((t) => tierValue[t] > 0n && !liveKinds.includes(kindOf[t])).map((t) => ({ code: "NOMINATED_PARTY_NOT_RECORDED", level: "block", data: { tier: t } }));
+}
+
 export function waterfall(pot: Sen, parties: readonly WaterfallParty[], rule: WaterfallRemainder | null): Waterfall {
   const faults: Finding[] = [];
   const nominated = parties.filter((p) => p.tier === "NOMINATED");

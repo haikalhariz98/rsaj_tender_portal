@@ -25,7 +25,10 @@ import { commencedPending, standsApproved } from "@/lib/variation/application";
 import { factsOf, loadVariations } from "@/lib/variation/load";
 import { claimStateFactsOf } from "@/lib/time/view";
 
-import { variationsOpenOf, type FinalAccountInput, type FinalInterim, type FinalJudged } from "./final-account";
+import type { WaterfallRemainder } from "@/lib/payment/types";
+import type { ContractPartyKind } from "@/lib/supervision/types";
+
+import { finalSplitOf, variationsOpenOf, type FinalAccountInput, type FinalInterim, type FinalJudged, type FinalParty, type FinalSplit } from "./final-account";
 import type { FinalBasis, Finding, KeyedFinalKind } from "./types";
 
 type Baseline = NonNullable<ReturnType<typeof import("@/lib/payment/load").baselineOn>>;
@@ -36,6 +39,7 @@ export async function loadFinal(contractId: string, client: Tx = db) {
     include: {
       certificate: { select: { id: true, status: true, number: true, issueSnapshot: true, financePayment: { select: { id: true, ...CORRECTIONS } } } },
       finalLines: { orderBy: [{ recordedAt: "asc" }, { id: "asc" }] },
+      partyLines: { include: { party: { select: { name: true } } }, orderBy: [{ recordedAt: "asc" }, { id: "asc" }] },
       packEntries: { include: { requirement: { select: { id: true, labelEn: true } }, projectDocument: { select: { id: true, title: true } }, person: { select: { name: true } } } },
       declarationDocument: { select: { id: true, title: true } },
       financeConfirmedBy: { select: { name: true } },
@@ -190,6 +194,25 @@ export async function declarationTakenUp(tx: Tx, contractId: string, documentId:
   if (!documentId) return false;
   const d = await tx.projectDocument.findFirst({ where: { id: documentId, contractId, kind: "STATUTORY_DECLARATION" }, select: { versions: { orderBy: { number: "desc" }, take: 1, select: { decisions: { select: { outcome: true } } } } } });
   return !!d?.versions[0]?.decisions.some((x) => x.outcome === "TAKEN_UP");
+}
+
+/// Ruling 4 (code review of close-out stage C): the contract's live parties, each with what the account records it is due (null: not recorded).
+export function finalPartiesOf(p: PaymentRows, fa: { partyLines: readonly { partyId: string; due: { toString(): string } }[] } | null): FinalParty[] {
+  const due = new Map((fa?.partyLines ?? []).map((x) => [x.partyId, senFromDecimal(x.due)] as const));
+  return p.contractParties.filter((x) => !x.retiredOn).map((x) => ({ id: x.id, name: x.name, kind: x.kind as ContractPartyKind, due: due.get(x.id) ?? null }));
+}
+
+/// The nominated tiers' value to date, as the latest issued interim certified it (none before any interim).
+export function tierValueOf(p: PaymentRows): { NSC: Sen; NS: Sen } {
+  const last = issuedInterims(p).at(-1);
+  return { NSC: last ? fig(last.figures, "nscWorks") : 0n, NS: last ? fig(last.figures, "nsWorks") : 0n };
+}
+
+/// Ruling 4: `recommended` split among the live parties as the account records their dues (none before the raise), on the organisation's
+/// remainder rule (`finalSplitOf`, on the existing waterfall).
+export async function finalSplitFor(tx: Tx, organisationId: string, p: PaymentRows, fa: Parameters<typeof finalPartiesOf>[1], recommended: Sen): Promise<FinalSplit> {
+  const policy = await tx.postAwardPolicy.findUnique({ where: { organisationId }, select: { waterfallRemainder: true } });
+  return finalSplitOf(recommended, finalPartiesOf(p, fa), tierValueOf(p), (policy?.waterfallRemainder ?? null) as WaterfallRemainder | null);
 }
 
 /// The keyed lines of a final account, as the rule reads them.

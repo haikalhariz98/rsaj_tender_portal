@@ -240,6 +240,7 @@ export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentC
       remainderProvenance: (pol?.waterfallProvenance ?? null) as Provenance | null,
     },
     issued: issuedInterims(p),
+    liveKinds: p.contractParties.filter((x) => !x.retiredOn).map((x) => x.kind as ContractPartyKind),
     foreign: uncoveredForeign(p),
     openingUnreconciled: openingUnreconciledOf(p),
     openingAssumed: p.openingPosition ? assumedGroups({ gross: { provenance: p.openingPosition.grossProvenance as OpeningProvenance }, previous: { provenance: p.openingPosition.previousProvenance as OpeningProvenance }, retention: { provenance: p.openingPosition.retentionProvenance as OpeningProvenance }, released: { provenance: p.openingPosition.releasedProvenance as OpeningProvenance }, advance: { provenance: p.openingPosition.advanceProvenance as OpeningProvenance }, damages: { provenance: p.openingPosition.damagesProvenance as OpeningProvenance } }).map((g) => OPENING_GROUP_WORDS[g].en) : [],

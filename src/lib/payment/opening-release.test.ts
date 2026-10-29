@@ -25,6 +25,7 @@ const input = (main: string, withOpeningRelease: boolean): AssembleInput => ({
   policy: { materialsPct: "75", materialsProvenance: "STATED", preExecutionLimit: 3, preExecutionProvenance: "STATED", remainder: "LARGEST_REMAINDER", remainderProvenance: "ASSUMED" },
   issued: [o],
   foreign: [],
+  liveKinds: [],
   adjustments: [],
   releases: withOpeningRelease ? openingReleaseRow(released) : [],
   advances: [],

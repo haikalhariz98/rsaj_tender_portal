@@ -503,12 +503,13 @@ export async function acknowledgeCopy(c: CertCtx, copyId: string, on: string) {
  * while it is a draft whose route is not pending or approved (a route freezes the figures, as an override does), on the caller's locked
  * transaction. Audited on the certificate. Returns false where it is no longer such a draft.
  */
-export async function refigureDraft(c: { tx: Tx; actor: AuditActor; l: LoadedContract }, certificateId: string, computed: ComputedSnapshot, label: string, why: string): Promise<boolean> {
+export async function refigureDraft(c: { tx: Tx; actor: AuditActor; l: LoadedContract }, certificateId: string, computed: ComputedSnapshot, label: string, why: string, before: string | null = null): Promise<boolean> {
   const route = await c.tx.approvalInstance.findFirst({ where: { certificateId }, orderBy: { openedAt: "desc" }, select: { status: true } });
   if (route?.status === "PENDING" || route?.status === "APPROVED") return false;
   const moved = await c.tx.certificate.updateMany({ where: { id: certificateId, organisationId: c.l.org.id, status: "DRAFT" }, data: { computedSnapshot: computed as unknown as Prisma.InputJsonValue } });
   if (moved.count !== 1) return false;
-  await audit(c, "Certificate", certificateId, label, "UPDATE", diffFields({ figures: null }, { figures: why }));
+  // Close-out stage C review, S3: the figures as they were, where the caller says, beside what they are now.
+  await audit(c, "Certificate", certificateId, label, "UPDATE", diffFields({ figures: before }, { figures: why }));
   return true;
 }
 

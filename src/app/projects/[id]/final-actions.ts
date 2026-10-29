@@ -6,8 +6,8 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
 import { closureFaults, survivingOf } from "@/lib/closeout/closure";
-import { finalAccountOf } from "@/lib/closeout/final-account";
-import { declarationTakenUp, finalInputOf, financePaidOf, keyedOf, loadFinal, loadRequirements, type FinalRow } from "@/lib/closeout/final-load";
+import { finalAccountOf, finalBasisMoved, RAISE_KEYS, type FinalJudged } from "@/lib/closeout/final-account";
+import { declarationTakenUp, finalInputOf, finalSplitFor, financePaidOf, keyedOf, loadFinal, loadRequirements, type FinalRow } from "@/lib/closeout/final-load";
 import { closureFactsOf, finalBaselineOf, finalRaiseCheckOf, finalSnapshotOf } from "@/lib/closeout/final-write";
 import { writeStatus } from "@/lib/closeout/at-issue";
 import { closeoutRefusal } from "@/lib/closeout/labels";
@@ -23,7 +23,7 @@ import type { ContractStatus } from "@/lib/contract/types";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { manualCloseout } from "@/lib/integration/closeout";
 import { actCtx, type ActCtx, ActRefusal, afterAct, fieldError, lockUnappliedWaivers, NO_ZONE_STATE, personNamed, recordedFor, tableRefusal, thrownState } from "@/lib/matter/act";
-import { formatMoney, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
+import { fitsMoneyColumn, formatMoney, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 import { ladFaultWords } from "@/lib/lad/labels";
 import { loadPayment } from "@/lib/payment/load";
 import { paymentFaultText } from "@/lib/payment/labels";
@@ -42,8 +42,11 @@ import type { OrgScope } from "@/lib/org-scope";
  *
  * - `raiseFinalAccount` (FINAL_ACCOUNT): the FINAL certificate raised as a draft through the 6.14 engine with its computed figures, and the approved
  *   waivers it applies marked applied on it (as an interim's raise does).
- * - `addFinalDeduction` / `removeFinalDeduction`, `recordPackEntry`, `linkDeclaration`, `confirmFinalPayments` (Finance's FR-FIN-004): only while
- *   the certificate is a draft whose route is not open; a keyed line recomputes the certificate's figures.
+ * - `addFinalDeduction` / `removeFinalDeduction`, `recordFinalPartyDue` (ruling 4 of the stage C review: what each live nominated party or assignee
+ *   is due, a total, FR-FIN-011), `recordPackEntry`, `linkDeclaration`, `confirmFinalPayments` (Finance's FR-FIN-004): only while the certificate is
+ *   a draft whose route is not open; a keyed line or due recomputes the certificate's figures and the payment's split, and is refused
+ *   FINAL_BASIS_MOVED where what the raise read has moved since (S2 of the review). Lock order: the contract (`inContract`), then the FinalAccount
+ *   row (`lockDraftFinal`), then its lines; the FINAL certificate is written only through the core's `refigureDraft`, which takes no lock of its own.
  * - Sending it is the certificate page's own act (refused by `finalRouteFaults` in `submitForApproval`); its issue is `KIND_ISSUE_HOOK.FINAL`; Finance's
  *   payment of it is the certificate page's own act (which writes the retention balance under FINAL_PAYMENT).
  * - `closeContract` (CLOSE): no route (ruling 16); refused by `closureFaults`; writes `ContractClosure` and CLOSED, then asks Finance to close the
@@ -83,7 +86,7 @@ async function completionOf(c: ActCtx): Promise<string> {
 
 /// The live final account, its certificate locked, then the account; refused unless the certificate is a draft whose route is not open.
 async function lockDraftFinal(c: ActCtx): Promise<FinalRow> {
-  const pre = await c.tx.finalAccount.findMany({ where: { contractId: c.l.contract.id, certificate: { status: { not: "VOID" } } }, select: { id: true, certificateId: true } });
+  const pre = await c.tx.finalAccount.findMany({ where: { contractId: c.l.contract.id, certificate: { status: { not: "VOID" } } }, select: { id: true, certificateId: true }, orderBy: [{ recordedAt: "asc" }, { id: "asc" }] });
   const live = pre.at(-1);
   if (!live) throw new ActRefusal({ ok: false, message: "Raise the final account first." });
   // The contract's lock serialises every act on its certificates; the domain row is locked after it.
@@ -94,16 +97,27 @@ async function lockDraftFinal(c: ActCtx): Promise<FinalRow> {
   return fa;
 }
 
-/// Recompute the account with its keyed lines and write its figures to the draft certificate and the account.
-async function recompute(c: ActCtx, fa: FinalRow, keyed: ReturnType<typeof keyedOf>) {
+/// Recompute the account with its keyed lines and the parties' dues, and write its figures and split to the draft certificate and the account.
+/// S2 (code review of close-out stage C): what the raise read is read again first, and a moved basis or a damages chain that no longer reads refuses
+/// here, as the issue would, rather than refiguring on it. The split's part of `judgedUnder` is written again (ruling 4).
+async function recompute(c: ActCtx, fa: FinalRow, keyed: ReturnType<typeof keyedOf>, partyLines: readonly { partyId: string; due: { toString(): string } }[] = fa.partyLines) {
   const baseline = finalBaselineOf(c.l);
   if (!baseline) throw new ActRefusal({ ok: false, message: "Not recorded: no baseline version is in force." });
-  const r = finalInputOf(await loadPayment(c.l.contract.id, c.tx), baseline, fa.previousBasis as FinalBasis, keyed, await completionOf(c), fa.certificateId);
+  const p = await loadPayment(c.l.contract.id, c.tx);
+  const r = finalInputOf(p, baseline, fa.previousBasis as FinalBasis, keyed, await completionOf(c), fa.certificateId);
   if (r.unreadable.length) refuse("Not recorded:", r.unreadable);
+  const judged = fa.judgedUnder as unknown as FinalJudged;
+  const moved = finalBasisMoved(judged, r.judged, RAISE_KEYS);
+  if (moved.length) refuse("Not recorded:", moved);
+  if (r.ladFaults.length) throw new ActRefusal({ ok: false, message: `Not recorded: ${r.ladFaults.map((f) => ladFaultWords(f)?.en ?? paymentFaultText(f)).join(" ")}` });
   const a = finalAccountOf(r.input);
   if (a.faults.length) refuse("Not recorded:", a.faults);
-  if (!(await refigureDraft(c, fa.certificateId, finalSnapshotOf(c.today, a), `${c.label} · final certificate (draft)`, `payment recommended ${formatMoney(a.recommended)}`))) refuse("Not recorded:", [{ code: "FINAL_SENT", level: "block" }]);
-  await c.tx.finalAccount.update({ where: { id: fa.id, organisationId: c.l.org.id }, data: { recommended: money(a.recommended) } });
+  const split = await finalSplitFor(c.tx, c.l.org.id, p, { partyLines }, a.recommended);
+  const before = senFromDecimal(fa.recommended);
+  if (!(await refigureDraft(c, fa.certificateId, finalSnapshotOf(c.today, a, split), `${c.label} · final certificate (draft)`, `payment recommended ${formatMoney(a.recommended)}`, `payment recommended ${formatMoney(before)}`))) refuse("Not recorded:", [{ code: "FINAL_SENT", level: "block" }]);
+  await c.tx.finalAccount.update({ where: { id: fa.id, organisationId: c.l.org.id }, data: { recommended: money(a.recommended), judgedUnder: json({ ...judged, ...split.judged }) } });
+  // S3: the account's own figure, before and after, in its own trail.
+  await audit(c, "FinalAccount", fa.id, `${c.label} · final account`, "UPDATE", diffFields({ paymentRecommended: formatMoney(before) }, { paymentRecommended: formatMoney(a.recommended) }));
   return a;
 }
 
@@ -121,19 +135,21 @@ export async function raiseFinalAccount(_prev: FormState, data: FormData): Promi
     const who = await recordedFor(c, act, { soOnly: true }, c.today);
     // As an interim's raise takes them (design note 6.13B §1): every waiver not yet applied, its matter then the waiver.
     await lockUnappliedWaivers(c.tx, c.l.contract.id);
-    const { faults: pre, r, basis } = await finalRaiseCheckOf(c.tx, c.l);
+    const { faults: pre, r, p, basis } = await finalRaiseCheckOf(c.tx, c.l);
     if (pre.length) refuse("Not raised:", pre);
     if (!r) throw new ActRefusal({ ok: false, message: "Not raised: no baseline version is in force." });
     // The damages chain as an interim reads it (its own words).
     if (r.ladFaults.length) throw new ActRefusal({ ok: false, message: `Not raised: ${r.ladFaults.map((f) => ladFaultWords(f)?.en ?? paymentFaultText(f)).join(" ")}` });
     const a = finalAccountOf(r.input);
     if (a.faults.length) refuse("Not raised:", a.faults);
+    // Ruling 4: the split as it stands at the raise (no party's due is recorded yet), frozen with what it was judged under.
+    const split = await finalSplitFor(c.tx, c.l.org.id, p, null, a.recommended);
     const form = await c.tx.certificateKindSetting.findUnique({ where: { organisationId_kind: { organisationId: c.l.org.id, kind: "FINAL" } }, select: { templateId: true, routingTypeId: true } });
     if (!form?.templateId) throw new ActRefusal({ ok: false, message: refusalText("Not raised:", [noFormFault("FINAL")]) });
-    const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "FINAL", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed: finalSnapshotOf(c.today, a) }, c.now, c.today);
+    const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "FINAL", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed: finalSnapshotOf(c.today, a, split) }, c.now, c.today);
     const fa = await c.tx.finalAccount.create({
       data: {
-        organisationId: c.l.org.id, certificateId: certId, contractId: c.l.contract.id, finalSum: money(a.finalSum), recommended: money(a.recommended), previousBasis: basis!, judgedUnder: json(r.judged), personId: who.person.id, recordedAt: c.now,
+        organisationId: c.l.org.id, certificateId: certId, contractId: c.l.contract.id, finalSum: money(a.finalSum), recommended: money(a.recommended), previousBasis: basis!, judgedUnder: json({ ...r.judged, ...split.judged }), personId: who.person.id, recordedAt: c.now,
         finalLines: { create: a.lines.map((x) => ({ organisationId: c.l.org.id, block: x.block, kind: x.kind, amount: money(x.amount), label: x.label, sourceIds: json(x.sourceIds), keyed: false, recordedAt: c.now })) },
       },
     });
@@ -164,6 +180,8 @@ export async function addFinalDeduction(_prev: FormState, data: FormData): Promi
   const raw = String(data.get("amount") ?? "").replace(/,/g, "").trim();
   if (!raw) r.errors.amount = "Amount is required.";
   else if (!SIGNED_AMOUNT.test(raw) || (kind !== "LAD_ROUNDING" && raw.startsWith("-"))) r.errors.amount = kind === "LAD_ROUNDING" ? "A rounding is an amount, to two decimal places, with a minus where it is taken off." : "Amount must be an amount, to at most two decimal places.";
+  // S4 (code review of close-out stage C): as FormReader.money, a figure too large for the Decimal(18, 2) column is refused by name, never an overflow.
+  else if (!fitsMoneyColumn(parseSen(raw))) r.errors.amount = "Amount is too large to record: at most 16 digits before the decimal point.";
   if (kind === "OTHER" && !label.trim()) r.errors.label = "Say what the other deduction is.";
   if (r.failed || Object.keys(r.errors).length || !kind) return { ok: false, errors: r.errors };
   const amount = parseSen(raw);
@@ -194,6 +212,30 @@ export async function removeFinalDeduction(_prev: FormState, data: FormData): Pr
   });
 }
 
+// ------------------------------------------------------------------ FR-FIN-011: what each party is due (ruling 4, while a draft)
+
+export async function recordFinalPartyDue(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const partyId = r.text("partyId", "Party", { required: true });
+  const due = r.money("due", "Due on the final account", { required: true });
+  if (r.failed || due == null) return { ok: false, errors: r.errors };
+  return inContract(actor, toAuditActor(actor), idOf(data), now, "FINAL_ACCOUNT", async (c) => {
+    const fa = await lockDraftFinal(c);
+    // A live party of this contract (ADR 0025: totals only, as printed).
+    const party = await c.tx.contractParty.findFirst({ where: { id: partyId, contractId: c.l.contract.id, organisationId: c.l.org.id, retiredOn: null }, select: { id: true, name: true } });
+    if (!party) fieldError("partyId", "Choose a nominated party or assignee of this contract.");
+    const before = fa.partyLines.find((x) => x.partyId === partyId) ?? null;
+    await recompute(c, fa, keyedOf(fa), [...fa.partyLines.filter((x) => x.partyId !== partyId), { partyId, due }]);
+    const row = await c.tx.finalPartyLine.upsert({ where: { finalAccountId_partyId: { finalAccountId: fa.id, partyId } }, update: { due, recordedAt: c.now }, create: { organisationId: c.l.org.id, finalAccountId: fa.id, partyId, due, recordedAt: c.now } });
+    await audit(c, "FinalPartyLine", row.id, `${c.label} · final account · ${party!.name}`, before ? "UPDATE" : "CREATE", diffFields(before ? { dueOnTheFinalAccount: formatMoney(senFromDecimal(before.due)) } : null, { dueOnTheFinalAccount: formatMoney(parseSen(due)) }));
+    return { ok: true };
+  });
+}
+
 // ------------------------------------------------------------------ FR-FIN-008: the pack
 
 export async function recordPackEntry(_prev: FormState, data: FormData): Promise<FormState> {
@@ -219,9 +261,13 @@ export async function recordPackEntry(_prev: FormState, data: FormData): Promise
     const doc = documentId ? await c.tx.projectDocument.findFirst({ where: { id: documentId, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true, title: true } }) : null;
     if (documentId && !doc) fieldError("projectDocumentId", "That document is not on this contract.");
     const before = fa.packEntries.find((e) => e.requirementId === requirementId) ?? null;
-    if (before) await c.tx.finalPackEntry.deleteMany({ where: { id: before.id, finalAccountId: fa.id } });
+    if (before) {
+      await c.tx.finalPackEntry.deleteMany({ where: { id: before.id, finalAccountId: fa.id } });
+      // The replaced entry's own trail ends with its removal, under its own id (review of close-out stage C).
+      await audit(c, "FinalPackEntry", before.id, `${c.label} · final account pack`, "DELETE", diffFields({ item: requirement!.labelEn, document: before.projectDocument?.title ?? null, notApplicable: before.notApplicableReason || null }, { item: null, document: null, notApplicable: null }), "Replaced by a new entry.");
+    }
     const row = await c.tx.finalPackEntry.create({ data: { organisationId: c.l.org.id, finalAccountId: fa.id, requirementId, projectDocumentId: doc?.id ?? null, notApplicableReason: doc ? "" : reason.trim(), personId: who.id, recordedAt: c.now } });
-    await audit(c, "FinalPackEntry", row.id, `${c.label} · final account pack`, before ? "UPDATE" : "CREATE", diffFields(before ? { document: before.projectDocument?.title ?? null, notApplicable: before.notApplicableReason || null } : null, { item: requirement!.labelEn, document: doc?.title ?? null, notApplicable: doc ? null : reason.trim(), recordedFor: who.name }));
+    await audit(c, "FinalPackEntry", row.id, `${c.label} · final account pack`, "CREATE", diffFields(before ? { document: before.projectDocument?.title ?? null, notApplicable: before.notApplicableReason || null } : null, { item: requirement!.labelEn, document: doc?.title ?? null, notApplicable: doc ? null : reason.trim(), recordedFor: who.name }));
     await act.write(c.tx, row.id);
     return { ok: true };
   });

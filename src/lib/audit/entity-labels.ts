@@ -93,6 +93,7 @@ export const RECORD_TYPE_WORDS: Readonly<Record<string, Words>> = {
   FinalAccount: w("Final account"),
   FinalAccountLine: w("Final account line"),
   FinalPackEntry: w("Final account pack"),
+  FinalPartyLine: w("Final account party"),
   ContractClosure: w("Contract closed"),
   CloseoutDocumentRequirement: w("Close-out document"),
   // Workspace 3a: work items, their comments and links.
@@ -113,7 +114,7 @@ export const TIME_ENTITIES = ["ContractMatter", "DelayNotice", "EotClaim", "EotR
 
 /// Phase 2 close-out: the record types completion, defects, securities, the performance report, the final account and the close write to the contract's
 /// trail (each registered above).
-export const CLOSEOUT_ENTITIES = ["PracticalCompletion", "DefectItem", "DefectEvent", "DefectSchedule", "MakingGood", "SecurityRelease", "PerformanceReport", "FinalAccount", "FinalAccountLine", "FinalPackEntry", "ContractClosure"] as const;
+export const CLOSEOUT_ENTITIES = ["PracticalCompletion", "DefectItem", "DefectEvent", "DefectSchedule", "MakingGood", "SecurityRelease", "PerformanceReport", "FinalAccount", "FinalAccountLine", "FinalPackEntry", "FinalPartyLine", "ContractClosure"] as const;
 
 /// The record types 6.13's variations and adjustments write to the contract's trail (each registered above), with a
 /// variation's approval route and its steps and the matters tabled from it, written under the contract's label.

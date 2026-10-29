@@ -10,7 +10,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { STATUS_WORDS } from "@/lib/certificate/labels";
 import { withdrawnCount, type FrozenLine } from "@/lib/closeout/defects";
 import { FINAL_BASIS_WORDS } from "@/lib/closeout/final-words";
-import { financePaidOf, loadRequirements, takenUpDeclarations, unpaidCertificatesOf } from "@/lib/closeout/final-load";
+import { finalSplitFor, financePaidOf, loadRequirements, takenUpDeclarations, unpaidCertificatesOf } from "@/lib/closeout/final-load";
 import { finalRaiseCheckOf } from "@/lib/closeout/final-write";
 import { closeoutFaultText, closeoutRefusal, owedByContractor, withdrawnWords } from "@/lib/closeout/labels";
 import { survivingOf } from "@/lib/closeout/closure";
@@ -24,8 +24,9 @@ import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { formatMoney, senFromDecimal } from "@/lib/money";
 import type { HiddenAct } from "@/lib/supervision/authority";
+import { PARTY_KIND_WORDS } from "@/lib/supervision/labels";
 
-import { AddDeductionDrawer, CloseContractDrawer, ConfirmFinanceDrawer, DeclarationDrawer, PackEntryDrawer, RaiseFinalDrawer, RemoveDeductionDrawer, type Option } from "./final-editors";
+import { AddDeductionDrawer, CloseContractDrawer, ConfirmFinanceDrawer, DeclarationDrawer, PackEntryDrawer, PartyDueDrawer, RaiseFinalDrawer, RemoveDeductionDrawer, type Option } from "./final-editors";
 
 /**
  * The Final account tab and the Close card (Phase 2 close-out stage C; plan closeout-plan.md §3.2, §4.6, §4.7). The figures, the pack, Finance's
@@ -100,6 +101,22 @@ export async function FinalAccountPanel({ l, v, people, today, hidden }: Props) 
   const paid = financePaidOf(p);
   // Ruling 9 (code review of close-out stage C): an interim or advance not yet paid is not in Finance's recorded payments; said here, refused at the close.
   const unpaid = await unpaidCertificatesOf(db, id, ["INTERIM_PAYMENT", "ADVANCE_PAYMENT"]);
+  // Ruling 4 (code review of close-out stage C): each live party's due and what it is paid of the payment, as the certificate prints it.
+  const split = await finalSplitFor(db, l.org.id, p, fa, senFromDecimal(fa.recommended));
+  const partyRows: Row[] = split.lines.map((x) => {
+    const recorded = fa.partyLines.some((pl) => pl.partyId === x.id);
+    const kind = p.contractParties.find((cp) => cp.id === x.id)?.kind as keyof typeof PARTY_KIND_WORDS;
+    return {
+      id: x.id,
+      search: x.name,
+      cells: {
+        item: { kind: "stack", title: x.name, sub: PARTY_KIND_WORDS[kind].en },
+        due: recorded ? { kind: "money", sen: x.due.toString() } : { kind: "text", text: "Not recorded", dim: true },
+        paid: { kind: "money", sen: x.paid.toString() },
+      },
+    };
+  });
+  const partyOptions = split.lines.map((x) => ({ value: x.id, label: x.name }));
   const confirmed = fa.financeConfirmedTotal == null ? null : senFromDecimal(fa.financeConfirmedTotal);
   const issuedCount = await db.certificate.count({ where: { contractId: id, organisationId: l.org.id, status: "ISSUED" } });
   const certLink = <Link href={`/projects/${id}/certificates/${fa.certificateId}`}>{fa.certificate.number ?? STATUS_WORDS[fa.certificate.status as keyof typeof STATUS_WORDS]?.en ?? "Open"}</Link>;
@@ -142,6 +159,14 @@ export async function FinalAccountPanel({ l, v, people, today, hidden }: Props) 
         <CardHeader icon={<FileIcon size={17} />} title="Pack" subtitle={`${issuedCount} issued certificates, listed automatically`} actions={draft && requirements.length ? <PackEntryDrawer id={id} requirements={requirements.map((r) => ({ value: r.id, label: r.labelEn }))} documents={documents.map((d) => ({ value: d.id, label: d.title }))} people={people} blocker={edit} main={packRows.some((r) => !entryOf.has(r.id))} /> : undefined} divided={false} />
         <DataList flat selectable={false} toolbar={false} searchable={false} paging={false} exportName="final-pack" emptyTitle="No other documents are set" columns={[{ key: "item", label: "Document", mobile: "primary" }, { key: "state", label: "Status", width: "140px", mobile: "meta" }]} rows={packRows} />
       </Card>
+
+      {partyRows.length > 0 && (
+        <Card id="parties" className="overflow-hidden">
+          <CardHeader icon={<WalletIcon size={17} />} title="Nominated parties and assignees" subtitle={`Main contractor: ${formatMoney(split.contractor)}`} actions={draft ? <PartyDueDrawer id={id} parties={partyOptions} blocker={edit} main={fa.partyLines.length < partyRows.length} /> : undefined} divided={false} />
+          {split.faults.length > 0 && <CardBody><Callout tone="warn">{closeoutRefusal("", split.faults)}</Callout></CardBody>}
+          <DataList flat selectable={false} toolbar={false} searchable={false} paging={false} exportName="final-parties" emptyTitle="None" columns={[{ key: "item", label: "Party", mobile: "primary" }, { key: "due", label: "Due", width: "170px", numeric: true, mobile: "meta" }, { key: "paid", label: "Paid", width: "170px", numeric: true, mobile: "meta" }]} rows={partyRows} />
+        </Card>
+      )}
 
       <Card id="finance" className="overflow-hidden">
         <CardHeader icon={<CheckIcon size={17} />} title="Finance's confirmation" actions={draft ? <ConfirmFinanceDrawer id={id} people={people} blocker={edit} main={confirmed == null} /> : undefined} />

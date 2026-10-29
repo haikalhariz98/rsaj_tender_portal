@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { parseSen, type Sen } from "@/lib/money";
 
 import { closeoutFaultText, owedByContractor } from "./labels";
-import { variationsNotAdjusted, variationsOpenOf } from "./final-account";
+import { finalSplitOf, variationsNotAdjusted, variationsOpenOf, type FinalParty } from "./final-account";
+import { RAISE_KEYS } from "./final-account";
 import { finalAcceptanceFaults, finalAccountOf, finalBasisMoved, finalPreconditionFaults, finalRouteFaults, type FinalAccountInput, type FinalInterim, type FinalJudged } from "./final-account";
 
 const rm = (v: string): Sen => parseSen(v);
@@ -163,7 +164,7 @@ describe("finalAccountOf: keyed deductions", () => {
 });
 
 describe("finalPreconditionFaults (§4.6)", () => {
-  const ready = { cpcIssued: true, dlpApplies: true, cmgdIssued: true, inProgress: [], valuationOpen: false, eotOpen: [], lossExpenseOpen: [], basis: "AS_PAID" as const, waiversUnapplied: 0, waiverSetting: null, waiversMoved: [], live: null, parties: [], variationsOpen: [] };
+  const ready = { cpcIssued: true, dlpApplies: true, cmgdIssued: true, inProgress: [], valuationOpen: false, eotOpen: [], lossExpenseOpen: [], basis: "AS_PAID" as const, waiversUnapplied: 0, waiverSetting: null, waiversMoved: [], live: null, tierValue: { NSC: 0n, NS: 0n }, liveKinds: [] as string[], variationsOpen: [] };
   const codes = (o: Partial<typeof ready> | Record<string, unknown>) => finalPreconditionFaults({ ...ready, ...o } as never).map((f) => f.code);
   it("passes when everything is done", () => expect(codes({})).toEqual([]));
   it.each([
@@ -177,7 +178,8 @@ describe("finalPreconditionFaults (§4.6)", () => {
     [{ waiversUnapplied: 1 }, "WAIVER_SETTING_NOT_SET"],
     [{ waiversMoved: ["LW/1"] }, "WAIVER_MOVED"],
     [{ live: { number: null } }, "FINAL_LIVE"],
-    [{ parties: ["Syarikat NSC"] }, "PARTY_SPLIT_NOT_BUILT"],
+    // Ruling 4 of the stage C review (stricter): PARTY_SPLIT_NOT_BUILT is retired; the raise refuses only a valued nominated tier with no party.
+    [{ tierValue: { NSC: 100n, NS: 0n }, liveKinds: ["NOMINATED_SUPPLIER"] }, "NOMINATED_PARTY_NOT_RECORDED"],
     [{ variationsOpen: ["VO/3 (approved, not on an issued adjustment)"] }, "VARIATIONS_NOT_ADJUSTED"],
   ])("refuses %o alone", (o, code) => expect(codes(o)).toEqual([code]));
   it("needs no CMGD where no defects liability period applies, and a set switch once waivers wait", () => {
@@ -187,7 +189,7 @@ describe("finalPreconditionFaults (§4.6)", () => {
 });
 
 describe("finalRouteFaults (§4.6, ruling 17)", () => {
-  const ready = { pack: [{ label: "As-built drawings", met: true }], declarationTakenUp: true, financeConfirmed: 500n, financePaid: 500n, performance: null, variationsOpen: [] };
+  const ready = { pack: [{ label: "As-built drawings", met: true }], declarationTakenUp: true, financeConfirmed: 500n, financePaid: 500n, performance: null, variationsOpen: [], split: [] };
   const codes = (o: Record<string, unknown>) => finalRouteFaults({ ...ready, ...o } as never).map((f) => f.code);
   it("passes when everything is in", () => expect(codes({})).toEqual([]));
   it("refuses each, alone", () => {
@@ -197,6 +199,8 @@ describe("finalRouteFaults (§4.6, ruling 17)", () => {
     expect(codes({ performance: { code: "PERFORMANCE_NOT_FILED", level: "block" } })).toEqual(["PERFORMANCE_NOT_FILED"]);
     // Ruling 8: asked again at the send (a variation approved after the raise is not in what the raise read).
     expect(codes({ variationsOpen: ["VO/4 (approved, not on an issued adjustment)"] })).toEqual(["VARIATIONS_NOT_ADJUSTED"]);
+    // Ruling 4: the split's refusals are the send's.
+    expect(codes({ split: [{ code: "PARTY_DUE_NOT_RECORDED", level: "block" }] })).toEqual(["PARTY_DUE_NOT_RECORDED"]);
   });
   it("FINANCE_TOTAL_DIFFERS names both totals, by one sen", () => {
     expect(finalRouteFaults({ ...ready, financeConfirmed: 501n })).toEqual([{ code: "FINANCE_TOTAL_DIFFERS", level: "block", data: { confirmed: "501", computed: "500" } }]);
@@ -205,6 +209,12 @@ describe("finalRouteFaults (§4.6, ruling 17)", () => {
 
 describe("finalBasisMoved", () => {
   const j: FinalJudged = { version: 1, basis: "AS_PAID", interims: ["a", "b"], advances: [], adjustments: [], releases: ["r1"], waivers: [], pending: [], finalSum: "1.00", less: "1.00", ladNow: "0.00" };
+  it("reads an account raised before the split (no parties, no split) as none, and names the split once it moves", () => {
+    expect(finalBasisMoved(j, { ...j, parties: [], split: "" })).toEqual([]);
+    expect(finalBasisMoved({ ...j, parties: ["p1"], split: "LARGEST_REMAINDER|p1:100:100|contractor:0" }, { ...j, parties: ["p1"], split: "LARGEST_REMAINDER|p1:200:100|contractor:0" })).toEqual([{ code: "FINAL_BASIS_MOVED", level: "block", data: { items: "the split of the payment" } }]);
+    // The keyed acts ask only what the raise read.
+    expect(finalBasisMoved(j, { ...j, parties: ["p9"] }, RAISE_KEYS)).toEqual([]);
+  });
   it("is quiet when only the order differs, and names what moved", () => {
     expect(finalBasisMoved(j, { ...j, interims: ["b", "a"] })).toEqual([]);
     expect(finalBasisMoved(j, { ...j, interims: ["a", "b", "c"], releases: [] })).toEqual([{ code: "FINAL_BASIS_MOVED", level: "block", data: { items: "the interim certificates, the retention released" } }]);
@@ -233,5 +243,47 @@ describe("variationsOpenOf", () => {
   });
   it("is quiet when every approved variation is on an issued adjustment and none is commenced pending", () => {
     expect(variationsNotAdjusted(variationsOpenOf([v("VO/1", { approved: true, adjusted: true }), v("VO/2", {})]))).toEqual([]);
+  });
+});
+
+/**
+ * Close-out stage C review, ruling 4 (FR-FIN-011): the final payment split on the existing waterfall, to check by hand.
+ *
+ *   Payment recommended 50,000.00. Due on the final account: NSC Elektrik 30,000.00, NS Pam 10,000.00, assignee Bank 15,000.00.
+ *   Sufficient (55,000.00 due > 50,000.00 is not): the nominated tier is paid first in full (40,000.00), the assignee takes what is left (10,000.00
+ *   of its 15,000.00), and the contractor nothing.
+ *   With 100,000.00: everyone is paid what is due (55,000.00) and the contractor takes 45,000.00.
+ *   With 10,000.01 and only the nominated tier due 40,000.00: pro rata 7,500.0075 and 2,500.0025, floors 7,500.00 and 2,500.00, 1 sen over,
+ *   which the remainder rule places (largest remainder: the NSC's 0.75 sen), or refuses where the rule is unset.
+ */
+describe("finalSplitOf", () => {
+  const party = (id: string, kind: FinalParty["kind"], due: string | null): FinalParty => ({ id, name: id, kind, due: due == null ? null : rm(due) });
+  const parties = [party("NSC Elektrik", "NOMINATED_SUBCONTRACTOR", "30000.00"), party("NS Pam", "NOMINATED_SUPPLIER", "10000.00"), party("Bank", "ASSIGNEE", "15000.00")];
+  const tiers = { NSC: rm("300000.00"), NS: rm("100000.00") };
+  const paid = (r: ReturnType<typeof finalSplitOf>) => [...r.lines.map((l) => `${l.id} ${l.paid}`), `contractor ${r.contractor}`];
+  it("sufficient: everyone due is paid, the contractor takes the rest", () => {
+    const r = finalSplitOf(rm("100000.00"), parties, tiers, "LARGEST_REMAINDER");
+    expect(r.faults).toEqual([]);
+    expect(paid(r)).toEqual(["NSC Elektrik 3000000", "NS Pam 1000000", "Bank 1500000", "contractor 4500000"]);
+    expect(r.judged).toEqual({ parties: ["NSC Elektrik", "NS Pam", "Bank"], split: "LARGEST_REMAINDER|NSC Elektrik:3000000:3000000|NS Pam:1000000:1000000|Bank:1500000:1500000|contractor:4500000" });
+  });
+  it("insufficient: the nominated tier first, then the assignees, then the contractor", () => {
+    expect(paid(finalSplitOf(rm("50000.00"), parties, tiers, "LARGEST_REMAINDER"))).toEqual(["NSC Elektrik 3000000", "NS Pam 1000000", "Bank 1000000", "contractor 0"]);
+  });
+  it("a pro-rata split leaving sen goes by the remainder rule, and is refused where it is unset", () => {
+    const nominated = parties.slice(0, 2);
+    expect(paid(finalSplitOf(rm("10000.01"), nominated, tiers, "LARGEST_REMAINDER"))).toEqual(["NSC Elektrik 750001", "NS Pam 250000", "contractor 0"]);
+    expect(finalSplitOf(rm("10000.01"), nominated, tiers, null).faults.map((f) => f.code)).toEqual(["REMAINDER_RULE_NOT_SET"]);
+  });
+  it("names each live party with no amount recorded, and a valued tier with no party of its kind", () => {
+    const r = finalSplitOf(rm("100000.00"), [party("NSC Elektrik", "NOMINATED_SUBCONTRACTOR", null), parties[2]], tiers, "LARGEST_REMAINDER");
+    expect(r.faults).toEqual([
+      { code: "NOMINATED_PARTY_NOT_RECORDED", level: "block", data: { tier: "NS" } },
+      { code: "PARTY_DUE_NOT_RECORDED", level: "block", data: { items: "NSC Elektrik" } },
+    ]);
+  });
+  it("no parties: nothing to split, the contractor takes the payment, and nothing is frozen", () => {
+    const r = finalSplitOf(rm("100.00"), [], { NSC: 0n, NS: 0n }, null);
+    expect([r.faults, r.contractor, r.judged]).toEqual([[], rm("100.00"), { parties: [], split: "" }]);
   });
 });

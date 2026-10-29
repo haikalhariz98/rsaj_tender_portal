@@ -16,7 +16,7 @@ const ROOT = path.join(__dirname, "../../..");
 const schema = readFileSync(path.join(ROOT, "prisma/schema.prisma"), "utf8");
 // Stage D adds the performance forms and reports (plan §6.2: each new table has one named writer file).
 // Stage C adds the final account, its lines and pack, the close-out documents and the close.
-const MODELS = ["PracticalCompletion", "DefectItem", "DefectEvent", "DefectSchedule", "MakingGood", "SecurityRelease", "RetentionRelease", "PerformanceForm", "PerformanceCriterion", "PerformanceGradeBand", "PerformanceReport", "PerformanceScore", "FinalAccount", "FinalAccountLine", "FinalPackEntry", "CloseoutDocumentRequirement", "ContractClosure"] as const;
+const MODELS = ["PracticalCompletion", "DefectItem", "DefectEvent", "DefectSchedule", "MakingGood", "SecurityRelease", "RetentionRelease", "PerformanceForm", "PerformanceCriterion", "PerformanceGradeBand", "PerformanceReport", "PerformanceScore", "FinalAccount", "FinalAccountLine", "FinalPackEntry", "FinalPartyLine", "CloseoutDocumentRequirement", "ContractClosure"] as const;
 type Model = (typeof MODELS)[number];
 
 const ACTS = "src/app/projects/[id]/closeout-actions.ts";
@@ -43,6 +43,8 @@ const WRITERS: Readonly<Record<Model, readonly string[]>> = {
   FinalAccount: [`${FINAL}#raiseFinalAccount`, `${FINAL}#recompute`, `${FINAL}#linkDeclaration`, `${FINAL}#confirmFinalPayments`],
   FinalAccountLine: [`${FINAL}#raiseFinalAccount`, `${FINAL}#addFinalDeduction`, `${FINAL}#removeFinalDeduction`],
   FinalPackEntry: [`${FINAL}#recordPackEntry`],
+  // Close-out stage C review, ruling 4 (stricter: the new table has its one writer).
+  FinalPartyLine: [`${FINAL}#recordFinalPartyDue`],
   // Retired through `retireContractRow`'s generic handle (read by its own list, not this scan); the RSAJ pack's rows are written by its loader.
   CloseoutDocumentRequirement: ["src/app/configuration/contracts/core.ts#saveCloseoutDocument"],
   ContractClosure: [`${FINAL}#closeContract`],

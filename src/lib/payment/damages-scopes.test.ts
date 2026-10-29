@@ -74,6 +74,7 @@ const INPUT: AssembleInput = {
   policy: { materialsPct: "75", materialsProvenance: "STATED", preExecutionLimit: 3, preExecutionProvenance: "STATED", remainder: "LARGEST_REMAINDER", remainderProvenance: "ASSUMED" },
   issued: [PRIOR],
   foreign: [],
+  liveKinds: ["NOMINATED_SUBCONTRACTOR", "NOMINATED_SUPPLIER"],
   adjustments: [s("57800.00"), s("-20000.00")],
   releases: [],
   advances: [{ id: "a1", party: "MAIN", amount: s("10000.00"), schedule: [{ sequence: 2, amount: s("5000.00") }, { sequence: 3, amount: s("5000.00") }] }],

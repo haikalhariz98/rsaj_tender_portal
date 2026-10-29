@@ -24,6 +24,9 @@
 
 import { ladRoundingFaults } from "@/lib/lad/rounding";
 import type { Sen } from "@/lib/money";
+import type { WaterfallRemainder } from "@/lib/payment/types";
+import { nominatedPartyFaults, waterfall, type Waterfall } from "@/lib/payment/waterfall";
+import type { ContractPartyKind } from "@/lib/supervision/types";
 
 import type { Finding, FinalBasis, FinalBlock, FinalLineKind, KeyedFinalKind } from "./types";
 
@@ -166,8 +169,10 @@ export interface FinalPreconditionFacts {
   /// Approved waivers whose damages moved since they were sent (they would never be applied after the final), named.
   waiversMoved: readonly string[];
   live: { number: string | null } | null;
-  /// Nominated parties and assignees on the contract: what each is due on the final is not recorded, so the split cannot be made.
-  parties: readonly string[];
+  /// Ruling 4 (code review of close-out stage C): the latest interim's nominated tiers, and the kinds of the contract's live parties
+  /// (NOMINATED_PARTY_NOT_RECORDED: a tier with value and none of its kind recorded).
+  tierValue: { NSC: Sen; NS: Sen };
+  liveKinds: readonly string[];
   /// Ruling 8 (code review of close-out stage C): variations not on an issued adjustment, named (`variationsOpenOf`).
   variationsOpen: readonly string[];
 }
@@ -185,7 +190,7 @@ export function finalPreconditionFaults(f: FinalPreconditionFacts): Finding[] {
   if (!f.basis) b("FINAL_BASIS_NOT_SET");
   if (f.waiversUnapplied > 0 && !f.waiverSetting) b("WAIVER_SETTING_NOT_SET");
   if (f.waiversMoved.length) b("WAIVER_MOVED", { items: f.waiversMoved.join("; ") });
-  if (f.parties.length) b("PARTY_SPLIT_NOT_BUILT", { items: f.parties.join("; ") });
+  out.push(...nominatedPartyFaults(f.tierValue, f.liveKinds));
   out.push(...variationsNotAdjusted(f.variationsOpen));
   return out;
 }
@@ -221,6 +226,8 @@ export interface FinalRouteFacts {
   performance: Finding | null;
   /// Ruling 8: variations not on an issued adjustment, read again at the send (`judgedUnder` lists only what the raise read).
   variationsOpen: readonly string[];
+  /// Ruling 4: the split's refusals (`finalSplitOf`): a party with no amount due recorded, a tier with none recorded, the waterfall's own.
+  split: readonly Finding[];
 }
 
 export function finalRouteFaults(f: FinalRouteFacts): Finding[] {
@@ -232,7 +239,46 @@ export function finalRouteFaults(f: FinalRouteFacts): Finding[] {
   else if (f.financeConfirmed !== f.financePaid) out.push({ code: "FINANCE_TOTAL_DIFFERS", level: "block", data: { confirmed: f.financeConfirmed.toString(), computed: f.financePaid.toString() } });
   if (f.performance) out.push(f.performance);
   out.push(...variationsNotAdjusted(f.variationsOpen));
+  out.push(...f.split);
   return out;
+}
+
+// ------------------------------------------------------------------ the split (ruling 4; FR-FIN-011)
+
+/// A live nominated party or assignee of the contract, and what it is due on the final account (null: not recorded yet).
+export interface FinalParty {
+  id: string;
+  name: string;
+  kind: ContractPartyKind;
+  due: Sen | null;
+}
+
+export interface FinalSplit {
+  waterfall: Waterfall;
+  /// Each party with what it is due and paid, in the parties' order; then the main contractor's share.
+  lines: { id: string; name: string; due: Sen; paid: Sen }[];
+  contractor: Sen;
+  faults: Finding[];
+  /// What the split was judged under, frozen into `judgedUnder` (FINAL_BASIS_MOVED covers it): the live parties and the allocations.
+  judged: { parties: string[]; split: string };
+}
+
+/**
+ * Close-out stage C review, ruling 4 (FR-FIN-011; ADR 0025 B1): the final payment split on the existing waterfall (`payment/waterfall.ts`), each live
+ * party's keyed total due on the final account, the nominated tier first, then the assignees, then the contractor. Refused, by name: a party with no
+ * amount recorded (PARTY_DUE_NOT_RECORDED), a nominated tier with value and none of its kind recorded (NOMINATED_PARTY_NOT_RECORDED), and the
+ * waterfall's own (REMAINDER_RULE_NOT_SET where an insufficient split leaves sen and the rule is unset; DUE_NEGATIVE). A payment below nothing is
+ * FINAL_NEGATIVE's, so the split reads it as nothing.
+ */
+export function finalSplitOf(recommended: Sen, parties: readonly FinalParty[], tierValue: { NSC: Sen; NS: Sen }, remainder: WaterfallRemainder | null): FinalSplit {
+  const faults = nominatedPartyFaults(tierValue, parties.map((p) => p.kind));
+  const missing = parties.filter((p) => p.due == null).map((p) => p.name);
+  if (missing.length) faults.push({ code: "PARTY_DUE_NOT_RECORDED", level: "block", data: { items: missing.join("; ") } });
+  const wf = waterfall(recommended < 0n ? 0n : recommended, parties.map((p) => ({ id: p.id, tier: p.kind === "ASSIGNEE" ? ("ASSIGNEE" as const) : ("NOMINATED" as const), due: p.due ?? 0n })), remainder);
+  faults.push(...wf.faults);
+  const lines = parties.map((p, n) => ({ id: p.id, name: p.name, due: wf.allocations[n].due, paid: wf.allocations[n].paid }));
+  const split = parties.length ? [remainder ?? "NOT_SET", ...lines.map((l) => `${l.id}:${l.due}:${l.paid}`), `contractor:${wf.contractor}`].join("|") : "";
+  return { waterfall: wf, lines, contractor: wf.contractor, faults, judged: { parties: parties.map((p) => p.id), split } };
 }
 
 // ------------------------------------------------------------------ at issue (FINAL_NOT_ACCEPTED, FINAL_BASIS_MOVED)
@@ -257,6 +303,9 @@ export interface FinalJudged {
   finalSum: string;
   less: string;
   ladNow: string;
+  /// Ruling 4: the live parties and the split, written again by each keyed act while a draft (absent on an account raised before them: none).
+  parties?: string[];
+  split?: string;
 }
 
 const MOVED_WORDS: Readonly<Record<keyof Omit<FinalJudged, "version">, string>> = {
@@ -270,11 +319,18 @@ const MOVED_WORDS: Readonly<Record<keyof Omit<FinalJudged, "version">, string>> 
   finalSum: "the final sum",
   less: "the less block",
   ladNow: "the damages",
+  parties: "the nominated parties and assignees",
+  split: "the split of the payment",
 };
 
-/// FINAL_BASIS_MOVED, naming what moved between the raise and now (empty: nothing).
-export function finalBasisMoved(before: FinalJudged, now: FinalJudged): Finding[] {
+/// What the raise read (the keyed acts while a draft must not move these; the split's own keys are written again by each act).
+export const RAISE_KEYS = ["basis", "interims", "advances", "adjustments", "releases", "waivers", "pending", "finalSum", "less", "ladNow"] as const satisfies readonly (keyof typeof MOVED_WORDS)[];
+
+/// FINAL_BASIS_MOVED, naming what moved between the raise and now (empty: nothing); `keys` narrows it (the keyed acts ask only `RAISE_KEYS`).
+export function finalBasisMoved(before: FinalJudged, now: FinalJudged, keys: readonly (keyof typeof MOVED_WORDS)[] = Object.keys(MOVED_WORDS) as (keyof typeof MOVED_WORDS)[]): Finding[] {
+  // An account raised before the split was built has no parties and no split: read as none, not as moved.
+  const norm = (k: keyof typeof MOVED_WORDS, v: unknown) => (v === undefined && k === "parties" ? [] : v === undefined && k === "split" ? "" : v);
   const same = (a: unknown, b: unknown) => JSON.stringify(Array.isArray(a) ? [...a].sort() : a) === JSON.stringify(Array.isArray(b) ? [...b].sort() : b);
-  const moved = (Object.keys(MOVED_WORDS) as (keyof typeof MOVED_WORDS)[]).filter((k) => !same(before[k], now[k])).map((k) => MOVED_WORDS[k]);
+  const moved = keys.filter((k) => !same(norm(k, before[k]), norm(k, now[k]))).map((k) => MOVED_WORDS[k]);
   return moved.length ? [{ code: "FINAL_BASIS_MOVED", level: "block", data: { items: moved.join(", ") } }] : [];
 }
