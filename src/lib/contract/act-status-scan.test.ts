@@ -219,6 +219,8 @@ describe("S3: the scan finds what it should (self-test)", () => {
     for (const m of ["ProjectDocument", "ProjectDocumentVersion", "ProjectDocumentRequest", "ProjectDocumentApprover", "ProjectDocumentDecision"]) expect(OWNED.has(m), m).toBe(true);
     // Plan step 7 (ADR 0042 D10): the kick-off meeting and its attendance hang on the contract too, so their acts ask PROJECT_WORKSPACE's row.
     for (const m of ["KickOffMeeting", "KickOffAttendance"]) expect(OWNED.has(m), m).toBe(true);
+    // Workspace 3a (plan section 3.1): a work item, its comments and links hang on the contract, so every write to them must ask WORK_ITEM's row (or be named here).
+    for (const m of ["WorkItem", "WorkItemComment", "WorkItemLink"]) expect(OWNED.has(m), m).toBe(true);
     for (const m of ["ApprovalInstance", "Evaluation", "Exercise", "Award", "Supplier", "DocumentAttachment"]) expect(OWNED.has(m), m).toBe(false);
   });
 

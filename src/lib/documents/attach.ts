@@ -111,7 +111,10 @@ export type OwnerFacts =
   | { kind: "eotClaim"; contractStatus: ContractStatus; determined: boolean; closed: boolean; isWeather: boolean }
   /// ADR 0042 D1: a version of a Project workspace document, with its contract's status. Its files are pinned by the workspace act that makes the version
   /// (`OWNER_ACT_PURPOSES`), never from the shared attach choice; the PROJECT_WORKSPACE row is read first, as every contract purpose reads its family's.
-  | { kind: "projectDocumentVersion"; contractStatus: ContractStatus };
+  | { kind: "projectDocumentVersion"; contractStatus: ContractStatus }
+  /// Workspace 3a: a work item, with its contract's status. Its files are attached by the work acts only (`OWNER_ACT_PURPOSES`), and the WORK_ITEM row is
+  /// read first.
+  | { kind: "workItem"; contractStatus: ContractStatus };
 
 /// 6.8: where an evaluation version stands (the Prisma enum's values).
 export type EvaluationState = "OPEN" | "ISSUED" | "SUPERSEDED" | "CANCELLED";
@@ -398,6 +401,9 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): Owner
     case "projectDocumentVersion":
       // ADR 0042 D11: the PROJECT_WORKSPACE row first; then a version keeps the files it was made with (it is append-only).
       return contractTableState(purpose, owner.contractStatus) ?? { state: "OPEN" };
+    case "workItem":
+      // Workspace 3a: the WORK_ITEM row first; the work acts judge the item itself.
+      return contractTableState(purpose, owner.contractStatus) ?? { state: "OPEN" };
   }
 }
 
@@ -428,6 +434,8 @@ export const CONTRACT_PURPOSE_FAMILY = {
   // ADR 0045 D6: so do a supply claim's delivery order and invoice.
   DELIVERY_ORDER: "PROJECT_WORKSPACE",
   SUPPLY_INVOICE: "PROJECT_WORKSPACE",
+  // Workspace 3a: a work item's files read the work item row.
+  WORK_ITEM_FILE: "WORK_ITEM",
 } as const satisfies Partial<Record<AttachmentPurpose, ContractAct>>;
 
 /**

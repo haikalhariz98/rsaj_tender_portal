@@ -70,6 +70,7 @@ const ENTITY_OF: Readonly<Record<OwnerKind, string>> = {
   portalApplicationCreditor: "PortalApplicationCreditor",
   projectDocumentVersion: "ProjectDocumentVersion",
   awardOnlineReturn: "AwardOnlineReturn",
+  workItem: "WorkItem",
 };
 
 /// The record an owner of documents is judged as (read without a lock).
@@ -84,6 +85,11 @@ export async function subjectOfOwner(client: Tx | typeof db, kind: OwnerKind, id
   if (kind === "projectDocumentVersion") {
     const v = await client.projectDocumentVersion.findUnique({ where: { id }, select: { document: { select: { contractId: true, contract: { select: { number: true } } } } } });
     if (v) return { scope, exerciseId: null, entity: "Contract", id: v.document.contractId, label: v.document.contract.number };
+  }
+  // Workspace 3a: a work item's files are judged as its contract's, as a Project workspace version's are.
+  if (kind === "workItem") {
+    const i = await client.workItem.findUnique({ where: { id }, select: { contractId: true, contract: { select: { number: true } } } });
+    if (i) return { scope, exerciseId: null, entity: "Contract", id: i.contractId, label: i.contract.number };
   }
   return { scope, exerciseId: null, entity: ENTITY_OF[kind], id, label: ENTITY_OF[kind] };
 }

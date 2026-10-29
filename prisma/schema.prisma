@@ -534,6 +534,10 @@ model Organisation {
   fundingAllocations        FundingAllocation[]
   impactMeasures            ImpactMeasure[]
   projectImpacts            ProjectImpact[]
+  /// Workspace 3a: work items, their comments and links.
+  workItems                 WorkItem[]
+  workItemComments          WorkItemComment[]
+  workItemLinks             WorkItemLink[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -806,6 +810,11 @@ model Person {
   // Wave 3b (SR-13, ADR 0036 D1, ruling 20v): the deployment attestations recorded on the bid sealing policy.
   sealingPublicRoleAttested    BidSealingPolicy[]    @relation("SealingPublicRoleAttestedBy")
   sealingHardeningAttested     BidSealingPolicy[]    @relation("SealingHardeningAttestedBy")
+  // Workspace 3a: the work items this person raised and is assigned, and the comments and links they made.
+  workItemsRaised              WorkItem[]            @relation("WorkItemRaisedBy")
+  workItemsAssigned            WorkItem[]            @relation("WorkItemAssignee")
+  workItemComments             WorkItemComment[]     @relation("WorkItemCommentBy")
+  workItemLinks                WorkItemLink[]        @relation("WorkItemLinkBy")
 }
 
 /// Who holds an authority office, and when.
@@ -4320,6 +4329,8 @@ model Contract {
   /// ADR 0046: its funding split (SF-05) and impact figures (SF-04).
   fundingAllocations     FundingAllocation[]
   impacts                ProjectImpact[]
+  /// Workspace 3a: its work items.
+  workItems              WorkItem[]
 
   @@unique([organisationId, number])
 }
@@ -4728,6 +4739,8 @@ enum AttachmentPurpose {
   DELIVERY_ORDER
   /// ADR 0045 D6 (WV-11): a supply claim's invoice, on the claim's version.
   SUPPLY_INVOICE
+  /// Workspace 3a: a file of a work item, on the item.
+  WORK_ITEM_FILE
 }
 
 enum DocumentAccessKind {
@@ -4953,6 +4966,9 @@ model DocumentAttachment {
   /// ADR 0045 D1: a contractor's online award return (its scans, under the award's return purposes).
   awardOnlineReturnId         String?
   awardOnlineReturn           AwardOnlineReturn?         @relation(fields: [awardOnlineReturnId], references: [id], onDelete: Restrict)
+  /// Workspace 3a: a work item (its files), attached by the work acts only.
+  workItemId                  String?
+  workItem                    WorkItem?                  @relation(fields: [workItemId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -4980,6 +4996,7 @@ model DocumentAttachment {
   @@index([portalApplicationCreditorId])
   @@index([projectDocumentVersionId])
   @@index([awardOnlineReturnId])
+  @@index([workItemId])
   @@index([supplierDocumentId])
   @@index([supplierApplicationId])
   @@index([contractId])
@@ -13318,6 +13335,8 @@ model SupplierAccount {
   sealedAccessEvents       SealedAccessEvent[]       @relation("SealedAccessSupplier")
   /// N2 (PDPA right of access): the exports of the supplier's own data this account made.
   dataExportsMade          SupplierDataExport[]      @relation("SupplierDataExportedBy")
+  /// Workspace 3a (WS-9): the work items on this account. No writer in 3a.
+  workItemsAssigned        WorkItem[]                @relation("WorkItemAssigneeAccount")
 
   @@index([organisationId])
   @@index([supplierId])
@@ -13936,6 +13955,9 @@ model ProjectDocument {
   kickOffMinutesOf KickOffMeeting? @relation("KickOffMinutes")
   /// ADR 0045 D7: Finance's payment of this supply claim, once recorded.
   supplyPayment    SupplyInvoicePayment?
+  /// Workspace 3a: the actions it gave rise to, and the work items linked to it.
+  workItemsFrom    WorkItem[]       @relation("WorkItemFromDocument")
+  workItemLinks    WorkItemLink[]   @relation("WorkItemLinkDocument")
 
   @@index([contractId, createdAt])
   @@index([organisationId])
@@ -14253,4 +14275,156 @@ model ProjectImpact {
   updatedAt      DateTime      @updatedAt
 
   @@unique([contractId, measureId])
+}
+
+// ------------------------------------------------------------------ Workspace 3a: work items (plan workspace-3a-build-plan.md §3.1)
+// The values and their order are src/lib/work/types.ts's (WORK_ORDER_BY sorts `type asc` and `priority desc` by declaration order).
+
+enum WorkItemType {
+  RFI
+  SITE_INSTRUCTION
+  INSPECTION
+  SAFETY_INCIDENT
+  ACTION
+  DEFECT
+  TASK
+}
+
+enum WorkItemStatus {
+  TO_DO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum WorkItemPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum WorkItemImpact {
+  NONE
+  COST
+  TIME
+  COST_AND_TIME
+}
+
+enum InspectionResult {
+  NOT_YET
+  PASSED
+  FAILED
+}
+
+enum IncidentSeverity {
+  NEAR_MISS
+  FIRST_AID
+  MEDICAL_TREATMENT
+  LOST_TIME
+  DANGEROUS_OCCURRENCE
+}
+
+/// One item of a contract's work: an RFI, a site instruction, an inspection, a safety incident, an action, a defect or a task. Numbered per contract and
+/// type ("RFI 12"). The type's own columns are held to the type by CHECKs, and the lengths to src/lib/work/bounds.ts (char_length).
+model WorkItem {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  type        WorkItemType
+  /// 1, 2, 3 within the contract and type. CHECK > 0.
+  number      Int
+  title       String
+  description String           @default("")
+  status      WorkItemStatus   @default(TO_DO)
+  priority    WorkItemPriority @default(NORMAL)
+  /// The organisation's calendar day. CHECK: set on an RFI and a site instruction.
+  dueOn       DateTime?        @db.Date
+  location    String           @default("")
+
+  /// Nullable so 3b can add a supplier-account raiser without reshaping; CHECK NOT NULL in 3a.
+  raisedByPersonId          String?
+  raisedBy                  Person?          @relation("WorkItemRaisedBy", fields: [raisedByPersonId], references: [id], onDelete: Restrict)
+  /// Who the item is on, not who acted. At most one of the two (CHECK).
+  assigneePersonId          String?
+  assignee                  Person?          @relation("WorkItemAssignee", fields: [assigneePersonId], references: [id], onDelete: Restrict)
+  /// WS-9: the contractor's account the item is on. No writer in 3a.
+  assigneeSupplierAccountId String?
+  assigneeSupplierAccount   SupplierAccount? @relation("WorkItemAssigneeAccount", fields: [assigneeSupplierAccountId], references: [id], onDelete: Restrict)
+
+  /// An RFI's answer; "" on every other type (CHECK).
+  answer           String            @default("")
+  /// An RFI's or a site instruction's only (CHECK).
+  impact           WorkItemImpact?
+  /// Set on an inspection and only there (CHECK).
+  inspectionResult InspectionResult?
+  /// Set on a safety incident and only there, both (CHECK).
+  severity         IncidentSeverity?
+  happenedAt       DateTime?
+  /// An action's only (CHECK): the project document it came from.
+  fromDocumentId   String?
+  fromDocument     ProjectDocument?  @relation("WorkItemFromDocument", fields: [fromDocumentId], references: [id], onDelete: Restrict)
+  /// CHECK: said when cancelled.
+  cancelReason     String            @default("")
+
+  recordedAt DateTime
+  updatedAt  DateTime  @updatedAt
+  /// Set when it reaches Done or Cancelled, cleared on reopen (CHECK: set exactly when closed). The Board's Done window reads it.
+  closedAt   DateTime?
+
+  comments  WorkItemComment[]
+  linksFrom WorkItemLink[]       @relation("WorkItemLinkFrom")
+  linksTo   WorkItemLink[]       @relation("WorkItemLinkTo")
+  files     DocumentAttachment[]
+
+  @@unique([contractId, type, number])
+  @@index([contractId, status])
+  @@index([assigneePersonId, status])
+  @@index([organisationId])
+}
+
+/// A comment on a work item. Append-only (a trigger). Every comment is internal in 3a.
+model WorkItemComment {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  workItemId     String
+  workItem       WorkItem     @relation(fields: [workItemId], references: [id], onDelete: Restrict)
+
+  body     String
+  internal Boolean @default(true)
+  /// CHECK NOT NULL in 3a (3b: exactly one of a person or an account).
+  personId String?
+  person   Person? @relation("WorkItemCommentBy", fields: [personId], references: [id], onDelete: Restrict)
+
+  recordedAt DateTime
+
+  @@index([workItemId, recordedAt])
+}
+
+/// A link from a work item to another item or to a project document: exactly one target (CHECK). Read both ways, so one row is one link. Removed by delete,
+/// and the delete is audited.
+model WorkItemLink {
+  id                String           @id @default(cuid())
+  organisationId    String
+  organisation      Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  workItemId        String
+  workItem          WorkItem         @relation("WorkItemLinkFrom", fields: [workItemId], references: [id], onDelete: Restrict)
+  toWorkItemId      String?
+  toWorkItem        WorkItem?        @relation("WorkItemLinkTo", fields: [toWorkItemId], references: [id], onDelete: Restrict)
+  projectDocumentId String?
+  projectDocument   ProjectDocument? @relation("WorkItemLinkDocument", fields: [projectDocumentId], references: [id], onDelete: Restrict)
+
+  personId   String
+  person     Person   @relation("WorkItemLinkBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt DateTime
+
+  @@unique([workItemId, toWorkItemId])
+  @@unique([workItemId, projectDocumentId])
+  @@index([toWorkItemId])
+  @@index([projectDocumentId])
 }

@@ -16,8 +16,8 @@ export const TODAY_ACTS = {
   "src/app/projects/[id]/certificates/[certId]/actions.ts": ["sendCertificateForRouting", "recordCertificateReceived", "recordCertificateCheck", "sendCertificateToSigning", "recordCertificateSignature", "overrideCertificateFigure", "correctCertificateDay", "despatchCertificateCopy", "acknowledgeCertificateCopy", "voidCertificateAct", "sendCertificateForApproval", "decideCertificateRouteStep", "chooseCertificateRouteRejection", "recordCertificatePayment", "correctCertificatePayment"],
 } as const;
 
-/// ADR 0042 D11 (PW-22) and ADR 0046: families added to the table after the pin, outside Part B. They have no pinned answer and no act in TODAY_ACTS.
-export const AFTER_PIN_FAMILIES = ["PROJECT_WORKSPACE", "FUNDING"] as const;
+/// ADR 0042 D11 (PW-22), ADR 0046 and workspace 3a: families added to the table after the pin, outside Part B. They have no pinned answer and no act in TODAY_ACTS.
+export const AFTER_PIN_FAMILIES = ["PROJECT_WORKSPACE", "FUNDING", "WORK_ITEM"] as const;
 
 export const exported = (src: string) => [...src.matchAll(/^export async function ([a-zA-Z]+)\(/gm)].map((m) => m[1]);
 export const bodyOf = (src: string, name: string) => {

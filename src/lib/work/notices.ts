@@ -19,10 +19,7 @@ import { caseHref } from "@/lib/contract/links";
 
 import { itemRefText, NOTICE_TITLE_WORDS } from "./labels";
 import { itemRef } from "./number";
-import type { WorkItemType, WorkNoticeEvent, WorkNoticeKind } from "./types";
-
-/// A staff notice draft of a work kind. `kinds.ts` gains the four kinds in step 1; until then the kind is typed here.
-export type WorkNoticeDraft = Omit<NoticeDraft, "kind"> & { kind: WorkNoticeKind };
+import type { WorkItemType, WorkNoticeEvent } from "./types";
 
 /// The item a notice is about, as its body may name it.
 export interface NoticeItem {
@@ -44,7 +41,7 @@ function recipients(e: WorkNoticeEvent): string[] {
   return [...new Set(named)].filter((id): id is string => id !== null && id !== e.actorId && e.activeIds.has(id)).sort();
 }
 
-export function workNoticeDrafts(event: WorkNoticeEvent, item: NoticeItem): WorkNoticeDraft[] {
+export function workNoticeDrafts(event: WorkNoticeEvent, item: NoticeItem): NoticeDraft[] {
   const ref = itemRefText(item.type, item.number);
   return recipients(event).map((r) => ({
     recipientPersonId: r,

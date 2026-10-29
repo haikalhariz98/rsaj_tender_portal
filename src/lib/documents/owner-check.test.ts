@@ -433,7 +433,8 @@ describe("ADR 0045 D1, D6: the online award return is an owner, and a supply cla
     const after = ownerList(checkAsOf("DocumentAttachment_one_owner", REBUILD));
     expect(after).toEqual([...before, "awardOnlineReturnId"]);
     expect(OWNER_COLUMN.awardOnlineReturn).toBe("awardOnlineReturnId");
-    expect(OWNER_KINDS.at(-1)).toBe("awardOnlineReturn");
+    // Changed for workspace 3a (faithful): the work item is added after it, so the online return is the last but one.
+    expect(OWNER_KINDS.slice(-2)).toEqual(["awardOnlineReturn", "workItem"]);
   });
 
   it("every purpose arm before it is still there, word for word, with exactly the two new arms added", () => {
@@ -457,5 +458,42 @@ describe("ADR 0045 D1, D6: the online award return is an owner, and a supply cla
     expect(sql).not.toMatch(/^\s*(INSERT|UPDATE|DELETE)\b/m);
     // No semicolon inside a comment (the WASM engine splits on every one).
     for (const f of [ENUMS, REBUILD]) for (const line of readFileSync(join(migrationsDir, f, "migration.sql"), "utf8").split("\n").filter((l) => l.trim().startsWith("--"))) expect(line, f).not.toContain(";");
+  });
+});
+
+describe("workspace 3a: the work item is an owner, everywhere at once (X-6)", () => {
+  const BEFORE = "20261210000700_closeout_final";
+  const OWN = "20261210000800_enum_purpose_work_item_file";
+  const REBUILD = "20261210000900_work_items";
+
+  it("its key is counted by one_owner, last, with every owner before it kept in the same order", () => {
+    const before = ownerList(checkAsOf("DocumentAttachment_one_owner", BEFORE));
+    const after = ownerList(checkAsOf("DocumentAttachment_one_owner", REBUILD));
+    expect(after).toEqual([...before, "workItemId"]);
+    expect(ownerList(latestCheck("DocumentAttachment_one_owner"))).toEqual(after);
+    expect(OWNER_COLUMN.workItem).toBe("workItemId");
+    expect(OWNER_KINDS.at(-1)).toBe("workItem");
+  });
+
+  it("every purpose arm before it is still there, word for word, with exactly the one new arm added, and WORK_ITEM_FILE is the work item's alone", () => {
+    const before = purposeArms(checkAsOf("DocumentAttachment_purpose_owner", BEFORE));
+    const after = purposeArms(checkAsOf("DocumentAttachment_purpose_owner", REBUILD));
+    expect(after.filter((a) => !before.includes(a))).toEqual([`("purpose" = 'WORK_ITEM_FILE' AND "workItemId" IS NOT NULL)`]);
+    expect(before.filter((a) => !after.includes(a))).toEqual([]);
+    expect(purposeOwners("WORK_ITEM_FILE")).toEqual(["workItem"]);
+    expect(after.filter((a) => a.includes('"workItemId"'))).toHaveLength(1);
+  });
+
+  it("WORK_ITEM_FILE arrived alone in its own folder, before the folder that names it only inside the CHECK", () => {
+    const own = migrations.filter((d) => /ALTER TYPE "AttachmentPurpose" ADD VALUE 'WORK_ITEM_FILE'/.test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
+    const used = migrations.filter((d) => d !== own[0] && readFileSync(join(migrationsDir, d, "migration.sql"), "utf8").includes("'WORK_ITEM_FILE'"));
+    expect(own).toEqual([OWN]);
+    expect(used).toEqual([REBUILD]);
+    const sql = readFileSync(join(migrationsDir, REBUILD, "migration.sql"), "utf8");
+    expect(mentionsOutsidePurposeCheck(sql, "'WORK_ITEM_FILE'")).toEqual([]);
+    expect(sql).not.toMatch(/^\s*(INSERT|UPDATE|DELETE)\b/m);
+    expect(readFileSync(join(migrationsDir, OWN, "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"))).toHaveLength(1);
+    // No semicolon inside a comment (the WASM engine splits on every one).
+    for (const f of [OWN, REBUILD]) for (const line of readFileSync(join(migrationsDir, f, "migration.sql"), "utf8").split("\n").filter((l) => l.trim().startsWith("--"))) expect(line, f).not.toContain(";");
   });
 });

@@ -122,6 +122,7 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   PROJECT_DOCUMENT_FILE: "Project document file",
   DELIVERY_ORDER: "Delivery order",
   SUPPLY_INVOICE: "Invoice",
+  WORK_ITEM_FILE: "Work item file",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",

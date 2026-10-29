@@ -56,6 +56,8 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "SealedAccessEvent.supplierAccount": "The sealed access log itself (SR-13, ruling 20w): it records a supplier's attempt at sealed content, granted or refused, and is append-only for every login.",
   // N2 step 2 (PDPA right of access, ruling 1875(8)).
   "SupplierDataExport.account": "Which account took an export of the supplier's own data (N2): the column is the record, written with its audit row in the read's transaction. Reading one's own data is not an act and signs nothing.",
+  // Workspace 3a (WS-9): no writer in 3a.
+  "WorkItem.assigneeSupplierAccount": "Which contractor account a work item is on (WS-9), not who acted. The act is the assignment, audited with the signed-in person; 3a writes none.",
   // ADR 0042 D1 (plan step 1): the Project workspace's three contractor columns. An upload, a request and the document they make sign nothing; each is the record, audited with the account.
   // Plan step 6 moved `ProjectDocumentVersion.uploadedBySupplierAccount` from this list to `SUPPLIER_ACT_SLOTS`: the statutory declaration moved in, and its every version is signed
   // with the password (it keeps the step-up of `ContractorSubmission.submittedBy`, PW-10). An ordinary version still signs nothing; no attribution is written for it.

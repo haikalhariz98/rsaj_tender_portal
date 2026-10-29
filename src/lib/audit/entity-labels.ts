@@ -95,6 +95,10 @@ export const RECORD_TYPE_WORDS: Readonly<Record<string, Words>> = {
   FinalPackEntry: w("Final account pack"),
   ContractClosure: w("Contract closed"),
   CloseoutDocumentRequirement: w("Close-out document"),
+  // Workspace 3a: work items, their comments and links.
+  WorkItem: w("Work item"),
+  WorkItemComment: w("Work item comment"),
+  WorkItemLink: w("Work item link"),
 };
 
 /// The record types 6.13's supervision writes to the contract's trail (each registered above).

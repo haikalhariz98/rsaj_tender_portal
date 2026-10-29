@@ -489,12 +489,14 @@ export async function withLockedOwner<T>(scope: Reader, actor: AuditActor, ref: 
     case "projectDocumentVersion":
     // ADR 0045 D1: an online return's scans are pinned by the contractor's submit act only. No staff attach or detach is offered.
     case "awardOnlineReturn":
+    // Workspace 3a: a work item's files are attached by the work acts only, under the contract's lock and then the item's.
+    case "workItem":
       return null;
   }
 }
 
 /// Which owner an attachment belongs to.
-export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null; openingId?: string | null; evaluationId?: string | null; evaluationMeetingId?: string | null; evaluationBidderId?: string | null; supplierDocumentId?: string | null; supplierApplicationId?: string | null; contractId?: string | null; variationInstructionId?: string | null; standingEventId?: string | null; delayNoticeId?: string | null; eotClaimId?: string | null; registrationDraftDocumentId?: string | null; creditorProfileId?: string | null; onlineBidFileId?: string | null; portalApplicationDocumentId?: string | null; portalApplicationCreditorId?: string | null; projectDocumentVersionId?: string | null; awardOnlineReturnId?: string | null }): OwnerRef | null {
+export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null; openingId?: string | null; evaluationId?: string | null; evaluationMeetingId?: string | null; evaluationBidderId?: string | null; supplierDocumentId?: string | null; supplierApplicationId?: string | null; contractId?: string | null; variationInstructionId?: string | null; standingEventId?: string | null; delayNoticeId?: string | null; eotClaimId?: string | null; registrationDraftDocumentId?: string | null; creditorProfileId?: string | null; onlineBidFileId?: string | null; portalApplicationDocumentId?: string | null; portalApplicationCreditorId?: string | null; projectDocumentVersionId?: string | null; awardOnlineReturnId?: string | null; workItemId?: string | null }): OwnerRef | null {
   if (a.meetingId) return { kind: "meeting", id: a.meetingId };
   if (a.exerciseId) return { kind: "exercise", id: a.exerciseId };
   if (a.awardId) return { kind: "award", id: a.awardId };
@@ -523,5 +525,6 @@ export function ownerOf(a: { meetingId: string | null; exerciseId: string | null
   if (a.portalApplicationCreditorId) return { kind: "portalApplicationCreditor", id: a.portalApplicationCreditorId };
   if (a.projectDocumentVersionId) return { kind: "projectDocumentVersion", id: a.projectDocumentVersionId };
   if (a.awardOnlineReturnId) return { kind: "awardOnlineReturn", id: a.awardOnlineReturnId };
+  if (a.workItemId) return { kind: "workItem", id: a.workItemId };
   return null;
 }

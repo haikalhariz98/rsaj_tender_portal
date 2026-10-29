@@ -468,6 +468,8 @@ export const OUT_MODELS: Readonly<Record<string, OutReason>> = {
   DefectEvent: "NOT_YET_EXPORTED",
   // Phase 2 close-out stage D (ADR 0047 D6, plan §9): the contractor performance report. The contractor never sees its score, so the export does not either.
   PerformanceReport: "NOT_SHOWN_TODAY",
+  // Workspace 3a (WS-9): a work item may name a contractor's account as its assignee. 3a writes none and the portal shows none; 3b moves it once the column is written.
+  WorkItem: "NOT_YET_EXPORTED",
   // ADR 0042 D10 (plan step 7): the kick-off meeting and who attended it are classified above (EXPORT_COLUMNS), read and exported since the act step.
 };
 

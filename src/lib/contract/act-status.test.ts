@@ -49,17 +49,20 @@ describe("the table is exhaustive: every act, every status", () => {
   });
   // Changed for ADR 0042 D11 (PW-22): the Project workspace's row joins after the certificate's, before Part B's; and for ADR 0046, the funding row after it.
   // Changed for Phase 2 close-out stage D (ADR 0047 D4, ruling 12): PERFORMANCE_REPORT joins Part B's rows, before the final account's.
-  it("38 families: 13 built before Part B (R2's originals included), the Project workspace's, the funding row, then Part B's 23 (R5's design guarantee claim and the performance report included)", () => {
-    expect(CONTRACT_ACTS.length).toBe(38);
+  // Changed for workspace 3a (plan section 3.1): the work item row joins after the funding row, before Part B's.
+  it("39 families: 13 built before Part B (R2's originals included), the Project workspace's, the funding row, the work item row, then Part B's 23 (R5's design guarantee claim and the performance report included)", () => {
+    expect(CONTRACT_ACTS.length).toBe(39);
     expect(CONTRACT_ACTS.indexOf("PROJECT_WORKSPACE")).toBe(CONTRACT_ACTS.indexOf("CERTIFICATE") + 1);
     expect(CONTRACT_ACTS.indexOf("FUNDING")).toBe(CONTRACT_ACTS.indexOf("PROJECT_WORKSPACE") + 1);
-    expect(CONTRACT_ACTS.indexOf("EOT")).toBe(15);
+    expect(CONTRACT_ACTS.indexOf("WORK_ITEM")).toBe(CONTRACT_ACTS.indexOf("FUNDING") + 1);
+    expect(CONTRACT_ACTS.indexOf("EOT")).toBe(16);
     expect(CONTRACT_ACTS.slice(0, 13)).toContain("ORIGINALS");
     expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("PROJECT_WORKSPACE");
     expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("FUNDING");
-    expect(CONTRACT_ACTS.slice(15)).toContain("DESIGN_GUARANTEE_CLAIM");
-    expect(CONTRACT_ACTS.slice(15)).toContain("PERFORMANCE_REPORT");
-    expect(CONTRACT_ACTS.slice(15)).toHaveLength(23);
+    expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("WORK_ITEM");
+    expect(CONTRACT_ACTS.slice(16)).toContain("DESIGN_GUARANTEE_CLAIM");
+    expect(CONTRACT_ACTS.slice(16)).toContain("PERFORMANCE_REPORT");
+    expect(CONTRACT_ACTS.slice(16)).toHaveLength(23);
   });
   it("CANCELLED refuses every act, first", () => {
     for (const a of CONTRACT_ACTS) expect(actStatusFault(a, "CANCELLED")?.code, a).toBe("CONTRACT_CANCELLED");
@@ -276,5 +279,16 @@ describe("the callout's title names the state in English and Malay", () => {
 describe("PERFORMANCE_REPORT", () => {
   it("is allowed in PRACTICALLY_COMPLETE and MAKING_GOOD_COMPLETE only (the act judges the CPC and the DLP)", () => {
     expect(CONTRACT_STATUSES.filter((s) => ACT_STATUS.PERFORMANCE_REPORT[s] === "ALLOWED").sort()).toEqual(["MAKING_GOOD_COMPLETE", "PRACTICALLY_COMPLETE"]);
+  });
+});
+
+// Workspace 3a (plan section 3.1): work items run from execution to the final certificate, never once terminated, closed or cancelled.
+describe("WORK_ITEM", () => {
+  it("is allowed from EXECUTED through FINAL_CERTIFICATE_ISSUED only", () => {
+    expect(CONTRACT_STATUSES.filter((s) => ACT_STATUS.WORK_ITEM[s] === "ALLOWED").sort()).toEqual(["ACTIVE", "EXECUTED", "FINAL_CERTIFICATE_ISSUED", "MAKING_GOOD_COMPLETE", "PRACTICALLY_COMPLETE", "STAMPED"]);
+    expect(actStatusFault("WORK_ITEM", "LEGALLY_ENDORSED")?.code).toBe("NOT_EXECUTED");
+    expect(actStatusFault("WORK_ITEM", "TERMINATED")?.code).toBe("CONTRACT_TERMINATED");
+    expect(actStatusFault("WORK_ITEM", "CLOSED")?.code).toBe("CONTRACT_CLOSED");
+    expect(actStatusFault("WORK_ITEM", "CANCELLED")?.code).toBe("CONTRACT_CANCELLED");
   });
 });

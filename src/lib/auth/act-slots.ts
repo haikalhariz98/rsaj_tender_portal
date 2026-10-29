@@ -376,6 +376,10 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   paper("FinalAccount", "financeConfirmedBy", "Confirmed by"),
   paper("FinalPackEntry", "person", "Recorded by"),
   paper("ContractClosure", "person", "Closed by"),
+  // Workspace 3a (plan section 3.1): raising a work item, commenting on it and linking it are the signed-in person's own, never recorded from paper.
+  slot("WorkItem", "raisedBy", "Raised by"),
+  slot("WorkItemComment", "person", "Recorded by"),
+  slot("WorkItemLink", "person", "Recorded by"),
   paper("Variation", "originator", "Originated by"),
   paper("Variation", "reviewedBy", "Reviewed by"),
   paper("Variation", "principal", "Passed on by"),
@@ -495,6 +499,7 @@ export const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "Requisition.returnedTo": "A routing target: the person a requisition is returned to, who did nothing by being named.",
   "CustodyItem.custodian": "A state: who holds an original now, changed only by a custody movement (`CustodyMovement.person`).",
   "ProjectDocumentApprover.person": "The approver named: who is asked to decide, not who acted. The act is the addition, whose slot is `ProjectDocumentApprover.addedBy`.",
+  "WorkItem.assignee": "Who the work item is on, not who acted (workspace 3a). The act is the assignment, audited with the signed-in person and its before and after.",
   "KickOffAttendance.person": "An attendee ticked on the organisation's side of a kick-off meeting: who was there, not who acted. The act is recording the meeting held, whose slot is `KickOffMeeting.heldRecordedBy`.",
 };
 

@@ -184,6 +184,13 @@ describe("ADR 0042 D1: a Project workspace version's files go with its contract"
     expect(onDemoSide(on({ projectDocumentVersionId: "cm_pdv1" }, "att", "PROJECT_DOCUMENT_FILE"), side({ removedTimeRecordIds: new Set(["cm_pdv1"]) }))).toBe(false);
   });
 
+  it("workspace 3a: a demo work item, or one the wipe removes with its contract, is on the demo side; a real one is not", () => {
+    expect(onDemoSide(on({ workItemId: "demo_wi1" }, "att", "WORK_ITEM_FILE"), side())).toBe(true);
+    expect(onDemoSide(on({ workItemId: "cm_wi1" }, "att", "WORK_ITEM_FILE"), side({ removedWorkItemIds: new Set(["cm_wi1"]) }))).toBe(true);
+    expect(onDemoSide(on({ workItemId: "cm_wi1" }, "att", "WORK_ITEM_FILE"), side())).toBe(false);
+    expect(onDemoSide(on({ workItemId: "cm_wi1" }, "att", "WORK_ITEM_FILE"), side({ removedProjectVersionIds: new Set(["cm_wi1"]) }))).toBe(false);
+  });
+
   it("the demo's file on a version the wipe removes is removed with the demo, not refused; on a real version it refuses, whatever the flag", () => {
     const removed = side({ removedProjectVersionIds: new Set(["cm_pdv1"]) });
     const p = documentWipePlan([doc("demo_doc7", [on({ projectDocumentVersionId: "cm_pdv1" }, "a7", "PROJECT_DOCUMENT_FILE")])], removed, false);

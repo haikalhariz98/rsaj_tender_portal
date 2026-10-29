@@ -1,6 +1,6 @@
 /**
  * What the staff inbox can hold (Phase 3c). Product vocabulary, not policy: the closed list of events a notice is raised for. `StaffNotice.kind` is checked
- * against this list in the database (migration 20261009090000, widened by 20261017090000 for the contractor's submission by 20261018110000 for a back-dated signature to confirm, by 20261110000000 for the indent-expiry and late-commencement notices by 20261122000100 for the Project workspace's three and by 20261201000100 for an award return lodged online and a contractor's question on an award, by 20261210000100 for the defects liability period ending and a defect reported rectified), and a source test holds the two together.
+ * against this list in the database (migration 20261009090000, widened by 20261017090000 for the contractor's submission by 20261018110000 for a back-dated signature to confirm, by 20261110000000 for the indent-expiry and late-commencement notices by 20261122000100 for the Project workspace's three and by 20261201000100 for an award return lodged online and a contractor's question on an award, by 20261210000100 for the defects liability period ending and a defect reported rectified, by 20261210000900 for the four work item notices), and a source test holds the two together.
  *
  * Notices are delivered in the portal (INT-09 deferred: ADR 0044). That is a fact about the product, not a per-notice setting.
  */
@@ -42,6 +42,14 @@ export const STAFF_NOTICE_KINDS = [
   "DLP_ENDING",
   /// Phase 2 close-out stage B: the contractor reported a defect line rectified from the portal: the S.O. office's holders and acting holders are told.
   "DEFECT_RECTIFIED",
+  /// Workspace 3a (W-10): a work item was assigned to the recipient.
+  "WORK_ITEM_ASSIGNED",
+  /// Workspace 3a: a work item the recipient raised was sent for them to check.
+  "WORK_ITEM_TO_CHECK",
+  /// Workspace 3a: a work item assigned to the recipient was sent back to them.
+  "WORK_ITEM_RETURNED",
+  /// Workspace 3a: a comment on a work item the recipient raised or is assigned.
+  "WORK_ITEM_COMMENT",
 ] as const;
 
 export type StaffNoticeKind = (typeof STAFF_NOTICE_KINDS)[number];
@@ -65,6 +73,11 @@ export const STAFF_NOTICE_KIND_LABEL: Readonly<Record<StaffNoticeKind, Words>> =
   AWARD_QUERY_RAISED: w("Question on an award"),
   DLP_ENDING: w("Defects liability period ending"),
   DEFECT_RECTIFIED: w("Defect reported rectified"),
+  // The same words as src/lib/work/labels.ts NOTICE_TITLE_WORDS (a test holds them together).
+  WORK_ITEM_ASSIGNED: w("Assigned to you"),
+  WORK_ITEM_TO_CHECK: w("Waiting for you to check"),
+  WORK_ITEM_RETURNED: w("Sent back to you"),
+  WORK_ITEM_COMMENT: w("New comment"),
 };
 
 /// Said on every screen that shows a notice. The delivery is a fact of the product: there is no outbound email.

@@ -20,7 +20,8 @@ import { ATTACHMENT_PURPOSES, OWNER_ACT_PURPOSES, PURPOSE_OWNER, type Attachment
 
 /// 6.13 Part B run 1b (flagged against run 1a, stricter): the delay notice's and the EOT claim's purposes are a contract's too.
 // ADR 0042 D11 (stricter): a Project workspace version's files are a contract's too, read by PROJECT_WORKSPACE's row.
-const CONTRACT_OWNERS = ["contract", "variationInstruction", "delayNotice", "eotClaim", "projectDocumentVersion"];
+// Workspace 3a (stricter): a work item's files are a contract's too, read by WORK_ITEM's row.
+const CONTRACT_OWNERS = ["contract", "variationInstruction", "delayNotice", "eotClaim", "projectDocumentVersion", "workItem"];
 const CONTRACT_PURPOSES = ATTACHMENT_PURPOSES.filter((p) => CONTRACT_OWNERS.includes(PURPOSE_OWNER[p]));
 const SITE: readonly AttachmentPurpose[] = ["PIPE_LOG", "AS_BUILT", "DIARY_PHOTO"];
 
@@ -33,7 +34,9 @@ const factsFor = (p: AttachmentPurpose, status: ContractStatus): OwnerFacts =>
         ? { kind: "eotClaim", contractStatus: status, determined: false, closed: false, isWeather: true }
         : PURPOSE_OWNER[p] === "projectDocumentVersion"
           ? { kind: "projectDocumentVersion", contractStatus: status }
-          : { kind: "contract", status, legalSubmitted: true, contractorSigned: false };
+          : PURPOSE_OWNER[p] === "workItem"
+            ? { kind: "workItem", contractStatus: status }
+            : { kind: "contract", status, legalSubmitted: true, contractorSigned: false };
 
 describe("BD-613-115: a contract's attachments read the act x status table first", () => {
   it("every purpose a contract (or its instruction) keeps names its owning family", () => {
@@ -45,6 +48,7 @@ describe("BD-613-115: a contract's attachments read the act x status table first
     expect(CONTRACT_PURPOSE_FAMILY.PROJECT_DOCUMENT_FILE).toBe("PROJECT_WORKSPACE");
     // ADR 0045 D6: a supply claim's two purposes are a project version's files too.
     for (const p of ["DELIVERY_ORDER", "SUPPLY_INVOICE"] as const) expect(CONTRACT_PURPOSE_FAMILY[p], p).toBe("PROJECT_WORKSPACE");
+    expect(CONTRACT_PURPOSE_FAMILY.WORK_ITEM_FILE).toBe("WORK_ITEM");
   });
 
   it("ADR 0042 D11: a Project workspace version's files are open wherever the workspace is, and not before execution or once closed", () => {

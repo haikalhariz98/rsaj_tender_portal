@@ -20,6 +20,12 @@ export const STAGED_FOR_TEMPLATE_FILE = "tender-part-template";
 export const STAGED_FOR_PROJECT_DOCUMENT = "project-document";
 
 /**
+ * Workspace 3a (W-8): a file of a work item. Staged first, outside any contract lock, by the staff upload route; the work act that attaches it then pins it
+ * under the contract's lock and the item's, and refuses a file staged for anything else, or by anyone else.
+ */
+export const STAGED_FOR_WORK_ITEM = "work-item";
+
+/**
  * Review S7: whether a document may be a configured part's template file. Any version of the organisation used to be accepted; now only a document the upload route staged for this
  * purpose, which no record holds, and never a SULIT one (every officer downloads a template file, on every exercise, restricted or not). Words for the officer, or null. Pure.
  */

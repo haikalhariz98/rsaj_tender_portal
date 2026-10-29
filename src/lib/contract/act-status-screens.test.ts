@@ -521,6 +521,14 @@ describe("S1: actStatusBlocker is the table in the acts' words", () => {
     for (const s of ["EXECUTED", "ACTIVE", "FINAL_CERTIFICATE_ISSUED", "TERMINATED"] as const) expect(actStatusBlocker("PROJECT_WORKSPACE", s), s).toBeNull();
   });
 
+  it("workspace 3a: the Work tab's blocker is the table's words before execution, once terminated and once closed, and none from execution to the final certificate", () => {
+    expect(actStatusBlocker("WORK_ITEM", "LEGALLY_ENDORSED")).toBe(actStatusText({ code: "NOT_EXECUTED", level: "block" }));
+    expect(actStatusBlocker("WORK_ITEM", "TERMINATED")).toBe(actStatusText({ code: "CONTRACT_TERMINATED", level: "block" }));
+    expect(actStatusBlocker("WORK_ITEM", "CLOSED")).toBe(actStatusText({ code: "CONTRACT_CLOSED", level: "block" }));
+    expect(actStatusBlocker("WORK_ITEM", "CANCELLED")).toBe(actStatusText({ code: "CONTRACT_CANCELLED", level: "block" }));
+    for (const s of ["EXECUTED", "ACTIVE", "PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED"] as const) expect(actStatusBlocker("WORK_ITEM", s), s).toBeNull();
+  });
+
   it("on a practically complete contract the opening position and the advance are refused, valuations are not", () => {
     expect(actStatusBlocker("OPENING_POSITION", "PRACTICALLY_COMPLETE")).toBe("Not recorded while the contract stands at “Practically complete”.");
     expect(actStatusBlocker("ADVANCE_PAYMENT", "PRACTICALLY_COMPLETE")).toBe("Not recorded while the contract stands at “Practically complete”.");

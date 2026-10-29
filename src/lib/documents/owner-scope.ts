@@ -9,7 +9,7 @@ import type { OwnerKind } from "./types";
  */
 const EVALUATION_OWNERS: readonly OwnerKind[] = ["evaluation", "evaluationMeeting", "evaluationBidder"];
 const SUPPLIER_OWNERS: readonly OwnerKind[] = ["supplierDocument", "supplierApplication", "standingEvent", "registrationDraftDocument"];
-const CONTRACT_OWNERS: readonly OwnerKind[] = ["contract", "variationInstruction", "delayNotice", "eotClaim", "projectDocumentVersion"];
+const CONTRACT_OWNERS: readonly OwnerKind[] = ["contract", "variationInstruction", "delayNotice", "eotClaim", "projectDocumentVersion", "workItem"];
 
 /// The scope that judges an owner of this kind; `exerciseId` is the exercise it hangs on, where it hangs on one.
 export function scopeOfOwner(kind: OwnerKind, exerciseId: string | null): SulitScope {

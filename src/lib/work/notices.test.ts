@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { STAFF_NOTICE_KIND_LABEL, STAFF_NOTICE_KINDS } from "@/lib/inbox/kinds";
+
+import { NOTICE_TITLE_WORDS } from "./labels";
 import { workItemHref, workNoticeDrafts, type NoticeItem } from "./notices";
 import type { WorkNoticeEvent, WorkNoticeKind } from "./types";
 
@@ -68,5 +71,14 @@ describe("what a notice says", () => {
 
   it("the address is the case's, with the item in its address form", () => {
     expect(workItemHref({ contractId: "c 1", type: "SITE_INSTRUCTION", number: 3 })).toBe("/projects/c%201?tab=work&item=SI-3");
+  });
+});
+
+describe("the kinds are the inbox's own (step 1)", () => {
+  it("each work kind is a staff notice kind, named in the inbox with the words the notice's title uses", () => {
+    for (const [k, words] of Object.entries(NOTICE_TITLE_WORDS) as [WorkNoticeKind, (typeof NOTICE_TITLE_WORDS)[WorkNoticeKind]][]) {
+      expect(STAFF_NOTICE_KINDS, k).toContain(k);
+      expect(STAFF_NOTICE_KIND_LABEL[k], k).toEqual(words);
+    }
   });
 });

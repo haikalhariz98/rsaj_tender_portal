@@ -11,6 +11,8 @@ import { isClassificationSnapshot } from "@/lib/method/snapshot";
 import { verifiedScanVersionIds } from "@/lib/scope/panel";
 import type { PartSource, TenderPackStatus } from "@/lib/tender-docs/types";
 import type { ContractStatus } from "@/lib/contract/types";
+import { itemRefText } from "@/lib/work/labels";
+import type { WorkItemType } from "@/lib/work/types";
 
 import type { AwardStatus, EvaluationState, ExerciseMethodFlags, ExerciseStatus, InstrumentKind, MeetingStatus, OwnerFacts } from "./attach";
 import { isLive } from "./evidence";
@@ -223,5 +225,10 @@ export const eotClaimLabel = (c: EotClaimRow) => `Contract ${c.contract.number} 
 export const PROJECT_DOCUMENT_VERSION_FACTS_SELECT = { number: true, document: { select: { id: true, title: true, contractId: true, contract: { select: { status: true, number: true } } } } } as const;
 type ProjectDocumentVersionRow = { number: number; document: { id: string; title: string; contractId: string; contract: { status: ContractStatus; number: string } } };
 export const projectDocumentVersionLabel = (v: ProjectDocumentVersionRow) => `Contract ${v.document.contract.number} · ${v.document.title}, version ${v.number}`;
+/// Workspace 3a: a work item, as an attachment owner ("Contract C-1 · RFI 12, Rebar spacing").
+export const WORK_ITEM_FACTS_SELECT = { type: true, number: true, title: true, contractId: true, contract: { select: { status: true, number: true } } } as const;
+type WorkItemRow = { type: WorkItemType; number: number; title: string; contractId: string; contract: { status: ContractStatus; number: string } };
+export const workItemFacts = (i: WorkItemRow): OwnerFacts => ({ kind: "workItem", contractStatus: i.contract.status });
+export const workItemLabel = (i: WorkItemRow) => `Contract ${i.contract.number} · ${itemRefText(i.type, i.number)}, ${i.title}`;
 export const variationInstructionLabel = (i: InstructionRow) =>
   `Contract ${i.variation.contract.number} · variation ${i.variation.reference ?? "(not yet numbered)"} · the S.O.'s instruction ${i.certificate.number ?? "(not yet numbered)"}`;

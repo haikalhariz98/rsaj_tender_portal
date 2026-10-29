@@ -48,6 +48,8 @@ export const CONTRACT_ACTS = [
   "PROJECT_WORKSPACE",
   // ADR 0046 (FS-7, FS-12; Sukuk core review): the contract's funding split and impact figures.
   "FUNDING",
+  // Workspace 3a (plan section 3.1): a contract's work items, from execution to the final certificate.
+  "WORK_ITEM",
   // 6.13 Part B.
   "EOT",
   "PERIOD_EXTENSION",
@@ -121,6 +123,9 @@ export const ACT_STATUS = {
   // ADR 0046 (Sukuk core review): from the number on, so a wrong source is corrected between the award's issue and execution, when the requisition's
   // source no longer moves (FS-6); FS-7's own lock fixes the split once money is certified. Never once cancelled or closed.
   FUNDING: before(PC, MGC, FCI, T),
+  // Workspace 3a (plan section 3.1): work items are raised and moved from execution through practical completion and making good to the final
+  // certificate; never before execution, when cancelled, terminated or closed. Reading is never refused by this row.
+  WORK_ITEM: executed(PC, MGC, FCI),
   EOT: executed(PC),
   // R4 (BD-613-119): a supplementary agreement extends a running term, never one already practically complete.
   PERIOD_EXTENSION: executed(),
