@@ -108,7 +108,10 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   FINAL_NOT_ISSUED: () => "The final certificate is not issued.",
   CERTIFICATES_NOT_PAID: (d) => `Finance's payment is not recorded on: ${s(d.items, "a certificate")}.`,
   MATTERS_OPEN: (d) => `A route is still open: ${s(d.items, "a matter")}.`,
-  RETENTION_HELD: (d) => `Retention of ${d.amount ? formatMoney(BigInt(String(d.amount))) : "an amount"} is still held.`,
+  RETENTION_HELD: (d) =>
+    d.paidOnFinal === "yes"
+      ? `The retention balance of ${d.amount ? formatMoney(BigInt(String(d.amount))) : "an amount"} is not recorded as released. Record the release: the final certificate paid it.`
+      : `Retention of ${d.amount ? formatMoney(BigInt(String(d.amount))) : "an amount"} is still held.`,
   SECURITY_NOT_RETURNED: (d) => `Not returned: ${s(d.items, "a security")}.`,
   PERFORMANCE_NOT_FILED: () => "The contractor performance report is not verified.",
   // Issue

@@ -135,8 +135,9 @@ export function finalAccountOf(i: FinalAccountInput): FinalAccount {
   if (others > MAX_OTHER_FINAL_DEDUCTIONS) faults.push({ code: "TOO_MANY_OTHER_DEDUCTIONS", level: "block", data: { max: MAX_OTHER_FINAL_DEDUCTIONS } });
   const roundings = i.keyed.filter((k) => k.kind === "LAD_ROUNDING");
   if (roundings.length > 1) faults.push({ code: "ROUNDING_ONCE", level: "block" });
-  // BD-613-47: the rounding sits beside the damages the account charges, net (every interim's taken off them included).
-  const ladNet = sum(i.interims.map((x) => x.lad.gross - x.lad.waived - x.lad.credit)) + i.ladNow.gross - i.ladNow.waived - i.ladNow.credit;
+  // BD-613-47: the rounding sits beside the damages the account charges, net (every interim's taken off them included), with the roundings the
+  // interims already took (review of close-out stage C), so the damages and every rounding together never fall below nothing.
+  const ladNet = sum(i.interims.map((x) => x.lad.gross - x.lad.waived - x.lad.credit + x.lad.rounding)) + i.ladNow.gross - i.ladNow.waived - i.ladNow.credit;
   for (const r of roundings) {
     if (ladNet === 0n && sum(i.interims.map((x) => x.lad.gross)) + i.ladNow.gross === 0n) faults.push({ code: "ROUNDING_WITHOUT_LAD", level: "block" });
     else faults.push(...ladRoundingFaults(ladNet, r.amount));

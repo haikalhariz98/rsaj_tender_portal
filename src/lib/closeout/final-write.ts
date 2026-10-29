@@ -121,8 +121,10 @@ export async function afterFinalPayment(c: CertCtx, paidOn: string, personId: st
   if (event.state !== "REACHED" || event.event !== "FINAL_PAYMENT") return;
   const rs = releaseStateOf(p);
   if (rs.already.balance) return;
+  // Review of close-out stage C (Consider): where the latest held figure is the opening position, the balance is still paid on the final; the
+  // ledger row names the final certificate as its basis (never the opening position's `opening:` id, which is no certificate).
   const held = heldOnLatest(issuedInterims(p));
-  if (!held || held.certificateId.startsWith("opening:")) return;
+  if (!held) return;
   const tier = (t: "MAIN" | "NSC" | "NS") => {
     const v = held.held[t] - rs.firstReleased[t];
     return v > 0n ? v : 0n;
@@ -155,6 +157,7 @@ export async function closureFactsOf(tx: Tx, l: LoadedContract): Promise<{ facts
       supply: type?.paymentRoute === "DELIVERY_ORDER_INVOICE",
       finalIssued: fa?.certificate.status === "ISSUED",
       unpaid,
+      finalPaid: fa?.certificate.status === "ISSUED" && !!fa.certificate.financePayment,
       certificatesInProgress: work.inProgress,
       mattersOpen: work.mattersOpen,
       defectsOpen: openLineCount(rows),

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { closureFaults, survivingOf, type ClosureFacts } from "./closure";
+import { closeoutFaultText } from "./labels";
 
 /** Plan closeout-plan.md §4.7: each refusal alone; the design guarantee bond never blocks; a supply contract is refused SUPPLY_NOT_BUILT. */
 
-const ready: ClosureFacts = { supply: false, finalIssued: true, unpaid: [], certificatesInProgress: [], mattersOpen: [], defectsOpen: 0, retentionHeld: 0n, securitiesHeld: [], performance: null };
+const ready: ClosureFacts = { supply: false, finalIssued: true, unpaid: [], finalPaid: true, certificatesInProgress: [], mattersOpen: [], defectsOpen: 0, retentionHeld: 0n, securitiesHeld: [], performance: null };
 const codes = (o: Partial<ClosureFacts>) => closureFaults({ ...ready, ...o }).map((f) => f.code);
 
 describe("closureFaults", () => {
@@ -23,6 +24,12 @@ describe("closureFaults", () => {
     [{ performance: { code: "PERFORMANCE_NOT_FILED", level: "block" } }, "PERFORMANCE_NOT_FILED"],
   ])("refuses %o alone", (o, code) => expect(codes(o)).toEqual([code]));
   it("refuses a supply contract by that alone", () => expect(codes({ supply: true, finalIssued: false, defectsOpen: 3 })).toEqual(["SUPPLY_NOT_BUILT"]));
+  // Review of close-out stage C (Consider): a balance never recorded as released once the final is paid says to record the release.
+  it("words a retention balance the final paid as a release to record, and one before it as still held", () => {
+    const held = (finalPaid: boolean) => closeoutFaultText(closureFaults({ ...ready, retentionHeld: 120000n, finalPaid })[0]);
+    expect(held(true)).toBe("The retention balance of RM1,200 is not recorded as released. Record the release: the final certificate paid it.");
+    expect(held(false)).toBe("Retention of RM1,200 is still held.");
+  });
   it("names each unpaid certificate, the final's and the interims' alike", () => {
     expect(closureFaults({ ...ready, unpaid: ["Interim payment certificate IPC/3", "Final certificate FC/1"] })).toEqual([{ code: "CERTIFICATES_NOT_PAID", level: "block", data: { items: "Interim payment certificate IPC/3; Final certificate FC/1" } }]);
   });

@@ -149,6 +149,15 @@ describe("finalAccountOf: keyed deductions", () => {
     expect(withKeyed([{ kind: "LAD_ROUNDING", label: "R", amount: 5n }, { kind: "LAD_ROUNDING", label: "R", amount: 5n }]).faults.map((f) => f.code)).toContain("ROUNDING_ONCE");
     expect(withKeyed([{ kind: "WAGES", label: "Wages", amount: -1n }]).faults.map((f) => f.code)).toEqual(["NEGATIVE_DEDUCTION"]);
   });
+  // Review of close-out stage C (Consider, stricter): the interims' own roundings count in the damages the final rounding sits beside.
+  it("judges the rounding against the damages net of every interim's rounding", () => {
+    const lad = (rounding: Sen) => ({ gross: rm("0.50"), waived: 0n, credit: 0n, rounding });
+    const r = (interimRounding: Sen, keyed: string) => finalAccountOf({ ...fixture, interims: [interim({ carryForward: rm("1000000.00"), lad: lad(interimRounding) })], ladNow: noNow, keyed: [{ kind: "LAD_ROUNDING", label: "R", amount: rm(keyed) }] }).faults.map((f) => f.code);
+    // 0.50 charged, 0.40 already rounded off on the interim: a further 0.20 off would take the damages below nothing; 0.10 off would not.
+    expect(r(rm("-0.40"), "-0.20")).toEqual(["LAD_ROUNDING_BELOW_NOTHING"]);
+    expect(r(rm("-0.40"), "-0.10")).toEqual([]);
+    expect(r(0n, "-0.20")).toEqual([]);
+  });
   it("refuses a payment below nothing, naming the shortfall", () => {
     const r = withKeyed([{ kind: "DIMINUTION", label: "Diminution", amount: rm("60000.00") }]);
     expect(r.faults).toEqual([{ code: "FINAL_NEGATIVE", level: "block", data: { amount: rm("5827.88").toString() } }]);

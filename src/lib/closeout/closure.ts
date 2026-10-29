@@ -25,6 +25,9 @@ export interface ClosureFacts {
   defectsOpen: number;
   /// Retention still held: what the latest interim holds less what was released and what the final paid (zero: none).
   retentionHeld: Sen;
+  /// The final certificate is paid: it paid whatever retention was still held, so a balance never recorded as released (its event MAKING_GOOD)
+  /// is a release to record, not money still held (review of close-out stage C).
+  finalPaid: boolean;
   /// Securities held and not returned, named, other than the design guarantee bond (which survives) and the rejected ones.
   securitiesHeld: readonly string[];
   /// Stage D's `performanceNotFiled` (null: filed).
@@ -40,7 +43,7 @@ export function closureFaults(f: ClosureFacts): Finding[] {
   if (f.certificatesInProgress.length) b("CERTIFICATES_IN_PROGRESS", { items: f.certificatesInProgress.join("; ") });
   if (f.mattersOpen.length) b("MATTERS_OPEN", { items: f.mattersOpen.join("; ") });
   if (f.defectsOpen > 0) b("DEFECTS_OPEN", { n: f.defectsOpen });
-  if (f.retentionHeld > 0n) b("RETENTION_HELD", { amount: f.retentionHeld.toString() });
+  if (f.retentionHeld > 0n) b("RETENTION_HELD", { amount: f.retentionHeld.toString(), paidOnFinal: f.finalPaid ? "yes" : "no" });
   if (f.securitiesHeld.length) b("SECURITY_NOT_RETURNED", { items: f.securitiesHeld.join("; ") });
   if (f.performance) out.push(f.performance);
   return out;
