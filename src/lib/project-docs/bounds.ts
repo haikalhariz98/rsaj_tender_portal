@@ -82,17 +82,17 @@ export interface StagedFile {
 }
 
 /**
- * Each staged file the act would pin (ADR 0042 D8): staged for a project document, by the same actor (a staff person, or the same portal account), not yet
+ * Each staged file the act would pin (ADR 0042 D8): staged for a project document (or, for a work item's files, `stagedFor` = work-item), by the same actor (a staff person, or the same portal account), not yet
  * attached, not withdrawn, of the configured project class, and not named twice. Every fault of every file; `data.file` is its place in the list, from 1.
  */
-export function stagedFileFaults(files: readonly StagedFile[], actor: Actor, projectClassId: string): Finding<StagedFault>[] {
+export function stagedFileFaults(files: readonly StagedFile[], actor: Actor, projectClassId: string, stagedFor: string = STAGED_FOR_PROJECT_DOCUMENT): Finding<StagedFault>[] {
   const out: Finding<StagedFault>[] = [];
   const seen = new Set<string>();
   files.forEach((f, n) => {
     const add = (code: StagedFault) => out.push({ code, level: "block", data: { file: n + 1 } });
     if (seen.has(f.versionId)) add("DUPLICATE");
     seen.add(f.versionId);
-    if (f.stagedFor !== STAGED_FOR_PROJECT_DOCUMENT) add("NOT_STAGED_FOR_PROJECT");
+    if (f.stagedFor !== stagedFor) add("NOT_STAGED_FOR_PROJECT");
     const mine = actor.side === "ORGANISATION" ? f.recordedByPersonId === actor.personId && f.recordedBySupplierAccountId === null : f.recordedBySupplierAccountId === actor.accountId && f.recordedByPersonId === null;
     if (!mine) add("NOT_YOURS");
     if (f.attachments > 0) add("ALREADY_ATTACHED");

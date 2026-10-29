@@ -32,10 +32,7 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   // ADR 0045 (wave V step V1): the schema step registered four staff slots. Step V2 wired the three of the online return and the questions (`src/app/awards/actions.ts`,
   // `src/lib/award/online-return-store.ts`; the verify act also writes `AwardReturn.receivedBy` from the same attribution, by `writeAlso`), so they left this list. Step V6 wired
   // the last, Finance's payment of a supply claim (`src/app/projects/[id]/supply-actions.ts`, `src/lib/payment/supply-write.ts`), so it left this list too.
-  // Workspace 3a (step 1): the schema registered three slots. Step 3 wires them in the work acts and removes them from this list.
-  "WorkItem.raisedBy": { why: "Workspace 3a step 1: the work item's table exists, and step 3 builds the act that raises one.", writer: /workItem\.(?:create|upsert)/ },
-  "WorkItemComment.person": { why: "Workspace 3a step 1: the comment's table exists, and step 3 builds the act that writes one.", writer: /workItemComment\.create/ },
-  "WorkItemLink.person": { why: "Workspace 3a step 1: the link's table exists, and step 3 builds the act that makes one.", writer: /workItemLink\.create/ },
+  // Workspace 3a (step 3): the schema's three slots (a work item raised, a comment, a link) are wired (`src/app/projects/[id]/work-actions.ts`, `src/lib/work/store.ts`), so they left this list.
 };
 
 function walk(dir: string, out: string[] = []): string[] {

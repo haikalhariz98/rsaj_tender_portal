@@ -11,6 +11,7 @@
  */
 
 import { dayToDate } from "@/lib/dates";
+import { likeLiteral } from "@/lib/search/words";
 
 import { TYPE_SHORT } from "./labels";
 import { CLOSED_STATUSES, OPEN_STATUSES } from "./move";
@@ -107,7 +108,8 @@ export function workWhere(view: WorkView, filters: WorkFilters, reader: { person
   if (filters.priority) and.push({ priority: filters.priority });
   const q = filters.q?.trim();
   if (q) {
-    const title = { title: { contains: q, mode: "insensitive" } };
+    // Prisma passes `%`, `_` and `\` through to ILIKE as wildcards, so a search for "50%" would match everything: escaped here (`words.db.test.ts` proved it).
+    const title = { title: { contains: likeLiteral(q), mode: "insensitive" } };
     const ref = searchRef(q);
     and.push(ref ? { OR: [title, { type: ref.type, number: ref.number }] } : title);
   }

@@ -10,7 +10,7 @@ import { RETRY_AFTER_SECONDS, uploadLimiter } from "@/lib/documents/concurrency"
 import { documentFaultText } from "@/lib/documents/labels";
 import { effectiveCap, readLimit, requestLengthFault, sizeFault } from "@/lib/documents/limits";
 import { recogniseFile, staffMediaFault, type OfficeRefusal } from "@/lib/documents/media";
-import { STAGED_FOR_DELEGATION, STAGED_FOR_PROJECT_DOCUMENT, STAGED_FOR_TEMPLATE_FILE } from "@/lib/documents/staged-for";
+import { STAGED_FOR_DELEGATION, STAGED_FOR_PROJECT_DOCUMENT, STAGED_FOR_TEMPLATE_FILE, STAGED_FOR_WORK_ITEM } from "@/lib/documents/staged-for";
 import { documentOrg, loadStorePolicy, logAccess, storeUpload, UploadRefusal } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling, sha256Hex } from "@/lib/documents/store";
 import type { Finding } from "@/lib/documents/types";
@@ -20,7 +20,7 @@ import type { Finding } from "@/lib/documents/types";
  * a new version of an existing document (`documentId`). Attaching it to a record is the
  * owner's act, which takes the returned `versionId`.
  *
- * Multipart form fields: `file`, `title`, `documentClassId`, `recordedByPersonId`, `stagedFor` (only `delegation-recommendation`, `tender-part-template` and `project-document`; for the last the posted class is ignored and the class set for project files is used, refused while it is unset),
+ * Multipart form fields: `file`, `title`, `documentClassId`, `recordedByPersonId`, `stagedFor` (only `delegation-recommendation`, `tender-part-template`, `project-document` and `work-item`; for the last two the posted class is ignored and the class set for project files is used, refused while it is unset),
  * optional `receivedOn` (YYYY-MM-DD), `note`, `documentId`.
  *
  * Refused before anything else, and never logged: a request from nobody signed in, one that is not same-origin
@@ -90,7 +90,9 @@ async function upload(scope: StaffActor, req: NextRequest, actor: AuditActor) {
   };
   // ADR 0042 D7 (PW-14): a file staged for a Project workspace document always takes the class configured for project files, whatever the form posts, and nothing is
   // staged while it is unset: the refusal names the setting. (The act that pins it checks the class again, so a file in another class is never pinned.)
-  const forProject = form.get("stagedFor") === STAGED_FOR_PROJECT_DOCUMENT;
+  // Workspace 3a (W-8, OQ-7): a work item's file takes the same class, and the same refusal while it is unset.
+  const forWorkItem = form.get("stagedFor") === STAGED_FOR_WORK_ITEM;
+  const forProject = form.get("stagedFor") === STAGED_FOR_PROJECT_DOCUMENT || forWorkItem;
   if (forProject && !policy.projectDocumentClassId) return refuse(422, { code: "PROJECT_CLASS_NOT_SET", level: "block" }, at0);
   const fields = {
     title: text("title").slice(0, 300),
@@ -149,7 +151,7 @@ async function upload(scope: StaffActor, req: NextRequest, actor: AuditActor) {
       act,
       receivedOn: fields.receivedOn,
       note: fields.note,
-      stagedFor: forTemplate ? STAGED_FOR_TEMPLATE_FILE : forDelegation ? STAGED_FOR_DELEGATION : forProject ? STAGED_FOR_PROJECT_DOCUMENT : null,
+      stagedFor: forTemplate ? STAGED_FOR_TEMPLATE_FILE : forDelegation ? STAGED_FOR_DELEGATION : forWorkItem ? STAGED_FOR_WORK_ITEM : forProject ? STAGED_FOR_PROJECT_DOCUMENT : null,
     });
     return Response.json(
       { ok: true, ...result, warnings: result.warnings.map((w) => ({ code: w.code, message: documentFaultText(w) })) },
