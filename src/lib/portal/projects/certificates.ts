@@ -15,8 +15,9 @@ import { addSen, type Sen } from "@/lib/money";
 
 import { NOTE_MAX, type ProjectFinding } from "./types";
 
-/// Close-out stage C (CO-9): and the final certificate, whose CONTRACTOR block is the contractor's acceptance of the final account (FR-FIN-009).
-export const CONTRACTOR_SIGNS_KINDS = ["VARIATION", "SUM_ADJUSTMENT", "FINAL"] as const;
+/// Close-out stage C review, ruling 2: not the final certificate. Its acceptance is witnessed (FR-FIN-009, FR-FIN-013), and nobody witnesses a portal signature,
+/// so the contractor and the witness sign it on paper and the office records both.
+export const CONTRACTOR_SIGNS_KINDS = ["VARIATION", "SUM_ADJUSTMENT"] as const;
 export const contractorSignsKind = (kind: string): boolean => (CONTRACTOR_SIGNS_KINDS as readonly string[]).includes(kind);
 
 /**
@@ -96,12 +97,19 @@ export interface ContractorBlockInput {
 }
 
 export type ContractorBlock =
-  | { state: "NOT_OFFERED"; why: "KIND" | "NOT_SIGNING" | "NO_BLOCK" | "SIGNED" | "LAST" }
+  | { state: "NOT_OFFERED"; why: "KIND" | "NOT_SIGNING" | "NO_BLOCK" | "SIGNED" | "LAST" | "WITNESS" }
   | { state: "WAITING"; block: BlockFacts; first: string }
   | { state: "READY"; block: BlockFacts };
 
+/// Ruling 2 (close-out stage C review): a CONTRACTOR block that a WITNESS block follows on the pinned form is signed on paper, whatever the kind.
+export const witnessFollows = (blocks: readonly BlockFacts[] | null, contractorOrder: number): boolean =>
+  [...(blocks ?? [])].sort((a, b) => a.blockOrder - b.blockOrder).find((b) => b.blockOrder > contractorOrder)?.blockKind === "WITNESS";
+
 /// Whether, and which, contractor block the portal offers on a certificate.
 export function contractorBlock(i: ContractorBlockInput): ContractorBlock {
+  // Ruling 2: the form's blocks are read first, so a final certificate (or a customer's variation form with a witness) says why: it is signed on paper.
+  const witnessed = (i.blocks ?? []).find((b) => b.blockKind === "CONTRACTOR");
+  if (witnessed && witnessFollows(i.blocks, witnessed.blockOrder)) return { state: "NOT_OFFERED", why: "WITNESS" };
   if (!contractorSignsKind(i.kind)) return { state: "NOT_OFFERED", why: "KIND" };
   if (i.status !== "SIGNING") return { state: "NOT_OFFERED", why: "NOT_SIGNING" };
   const block = (i.blocks ?? []).find((b) => b.blockKind === "CONTRACTOR") ?? null;
@@ -124,7 +132,7 @@ export interface SignBlockInput extends ContractorBlockInput {
 export function signBlockFaults(i: SignBlockInput): ProjectFinding[] {
   const b = contractorBlock(i);
   if (b.state === "NOT_OFFERED") {
-    const code = b.why === "NOT_SIGNING" ? "NOT_SIGNING" : b.why === "SIGNED" ? "BLOCK_SIGNED" : b.why === "LAST" ? "BLOCK_IS_LAST" : "NO_CONTRACTOR_BLOCK";
+    const code = b.why === "NOT_SIGNING" ? "NOT_SIGNING" : b.why === "SIGNED" ? "BLOCK_SIGNED" : b.why === "LAST" ? "BLOCK_IS_LAST" : b.why === "WITNESS" ? "WITNESS_ON_PAPER" : "NO_CONTRACTOR_BLOCK";
     return [{ code, level: "block" }];
   }
   if (b.state === "WAITING") return [{ code: "BLOCK_NOT_NEXT", level: "block", data: { first: b.first } }];

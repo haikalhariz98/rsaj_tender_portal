@@ -30,6 +30,17 @@ describe("the map", () => {
     for (const k of writes) expect(k in KIND_ISSUE_HOOK || PENDING.includes(k) || OUT_OF_PHASE_2.includes(k), k).toBe(true);
     for (const k of PENDING) expect(k in KIND_ISSUE_HOOK, `${k} has its hook: take it off PENDING`).toBe(false);
   });
+  // Close-out stage C review, ruling 1 (stricter): the contractor's refusal refuses the FINAL's issue in its hook, never in the generic signature rule,
+  // so a refused block on a variation or an adjustment still holds nothing up (FR-VAR-022).
+  it("FINAL_NOT_ACCEPTED is asked by the FINAL's hook alone, first; the variation kinds have no hook and the signature rule never names it (source)", () => {
+    expect(KIND_ISSUE_HOOK.VARIATION).toBeUndefined();
+    expect(KIND_ISSUE_HOOK.SUM_ADJUSTMENT).toBeUndefined();
+    const hook = readFileSync("src/lib/closeout/at-issue.ts", "utf8");
+    const body = hook.slice(hook.indexOf("export async function finalIssueRefusal("), hook.indexOf("export async function finalAtIssue("));
+    expect(body.indexOf("finalAcceptanceFaults(")).toBeGreaterThan(-1);
+    expect(body.indexOf("finalAcceptanceFaults(")).toBeLessThan(body.indexOf("loadFinal("));
+    expect(readFileSync("src/lib/certificate/signature.ts", "utf8")).not.toContain("FINAL_NOT_ACCEPTED");
+  });
   it("the certificate's issue asks the hook's refusal beside the others, and runs its writes after the variation's, in the same transaction (source)", () => {
     const write = readFileSync("src/lib/certificate/write.ts", "utf8");
     const issue = write.slice(write.indexOf("async function issue("), write.indexOf("export async function correctCertificateDate("));

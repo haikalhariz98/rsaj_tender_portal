@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseSen, type Sen } from "@/lib/money";
 
-import { finalAccountOf, finalBasisMoved, finalPreconditionFaults, finalRouteFaults, type FinalAccountInput, type FinalInterim, type FinalJudged } from "./final-account";
+import { finalAcceptanceFaults, finalAccountOf, finalBasisMoved, finalPreconditionFaults, finalRouteFaults, type FinalAccountInput, type FinalInterim, type FinalJudged } from "./final-account";
 
 const rm = (v: string): Sen => parseSen(v);
 const zero = { MAIN: 0n, NSC: 0n, NS: 0n };
@@ -193,5 +193,17 @@ describe("finalBasisMoved", () => {
   it("is quiet when only the order differs, and names what moved", () => {
     expect(finalBasisMoved(j, { ...j, interims: ["b", "a"] })).toEqual([]);
     expect(finalBasisMoved(j, { ...j, interims: ["a", "b", "c"], releases: [] })).toEqual([{ code: "FINAL_BASIS_MOVED", level: "block", data: { items: "the interim certificates, the retention released" } }]);
+  });
+});
+
+// Close-out stage C review, ruling 1 (FR-FIN-009): a refused acceptance is not a final certificate.
+describe("finalAcceptanceFaults", () => {
+  const sig = (o: Partial<{ blockKind: string; blockLabel: string; refused: boolean; signedOn: string }>) => ({ blockKind: "CONTRACTOR", blockLabel: "Accepted by the contractor", refused: false, signedOn: "2027-11-11", ...o });
+  it("refuses the FINAL's issue on a refused contractor block, naming the block and its day", () => {
+    expect(finalAcceptanceFaults([sig({ blockKind: "RECOMMENDING", blockLabel: "Recommended" }), sig({ refused: true })])).toEqual([{ code: "FINAL_NOT_ACCEPTED", level: "block", data: { block: "Accepted by the contractor", day: "2027-11-11" } }]);
+  });
+  it("is quiet on a signed contractor block, and on a refusal by any other block", () => {
+    expect(finalAcceptanceFaults([sig({})])).toEqual([]);
+    expect(finalAcceptanceFaults([sig({ blockKind: "WITNESS", refused: true })])).toEqual([]);
   });
 });

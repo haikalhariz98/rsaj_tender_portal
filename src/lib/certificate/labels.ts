@@ -121,5 +121,15 @@ export const CERT_WORDS = {
   officeNotSet: w("Any officer: no office is set for this check", "Mana-mana pegawai: tiada jawatan ditetapkan bagi semakan ini"),
 } as const;
 
+/**
+ * What recording the contractor's refusal to sign does, by the certificate's kind (close-out stage C review, ruling 1). A refusal holds nothing up
+ * (FR-VAR-022), save on the final certificate: a refused acceptance of the final account is not a final certificate (FR-FIN-009), so it cannot issue
+ * until it is voided and raised again. `office`: the choice an officer recording it from paper reads; `portal`: what the contractor reads before it disputes.
+ */
+export function contractorRefusalWords(kind: string): { office: string; portal: string } {
+  if (kind === "FINAL") return { office: "Refused to sign: recorded, and the final certificate cannot then be issued", portal: "Your refusal to sign is recorded on the certificate with your reason, dated today. The final certificate is then not issued: it is voided and raised again." };
+  return { office: "Refused to sign: recorded, and the next block follows", portal: "Your refusal to sign is recorded on the certificate with your reason, dated today. It does not hold up the blocks after yours, and the certificate may still be issued." };
+}
+
 /// The one phrase lives in `auth/attribution.ts` (Phase 2a retired this copy of it). Phase 2b replaces its readers with the attribution label.
 export const ON_BEHALF = ON_BEHALF_PHRASE;

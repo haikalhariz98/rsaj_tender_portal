@@ -211,7 +211,14 @@ export function finalRouteFaults(f: FinalRouteFacts): Finding[] {
   return out;
 }
 
-// ------------------------------------------------------------------ at issue (FINAL_BASIS_MOVED)
+// ------------------------------------------------------------------ at issue (FINAL_NOT_ACCEPTED, FINAL_BASIS_MOVED)
+
+/// Close-out stage C review, ruling 1 (FR-FIN-009): the contractor accepts the final account by its block, so a refused CONTRACTOR block refuses the
+/// FINAL's issue, naming the block and its day, until it is voided and raised again. Only the FINAL's hook asks this: on every other kind a refusal
+/// holds nothing up (FR-VAR-022), which `certificate/signature.ts` keeps.
+export function finalAcceptanceFaults(signatures: readonly { blockKind: string; blockLabel: string; refused: boolean; signedOn: string }[]): Finding[] {
+  return signatures.filter((x) => x.blockKind === "CONTRACTOR" && x.refused).map((x) => ({ code: "FINAL_NOT_ACCEPTED", level: "block", data: { block: x.blockLabel, day: x.signedOn } }));
+}
 
 /// What the final account was judged under, frozen at raise: every record read, and the figures.
 export interface FinalJudged {

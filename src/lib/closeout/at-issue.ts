@@ -8,7 +8,7 @@
  * - The Schedule of Defects: after issue, the lines still open frozen into its `frozenLines`. It writes no status.
  * - The CMGD: refused while a line is open or open work would be stranded in MAKING_GOOD_COMPLETE; after issue, every line frozen with its end
  *   state (a withdrawn one with its reason), then the status MAKING_GOOD_COMPLETE (its one writer).
- * - The FINAL (stage C): refused while it reads a contract with a defects liability period and no CMGD, while anything its account read has
+ * - The FINAL (stage C): refused while the contractor's acceptance is refused (FINAL_NOT_ACCEPTED, ruling 1 of its review), while it reads a contract with a defects liability period and no CMGD, while anything its account read has
  *   moved since its raise (FINAL_BASIS_MOVED), or while open work would be stranded in FINAL_CERTIFICATE_ISSUED; after issue, that status.
  * A status is written only through `contractTransition` with the writer `STATUS_WRITTEN_BY` names.
  */
@@ -35,6 +35,7 @@ import { ladWindowFaults } from "./completion";
 import { defectState, frozenLinesOf, isOpenLine } from "./defects";
 import { closeoutRefusal } from "./labels";
 import { defectFactsOf, liveLadWindows, loadCloseout } from "./load";
+import { finalAcceptanceFaults } from "./final-account";
 import { loadFinal } from "./final-load";
 import { finalMovedFaults } from "./final-write";
 import { cmgdFiguresMoved } from "./making-good";
@@ -164,6 +165,10 @@ export async function cmgdAtIssue(tx: Tx, actor: AuditActor, l: LoadedContract, 
 
 export async function finalIssueRefusal(tx: Tx, l: LoadedContract, cert: Cert): Promise<string | null> {
   await tx.$queryRaw`SELECT id FROM "FinalAccount" WHERE "certificateId" = ${cert.id} FOR UPDATE`;
+  // Ruling 1 (code review of close-out stage C): a final account the contractor refused to accept is not issued; it is voided and raised again.
+  const signatures = await tx.certificateSignature.findMany({ where: { certificateId: cert.id }, select: { blockKind: true, blockLabel: true, refused: true, signedOn: true }, orderBy: { blockOrder: "asc" } });
+  const refused = finalAcceptanceFaults(signatures.map((x) => ({ ...x, signedOn: storedDay(x.signedOn) })));
+  if (refused.length) return closeoutRefusal("Not issued:", refused);
   const fa = await loadFinal(l.contract.id, tx);
   if (!fa || fa.certificateId !== cert.id) return "Not issued: the certificate has no final account recorded with it.";
   const rows = await loadCloseout(l.contract.id, tx);

@@ -479,7 +479,7 @@ async function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people
                   ) : notOpen ? (
                     <Blocked label="Record" reason={notOpen} />
                   ) : status === "SIGNING" && isNext ? (
-                    <SignatureDrawer certId={cert.id} block={b} people={people} today={today} blocker={pinBlocker ?? (today ? null : "Set the organisation's time zone first.")} />
+                    <SignatureDrawer certId={cert.id} kind={cert.kind} block={b} people={people} today={today} blocker={pinBlocker ?? (today ? null : "Set the organisation's time zone first.")} />
                   ) : (
                     <Blocked label="Record" reason={next ? `Signatures follow the printed order: "${next.labelEn}" is recorded first.` : "Every block is recorded."} />
                   )}

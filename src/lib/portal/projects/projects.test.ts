@@ -144,7 +144,9 @@ describe("the contractor's block on a certificate", () => {
     { blockOrder: 1, blockKind: "RECOMMENDING", labelEn: "Recommending officer", refusalAllowed: false },
     { blockOrder: 2, blockKind: "AUTHORISING", labelEn: "Superintending Officer", refusalAllowed: false },
     { blockOrder: 3, blockKind: "CONTRACTOR", labelEn: "Contractor", refusalAllowed: true },
-    { blockOrder: 4, blockKind: "WITNESS", labelEn: "Witness", refusalAllowed: false },
+    // Close-out stage C review, ruling 2 (faithful): the block after the contractor's was a witness, which the portal now refuses (WITNESS_ON_PAPER, below);
+    // these cases keep a later block that is not a witness.
+    { blockOrder: 4, blockKind: "AUTHORISING", labelEn: "Head of department", refusalAllowed: false },
   ];
   it("is offered on a Variation Order Certificate or an adjustment certificate being signed, once the blocks before it are recorded", () => {
     expect(contractorBlock({ kind: "VARIATION", status: "SIGNING", blocks, signedOrders: [1, 2] })).toMatchObject({ state: "READY", block: { blockOrder: 3 } });
@@ -160,7 +162,7 @@ describe("the contractor's block on a certificate", () => {
   });
   it("is not offered where it is the last block still to record, signed or refused, because recording it would issue the certificate from the portal (4e review fix, OPEN I)", () => {
     expect(contractorBlock({ kind: "VARIATION", status: "SIGNING", blocks, signedOrders: [1, 2, 4] })).toEqual({ state: "NOT_OFFERED", why: "LAST" });
-    const lastOnForm = blocks.filter((b) => b.blockKind !== "WITNESS");
+    const lastOnForm = blocks.filter((b) => b.blockOrder !== 4);
     expect(contractorBlock({ kind: "SUM_ADJUSTMENT", status: "SIGNING", blocks: lastOnForm, signedOrders: [1, 2] })).toEqual({ state: "NOT_OFFERED", why: "LAST" });
     for (const action of ["sign", "dispute"] as const) expect(codes(signBlockFaults({ kind: "VARIATION", status: "SIGNING", blocks: lastOnForm, signedOrders: [1, 2], action, note: "Overstated." }))).toEqual(["BLOCK_IS_LAST"]);
   });
@@ -175,6 +177,19 @@ describe("the contractor's block on a certificate", () => {
     expect(codes(signBlockFaults({ ...ready, status: "ISSUED", action: "sign", note: "" }))).toEqual(["NOT_SIGNING"]);
     expect(codes(signBlockFaults({ ...ready, signedOrders: [1, 2, 3], action: "sign", note: "" }))).toEqual(["BLOCK_SIGNED"]);
     expect(codes(signBlockFaults({ ...ready, kind: "INTERIM_PAYMENT", action: "sign", note: "" }))).toEqual(["NO_CONTRACTOR_BLOCK"]);
+  });
+  // Close-out stage C review, ruling 2 (stricter): nobody witnesses a portal signature, so a contractor block a witness follows is signed on paper, on any kind.
+  it("is not offered, and is refused signed or disputed, where a witness block follows it on the form: the final certificate, or any form with a witness", () => {
+    const witnessed = blocks.map((b) => (b.blockOrder === 4 ? { ...b, blockKind: "WITNESS", labelEn: "Witness" } : b));
+    for (const kind of ["VARIATION", "SUM_ADJUSTMENT", "FINAL"]) {
+      expect(contractorBlock({ kind, status: "SIGNING", blocks: witnessed, signedOrders: [1, 2] })).toEqual({ state: "NOT_OFFERED", why: "WITNESS" });
+      for (const action of ["sign", "dispute"] as const) expect(codes(signBlockFaults({ kind, status: "SIGNING", blocks: witnessed, signedOrders: [1, 2], action, note: "Overstated." }))).toEqual(["WITNESS_ON_PAPER"]);
+    }
+    // A witness elsewhere on the form, not straight after the contractor, holds nothing up.
+    const before = [{ blockOrder: 0, blockKind: "WITNESS", labelEn: "Witness to the officer", refusalAllowed: false }, ...blocks];
+    expect(contractorBlock({ kind: "VARIATION", status: "SIGNING", blocks: before, signedOrders: [0, 1, 2] })).toMatchObject({ state: "READY" });
+    // The final certificate is no longer a kind the portal signs at all.
+    expect(contractorBlock({ kind: "FINAL", status: "SIGNING", blocks, signedOrders: [1, 2] })).toEqual({ state: "NOT_OFFERED", why: "KIND" });
   });
 });
 

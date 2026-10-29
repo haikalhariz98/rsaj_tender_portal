@@ -205,7 +205,7 @@ export function MarkRectifiedControl({ contractId, defectId, token, defect, docu
 
 // ------------------------------------------------------------------ a certificate's contractor block
 
-export function SignCertificateControl({ contractId, certificateId, token, label, mode, refusalAllowed }: { contractId: string; certificateId: string; token: string | null; label: string; mode: "sign" | "dispute"; refusalAllowed: boolean }) {
+export function SignCertificateControl({ contractId, certificateId, refusalWords, token, label, mode, refusalAllowed }: { contractId: string; certificateId: string; refusalWords: string; token: string | null; label: string; mode: "sign" | "dispute"; refusalAllowed: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
@@ -251,7 +251,7 @@ export function SignCertificateControl({ contractId, certificateId, token, label
               <p className="mt-2 text-[14px] text-ink-2">
                 {mode === "sign"
                   ? "You are signing the contractor's block of this certificate, as your company's representative, dated today. It cannot be taken back."
-                  : "Your refusal to sign is recorded on the certificate with your reason, dated today. It does not hold up the blocks after yours, and the certificate may still be issued."}
+                  : refusalWords}
               </p>
               {error && <Callout tone="err" className="mt-3">{error}</Callout>}
               {mode === "dispute" && (

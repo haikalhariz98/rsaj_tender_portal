@@ -96,6 +96,7 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   WAIVER_MOVED: (d) => `An approved waiver's damages moved since it was sent: ${s(d.items, "a waiver")}. Send it again first.`,
   FINAL_SENT: () => "The final certificate has left draft, or its route is open. Void it to change the account.",
   FINAL_ACCOUNT_MISSING: () => "The certificate has no final account recorded with it.",
+  FINAL_NOT_ACCEPTED: (d) => `The contractor refused to sign “${s(d.block, "its acceptance")}” on ${day(d.day)}. A final account the contractor does not accept is not issued: void the certificate and raise the final account again.`,
   FINAL_BASIS_MOVED: (d) => `What the final account read has changed since it was raised (${s(d.items, "its figures")}). Void it and raise it again.`,
   // The close (stage C)
   SUPPLY_NOT_BUILT: () => "Supply contracts are not closed here yet.",

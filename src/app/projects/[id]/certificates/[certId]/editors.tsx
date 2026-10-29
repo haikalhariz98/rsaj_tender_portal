@@ -1,6 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
-import { DECISION_WORDS, METHOD_WORDS } from "@/lib/certificate/labels";
+import { contractorRefusalWords, DECISION_WORDS, METHOD_WORDS } from "@/lib/certificate/labels";
 import { DELIVERY_METHODS, SIGNATURE_DECISIONS, type Block } from "@/lib/certificate/types";
 import { actorField } from "@/lib/auth/actor-field";
 
@@ -94,7 +94,7 @@ export function CheckDrawer({ certId, defOrder, label, office, people, today, bl
   );
 }
 
-export function SignatureDrawer({ certId, block, people, today, blocker }: { certId: string; block: Block; people: Option[]; today: string | null; blocker: string | null }) {
+export function SignatureDrawer({ certId, kind, block, people, today, blocker }: { certId: string; kind: string; block: Block; people: Option[]; today: string | null; blocker: string | null }) {
   const own = ["SO", "SO_REP", "RECOMMENDING_OFFICER", "NAMED_OFFICE"].includes(block.officeRule);
   const fields: Field[] = [hidden("certId"), hidden("blockOrder")];
   if (own) {
@@ -106,7 +106,7 @@ export function SignatureDrawer({ certId, block, people, today, blocker }: { cer
     fields.push({ kind: "text", name: "icNumber", label: "Identity-card number", hint: "Only the last four digits are kept." });
     fields.push({ kind: "date", name: "signedOn", label: "Signed on paper on", required: true });
     if (block.refusalAllowed) {
-      fields.push({ kind: "select", name: "refused", label: "Signed, or refused", required: true, placeholder: "Choose", options: [{ value: "no", label: "Signed" }, { value: "yes", label: "Refused to sign: recorded, and the next block follows" }] });
+      fields.push({ kind: "select", name: "refused", label: "Signed, or refused", required: true, placeholder: "Choose", options: [{ value: "no", label: "Signed" }, { value: "yes", label: contractorRefusalWords(kind).office }] });
       fields.push({ kind: "textarea", name: "refusalNote", label: "What the refusal was" });
     }
   }

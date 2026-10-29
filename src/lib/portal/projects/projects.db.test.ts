@@ -412,8 +412,11 @@ describe("the contractor's block on a certificate (FR-VAR-022)", () => {
   const BLOCKS = [
     { blockOrder: 1, blockKind: "RECOMMENDING", labelEn: "Recommending officer", labelMs: null, datesCertificate: false, officeRule: "NAMED_OFFICE", officeCode: "PRJ_RO", delegable: false, carriesDecision: false, refusalAllowed: false },
     { blockOrder: 2, blockKind: "CONTRACTOR", labelEn: "Contractor", labelMs: null, datesCertificate: false, officeRule: "CONTRACTOR", officeCode: null, delegable: false, carriesDecision: false, refusalAllowed: true },
-    { blockOrder: 3, blockKind: "WITNESS", labelEn: "Witness", labelMs: null, datesCertificate: false, officeRule: "WITNESS", officeCode: null, delegable: false, carriesDecision: false, refusalAllowed: false },
+    // Close-out stage C review, ruling 2 (faithful): the block after the contractor's was a witness, which the portal now refuses (WITNESS_ON_PAPER, below);
+    // these cases keep a later block that is not a witness.
+    { blockOrder: 3, blockKind: "AUTHORISING", labelEn: "Head of department", labelMs: null, datesCertificate: false, officeRule: "NAMED_OFFICE", officeCode: "PRJ_HOD", delegable: false, carriesDecision: false, refusalAllowed: false },
   ];
+  const WITNESSED = BLOCKS.map((b) => (b.blockOrder === 3 ? { ...b, blockKind: "WITNESS", labelEn: "Witness", officeRule: "WITNESS", officeCode: null } : b));
   let issued = 0;
   async function certificate(contractId: string, o: { kind?: CertificateKind; firstSigned?: boolean; status?: "IN_ROUTING" | "SIGNING" | "ISSUED"; blocks?: typeof BLOCKS } = {}) {
     const baseline = (await db.contractBaseline.findFirst({ where: { contractId, version: 1 }, select: { id: true } })) ?? (await db.contractBaseline.create({ data: { organisationId, contractId, version: 1, reason: "EXECUTED", contractSum: "100000.00", completionPeriod: 90, completionUnit: "DAYS", entered: {}, snapshot: {}, recordedAt: at(-10), recordedOn: D(at(-10)) }, select: { id: true } }));
@@ -437,22 +440,26 @@ describe("the contractor's block on a certificate (FR-VAR-022)", () => {
     expect(sig.signedOn.toISOString().slice(0, 10)).toBe(today);
     const attribution = await db.actAttribution.findFirstOrThrow({ where: { entity: "CertificateSignature", entityId: sig.id, slot: "signedBySupplierAccount" } });
     expect(attribution).toMatchObject({ subjectSupplierAccountId: h.accountId, mode: "SIGNED", documentEntity: "Certificate", documentId: certId });
-    // The witness block is still open: the certificate is not issued by the contractor's signature.
+    // The block after it is still open: the certificate is not issued by the contractor's signature.
     expect((await db.certificate.findUniqueOrThrow({ where: { id: certId } })).status).toBe("SIGNING");
     await refusedWith(signContractorBlock(h.actor, { contractId: c.id, certificateId: certId, action: "sign", note: "", stepUpAt: await stepUp(h) }), "BLOCK_SIGNED");
     const tab = await certificatesTab(db, h.actor, (await loadProjectContext(db, h.actor, c.id))!);
     expect(tab.rows.find((r) => r.id === certId)).toMatchObject({ recorded: { fromPortal: true, refused: false }, block: { state: "NOT_OFFERED", why: "SIGNED" } });
   });
 
-  // Close-out stage C (CO-9; FR-FIN-009): the contractor accepts the final account by signing the final certificate's CONTRACTOR block from the portal.
-  it("signs the final certificate's contractor block from the portal, once making good is complete", async () => {
+  // Close-out stage C review, ruling 2 (stricter: this case signed the FINAL from the portal before): the final certificate's acceptance is witnessed
+  // (FR-FIN-009, FR-FIN-013), and nobody witnesses a portal signature, so the contractor and the witness sign it on paper and the office records both.
+  // A variation form a customer gives a witness block is signed on paper the same way.
+  it("refuses to sign or dispute, from the portal, a contractor block a witness follows: the final certificate, or a variation form with a witness", async () => {
     const h = await supplier();
     const c = await contract({ vendorId: h.supplierId });
     await db.contract.update({ where: { id: c.id }, data: { status: "MAKING_GOOD_COMPLETE" } });
-    const certId = await certificate(c.id, { kind: "FINAL" });
-    const done = await signContractorBlock(h.actor, { contractId: c.id, certificateId: certId, action: "sign", note: "", stepUpAt: await stepUp(h) });
-    expect(done.blockOrder).toBe(2);
-    expect(await db.certificateSignature.findFirstOrThrow({ where: { certificateId: certId, blockOrder: 2 } })).toMatchObject({ signedBySupplierAccountId: h.accountId, refused: false });
+    const final = await certificate(c.id, { kind: "FINAL", blocks: WITNESSED });
+    for (const action of ["sign", "dispute"] as const) await refusedWith(signContractorBlock(h.actor, { contractId: c.id, certificateId: final, action, note: "Overstated.", stepUpAt: await stepUp(h) }), "WITNESS_ON_PAPER");
+    const open = await contract({ vendorId: h.supplierId });
+    const vo = await certificate(open.id, { blocks: WITNESSED });
+    await refusedWith(signContractorBlock(h.actor, { contractId: open.id, certificateId: vo, action: "sign", note: "", stepUpAt: await stepUp(h) }), "WITNESS_ON_PAPER");
+    expect(await db.certificateSignature.count({ where: { certificateId: { in: [final, vo] }, blockOrder: 2 } })).toBe(0);
   });
 
   it("a dispute is the refusal the form allows, with its reason; the block is offered only in order, on the two kinds, and only on the contractor's own contract", async () => {
@@ -498,7 +505,7 @@ describe("the contractor's block on a certificate (FR-VAR-022)", () => {
   it("is not offered, and is refused signed or disputed, where it is the last block to record: recording it would issue the certificate under the contractor's account (4e review fix, OPEN I)", async () => {
     const h = await supplier();
     const c = await contract({ vendorId: h.supplierId });
-    const last = await certificate(c.id, { blocks: BLOCKS.filter((b) => b.blockKind !== "WITNESS") });
+    const last = await certificate(c.id, { blocks: BLOCKS.filter((b) => b.blockOrder !== 3) });
     for (const action of ["sign", "dispute"] as const) await refusedWith(signContractorBlock(h.actor, { contractId: c.id, certificateId: last, action, note: "The omission is overstated.", stepUpAt: await stepUp(h) }), "BLOCK_IS_LAST");
     expect(await db.certificateSignature.count({ where: { certificateId: last, blockOrder: 2 } })).toBe(0);
     const cert = await db.certificate.findUniqueOrThrow({ where: { id: last } });

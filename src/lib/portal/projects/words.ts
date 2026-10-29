@@ -74,6 +74,7 @@ const OWN: Readonly<Record<ProjectFault, (d: Data) => Words>> = {
     w(
       "Your block is the last, and recording it issues the certificate. Sign or dispute it on paper.",
     ),
+  WITNESS_ON_PAPER: () => w("This certificate is signed on paper: a witness signs after the contractor. Sign or dispute it at the office."),
   REFUSAL_NOT_ALLOWED: () => w("The form has no refusal to sign. Dispute in writing with the Superintending Officer."),
   REFUSAL_NOTE_REQUIRED: () => w("Say what you dispute."),
   REFUSAL_NOTE_TOO_LONG: (d) => w(`The dispute is longer than ${n(d, "max")} characters.`),

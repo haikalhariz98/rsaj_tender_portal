@@ -9,7 +9,7 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import type { SupplierActor } from "@/lib/auth/types";
 import { formatDate } from "@/lib/format";
-import { STATUS_WORDS as CERTIFICATE_STATUS_WORDS } from "@/lib/certificate/labels";
+import { contractorRefusalWords, STATUS_WORDS as CERTIFICATE_STATUS_WORDS } from "@/lib/certificate/labels";
 import { db } from "@/lib/db";
 import type { ProjectContext } from "@/lib/portal/projects/context-store";
 import { OUTCOME_TONE, OUTCOME_WORDS, SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
@@ -308,8 +308,8 @@ export async function CertificatesPanel({ actor, ctx, token }: Props) {
                 </div>
                 {!r.closed && !c.signing && r.block.state === "READY" && (
                   <div className="flex shrink-0 flex-wrap items-start gap-2">
-                    <SignCertificateControl contractId={ctx.contract.id} certificateId={r.id} token={token} label={`${r.kindLabel}${r.number ? ` ${r.number}` : ""}`} mode="sign" refusalAllowed={r.block.block.refusalAllowed} />
-                    <SignCertificateControl contractId={ctx.contract.id} certificateId={r.id} token={token} label={`${r.kindLabel}${r.number ? ` ${r.number}` : ""}`} mode="dispute" refusalAllowed={r.block.block.refusalAllowed} />
+                    <SignCertificateControl contractId={ctx.contract.id} certificateId={r.id} refusalWords={contractorRefusalWords(r.kind).portal} token={token} label={`${r.kindLabel}${r.number ? ` ${r.number}` : ""}`} mode="sign" refusalAllowed={r.block.block.refusalAllowed} />
+                    <SignCertificateControl contractId={ctx.contract.id} certificateId={r.id} refusalWords={contractorRefusalWords(r.kind).portal} token={token} label={`${r.kindLabel}${r.number ? ` ${r.number}` : ""}`} mode="dispute" refusalAllowed={r.block.block.refusalAllowed} />
                   </div>
                 )}
               </li>
@@ -344,6 +344,8 @@ export async function CertificatesPanel({ actor, ctx, token }: Props) {
                     <Chip tone="warn">Waits for your signature</Chip>
                   ) : r.block.state === "NOT_OFFERED" && r.block.why === "LAST" ? (
                     <Chip tone="warn">Your block is the last: sign or dispute it on paper</Chip>
+                  ) : r.block.state === "NOT_OFFERED" && r.block.why === "WITNESS" ? (
+                    <Chip>Signed on paper, with a witness</Chip>
                   ) : r.block.state === "NOT_OFFERED" && r.block.why === "KIND" ? (
                     <Chip>Signed at the office, if at all</Chip>
                   ) : null}
