@@ -152,6 +152,11 @@ export const ACT_PREFIX: Readonly<Record<string, string>> = {
   FinalPackEntry: "zfp",
   ContractClosure: "zcc",
   ProjectDocumentDecision: "zpd",
+  // Workspace 3a step 6 (prisma/demo-work.ts): work items, their comments and links, and the notices the acts send.
+  WorkItem: "wki",
+  WorkItemComment: "wkc",
+  WorkItemLink: "wkl",
+  StaffNotice: "wkn",
   // Sittings.
   MeetingAttendance: "lat",
   Vote: "lvt",

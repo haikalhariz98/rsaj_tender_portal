@@ -35,6 +35,7 @@ import { loadFundingDemo } from "./demo-funding";
 import { checkTimeDemo, loadTimeDemo } from "./demo-time";
 import { checkCloseoutDemo, loadCloseoutDemo } from "./demo-closeout";
 import { checkCloseDemo, loadCloseDemo } from "./demo-close";
+import { checkWorkDemo, loadWorkDemo } from "./demo-work";
 import { checkRegistrationDemo, configureRegistrationDemo, loadRegistrationDemo } from "./demo-registration";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { attributeSeededRows } from "./demo-attribution";
@@ -837,6 +838,9 @@ async function load() {
   // Phase 2 close-out stage C: demo_con13 made good, its final account paid and the contract closed, with its performance report (prisma/demo-close.ts).
   await loadCloseDemo(db, organisationId, { configure: true });
   await checkCloseDemo(db);
+  // Workspace 3a step 6 (WS-22): work items of every type on demo_con3, through the work store's own acts (prisma/demo-work.ts).
+  await loadWorkDemo(db, organisationId);
+  await checkWorkDemo(db);
   // Phase 2b: the rows the loaders wrote straight into the tables are attributed to the demo loader, as the acts it ran already are.
   await attributeSeededRows(db, organisationId);
 
