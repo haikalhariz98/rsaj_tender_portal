@@ -68,8 +68,8 @@ export function PickDefectItemsDrawer({ id, items, total, people, blocker }: { i
   return (
     <RecordEditor
       title="Add defects from the work list"
-      description={`Each becomes a line on the certificate and stays linked to its item.${total > items.length ? ` First ${items.length} of ${total}.` : ""}`}
-      fields={[hidden("id"), { kind: "checks", name: "itemIds", label: "Defect items", options: items, empty: "No open Defect items are waiting." }, { kind: "date", name: "dueOn", label: "Made good by", hint: "Used for an item with no due day." }, by("DefectItem.reportedBy", people)]}
+      description={`Each becomes a line on the certificate and stays linked to its item.${total > items.length ? ` Showing ${items.length} of ${total}. Add these, then open again for the rest.` : ""}`}
+      fields={[hidden("id"), { kind: "checks", name: "itemIds", label: "Defect items", filterable: true, options: items, empty: "No open Defect items are waiting." }, { kind: "date", name: "dueOn", label: "Made good by", hint: "Used for an item with no due day." }, by("DefectItem.reportedBy", people)]}
       values={{ id }}
       action={addCpcDefectsFromItems}
       submitLabel="Add"

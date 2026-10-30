@@ -59,7 +59,8 @@ export type Field =
   /// `sealed` is a figure nobody may read back: the browser is told not to remember it,
   /// and it only ever lives in this field while it is typed.
   | { kind: "money"; name: string; label: string; required?: boolean; hint?: string; sealed?: boolean }
-  | { kind: "date"; name: string; label: string; required?: boolean; hint?: string }
+  | { kind: "date"; name: string; label: string; required?: boolean; hint?: string; /// Detail behind an information button after the hint.
+      info?: string }
   /// A clock time on the native input: it posts `HH:MM`, 24-hour.
   | { kind: "time"; name: string; label: string; required?: boolean; hint?: string }
   | {
@@ -124,6 +125,8 @@ export type Field =
       allChecked?: boolean;
       /// Said where there is nothing to tick.
       empty?: string;
+      /// A filter box and "Select all shown" over a long list (a pick of many records).
+      filterable?: boolean;
       /// Detail behind an information button after the label (the reason a list reads as it does), so it is not prose in the form.
       info?: string;
     }
@@ -316,14 +319,34 @@ export function RecordEditor({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Tab" && dialog.current) {
+        // The drawer is modal: Tab and Shift+Tab wrap inside it.
+        const tabbable = [...dialog.current.querySelectorAll<HTMLElement>(TABBABLE)].filter((el) => el.offsetParent !== null);
+        const first = tabbable[0];
+        const last = tabbable[tabbable.length - 1];
+        const at = document.activeElement;
+        if (!first || !last) return;
+        const wrapTo = !dialog.current.contains(at) ? first : e.shiftKey && at === first ? last : !e.shiftKey && at === last ? first : null;
+        if (wrapTo) {
+          e.preventDefault();
+          wrapTo.focus();
+        }
+        return;
+      }
       if (e.key !== "Escape") return;
       setOpen(false);
       opener.current?.focus();
     };
     document.addEventListener("keydown", onKey);
-    dialog.current?.querySelector<HTMLElement>("input:not([tabindex='-1']),[role=combobox],textarea")?.focus();
+    dialog.current?.querySelector<HTMLElement>("input:not([type=hidden]):not([tabindex='-1']),[role=combobox],textarea,select")?.focus();
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
+
+  // A refused save moves focus to the first field in error, else to the refusal itself, so a keyboard or screen-reader user lands on what to fix.
+  useEffect(() => {
+    if (!open || state.ok || (!state.message && !state.errors)) return;
+    dialog.current?.querySelector<HTMLElement>("[aria-invalid='true'],[data-refusal]")?.focus();
+  }, [open, state]);
 
   // Nobody is signed in, so where a reason is asked for it is the only account of
   // why the change was made, whichever direction the change goes.
@@ -438,10 +461,18 @@ export function RecordEditor({
                   </div>
                 )}
                 <div className={review || proposed ? "hidden" : "flex flex-col gap-5"}>
-                  {state.message && <Callout tone="err">{state.message}</Callout>}
+                  {state.message && (
+                    <div data-refusal tabIndex={-1} className="outline-offset-4">
+                      <Callout tone="err">{state.message}</Callout>
+                    </div>
+                  )}
                   {/* A refusal on a field this form does not show is still shown: never
                       a save that fails with nothing said (6.3 re-review). */}
-                  {unplaced.length > 0 && <Callout tone="err">{unplaced.join(" ")}</Callout>}
+                  {unplaced.length > 0 && (
+                    <div data-refusal tabIndex={-1} className="outline-offset-4">
+                      <Callout tone="err">{unplaced.join(" ")}</Callout>
+                    </div>
+                  )}
 
                   {identity}
                   {identity && <hr className="border-line" />}
@@ -555,6 +586,42 @@ export function RecordEditor({
 }
 
 
+/// The boxes of a `checks` field. Filtering hides rows rather than removing them, so a box ticked and then filtered out is still sent.
+function ChecksList({ field, id }: { field: Extract<Field, { kind: "checks" }>; id: string }) {
+  const [q, setQ] = useState("");
+  const box = useRef<HTMLDivElement>(null);
+  const needle = q.trim().toLowerCase();
+  const matches = (o: { label: string; description?: string }) => !needle || `${o.label} ${o.description ?? ""}`.toLowerCase().includes(needle);
+  const shownCount = field.options.filter(matches).length;
+  return (
+    <div className="mt-2">
+      {field.filterable && (
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <Input aria-label={`Filter ${field.label.toLowerCase()}`} placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && e.preventDefault()} className="max-w-64" />
+          <button
+            type="button"
+            className={buttonClass("ghost", "sm")}
+            onClick={() => box.current?.querySelectorAll<HTMLInputElement>("[data-row]:not([hidden]) input[type=checkbox]").forEach((c) => (c.checked = true))}
+          >
+            Select all shown
+          </button>
+          <span className="text-[12.5px] text-ink-3" aria-live="polite">{shownCount} shown</span>
+        </div>
+      )}
+      <div ref={box} id={`${id}-boxes`} className="flex flex-col gap-2.5 rounded-xl border border-line px-3.5 py-3">
+        {field.options.map((o) => (
+          <div key={o.value} data-row hidden={!matches(o)}>
+            <Checkbox name={field.name} value={o.value} defaultChecked={field.allChecked === true} label={o.label} description={o.description} className="min-w-0 break-words" />
+          </div>
+        ))}
+        {shownCount === 0 && <p className="text-[13px] text-ink-3">Nothing matches.</p>}
+      </div>
+    </div>
+  );
+}
+
+const TABBABLE = "a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex='-1'])";
+
 function FieldInput({
   field,
   value,
@@ -599,7 +666,7 @@ function FieldInput({
   if (field.kind === "checks") {
     const labelId = `${id}-label`;
     return (
-      <div role="group" aria-labelledby={labelId} aria-describedby={hint ? `${id}-hint` : undefined} className="min-w-0 sm:col-span-2">
+      <div role="group" aria-labelledby={labelId} aria-describedby={[hint ? `${id}-hint` : "", error ? `${id}-error` : ""].filter(Boolean).join(" ") || undefined} data-refusal={error ? "" : undefined} tabIndex={error ? -1 : undefined} className="min-w-0 sm:col-span-2">
         <p id={labelId} className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-2">
           {field.label}
           {field.info && <MoreText text={field.info} label={`About ${field.label}`} />}
@@ -612,13 +679,9 @@ function FieldInput({
         {field.options.length === 0 ? (
           <p className="mt-2 rounded-xl bg-sunken px-3.5 py-2.5 text-[13px] text-ink-2">{field.empty}</p>
         ) : (
-          <div className="mt-2 flex flex-col gap-2.5 rounded-xl border border-line px-3.5 py-3">
-            {field.options.map((o) => (
-              <Checkbox key={o.value} name={field.name} value={o.value} defaultChecked={field.allChecked === true} label={o.label} description={o.description} className="min-w-0 break-words" />
-            ))}
-          </div>
+          <ChecksList field={field} id={id} />
         )}
-        {error && <p className="mt-1.5 text-[12.5px] font-medium text-rose-600">{error}</p>}
+        {error && <p id={`${id}-error`} className="mt-1.5 text-[12.5px] font-medium text-rose-600">{error}</p>}
       </div>
     );
   }
@@ -706,7 +769,7 @@ function FieldInput({
   }
 
   return (
-    <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error}>
+    <Field label={field.label} required={required} htmlFor={id} hint={field.kind === "date" && field.info ? <span className="inline-flex items-center gap-1.5">{hint}<MoreText text={field.info} label={`About ${field.label}`} /></span> : hint} error={error}>
       {field.kind === "money" ? (
         <AffixInput
           id={id}
