@@ -8,6 +8,8 @@
  *   September) approved at the Variation Orders Committee's second sitting, instructed, measured, ordered and put on an issued adjustment of the
  *   contract sum (ruling 8 of the stage C review: a variation not on one refuses the final account), so the demo has no commenced-pending variation left;
  * - the final certificate's contractor and witness blocks are recorded by the office from the paper (ruling 2: never signed in the portal);
+ * - December 2026: the lines still open from the work list (workspace 3b-ii step 12: the marker posts returned, the ponding in review) reported rectified
+ *   from the contractor's letter where open, and accepted, through Close-out's own acts; their Defect items follow to Done;
  * - October 2027: the final defects inspection, then the certificate of making good defects, approved by the Finance Director (the S.O.'s office) and
  *   signed by the S.O. and the contractor: the contract's making good is complete;
  * - November 2027: the retention balance released, the performance bond and the advance payment guarantee returned; the contractor performance report
@@ -25,6 +27,7 @@
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { act, actRoute } from "./demo-acts";
 import { DEMO_ACTOR } from "./demo-actor";
+import { checkLinkedDefects } from "./demo-closeout";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -200,8 +203,19 @@ export async function loadCloseDemo(db: Db, organisationId: string, opts: { conf
   // issued adjustment refuses the final account (nothing could add it after the final certificate), and the valve was built.
   await washoutValve(db, id, { approve, sign, holder });
 
+  // December 2026: whatever line is still open (stage B leaves two picked from Work) is made good through Close-out's acts, which write through to its item.
+  const { loadCloseout, defectFactsOf } = await import("../src/lib/closeout/load");
+  const { defectState, isOpenLine } = await import("../src/lib/closeout/defects");
+  const lines = async () => defectFactsOf(await loadCloseout(id, db as never)).map((d) => ({ id: d.id, ...defectState(d.events) }));
+  for (const [i, d] of (await lines()).filter((x) => isOpenLine(x.state)).entries()) {
+    if (d.state === "OPEN") await act(`2026-12-02T09:${10 + i * 10}`, `defect ${d.id} reported again`, K.reportDefectRectified, { id, defectId: d.id, on: "2026-12-02", note: "Put right (the contractor's letter of 2 Dec, demo).", personId: people.bala });
+    await act(`2026-12-02T09:${15 + i * 10}`, `defect ${d.id} accepted`, K.acceptDefect, { id, defectId: d.id, on: "2026-12-02", note: "", personId: people.bala });
+  }
+  // The day the last line was made good.
+  const madeGoodOn = (await lines()).map((x) => x.closedOn ?? "").sort().at(-1) || "2026-10-28";
+
   // October 2027: the period ended on 25 Oct; the final defects inspection, then the certificate of making good defects.
-  await act("2027-10-27T09:00", "CMGD raised", K.raiseMakingGood, { id, madeGoodOn: "2026-10-28", finalInspectionOn: "2027-10-26", personId: people.bala });
+  await act("2027-10-27T09:00", "CMGD raised", K.raiseMakingGood, { id, madeGoodOn, finalInspectionOn: "2027-10-26", personId: people.bala });
   const mg = await db.makingGood.findFirstOrThrow({ where: { contractId: id }, orderBy: { recordedAt: "desc" } });
   await approve(mg.certificateId, "2027-10-27", "2027-10-28");
   await sign(mg.certificateId, "2027-10-28", [{ order: 1, person: people.bala, on: "2027-10-29" }, { order: 2, name: contractor.name, ic: contractor.ic, on: "2027-10-29" }]);
@@ -270,4 +284,7 @@ export async function checkCloseDemo(db: Db) {
   if (fa?.certificate.status !== "ISSUED" || !fa.certificate.financePayment) fail("the final certificate is not issued and paid");
   const r = await db.performanceReport.findUnique({ where: { contractId: CON }, select: { assessedByPersonId: true, verifiedByPersonId: true } });
   if (!r?.verifiedByPersonId || !r.assessedByPersonId || r.verifiedByPersonId === r.assessedByPersonId) fail("the performance report is not verified by a second person");
+  // 3b-ii step 12: the items picked from Work end Done with their lines (none where con13's story ran before it).
+  const linked = await checkLinkedDefects(db, fail);
+  if (linked.some((x) => x.status !== "DONE")) fail(`the items picked from Work read ${linked.map((x) => x.status).join(",")}, not all Done`);
 }

@@ -23,8 +23,9 @@
  *
  * Ids: WorkItem demo_wki*, WorkItemComment demo_wkc*, WorkItemLink demo_wkl*, StaffNotice demo_wkn*, ProjectTeamMember demo_wtm*, DocumentAttachment demo_wka*, and the
  * staged files demo_wkd* (ACT_PREFIX; grepped free). Each round runs once: the 3a rounds where demo_con3 holds no work item, the 3b round (`loadSharing`, the contractor's
- * side) where it has no Project team and no shared item. The 3b-ii defect link writes nothing on any demo contract and says why (`linkingSkipped`); its linked cards and My work
- * are read back by `checkWorkDemo`.
+ * side) where it has no Project team and no shared item. The 3b-ii defect link writes nothing on demo_con3 or demo_con15 and says why (`linkingSkipped`); it is told on
+ * demo_con13 instead, in its close-out story (prisma/demo-closeout.ts, through `on` and `asContractor` below; fresh loads only), and `checkWorkDemo` reads those items back with
+ * the linked cards and My work.
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
@@ -75,7 +76,7 @@ const sharedNow = async (c: { tx: { workItem: { findUniqueOrThrow(a: { where: { 
   (await c.tx.workItem.findUniqueOrThrow({ where: { id: itemId }, select: { sharedAt: true } })).sharedAt !== null;
 
 /// The acts on one contract, by the demo people.
-function on(organisationId: string, contractId: string) {
+export function on(organisationId: string, contractId: string) {
   const ids = new Map<string, string>();
   const refs = new Map<string, string>();
   const id = (key: string) => ids.get(key) ?? (() => { throw new Error(`demo work: no item ${key}`); })();
@@ -105,9 +106,14 @@ function on(organisationId: string, contractId: string) {
     },
     async move(when: string, key: string, by: string, from: string, to: string, extra: { reason?: string; comment?: string } = {}) {
       const { moveItem } = await import("../src/lib/work/store");
+      const { defectActOf } = await import("../src/lib/work/defect-link");
+      const { isLinkedItem } = await import("../src/lib/work/load");
+      const { actionOf } = await import("../src/lib/work/move");
+      // As the edge does (`moveWorkItem`): a move on an item that stands for a defect line is a defect act, attributed as the line's event.
+      const viaDefectAct = defectActOf(actionOf(from as never, to as never), "STAFF") !== null && (await isLinkedItem(organisationId, contractId, id(key)));
       const sendBack = from === "IN_REVIEW" && to === "IN_PROGRESS";
-      await run(organisationId, contractId, when, `${key} ${from} to ${to}`, by, sendBack ? "WorkItemComment.person" : null, (c, who, a) =>
-        moveItem(c, who, { itemId: id(key), expectedFrom: from as never, to: to as never, ...extra }, a),
+      await run(organisationId, contractId, when, `${key} ${from} to ${to}`, by, viaDefectAct ? "DefectEvent.person" : sendBack ? "WorkItemComment.person" : null, (c, who, a) =>
+        moveItem(c, who, { itemId: id(key), expectedFrom: from as never, to: to as never, ...extra, viaDefectAct }, a),
       );
     },
     async comment(when: string, key: string, by: string, body: string, audience: "REPLY" | "INTERNAL" | null = null) {
@@ -161,7 +167,7 @@ export async function loadWorkDemo(db: Db, organisationId: string): Promise<{ no
  * observation), and a line is acted on only once its CPC is issued; a Defect raised past practical completion makes its line under `reportDefect`'s rules (an issued CPC with a
  * defects liability period). No demo contract meets them: demo_con15's practical completion is written as the status would leave it (no baseline, S.O., possession or CPC,
  * and SUPERVISION is shut once practically complete, so none can be added through the acts), and demo_con3 must stay the one active contract (a CPC issued on it ends that).
- * So this round writes nothing and says what each contract lacks, read from the cores' own readers, never from rows written by hand. Linked cards (step 9) and My work (step
+ * So this round writes nothing and says what each contract lacks, read from the cores' own readers, never from rows written by hand; demo_con13's close-out story shows the link. Linked cards (step 9) and My work (step
  * 8) need no new rows: `checkWorkDemo` reads them back from what the 3a and 3b-i rounds and the certificate and variation demos already wrote.
  */
 async function linkingSkipped(db: Db, organisationId: string, today: string): Promise<string[]> {
@@ -271,8 +277,14 @@ async function loadSecond(db: Db, organisationId: string, today: string, ago: (n
   return [`${CON2}: work items of six types (no Defect after practical completion)`];
 }
 
+/// The awardee's portal account as the portal's session would present it (the cores judge the supplier and its standing, not the session).
+export const contractorActor = (account: { id: string; loginName: string; contact: { id: string; name: string }; supplier: { registeredName: string } }, supplierId: string, organisationId: string, timeZone: string | null): import("../src/lib/auth/types").SupplierActor => ({
+  kind: "SUPPLIER", accountId: account.id, sessionId: "demo loader", contactId: account.contact.id, displayName: account.contact.name, supplierId, supplierName: account.supplier.registeredName,
+  loginName: account.loginName, organisationId, organisationTimeZone: timeZone, stepUpAt: null, sessionCreatedAt: new Date(), sourceAddress: null, mustChangePassword: false, resetNoticePending: false,
+});
+
 /// The contractor's acts, through the portal's own cores (`src/lib/work/portal-store.ts`) on the demo clock, as the demo contractor's portal account. A refusal stops the load.
-function asContractor(actor: import("../src/lib/auth/types").SupplierActor) {
+export function asContractor(actor: import("../src/lib/auth/types").SupplierActor) {
   return async <T>(when: string, what: string, fn: (a: typeof actor) => Promise<T>): Promise<T> => {
     const { WorkRefused } = await import("../src/lib/work/store");
     let out: T | undefined;
@@ -329,10 +341,7 @@ async function loadSharing(db: Db, organisationId: string, today: string, ago: (
   if (await portalStandingBarOf(db as never, { supplierId: l.award.vendorId, organisationId }, "TRANSACT")) return skip("its contractor's standing bars it from acting on the portal");
 
   const w = on(organisationId, CON);
-  const contractor = asContractor({
-    kind: "SUPPLIER", accountId: account.id, sessionId: "demo loader", contactId: account.contact.id, displayName: account.contact.name, supplierId: l.award.vendorId, supplierName: account.supplier.registeredName,
-    loginName: account.loginName, organisationId, organisationTimeZone: l.org.timeZone, stepUpAt: null, sessionCreatedAt: new Date(), sourceAddress: null, mustChangePassword: false, resetNoticePending: false,
-  });
+  const contractor = asContractor(contractorActor(account, l.award.vendorId, organisationId, l.org.timeZone));
   // A wall clock in the organisation's zone (the demo's, UTC+8 with no daylight saving) as the UTC wall clock `writeDemoDocs` reads.
   const utc = (local: string) => new Date(new Date(`${local}:00.000Z`).getTime() - 8 * 3600_000).toISOString().slice(0, 16);
   const engName = (await db.person.findUniqueOrThrow({ where: { id: people.eng }, select: { name: true } })).name;
@@ -413,6 +422,9 @@ export async function checkWorkDemo(db: Db, opts: { sharing: boolean } = { shari
   if (links.length < 3 || !links.some((x) => x.projectDocumentId)) fail("fewer than three links, or none to a document");
   if (opts.sharing) await checkSharing(db, fail);
   await checkLinkedAndMine(db, today!, fail);
+  // 3b-ii step 12: demo_con13's items that stand for its defect lines, each as its line stands (none where its close-out story ran before step 12).
+  const { checkLinkedDefects } = await import("./demo-closeout");
+  if (await db.contract.findUnique({ where: { id: `${P}con13` }, select: { id: true } })) await checkLinkedDefects(db, fail);
 }
 
 /// 3b-ii, read back through the screens' own readers: demo_con3's Work tab draws linked cards (its variation and certificates in progress), and My work holds a demo person's
