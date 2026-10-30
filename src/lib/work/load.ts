@@ -527,7 +527,7 @@ export async function loadMyWork(i: { organisationId: string; personId: string; 
 /// The Defect items the draft CPC's list can take: open, on no defect list yet (`addLinesFromItems` judges the same on the locked row).
 export async function pickableDefectItems(i: { organisationId: string; contractId: string }): Promise<{ value: string; label: string }[]> {
   const rows = await db.workItem.findMany({ where: { ...scope(i), type: "DEFECT", defectItemId: null, status: { in: [...OPEN_STATUSES] } }, select: { id: true, number: true, title: true }, orderBy: { number: "asc" }, take: 200 });
-  return rows.map((x) => ({ value: x.id, label: `${itemRefText("DEFECT", x.number)} · ${x.title}` }));
+  return rows.map((x) => ({ value: x.id, label: `${itemRefText("DEFECT", x.number)} Â· ${x.title}` }));
 }
 
 export async function linkOptions(i: { organisationId: string; contractId: string; exceptItemId?: string }): Promise<{ items: { value: string; label: string }[]; documents: { value: string; label: string }[] }> {
