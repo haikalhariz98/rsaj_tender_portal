@@ -31,10 +31,10 @@ const trail = (p: string, name: string | null, parent: string | null = null) => 
 const labels = (c: { label: { en: string } }[]) => c.map((x) => x.label.en);
 
 describe("breadcrumbs of the certificate core's pages (S-1)", () => {
-  it("a certificate: Projects › its contract › Certificates (the contract's tab, id `documents`, renamed in plan step 6) › the certificate", () => {
+  it("a certificate: Projects › its contract › Certificates (a section of the contract's Documents tab since WS-5) › the certificate", () => {
     const c = trail("/projects/demo_con3/certificates/demo_hct1", "DEMO/CERT/1", "XI202600799");
     expect(labels(c)).toEqual(["Projects", "XI202600799", "Certificates", "DEMO/CERT/1"]);
-    expect(c[2].href).toBe("/projects/demo_con3?tab=documents");
+    expect(c[2].href).toBe("/projects/demo_con3?stage=project&tab=submissions&section=certificates");
     for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
   });
   it("before the page names them, the crumbs say what kind of record, never a key or \"Details\"", () => {

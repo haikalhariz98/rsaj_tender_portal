@@ -49,8 +49,7 @@ export const CASE_TAB_WORDS: Readonly<Record<string, Words>> = {
   "final-account": w("Final account"),
   closure: w("Close"),
   work: w("Work"),
-  // Plan step 6 (PW-11): renamed in words only; the tab ids are unchanged (`case-tabs.ts`). The contract's certificates are "Certificates"; the one Documents list is "Documents".
-  documents: w("Certificates"),
+  // The tab id `submissions` is Documents (plan step 6, PW-11); the old `documents` tab (Certificates) is its section since WS-5 (`FOLDED_TABS`).
   submissions: w("Documents"),
 };
 

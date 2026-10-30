@@ -154,3 +154,15 @@ describe("caseHistorySources", () => {
     expect(caseHistorySources({ hasContract: true, visibility: "WHOLE" })).toEqual(["award", "contract"]);
   });
 });
+
+// Workspace 3b-ii step 11 (WS-5): the Certificates tab ("documents") folded into Documents ("submissions"); the old address still lands.
+describe("the folded Certificates address", () => {
+  const live = { awardStatus: "ISSUED", contract: "ACTIVE", facts: {} } as const;
+  it("a stage-less ?tab=documents opens Documents in the Project stage", () => {
+    expect(open({ ...live, tab: "documents" })).toMatchObject({ stage: "project", tab: "submissions", history: false });
+  });
+  it("?stage=project&tab=documents does the same, and another stage's name does not claim it", () => {
+    expect(open({ ...live, stage: "project", tab: "documents" })).toMatchObject({ stage: "project", tab: "submissions" });
+    expect(open({ ...live, stage: "signing", tab: "documents" }).tab).toBe("formation");
+  });
+});

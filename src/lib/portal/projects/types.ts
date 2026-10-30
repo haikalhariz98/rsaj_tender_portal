@@ -6,8 +6,8 @@ import type { Finding } from "@/lib/window/types";
  * the signed-in session's, and the stores read only the contracts whose award names it.
  */
 
-/// Phase 2 close-out stage B: "defects", shown once the practical completion certificate is issued.
-export const PROJECT_TABS = ["overview", "work", "programme", "diary", "payments", "certificates", "submissions", "defects"] as const;
+/// Workspace 3b-ii (WS-5): "defects" folded into Work as its Defects view; `?tab=defects` is aliased in the page, not listed here.
+export const PROJECT_TABS = ["overview", "work", "programme", "diary", "payments", "certificates", "submissions"] as const;
 export type ProjectTab = (typeof PROJECT_TABS)[number];
 export const isProjectTab = (s: string | undefined): s is ProjectTab => (PROJECT_TABS as readonly string[]).includes(s ?? "");
 

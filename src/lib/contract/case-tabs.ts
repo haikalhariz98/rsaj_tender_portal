@@ -22,10 +22,16 @@ export const CASE_TABS: Readonly<Record<CaseTabStep, readonly string[]>> = {
   signing: ["formation", "baseline"],
   // overview: the contract's Overview opens the Project stage (F-1).
   // Phase 2 close-out stage A: "time" after "variations" (EOT is allowed once practically complete, so it stays open then).
-  project: ["overview", "team", "site", "payments", "variations", "time", "documents", "submissions"],
+  // Workspace 3b-ii (WS-5): the Certificates tab (id "documents") folded into Documents ("submissions") as its Certificates section; see FOLDED_TABS.
+  project: ["overview", "team", "site", "payments", "variations", "time", "submissions"],
   // Phase 2 close-out stage B (plan §3.2): Completion and Defects. Stage D added Close ("closure") for the performance card; stage C adds the Final
   // account before it and the checklist on it.
   "close-out": ["completion", "defects", "final-account", "closure"],
+};
+
+/// Tabs that no longer exist and where their old addresses (including stored `StaffNotice.href` rows) land (WS-5). The key is the old `?tab=`.
+export const FOLDED_TABS: Readonly<Record<string, { stage: CaseTabStep; tab: string; section: string }>> = {
+  documents: { stage: "project", tab: "submissions", section: "certificates" },
 };
 
 /// The case-level tab: it has no stage.
@@ -71,14 +77,16 @@ export function awardTabToCase(tab: string | undefined): { stage?: CaseStepKey; 
  * - "overview": Project on a contract (F-1), Award on an award-only case;
  * - "securities": Before signing, on either id;
  * - "history" and "work": case level (`work` keeps the live stage, which `resolveCaseView` picks);
+ * - a folded tab ("documents", now Documents' Certificates section): where it went (`FOLDED_TABS`);
  * - any other known tab: its one stage;
  * - an unknown tab, or none: null (the default step).
  */
-export function caseTabToStep(tab: string | undefined, hasContract: boolean): { stage: CaseTabStep; tab: string } | { history: true } | { work: true } | null {
+export function caseTabToStep(tab: string | undefined, hasContract: boolean): { stage: CaseTabStep; tab: string; section?: string } | { history: true } | { work: true } | null {
   if (tab === undefined) return null;
   if (tab === HISTORY_TAB) return { history: true };
   if (tab === WORK_TAB) return hasContract ? { work: true } : null;
   if (tab === "overview") return { stage: hasContract ? "project" : "award", tab };
+  if (Object.hasOwn(FOLDED_TABS, tab)) return FOLDED_TABS[tab];
   const stage = (Object.keys(CASE_TABS) as CaseTabStep[]).find((s) => CASE_TABS[s].includes(tab));
   return stage ? { stage, tab } : null;
 }

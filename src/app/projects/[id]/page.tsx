@@ -34,7 +34,7 @@ import { buildAwardView, type AwardPanelId } from "./award/award-view";
 import { possessionBlockerOf, signingActOf, startState } from "./signing-acts";
 
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
-import { AwardIcon, BuildingIcon, CalendarIcon, CheckIcon, ClipboardIcon, ListIcon, ClockIcon, FileIcon, FilesIcon, InboxIcon, RouteIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
+import { AwardIcon, BuildingIcon, CalendarIcon, CheckIcon, ClipboardIcon, ListIcon, ClockIcon, FileIcon, InboxIcon, RouteIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs, type TabSpec } from "@/components/tabs";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
@@ -125,7 +125,6 @@ const TAB_ICON: Readonly<Record<string, ReactNode>> = {
   payments: <WalletIcon size={15} />,
   variations: <ScaleIcon size={15} />,
   time: <CalendarIcon size={15} />,
-  documents: <FilesIcon size={15} />,
   submissions: <InboxIcon size={15} />,
   work: <ListIcon size={15} />,
 };
@@ -242,7 +241,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
   const time = lc && projectTab === "time" ? await timeView(lc) : null;
   // Plan §4.3: the DLP's notice is told when the Completion tab is read, as the award's clocks are.
   const dlpTold = lc && closeout && closeoutTab === "completion" ? await dlpNotice(lc, closeout, today) : null;
-  const documentFacts = lc && projectTab === "documents" ? await contractDocumentFacts(l.org.id, lc.contract.id, today) : null;
+  const documentFacts = lc && projectTab === "submissions" ? await contractDocumentFacts(l.org.id, lc.contract.id, today) : null;
   // The contract's gate (the priced working, the figures a certificate's override trail names) is asked only where a panel of the contract shows them.
   const needsContractGate = !!lc && ((projectTab === "overview") || (stage === "signing" && !view.history && view.tab === "formation") || (view.history && sources.includes("contract")));
   const sulit = needsContractGate && c ? await sulitGate(actor, { scope: "contract", entity: "Contract", id: c.id, label: c.number }, fieldsOfScope("contract")) : null;
@@ -307,8 +306,6 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
             <ClosePanel l={lc} v={closeout} today={today} actor={actor} />
           </div>
         ) : notice(t(CASE_STEP_WORDS["close-out"]), viewed.next);
-      case "documents":
-        return documentFacts ? <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} /> : null;
       case WORK_TAB:
         return (
           <Suspense fallback={<WorkSkeleton />}>
@@ -316,7 +313,12 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
           </Suspense>
         );
       case "submissions":
-        return <SubmissionsTab l={lc} actor={actor} organisationId={l.org.id} contractId={c.id} status={status!} docs={docs} docsAfter={docsAfter} earlier={earlier} />;
+        return (
+          <div className="flex flex-col gap-6">
+            <SubmissionsTab l={lc} actor={actor} organisationId={l.org.id} contractId={c.id} status={status!} docs={docs} docsAfter={docsAfter} earlier={earlier} />
+            {documentFacts && <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} />}
+          </div>
+        );
       default:
         return null;
     }

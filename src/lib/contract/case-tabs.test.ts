@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { AWARD_TAB_IDS, CASE_TABS, HISTORY_TAB, WORK_TAB, awardTabToCase, caseTabToStep, parseCaseStepKey, stageStrip, stageTab, type CaseTabStep } from "./case-tabs";
+import { AWARD_TAB_IDS, CASE_TABS, FOLDED_TABS, HISTORY_TAB, WORK_TAB, awardTabToCase, caseTabToStep, parseCaseStepKey, stageStrip, stageTab, type CaseTabStep } from "./case-tabs";
 
 
 // The contract page's eleven tabs, as persisted `?tab=` links carry them (F0-5).
@@ -25,7 +25,8 @@ describe("the tab ids are today's (scanned from the pages)", () => {
     // Phase 2 close-out stage B (flagged, faithful): every stage draws its tabs, close-out included.
     expect(readFileSync(join(process.cwd(), "src/app/projects/[id]/page.tsx"), "utf8")).toMatch(/\.\.\.stageStrip\(stage\)\.map\(/);
     const staged = new Set<string>([...Object.values(CASE_TABS).flat(), HISTORY_TAB]);
-    for (const id of CONTRACT_TAB_IDS) expect(staged.has(id), id).toBe(true);
+    // WS-5 (flagged, faithful): "documents" (Certificates) folded into Documents, so it is reached through FOLDED_TABS, not a stage's list.
+    for (const id of CONTRACT_TAB_IDS) expect(staged.has(id) || Object.hasOwn(FOLDED_TABS, id), id).toBe(true);
   });
 });
 
@@ -94,8 +95,8 @@ describe("caseTabToStep (F0-5)", () => {
         const got = caseTabToStep(id, hasContract);
         expect(got).not.toBeNull();
         if (got && "stage" in got) {
-          expect(got.tab).toBe(id);
-          expect(CASE_TABS[got.stage]).toContain(id);
+          expect(got.tab).toBe(id in FOLDED_TABS ? FOLDED_TABS[id].tab : id);
+          expect(CASE_TABS[got.stage]).toContain(got.tab);
         }
       });
     }
@@ -148,5 +149,20 @@ describe("the Work tab (case-level, drawn in two strips)", () => {
   it("a stage-less ?tab=work is case-level on a contract and nothing before one", () => {
     expect(caseTabToStep(WORK_TAB, true)).toEqual({ work: true });
     expect(caseTabToStep(WORK_TAB, false)).toBeNull();
+  });
+});
+
+// Workspace 3b-ii step 11 (flagged stricter: new cases; the two expectations above changed only where "documents" moved).
+describe("the Certificates tab folded into Documents (WS-5)", () => {
+  it("the Project strip has no Certificates tab; Documents (submissions) holds the section", () => {
+    expect(stageStrip("project")).not.toContain("documents");
+    expect(stageStrip("project")).toContain("submissions");
+  });
+  it("every old address lands on the folded place: stage-less, with the stage, either id", () => {
+    const at = { stage: "project", tab: "submissions", section: "certificates" };
+    for (const c of [true, false]) expect(caseTabToStep("documents", c)).toEqual(at);
+  });
+  it("the stored notice href forms resolve", () => {
+    expect(caseTabToStep("submissions", true)).toEqual({ stage: "project", tab: "submissions" });
   });
 });

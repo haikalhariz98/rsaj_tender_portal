@@ -6,6 +6,7 @@ import { Tabs } from "@/components/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Blocked } from "@/components/ui/blocked";
 import { Callout } from "@/components/ui/feedback";
+import { Segment, Segmented } from "@/components/ui/segmented";
 import { PageHeader } from "@/components/ui/page-header";
 import { issueFormToken } from "@/lib/auth/form-secret";
 import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
@@ -17,6 +18,7 @@ import { loadPortalItem, loadPortalWork } from "@/lib/work/portal-read";
 
 import { requireSupplier } from "../../../_auth/supplier";
 import { RaiseDrawer } from "./work-drawers";
+import { workHref } from "./work-form";
 import { WORK_NOT_NOW, WorkPanel } from "./work-panel";
 import { CertificatesPanel, DefectsPanel, DiaryPanel, OverviewPanel, PaymentsPanel, portalCompletion, ProgrammePanel, SubmissionsPanel } from "./panels";
 
@@ -29,32 +31,43 @@ export const metadata = { title: "Your contract" };
  * certificates to sign or dispute, and the documents sent to the office. The supplier is the SESSION's; the id in the address is a contract's, and the page answers "not found" for one that
  * does not exist, is another organisation's or is another contractor's, all alike. One tab is read at a time, and only its own slice.
  */
-export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; page?: string; docsAfter?: string; earlier?: string; item?: string; closed?: string; workPage?: string }> }) {
+export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; page?: string; docsAfter?: string; earlier?: string; item?: string; closed?: string; workPage?: string; view?: string }> }) {
   const actor = await requireSupplier();
   const { id } = await params;
-  const { tab: asked, page, docsAfter, earlier, item: wanted, closed, workPage } = await searchParams;
+  const { tab: asked, page, docsAfter, earlier, item: wanted, closed, workPage, view: askedView } = await searchParams;
   const ctx = await loadProjectContext(db, actor, id);
   if (!ctx) notFound();
-  const tab: ProjectTab = isProjectTab(asked) ? asked : "overview";
-  // Phase 2 close-out stage B: the Defects tab shows once the practical completion certificate is issued.
+  // WS-5: the old `?tab=defects` is Work's Defects view.
+  const tab: ProjectTab = asked === "defects" ? "work" : isProjectTab(asked) ? asked : "overview";
+  // Phase 2 close-out stage B: the Defects view shows once the practical completion certificate is issued.
   const completed = (await portalCompletion(ctx)).issued;
-  const acting = tab === "work" || tab === "diary" || tab === "certificates" || tab === "submissions" || tab === "defects";
+  const defectsView = tab === "work" && completed && (asked === "defects" || askedView === "defects");
+  const acting = tab === "work" || tab === "diary" || tab === "certificates" || tab === "submissions";
   const token = acting || tab === "overview" ? issueFormToken("projects") : null;
   // The Work tab reads only its own slice: the three groups and, when the address names one, that item.
   const workPageNo = Math.max(0, Number.parseInt(workPage ?? "0", 10) || 0);
-  const work = tab === "work" ? await loadPortalWork(actor, id, new Date(), workPageNo) : null;
+  const work = tab === "work" && !defectsView ? await loadPortalWork(actor, id, new Date(), workPageNo) : null;
   const workItem = work && wanted ? await loadPortalItem(actor, id, wanted) : null;
   const status = CONTRACT_STATUS_WORDS[ctx.contract.status].en;
 
   const tabs = [
     { id: "overview", label: "Overview", icon: <ClipboardIcon size={15} />, lazy: true, panel: tab === "overview" ? <OverviewPanel actor={actor} ctx={ctx} token={token} /> : null },
-    { id: "work", label: "Work", icon: <ToolsIcon size={15} />, lazy: true, panel: tab === "work" && work ? <WorkPanel contractId={id} work={work} closed={closed === "1"} workPage={workPageNo} wanted={wanted || null} item={workItem} token={token} /> : null },
+    { id: "work", label: "Work", icon: <ToolsIcon size={15} />, lazy: true, panel: tab === "work" ? (
+      <div className="flex flex-col gap-5">
+        {completed && (
+          <Segmented as="nav" aria-label="Work view">
+            <Segment on={!defectsView} href={workHref(id)} scroll={false}>Items</Segment>
+            <Segment on={defectsView} href={`${workHref(id)}&view=defects`} scroll={false}>Defects</Segment>
+          </Segmented>
+        )}
+        {defectsView ? <DefectsPanel actor={actor} ctx={ctx} token={token} /> : work && <WorkPanel contractId={id} work={work} closed={closed === "1"} workPage={workPageNo} wanted={wanted || null} item={workItem} token={token} />}
+      </div>
+    ) : null },
     { id: "programme", label: "Programme", icon: <CalendarIcon size={15} />, lazy: true, panel: tab === "programme" ? <ProgrammePanel actor={actor} ctx={ctx} /> : null },
     { id: "diary", label: "Site diary", icon: <FileIcon size={15} />, lazy: true, panel: tab === "diary" ? <DiaryPanel actor={actor} ctx={ctx} token={token} page={page} /> : null },
     { id: "payments", label: "Payments", icon: <WalletIcon size={15} />, lazy: true, panel: tab === "payments" ? <PaymentsPanel actor={actor} ctx={ctx} /> : null },
     { id: "certificates", label: "Certificates", icon: <CheckIcon size={15} />, lazy: true, panel: tab === "certificates" ? <CertificatesPanel actor={actor} ctx={ctx} token={token} /> : null },
     { id: "submissions", label: "Documents", icon: <InboxIcon size={15} />, lazy: true, panel: tab === "submissions" ? <SubmissionsPanel actor={actor} ctx={ctx} token={token} docsAfter={docsAfter || null} earlier={earlier || null} /> : null },
-    ...(completed ? [{ id: "defects", label: "Defects", icon: <ClipboardIcon size={15} />, lazy: true, panel: tab === "defects" ? <DefectsPanel actor={actor} ctx={ctx} token={token} /> : null }] : []),
   ];
 
   return (

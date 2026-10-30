@@ -17,7 +17,7 @@ import { formatDate } from "@/lib/format";
 const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err", neutral: undefined } as const;
 
 /**
- * The contract's Documents tab (6.14 increment 1, plan §5): every certificate of the contract, by kind and
+ * The Certificates section of the contract's Documents tab (6.14 increment 1, plan §5; folded in by WS-5): every certificate of the contract, by kind and
  * where it stands, newest first, paged. Each opens on its own page. Certificates are raised by the
  * post-award modules (a delegation's letters under Team; the advance, interim, warning and non-completion certificates
  * under Payments; a variation's application, instruction and order, and the adjustments of the contract sum, under
@@ -29,7 +29,7 @@ export async function DocumentsPanel({ contractId, page, facts }: { contractId: 
   const sheetsText = `${facts.sheetsOpen} ${facts.sheetsOpen === 1 ? "routing sheet" : "routing sheets"} open${facts.overTarget == null ? " (past target not judged: the time zone is not set)" : ` (${facts.overTarget} past target)`}`;
   const copiesText = `${facts.notSent} ${facts.notSent === 1 ? "copy" : "copies"} not sent`;
   return (
-    <Card className="overflow-hidden">
+    <Card id="certificates" className="overflow-hidden">
       <CardHeader icon={<FilesIcon size={17} />} title={<Say words={P.certificates} />} info={{ label: "What raises a certificate", text: "A delegation under Team raises its letters. Payments raises the advance, interim, warning and non-completion certificates. Variations raises a variation's application, instruction and order, and the adjustments of the contract sum." }} divided={false} />
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 pb-4 text-[13.5px] text-ink-2 sm:px-6">
         {facts.firstUnsentCertificateId ? <Link href={`/projects/${contractId}/certificates/${facts.firstUnsentCertificateId}?tab=distribution`} className="font-semibold hover:underline">{copiesText}</Link> : <span>{copiesText}</span>}
@@ -73,8 +73,8 @@ export async function DocumentsPanel({ contractId, page, facts }: { contractId: 
             Certificates {page * CERTIFICATES_PAGE + 1}–{Math.min(total, (page + 1) * CERTIFICATES_PAGE)} of {total}. Search covers this page.
           </span>
           <span className="flex gap-2">
-            {page > 0 && <ButtonLink href={`/projects/${contractId}?tab=documents&page=${page - 1}`} size="sm" variant="ghost">Previous</ButtonLink>}
-            {page + 1 < pages && <ButtonLink href={`/projects/${contractId}?tab=documents&page=${page + 1}`} size="sm" variant="ghost">Next</ButtonLink>}
+            {page > 0 && <ButtonLink href={`/projects/${contractId}?stage=project&tab=submissions&section=certificates&page=${page - 1}`} size="sm" variant="ghost">Previous</ButtonLink>}
+            {page + 1 < pages && <ButtonLink href={`/projects/${contractId}?stage=project&tab=submissions&section=certificates&page=${page + 1}`} size="sm" variant="ghost">Next</ButtonLink>}
           </span>
         </CardFooter>
       )}

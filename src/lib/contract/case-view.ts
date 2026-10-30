@@ -7,7 +7,7 @@
  * the page only turns the answer into the Award stage's refusal (AC-18).
  */
 
-import { caseTabToStep, HISTORY_TAB, parseCaseStepKey, stageTab, WORK_STAGES, WORK_TAB } from "./case-tabs";
+import { caseTabToStep, FOLDED_TABS, HISTORY_TAB, parseCaseStepKey, stageTab, WORK_STAGES, WORK_TAB } from "./case-tabs";
 import { defaultCaseStep, type CaseStep, type CaseStepKey } from "./case-steps";
 import type { CaseStanding } from "./case-stage";
 import type { CaseVisibility } from "./case-visibility";
@@ -51,7 +51,8 @@ export function resolveCaseView(i: CaseViewInput): CaseView {
     tab = WORK_TAB;
   } else if (named) {
     stage = named;
-    tab = stageTab(named, i.tab);
+    // A folded tab's old address keeps working under its own stage (`?stage=project&tab=documents`).
+    tab = stageTab(named, i.tab !== undefined && Object.hasOwn(FOLDED_TABS, i.tab) && FOLDED_TABS[i.tab].stage === named ? FOLDED_TABS[i.tab].tab : i.tab);
   } else {
     const mapped = caseTabToStep(i.tab, i.hasContract);
     if (mapped && "stage" in mapped) {
