@@ -43,12 +43,15 @@ function itemView(i: PortalItem, timeZone: string | null): ItemView {
     action: r.action,
     actionLabel: PORTAL_ACTION_WORDS[r.action].en,
     moves: i.moves,
-    files: i.files.map((f) => ({ id: f.attachmentId, filename: f.filename, href: f.href, byYou: f.byYou, onText: formatOrgDateTime(f.attachedAt, timeZone), scanLabel: f.scanLabel, scanText: f.scanLabel === SCAN_LABEL.NOT_SCANNED ? NOT_SCANNED_LABEL : f.scanLabel })),
+    files: i.files.map((f) => ({ id: f.attachmentId, filename: f.filename, href: f.href, byYou: f.byYou, onText: formatOrgDateTime(f.attachedAt, timeZone), scanLabel: f.scanLabel, scanText: f.scanLabel === SCAN_LABEL.NOT_SCANNED ? NOT_SCANNED_LABEL : f.scanLabel, scanBad: f.scanLabel === SCAN_LABEL.THREAT })),
     comments: i.comments.map((c, n) => ({ id: String(n), by: c.by, byYou: c.byYou, body: c.body, atText: formatOrgDateTime(c.at, timeZone) })),
   };
 }
 
-function Group({ g, contractId, orgName, empty }: { g: PortalGroupView; contractId: string; orgName: string; empty: string }) {
+/// The address of one page of the Work tab (the closed list kept when it is open).
+const pageHref = (contractId: string, closed: boolean, page: number) => `${workHref(contractId)}${closed ? "&closed=1" : ""}${page > 0 ? `&workPage=${page}` : ""}`;
+
+function Group({ g, contractId, orgName, empty, closed, page }: { g: PortalGroupView; contractId: string; orgName: string; empty: string; closed: boolean; page: number }) {
   return (
     <Card className="overflow-hidden">
       <CardHeader icon={<ClipboardIcon size={17} />} title={portalGroupWords(g.group, orgName).en} divided={false} actions={<Badge tone="neutral">{g.total}</Badge>} />
@@ -73,13 +76,19 @@ function Group({ g, contractId, orgName, empty }: { g: PortalGroupView; contract
             cells: {
               ref: { kind: "text", text: r.label },
               title: { kind: "stack", title: r.title, sub: portalStatusWords(r, orgName) },
-              due: late ? { kind: "chips", items: [{ text: late, tone: "err" as const }] } : r.dueOn ? { kind: "text", text: formatDate(dayToDate(r.dueOn)) } : { kind: "text", text: "No date", dim: true },
-              action: { kind: "link", text: PORTAL_ACTION_WORDS[r.action].en, href: workHref(contractId, r.ref), scroll: false },
+              due: r.dueOn && late ? { kind: "chips", items: [{ text: `${formatDate(dayToDate(r.dueOn))} · ${late}`, tone: "err" as const }] } : r.dueOn ? { kind: "text", text: formatDate(dayToDate(r.dueOn)) } : { kind: "text", text: "No date", dim: true },
+              action: { kind: "link", text: PORTAL_ACTION_WORDS[r.action].en, href: workHref(contractId, r.ref), label: `${PORTAL_ACTION_WORDS[r.action].en}: ${r.label}, ${r.title}`, scroll: false },
             },
           };
         })}
       />
-      {g.more && <p className="px-5 pb-4 text-[12.5px] text-ink-3 sm:px-6">{`Showing the first ${g.rows.length} of ${g.total}.`}</p>}
+      {(g.more || g.from > 0) && (
+        <div className="flex flex-wrap items-center gap-2 px-5 pb-4 sm:px-6">
+          <p className="mr-auto text-[12.5px] text-ink-3">{g.from === 0 ? `Showing the first ${g.rows.length} of ${g.total}.` : `Showing ${g.from + 1} to ${g.from + g.rows.length} of ${g.total}.`}</p>
+          {g.from > 0 && <ButtonLink href={pageHref(contractId, closed, page - 1)} size="sm" variant="ghost">Previous</ButtonLink>}
+          {g.more && <ButtonLink href={pageHref(contractId, closed, page + 1)} size="sm" variant="ghost">Next</ButtonLink>}
+        </div>
+      )}
     </Card>
   );
 }
@@ -89,25 +98,25 @@ function Group({ g, contractId, orgName, empty }: { g: PortalGroupView; contract
  * holds something. Each row has its reference, title, due day and one button, which opens the item in a drawer. The words are the contractor's: no status name, no code. The page
  * loads this tab's data and nothing of its siblings.
  */
-export function WorkPanel({ contractId, work, closed, wanted, item, token }: { contractId: string; work: PortalWork; closed: boolean; wanted: string | null; item: PortalItem | null; token: string | null }) {
+export function WorkPanel({ contractId, work, closed, workPage = 0, wanted, item, token }: { contractId: string; work: PortalWork; closed: boolean; /** The page of every group that is long (0 is the first). */ workPage?: number; wanted: string | null; item: PortalItem | null; token: string | null }) {
   const by = (g: PortalGroupView["group"]) => work.groups.find((x) => x.group === g)!;
   const closedGroup = by("CLOSED");
   return (
     <div className="flex flex-col gap-5">
       {wanted && !item && <Callout tone="warn">That item is not available.</Callout>}
-      <Group g={by("WAITING_FOR_YOU")} contractId={contractId} orgName={work.orgName} empty="Nothing waiting for you." />
-      <Group g={by("WITH_ORG")} contractId={contractId} orgName={work.orgName} empty={`Nothing with ${work.orgName}.`} />
+      <Group g={by("WAITING_FOR_YOU")} contractId={contractId} orgName={work.orgName} empty="Nothing waiting for you." closed={closed} page={workPage} />
+      <Group g={by("WITH_ORG")} contractId={contractId} orgName={work.orgName} empty={`Nothing with ${work.orgName}.`} closed={closed} page={workPage} />
       {closedGroup.total > 0 &&
         (closed ? (
           <>
-            <Group g={closedGroup} contractId={contractId} orgName={work.orgName} empty="Nothing closed." />
+            <Group g={closedGroup} contractId={contractId} orgName={work.orgName} empty="Nothing closed." closed={closed} page={workPage} />
             <div>
               <ButtonLink href={workHref(contractId)} size="sm" variant="ghost">Hide closed</ButtonLink>
             </div>
           </>
         ) : (
           <div>
-            <ButtonLink href={`${workHref(contractId)}&closed=1`} size="sm" variant="ghost">{`Closed (${closedGroup.total}) ›`}</ButtonLink>
+            <ButtonLink href={`${workHref(contractId)}&closed=1`} size="sm" variant="ghost">{`Closed (${closedGroup.total})`}</ButtonLink>
           </div>
         ))}
       {item && <WorkItemDrawer key={item.row.ref} contractId={contractId} token={token} orgName={work.orgName} canAct={item.canAct} cannotWhy={token ? WORK_NOT_NOW : SENDING_CLOSED} item={itemView(item, work.timeZone)} />}

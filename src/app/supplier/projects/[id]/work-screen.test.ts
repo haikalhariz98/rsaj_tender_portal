@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -13,7 +16,7 @@ import { WorkPanel } from "./work-panel";
 const ORG = "Jabatan Contoh";
 /// `label` is what a screen shows (WSEC-3): the address form's type word and number, never the hyphenated key.
 const row = (o: Partial<PortalRow> = {}): PortalRow => ({ ref: "RFI-1", label: (o.ref ?? "RFI-1").replace("-", " "), type: "RFI", title: "Drain levels", status: "TO_DO", dueOn: "2026-11-20", late: { state: "DUE" }, group: "WAITING_FOR_YOU", action: "REPLY", heldBy: "You", raisedByYou: false, ...o });
-const group = (g: PortalGroupView["group"], rows: PortalRow[]): PortalGroupView => ({ group: g, total: rows.length, rows, more: false });
+const group = (g: PortalGroupView["group"], rows: PortalRow[]): PortalGroupView => ({ group: g, total: rows.length, rows, more: false, from: 0 });
 const work = (w: PortalRow[] = [], o: PortalRow[] = [], c: PortalRow[] = []): PortalWork => ({ orgName: ORG, timeZone: "Asia/Kuala_Lumpur", today: "2026-11-01", canAct: true, groups: [group("WAITING_FOR_YOU", w), group("WITH_ORG", o), group("CLOSED", c)] });
 const panel = (pw: PortalWork, o: Partial<Parameters<typeof WorkPanel>[0]> = {}) => renderToStaticMarkup(h(WorkPanel, { contractId: "c1", work: pw, closed: false, wanted: null, item: null, token: "tok", ...o }));
 
@@ -96,7 +99,7 @@ const view = (o: Partial<ItemView> = {}): ItemView => ({
   action: "REPLY",
   actionLabel: "Reply",
   moves: [],
-  files: [{ id: "a1", filename: "plan.pdf", href: "/supplier/projects/work/file/a1", byYou: false, onText: "1 Nov 2026 · 09:00", scanLabel: "Not scanned for malware", scanText: "Not scanned" }],
+  files: [{ id: "a1", filename: "plan.pdf", href: "/supplier/projects/work/file/a1", byYou: false, onText: "1 Nov 2026 · 09:00", scanLabel: "Not scanned for malware", scanText: "Not scanned", scanBad: false }],
   comments: [{ id: "0", by: ORG, byYou: false, body: "See attached", atText: "2 Nov 2026" }],
   ...o,
 });
@@ -166,5 +169,32 @@ describe("the contractor's item drawer", () => {
     expect(html).toContain("Incident 3");
     expect(html.replace(/href="[^"]*"/g, "")).not.toContain("SAFETY-3");
     expect(html).not.toMatch(/RFI RFI|Incident Incident/);
+  });
+});
+
+describe("the portal's Work forms (UI review: buttons, discard, Enter, focus)", () => {
+  const src = (f: string) => readFileSync(join(__dirname, f), "utf8").replace(/\r\n/g, "\n");
+
+  it("the drawer buttons are held off only while an act is under way, and spin rather than change their label", () => {
+    const drawers = src("work-drawers.tsx");
+    expect(drawers).not.toMatch(/disabled=\{busy \|\|/);
+    expect(drawers).toContain('pending={doing === "reply"}');
+    expect(src("document-drawers.tsx")).not.toContain("Sending…");
+  });
+
+  it("every drawer is a form that sends on Enter, asks before it drops typed words, and focuses the first fault", () => {
+    const documents = src("document-drawers.tsx");
+    expect(documents).toMatch(/<form\s+noValidate/);
+    expect(documents).toContain("Discard what you wrote?");
+    expect(documents).toContain('querySelector<HTMLElement>(\'[aria-invalid="true"]\')');
+    expect(src("work-drawers.tsx")).toContain("submitOnCtrlEnter");
+  });
+
+  it("a long group is paged with Previous and Next links", () => {
+    const g = { ...group("WAITING_FOR_YOU", [row({ ref: "RFI-101", label: "RFI 101" })]), total: 250, more: true, from: 100 };
+    const html = panel({ ...work(), groups: [g, group("WITH_ORG", []), group("CLOSED", [])] });
+    expect(html).toContain("Showing 101 to 101 of 250.");
+    expect(html).toContain("Previous");
+    expect(html).toContain("workPage=1");
   });
 });

@@ -101,8 +101,10 @@ export interface PortalGroupView {
   group: PortalGroup;
   total: number;
   rows: PortalRow[];
-  /// True where more than `PORTAL_ROWS_PER_GROUP` exist ("More").
+  /// True where more rows follow this page (`PORTAL_ROWS_PER_GROUP` a page).
   more: boolean;
+  /// How many rows come before this page.
+  from: number;
 }
 
 export interface PortalWork {
@@ -120,9 +122,10 @@ const shared = (ctx: { org: { id: string }; contract: { id: string } }, group: P
 const canAct = (ctx: ProjectContext): boolean => actStatusFault("WORK_ITEM", ctx.contract.status) === null && ctx.org.timeZone !== null;
 
 /// The contract's shared items in three groups, each capped (B-14). Null: the contract is not this supplier's.
-export async function loadPortalWork(actor: Pick<SupplierActor, "supplierId" | "organisationId">, contractId: string, now: Date = new Date()): Promise<PortalWork | null> {
+export async function loadPortalWork(actor: Pick<SupplierActor, "supplierId" | "organisationId">, contractId: string, now: Date = new Date(), page = 0): Promise<PortalWork | null> {
   const ctx = await loadProjectContext(db, actor, contractId, now);
   if (!ctx) return null;
+  const skip = Math.max(0, Math.floor(page)) * PORTAL_ROWS_PER_GROUP;
   const l = await loadContract(actor.organisationId, contractId);
   if (!l) return null;
   const today = dayOf(now, ctx.org.timeZone);
@@ -132,9 +135,9 @@ export async function loadPortalWork(actor: Pick<SupplierActor, "supplierId" | "
       const where = shared(orgCtx, group);
       const [total, rows] = await Promise.all([
         db.workItem.count({ where }),
-        db.workItem.findMany({ where, select: ROW_SELECT, orderBy: group === "CLOSED" ? [{ closedAt: "desc" }, { id: "asc" }] : ([...PORTAL_ORDER_BY] as Prisma.WorkItemOrderByWithRelationInput[]), take: PORTAL_ROWS_PER_GROUP }),
+        db.workItem.findMany({ where, select: ROW_SELECT, orderBy: group === "CLOSED" ? [{ closedAt: "desc" }, { id: "asc" }] : ([...PORTAL_ORDER_BY] as Prisma.WorkItemOrderByWithRelationInput[]), skip, take: PORTAL_ROWS_PER_GROUP }),
       ]);
-      return { group, total, rows };
+      return { group, total, rows, skip };
     }),
   );
   const staffIds = per.flatMap((g) => g.rows.map((r) => r.assigneePersonId).filter((x): x is string => x !== null));
@@ -147,7 +150,8 @@ export async function loadPortalWork(actor: Pick<SupplierActor, "supplierId" | "
     groups: per.map((g) => ({
       group: g.group,
       total: g.total,
-      more: g.total > g.rows.length,
+      more: g.total > g.skip + g.rows.length,
+      from: g.skip,
       rows: g.rows.map((r) => {
         const facts = factsOfRow(r);
         return { ref: itemRef(r.type, r.number), label: itemRefText(r.type, r.number), type: r.type, title: r.title, status: r.status, dueOn: facts.dueOn, late: lateness(facts.dueOn, r.status, today), group: portalGroup(facts), action: portalAction(facts), heldBy: portalStaffLabel(facts.assignee, who.team, who.side, who.names, ctx.org.name), raisedByYou: isContractor(facts.raisedBy) };

@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { FilesIcon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Callout } from "@/components/ui/feedback";
 import { Field, FileInput, Input, Option, Select, Textarea } from "@/components/ui/field";
 import { SUPPLIER_PROJECT_DOCUMENTS_POSTS } from "@/lib/auth/routes";
@@ -61,31 +62,79 @@ export function useEscape(open: boolean, busy: boolean, close: () => void) {
   }, [open, busy, close]);
 }
 
-/// The drawer's frame: the dimmed scrim, the panel, the header, the refusal, the fields and the two buttons. One copy for the three drawers.
-export function Frame({ title, heading, error, busy, onClose, onSend, canSend, sendLabel, children }: { title: string; heading: string; error: string | null; busy: boolean; onClose: () => void; onSend: () => void; canSend: boolean; sendLabel: string; children: ReactNode }) {
+/// A close that asks first when words or files would be lost. `request` is what the scrim, the X, Cancel and Escape call; `dialog` is the question, to render beside the drawer. While
+/// it is up, `asking` is true so the drawer's own Escape stands down and the question's takes it.
+export function useDiscardGuard(dirty: boolean, close: () => void): { request: () => void; asking: boolean; dialog: ReactNode } {
+  const [asking, setAsking] = useState(false);
+  const request = () => (dirty ? setAsking(true) : close());
+  const dialog = asking ? (
+    <ConfirmDialog
+      question="Discard what you wrote?"
+      confirmLabel="Discard"
+      cancelLabel="Keep writing"
+      destructive
+      onCancel={() => setAsking(false)}
+      onConfirm={() => {
+        setAsking(false);
+        close();
+      }}
+    />
+  ) : null;
+  return { request, asking, dialog };
+}
+
+/// After a refusal, the first field that is marked invalid takes the focus (a validation fault lands on the field, not on a button the reader has to find the fault from).
+export function useFocusFirstError(area: RefObject<HTMLElement | null>, errors: Errors) {
+  useEffect(() => {
+    if (Object.keys(errors).length === 0) return;
+    area.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [area, errors]);
+}
+
+const NO_ERRORS: Errors = {};
+
+/// The drawer's frame: the dimmed scrim, the panel, the header, the refusal, the fields and the two buttons, as one form (Enter in a field sends). One copy for the portal's drawers.
+/// `dirty`: something is typed or chosen, so closing asks first. `errors`: the field-level refusals, the first of which takes the focus.
+export function Frame({ title, heading, error, errors = NO_ERRORS, busy, holdClose = false, dirty = false, icon, onClose, onSend, canSend, sendLabel, children }: { title: string; heading: string; error: string | null; errors?: Errors; busy: boolean; holdClose?: boolean; dirty?: boolean; icon?: ReactNode; onClose: () => void; onSend: () => void; canSend: boolean; sendLabel: string; children: ReactNode }) {
+  const guard = useDiscardGuard(dirty, onClose);
+  const body = useRef<HTMLDivElement>(null);
+  useEscape(!guard.asking, busy || holdClose, guard.request);
+  useFocusFirstError(body, errors);
   return (
-    <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
-        <span id={heading} className="sr-only">{title}</span>
-        <DrawerHeader icon={<FilesIcon size={17} />} title={title} onClose={() => !busy && onClose()} />
-        <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
-          {error && (
-            <Callout tone="err" className="mb-3">
-              {error}
-            </Callout>
-          )}
-          <div className="flex flex-col gap-4">{children}</div>
-        </div>
-        <div className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={onSend} disabled={busy || !canSend}>
-            {busy ? "Sending…" : sendLabel}
-          </Button>
-        </div>
-      </aside>
-    </div>
+    <>
+      <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && !holdClose && guard.request()}>
+        <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
+          <span id={heading} className="sr-only">{title}</span>
+          <form
+            noValidate
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!busy) onSend();
+            }}
+          >
+            <DrawerHeader icon={icon ?? <FilesIcon size={17} />} title={title} onClose={() => !busy && !holdClose && guard.request()} />
+            <div ref={body} className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+              {error && (
+                <Callout tone="err" className="mb-3">
+                  {error}
+                </Callout>
+              )}
+              <div className="flex flex-col gap-4">{children}</div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
+              <Button variant="ghost" onClick={guard.request} disabled={busy}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" pending={busy} disabled={!canSend}>
+                {sendLabel}
+              </Button>
+            </div>
+          </form>
+        </aside>
+      </div>
+      {guard.dialog}
+    </>
   );
 }
 
@@ -163,7 +212,6 @@ export function NewDocumentDrawer({ contractId, token, organisationName, kinds }
     setPassword("");
     setOpen(false);
   };
-  useEscape(open, busy, close);
   const showKind = kindOffered(mode, kinds);
   const showPassword = showKind && passwordShown(kinds, kind);
   const showPurposes = mode === "upload" && takesPurposes(kind);
@@ -222,7 +270,7 @@ export function NewDocumentDrawer({ contractId, token, organisationName, kinds }
         New document
       </Button>
       {open && (
-        <Frame title="New document" heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token && title.trim() !== "" && (!showPassword || password !== "") && (!showPurposes || purposesComplete(files.length, purposes))} sendLabel={mode === "upload" ? (showPassword ? "Sign and send" : "Send") : "Ask"}>
+        <Frame title="New document" heading={heading} error={error} errors={errors} busy={busy} dirty={title.trim() !== "" || note.trim() !== "" || files.length > 0} onClose={close} onSend={send} canSend={!!token && title.trim() !== "" && (!showPassword || password !== "") && (!showPurposes || purposesComplete(files.length, purposes))} sendLabel={mode === "upload" ? (showPassword ? "Sign and send" : "Send") : "Ask"}>
           <Field label={titleFieldLabel(mode === "upload" ? kind : "")} htmlFor={`${f}-title`} required error={errors.title}>
             <Input id={`${f}-title`} value={title} maxLength={200} autoFocus onChange={(e) => setTitle(e.target.value)} />
           </Field>
@@ -268,7 +316,6 @@ export function UploadVersionDrawer({ contractId, documentId, title, token, tone
     setPassword("");
     setOpen(false);
   };
-  useEscape(open, busy, close);
   const showKind = mayPickKind && kinds.length > 0;
   const showPassword = passwordShown(showKind ? kinds : [], kind, asksPassword);
   const showPurposes = takesFiles || (showKind && takesPurposes(kind));
@@ -312,7 +359,7 @@ export function UploadVersionDrawer({ contractId, documentId, title, token, tone
         Upload a new version
       </Button>
       {open && (
-        <Frame title={`Upload a new version of ${title}`} heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token && (!showPassword || password !== "") && (!showPurposes || purposesComplete(files.length, purposes))} sendLabel={showPassword ? "Sign and send" : "Send"}>
+        <Frame title={`Upload a new version of ${title}`} heading={heading} error={error} errors={errors} busy={busy} dirty={note.trim() !== "" || files.length > 0} onClose={close} onSend={send} canSend={!!token && (!showPassword || password !== "") && (!showPurposes || purposesComplete(files.length, purposes))} sendLabel={showPassword ? "Sign and send" : "Send"}>
           <Field label="Files" htmlFor={`${f}-file`} required error={errors.file ?? errors.versionIds}>
             <FileInput id={`${f}-file`} multiple disabled={busy} onChange={(e) => { setFiles([...(e.currentTarget.files ?? [])]); setPurposes([]); }} />
           </Field>
@@ -338,7 +385,6 @@ export function AskDrawer({ contractId, documentId, title, token, organisationNa
   const heading = useId();
   const f = useId();
   const close = () => setOpen(false);
-  useEscape(open, busy, close);
 
   async function send() {
     setBusy(true);
@@ -363,7 +409,7 @@ export function AskDrawer({ contractId, documentId, title, token, organisationNa
         Ask for it
       </Button>
       {open && (
-        <Frame title={`Ask ${organisationName} for ${title}`} heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token} sendLabel="Ask">
+        <Frame title={`Ask ${organisationName} for ${title}`} heading={heading} error={error} errors={errors} busy={busy} dirty={note.trim() !== ""} onClose={close} onSend={send} canSend={!!token} sendLabel="Ask">
           <Field label="What you need" htmlFor={`${f}-note`} error={errors.note}>
             <Textarea id={`${f}-note`} value={note} maxLength={2000} rows={4} autoFocus onChange={(e) => setNote(e.target.value)} />
           </Field>

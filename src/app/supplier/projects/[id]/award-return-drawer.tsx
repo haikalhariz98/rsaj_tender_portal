@@ -12,7 +12,7 @@ import { ACCEPT_INFO, type AcceptForm } from "@/lib/portal/projects/award-card";
 import { answerWords, postBids as postJson } from "../../bids/post-json";
 import { postForm, answerWords as formWords } from "../../company/post-form";
 import { canSend, chooseSignatory, startValues, submitBody, type AcceptValues, type StagedScans } from "./award-return-form";
-import { Frame, useEscape } from "./document-drawers";
+import { Frame } from "./document-drawers";
 
 /**
  * What the contractor does about an issued award (Wave V, V4): send the signed documents back, and ask the office a question. Each posts to the portal's literal routes with the page's
@@ -42,7 +42,6 @@ export function AcceptDrawer({ contractId, token, form }: Common & { form: Accep
     setPassword("");
     setOpen(false);
   };
-  useEscape(open, busy || uploading !== null, close);
   const set = (k: keyof AcceptValues, value: string | boolean) => setV((x) => ({ ...x, [k]: value }));
 
   async function stage(scan: string, file: File | undefined) {
@@ -94,7 +93,7 @@ export function AcceptDrawer({ contractId, token, form }: Common & { form: Accep
         {form.resend ? "Send again" : "Accept"}
       </Button>
       {open && (
-        <Frame title="Accept the award" heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token && uploading === null && canSend(form, staged, v, password)} sendLabel="Accept and send">
+        <Frame title="Accept the award" heading={heading} error={error} errors={errors} busy={busy} holdClose={uploading !== null} onClose={close} onSend={send} canSend={!!token && uploading === null && canSend(form, staged, v, password)} sendLabel="Accept and send">
           <MoreText label="About accepting" text={ACCEPT_INFO} />
           {form.scans.map((s) => (
             <Field key={s.key} label={s.label} htmlFor={`${f}-${s.key}`} required error={scanErrors[s.key] || errors.files} hint={staged[s.key] ? "Uploaded" : uploading === s.key ? "Uploading…" : undefined}>
@@ -153,7 +152,6 @@ export function AskQuestionDrawer({ contractId, token }: Common) {
   const heading = useId();
   const f = useId();
   const close = () => setOpen(false);
-  useEscape(open, busy, close);
 
   async function send() {
     setBusy(true);
@@ -176,7 +174,7 @@ export function AskQuestionDrawer({ contractId, token }: Common) {
         Ask a question
       </Button>
       {open && (
-        <Frame title="Ask a question" heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token && body.trim() !== ""} sendLabel="Send">
+        <Frame title="Ask a question" heading={heading} error={error} busy={busy} dirty={body.trim() !== ""} onClose={close} onSend={send} canSend={!!token && body.trim() !== ""} sendLabel="Send">
           <Field label="Your question" htmlFor={`${f}-body`} required>
             <Textarea id={`${f}-body`} value={body} maxLength={2000} rows={5} autoFocus onChange={(e) => setBody(e.target.value)} />
           </Field>

@@ -29,10 +29,10 @@ export const metadata = { title: "Your contract" };
  * certificates to sign or dispute, and the documents sent to the office. The supplier is the SESSION's; the id in the address is a contract's, and the page answers "not found" for one that
  * does not exist, is another organisation's or is another contractor's, all alike. One tab is read at a time, and only its own slice.
  */
-export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; page?: string; docsAfter?: string; earlier?: string; item?: string; closed?: string }> }) {
+export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; page?: string; docsAfter?: string; earlier?: string; item?: string; closed?: string; workPage?: string }> }) {
   const actor = await requireSupplier();
   const { id } = await params;
-  const { tab: asked, page, docsAfter, earlier, item: wanted, closed } = await searchParams;
+  const { tab: asked, page, docsAfter, earlier, item: wanted, closed, workPage } = await searchParams;
   const ctx = await loadProjectContext(db, actor, id);
   if (!ctx) notFound();
   const tab: ProjectTab = isProjectTab(asked) ? asked : "overview";
@@ -41,13 +41,14 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const acting = tab === "work" || tab === "diary" || tab === "certificates" || tab === "submissions" || tab === "defects";
   const token = acting || tab === "overview" ? issueFormToken("projects") : null;
   // The Work tab reads only its own slice: the three groups and, when the address names one, that item.
-  const work = tab === "work" ? await loadPortalWork(actor, id) : null;
+  const workPageNo = Math.max(0, Number.parseInt(workPage ?? "0", 10) || 0);
+  const work = tab === "work" ? await loadPortalWork(actor, id, new Date(), workPageNo) : null;
   const workItem = work && wanted ? await loadPortalItem(actor, id, wanted) : null;
   const status = CONTRACT_STATUS_WORDS[ctx.contract.status].en;
 
   const tabs = [
     { id: "overview", label: "Overview", icon: <ClipboardIcon size={15} />, lazy: true, panel: tab === "overview" ? <OverviewPanel actor={actor} ctx={ctx} token={token} /> : null },
-    { id: "work", label: "Work", icon: <ToolsIcon size={15} />, lazy: true, panel: tab === "work" && work ? <WorkPanel contractId={id} work={work} closed={closed === "1"} wanted={wanted || null} item={workItem} token={token} /> : null },
+    { id: "work", label: "Work", icon: <ToolsIcon size={15} />, lazy: true, panel: tab === "work" && work ? <WorkPanel contractId={id} work={work} closed={closed === "1"} workPage={workPageNo} wanted={wanted || null} item={workItem} token={token} /> : null },
     { id: "programme", label: "Programme", icon: <CalendarIcon size={15} />, lazy: true, panel: tab === "programme" ? <ProgrammePanel actor={actor} ctx={ctx} /> : null },
     { id: "diary", label: "Site diary", icon: <FileIcon size={15} />, lazy: true, panel: tab === "diary" ? <DiaryPanel actor={actor} ctx={ctx} token={token} page={page} /> : null },
     { id: "payments", label: "Payments", icon: <WalletIcon size={15} />, lazy: true, panel: tab === "payments" ? <PaymentsPanel actor={actor} ctx={ctx} /> : null },

@@ -1,19 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
 
-import { PlusIcon, ShieldIcon } from "@/components/icons";
+import { ClipboardIcon, PlusIcon, ShieldIcon } from "@/components/icons";
+import { Activity } from "@/components/ui/activity";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { Callout } from "@/components/ui/feedback";
 import { Field, FileInput, Input, Option, Select, Textarea } from "@/components/ui/field";
 import { SUPPLIER_PROJECT_WORK_POSTS } from "@/lib/auth/routes";
+import { LOCATION_MAX, TEXT_MAX, TITLE_MAX } from "@/lib/work/bounds";
 import type { PortalAction, WorkAction } from "@/lib/work/types";
 
 import { answerWords, postBids as postJson } from "../../bids/post-json";
-import { Frame, KEPT, refusal, stageFiles, useEscape, type Errors, type Staged } from "./document-drawers";
+import { Frame, KEPT, refusal, stageFiles, useDiscardGuard, useEscape, useFocusFirstError, type Errors, type Staged } from "./document-drawers";
 import { answerBody, attachBody, moveBody, raiseBody, raiseMissing, replyBody, workHref, type RaiseKind } from "./work-form";
 
 /**
@@ -47,7 +49,7 @@ export function RaiseDrawer({ contractId, token, kind, severities, primary = fal
   const heading = useId();
   const f = useId();
   const close = () => setOpen(false);
-  useEscape(open, busy, close);
+  const dirty = Object.values(v).some((x) => x.trim() !== "") || files.length > 0;
   const set = (k: keyof typeof blank) => (e: { target: { value: string } }) => setV((p) => ({ ...p, [k]: e.target.value }));
 
   async function send() {
@@ -87,24 +89,24 @@ export function RaiseDrawer({ contractId, token, kind, severities, primary = fal
         {copy.open}
       </Button>
       {open && (
-        <Frame title={copy.open} heading={heading} error={error} busy={busy} onClose={close} onSend={send} canSend={!!token} sendLabel={copy.send}>
+        <Frame title={copy.open} heading={heading} error={error} errors={errors} busy={busy} dirty={dirty} icon={kind === "RFI" ? <ClipboardIcon size={17} /> : <ShieldIcon size={17} />} onClose={close} onSend={send} canSend={!!token} sendLabel={copy.send}>
           <Field label="Title" htmlFor={`${f}-title`} required error={errors.title}>
-            <Input id={`${f}-title`} value={v.title} maxLength={200} autoFocus onChange={set("title")} />
+            <Input id={`${f}-title`} name="title" autoComplete="off" value={v.title} maxLength={TITLE_MAX} autoFocus onChange={set("title")} />
           </Field>
           <Field label={copy.description} htmlFor={`${f}-description`} error={errors.description}>
-            <Textarea id={`${f}-description`} value={v.description} rows={4} onChange={set("description")} />
+            <Textarea id={`${f}-description`} name="description" autoComplete="off" value={v.description} rows={4} maxLength={TEXT_MAX} onChange={set("description")} />
           </Field>
           {kind === "RFI" ? (
             <Field label="Answer needed by" htmlFor={`${f}-due`} required error={errors.dueOn}>
-              <Input id={`${f}-due`} type="date" value={v.dueOn} onChange={set("dueOn")} />
+              <Input id={`${f}-due`} name="dueOn" autoComplete="off" type="date" value={v.dueOn} onChange={set("dueOn")} />
             </Field>
           ) : (
             <>
               <Field label="Where" htmlFor={`${f}-where`} error={errors.location}>
-                <Input id={`${f}-where`} value={v.location} maxLength={120} onChange={set("location")} />
+                <Input id={`${f}-where`} name="location" autoComplete="off" value={v.location} maxLength={LOCATION_MAX} onChange={set("location")} />
               </Field>
               <Field label="How serious" htmlFor={`${f}-severity`} required error={errors.severity}>
-                <Select id={`${f}-severity`} value={v.severity} onChange={set("severity")}>
+                <Select id={`${f}-severity`} name="severity" value={v.severity} onChange={set("severity")}>
                   <Option value="">Choose</Option>
                   {severities.map((s) => (
                     <Option key={s.value} value={s.value}>{s.label}</Option>
@@ -113,16 +115,16 @@ export function RaiseDrawer({ contractId, token, kind, severities, primary = fal
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Happened on" htmlFor={`${f}-day`} required error={errors.happenedAt}>
-                  <Input id={`${f}-day`} type="date" value={v.happenedDay} onChange={set("happenedDay")} />
+                  <Input id={`${f}-day`} name="happenedDay" autoComplete="off" type="date" value={v.happenedDay} onChange={set("happenedDay")} />
                 </Field>
                 <Field label="Happened at" htmlFor={`${f}-time`} required>
-                  <Input id={`${f}-time`} type="time" value={v.happenedTime} onChange={set("happenedTime")} />
+                  <Input id={`${f}-time`} name="happenedTime" autoComplete="off" type="time" value={v.happenedTime} onChange={set("happenedTime")} />
                 </Field>
               </div>
             </>
           )}
           <Field label="Files" htmlFor={`${f}-file`} error={errors.file ?? errors.stagedVersionIds}>
-            <FileInput id={`${f}-file`} multiple disabled={busy} onChange={(e) => setFiles([...(e.currentTarget.files ?? [])])} />
+            <FileInput id={`${f}-file`} name="file" multiple disabled={busy} onChange={(e) => setFiles([...(e.currentTarget.files ?? [])])} />
           </Field>
         </Frame>
       )}
@@ -156,7 +158,7 @@ export interface ItemView {
   action: PortalAction;
   actionLabel: string;
   moves: WorkAction[];
-  files: { id: string; filename: string; href: string; byYou: boolean; onText: string; scanLabel: string; scanText: string }[];
+  files: { id: string; filename: string; href: string; byYou: boolean; onText: string; scanLabel: string; scanText: string; scanBad: boolean }[];
   comments: { id: string; by: string; byYou: boolean; body: string; atText: string }[];
 }
 
@@ -167,27 +169,37 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
   const [reply, setReply] = useState("");
   const [answer, setAnswer] = useState(item.answer);
   const [files, setFiles] = useState<File[]>([]);
-  const [busy, setBusy] = useState(false);
+  /// Which act is under way (its button spins and keeps its label); every act is held off meanwhile.
+  const [doing, setDoing] = useState<"move" | "ask" | "answer" | "attach" | "reply" | null>(null);
+  const busy = doing !== null;
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
+  /// What the last act did, said politely once it has.
+  const [said, setSaid] = useState("");
   const staged = useRef<Staged>(new Map());
+  const area = useRef<HTMLDivElement>(null);
   const heading = useId();
   const f = useId();
   const close = () => router.replace(workHref(contractId), { scroll: false });
-  useEscape(true, busy, close);
+  const answerChanged = answer.trim() !== item.answer.trim();
+  const guard = useDiscardGuard(reply.trim() !== "" || answerChanged || files.length > 0, close);
+  useEscape(!guard.asking, busy, guard.request);
+  useFocusFirstError(area, errors);
   const act = canAct && !!token;
   // WSEC-5: a closed item takes no reply, no file and no answer, so those controls are not drawn at all (no control that is always refused).
   const post = act && item.mayPost;
 
   /// One act: post, show what the server said in its own words, and on success read the item again. `then` clears what the act used.
-  async function run(path: string, body: Record<string, unknown>, then?: () => void, kept?: boolean) {
-    setBusy(true);
+  async function run(what: NonNullable<typeof doing>, path: string, payload: Record<string, unknown>, success: string, then?: () => void, kept?: boolean) {
+    setDoing(what);
     setError(null);
     setErrors({});
-    const res = await postJson(path, token, body);
-    setBusy(false);
+    setSaid("");
+    const res = await postJson(path, token, payload);
+    setDoing(null);
     if (succeeded(res)) {
       then?.();
+      setSaid(success);
       router.refresh();
       return;
     }
@@ -197,119 +209,169 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
   }
 
   async function attach() {
+    if (busy) return;
     if (files.length === 0) return setErrors({ file: "Choose at least one file." });
-    setBusy(true);
+    setDoing("attach");
     setError(null);
+    setSaid("");
     const s = await stageFiles(files, contractId, token, staged.current, SUPPLIER_PROJECT_WORK_POSTS.upload);
-    setBusy(false);
+    setDoing(null);
     if (!s.ok) return setErrors({ file: s.message });
-    await run(SUPPLIER_PROJECT_WORK_POSTS.attach, attachBody(contractId, item.ref, s.ids), () => { setFiles([]); staged.current = new Map(); }, true);
+    await run("attach", SUPPLIER_PROJECT_WORK_POSTS.attach, attachBody(contractId, item.ref, s.ids), "Files attached.", () => { setFiles([]); staged.current = new Map(); }, true);
+  }
+
+  /// The reply box's text, trimmed. Empty is said beside the box, which takes the focus; the buttons stay pressable.
+  function replyOrSay(words: string): string | null {
+    const text = reply.trim();
+    if (text === "") {
+      setError(null);
+      setErrors({ body: words });
+      return null;
+    }
+    return text;
   }
 
   const move = MOVE_OF[item.action];
   const askAgain = item.moves.includes("SEND_BACK");
-  const answerChanged = answer.trim() !== item.answer.trim();
   const replyId = `${f}-reply`;
+  const submitOnCtrlEnter = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
 
   return (
-    <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && close()}>
-      <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
-        <span id={heading} className="sr-only">{`${item.label}: ${item.title}`}</span>
-        <DrawerHeader title={item.title} subtitle={item.label} badge={item.lateText ? <Badge tone="err">{item.lateText}</Badge> : undefined} onClose={() => !busy && close()} />
-        {act && item.action !== "OPEN" && (
-          <div className="flex items-center justify-end gap-2 border-b border-line px-6 py-4">
-            {askAgain && (
-              <Button variant="secondary" disabled={busy || reply.trim() === ""} title={reply.trim() === "" ? "Write what is still missing in your reply first." : undefined} onClick={() => run(SUPPLIER_PROJECT_WORK_POSTS.move, moveBody(contractId, item.ref, "ASK_AGAIN", item.status, reply), () => setReply(""))}>
-                Ask again
+    <>
+      <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && guard.request()}>
+        <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
+          <span id={heading} className="sr-only">{`${item.label}: ${item.title}`}</span>
+          <DrawerHeader title={item.title} subtitle={item.label} badge={item.lateText ? <Badge tone="err">{item.lateText}</Badge> : undefined} onClose={() => !busy && guard.request()} />
+          {act && item.action !== "OPEN" && (
+            <div className="flex items-center justify-end gap-2 border-b border-line px-6 py-4">
+              {askAgain && (
+                <Button
+                  variant="secondary"
+                  disabled={busy}
+                  pending={doing === "ask"}
+                  onClick={() => {
+                    const text = replyOrSay("Write what is still missing in your reply first.");
+                    if (text) run("ask", SUPPLIER_PROJECT_WORK_POSTS.move, moveBody(contractId, item.ref, "ASK_AGAIN", item.status, text), "Sent back with your reply.", () => setReply(""));
+                  }}
+                >
+                  Ask again
+                </Button>
+              )}
+              <Button variant="primary" disabled={busy} pending={doing === "move"} onClick={() => (move ? run("move", SUPPLIER_PROJECT_WORK_POSTS.move, moveBody(contractId, item.ref, move, item.status), move === "SEND_FOR_CHECKING" ? "Sent for checking." : "Answer accepted.") : document.getElementById(replyId)?.focus())}>
+                {item.actionLabel}
               </Button>
-            )}
-            <Button variant="primary" disabled={busy} onClick={() => (move ? run(SUPPLIER_PROJECT_WORK_POSTS.move, moveBody(contractId, item.ref, move, item.status)) : document.getElementById(replyId)?.focus())}>
-              {item.actionLabel}
-            </Button>
-          </div>
-        )}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
-          {error && <Callout tone="err" className="mb-3">{error}</Callout>}
-          {!act && <Callout tone="warn" className="mb-3">{cannotWhy}</Callout>}
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <Badge tone="neutral">{item.standing}</Badge>
-            {item.dueText && <span className="text-[13px] text-ink-3">{item.dueText}</span>}
-          </div>
-          <div className="flex flex-col gap-5">
-            {item.description && <p className="text-[14px] whitespace-pre-wrap break-words text-ink">{item.description}</p>}
-            {(item.location || item.severityLabel || item.happenedText) && (
-              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13.5px]">
-                {item.location && <><dt className="text-ink-3">Where</dt><dd>{item.location}</dd></>}
-                {item.severityLabel && <><dt className="text-ink-3">How serious</dt><dd>{item.severityLabel}</dd></>}
-                {item.happenedText && <><dt className="text-ink-3">Happened</dt><dd>{item.happenedText}</dd></>}
-              </dl>
-            )}
-            {((item.mayAnswer && post) || item.answer) && (
-              <Field label="Answer" htmlFor={`${f}-answer`} error={errors.answer}>
-                {item.mayAnswer && post ? (
-                  <div className="flex flex-col items-start gap-2">
-                    <Textarea id={`${f}-answer`} value={answer} rows={4} onChange={(e) => setAnswer(e.target.value)} />
-                    <Button size="sm" variant="secondary" disabled={busy || !answerChanged} onClick={() => run(SUPPLIER_PROJECT_WORK_POSTS.answer, answerBody(contractId, item.ref, answer))}>
-                      Save answer
-                    </Button>
-                  </div>
+            </div>
+          )}
+          <div ref={area} className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+            {error && <Callout tone="err" className="mb-3">{error}</Callout>}
+            {!act && <Callout tone="warn" className="mb-3">{cannotWhy}</Callout>}
+            {/* Polite and always present, so what an act did is announced when the words land. */}
+            <p role="status" className="mb-3 text-[13px] font-medium text-emerald-700 empty:hidden">{said}</p>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <Chip wrap>{item.standing}</Chip>
+              {item.dueText && <span className="text-[13px] text-ink-3">{item.dueText}</span>}
+            </div>
+            <div className="flex flex-col gap-5">
+              {item.description && <p className="text-[14px] whitespace-pre-wrap break-words text-ink">{item.description}</p>}
+              {(item.location || item.severityLabel || item.happenedText) && (
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13.5px]">
+                  {item.location && <><dt className="text-ink-3">Where</dt><dd>{item.location}</dd></>}
+                  {item.severityLabel && <><dt className="text-ink-3">How serious</dt><dd>{item.severityLabel}</dd></>}
+                  {item.happenedText && <><dt className="text-ink-3">Happened</dt><dd>{item.happenedText}</dd></>}
+                </dl>
+              )}
+              {((item.mayAnswer && post) || item.answer) && (
+                <Field label="Answer" htmlFor={`${f}-answer`} error={errors.answer}>
+                  {item.mayAnswer && post ? (
+                    <form
+                      noValidate
+                      className="flex flex-col items-start gap-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (busy) return;
+                        if (!answerChanged) return setErrors({ answer: "Change the answer first." });
+                        run("answer", SUPPLIER_PROJECT_WORK_POSTS.answer, answerBody(contractId, item.ref, answer.trim()), "Answer saved.");
+                      }}
+                    >
+                      <Textarea id={`${f}-answer`} name="answer" autoComplete="off" value={answer} rows={4} maxLength={TEXT_MAX} onChange={(e) => setAnswer(e.target.value)} onKeyDown={submitOnCtrlEnter} />
+                      <Button type="submit" size="sm" variant="secondary" disabled={busy} pending={doing === "answer"}>
+                        Save answer
+                      </Button>
+                    </form>
+                  ) : (
+                    <p id={`${f}-answer`} className="text-[14px] whitespace-pre-wrap break-words text-ink">{item.answer}</p>
+                  )}
+                </Field>
+              )}
+              <section aria-label="Files">
+                <h3 className="mb-2 text-[13px] font-semibold text-ink-3">Files</h3>
+                {item.files.length === 0 ? (
+                  <p className="text-[13.5px] text-ink-3">No files yet.</p>
                 ) : (
-                  <p id={`${f}-answer`} className="text-[14px] whitespace-pre-wrap break-words text-ink">{item.answer}</p>
+                  <ul className="flex flex-col gap-1.5">
+                    {item.files.map((x) => (
+                      <li key={x.id} className="flex flex-wrap items-baseline gap-x-2 text-[13.5px]">
+                        <a href={x.href} download className="font-medium text-brand-700 underline-offset-2 hover:underline">{x.filename}</a>
+                        <span className="text-ink-3">{x.byYou ? "You" : orgName} · {x.onText}</span>
+                        <Chip tone={x.scanBad ? "err" : "neutral"} title={x.scanLabel}>{x.scanText}</Chip>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </Field>
-            )}
-            <section aria-label="Files">
-              <h3 className="mb-2 text-[13px] font-semibold text-ink-3">Files</h3>
-              {item.files.length === 0 ? (
-                <p className="text-[13.5px] text-ink-3">No files yet.</p>
-              ) : (
-                <ul className="flex flex-col gap-1.5">
-                  {item.files.map((x) => (
-                    <li key={x.id} className="flex flex-wrap items-baseline gap-x-2 text-[13.5px]">
-                      <a href={x.href} download className="font-medium text-brand-700 underline-offset-2 hover:underline">{x.filename}</a>
-                      <span className="text-ink-3">{x.byYou ? "You" : orgName} · {x.onText}</span>
-                      <Chip title={x.scanLabel}>{x.scanText}</Chip>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {post && (
-                <div className="mt-3 flex flex-col items-start gap-2">
-                  <Field label="Add files" htmlFor={`${f}-file`} error={errors.file ?? errors.stagedVersionIds} className="w-full">
-                    <FileInput id={`${f}-file`} multiple disabled={busy} onChange={(e) => setFiles([...(e.currentTarget.files ?? [])])} />
-                  </Field>
-                  {files.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={attach}>Attach</Button>}
-                </div>
-              )}
-            </section>
-            <section aria-label="Replies">
-              <h3 className="mb-2 text-[13px] font-semibold text-ink-3">Replies</h3>
-              {item.comments.length === 0 ? (
-                <p className="text-[13.5px] text-ink-3">No replies yet.</p>
-              ) : (
-                <ol className="flex flex-col gap-3">
-                  {item.comments.map((c) => (
-                    <li key={c.id}>
-                      <div className="text-[13px] text-ink-3"><span className="font-semibold text-ink">{c.by}</span> · {c.atText}</div>
-                      <p className={`mt-1 rounded-xl px-3.5 py-2.5 text-[14px] whitespace-pre-wrap break-words text-ink ${c.byYou ? "bg-brand-50" : "bg-sunken"}`}>{c.body}</p>
-                    </li>
-                  ))}
-                </ol>
-              )}
-              {post && (
-                <div className="mt-3 flex flex-col items-start gap-2">
-                  <Field label="Your reply" htmlFor={replyId} error={errors.body} className="w-full">
-                    <Textarea id={replyId} value={reply} rows={3} onChange={(e) => setReply(e.target.value)} />
-                  </Field>
-                  <Button size="sm" variant="secondary" disabled={busy || reply.trim() === ""} onClick={() => run(SUPPLIER_PROJECT_WORK_POSTS.reply, replyBody(contractId, item.ref, reply), () => setReply(""))}>
-                    Send
-                  </Button>
-                </div>
-              )}
-            </section>
+                {post && (
+                  <form
+                    noValidate
+                    className="mt-3 flex flex-col items-start gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      attach();
+                    }}
+                  >
+                    <Field label="Add files" htmlFor={`${f}-file`} error={errors.file ?? errors.stagedVersionIds} className="w-full">
+                      <FileInput id={`${f}-file`} name="file" multiple disabled={busy} onChange={(e) => setFiles([...(e.currentTarget.files ?? [])])} />
+                    </Field>
+                    {files.length > 0 && <Button type="submit" size="sm" variant="secondary" disabled={busy} pending={doing === "attach"}>Attach</Button>}
+                  </form>
+                )}
+              </section>
+              <section aria-label="Replies">
+                <h3 className="mb-2 text-[13px] font-semibold text-ink-3">Replies</h3>
+                <Activity
+                  label="Reply list"
+                  filter={false}
+                  empty="No replies yet."
+                  entries={item.comments.map((c) => ({ id: c.id, kind: "comment" as const, who: c.byYou ? "You" : c.by, at: c.atText, text: c.body }))}
+                />
+                {post && (
+                  <form
+                    noValidate
+                    className="mt-3 flex flex-col items-start gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (busy) return;
+                      const text = replyOrSay("Write a reply first.");
+                      if (text) run("reply", SUPPLIER_PROJECT_WORK_POSTS.reply, replyBody(contractId, item.ref, text), "Reply sent.", () => setReply(""));
+                    }}
+                  >
+                    <Field label="Your reply" htmlFor={replyId} error={errors.body} className="w-full">
+                      <Textarea id={replyId} name="body" autoComplete="off" value={reply} rows={3} maxLength={TEXT_MAX} placeholder="Write a reply…" onChange={(e) => setReply(e.target.value)} onKeyDown={submitOnCtrlEnter} />
+                    </Field>
+                    <Button type="submit" size="sm" variant="secondary" disabled={busy} pending={doing === "reply"}>
+                      Send
+                    </Button>
+                  </form>
+                )}
+              </section>
+            </div>
           </div>
-        </div>
-      </aside>
-    </div>
+        </aside>
+      </div>
+      {guard.dialog}
+    </>
   );
 }
