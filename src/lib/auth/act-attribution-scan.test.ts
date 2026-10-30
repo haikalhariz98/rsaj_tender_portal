@@ -43,6 +43,8 @@ const ALLOWED: Readonly<Record<string, string>> = {
   "src/app/sourcing/[id]/scope/prep-actions.ts#personId": "An officer named to open the bids of an exercise, or the one replacing them: a roster entry, not an act (who named them is in the audit row, and the officer signs for themselves at the opening).",
   "src/app/sourcing/[id]/evaluation/actions.ts#personId": "A member appointed to the evaluation team: a roster entry, not an act (the appointment is audited with the signed-in actor).",
   "src/app/requisitions/actions.ts#returnedToPersonId": DESIGNATION,
+  // Workspace 3b step 5 (flagged by step 4's full run): the Assignee select's value is read only to tell the "{contractor}" choice from a person, to ask the Share confirm first; the act itself reads it again, parsed, and the assignee is who the item is on, not who acted.
+  "src/app/projects/[id]/work-editors.tsx#assigneePersonId": DESIGNATION,
   "src/app/projects/[id]/variation-actions.ts#originatorPersonId": NAMED,
   "src/app/projects/[id]/variation-actions.ts#reviewedByPersonId": NAMED,
   "src/app/projects/[id]/variation-actions.ts#principalPersonId": NAMED,

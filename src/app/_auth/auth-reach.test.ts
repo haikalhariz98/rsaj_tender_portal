@@ -104,7 +104,8 @@ describe("the scan finds what it should", () => {
     // Changed for ADR 0041 (registration step 2): the public registration's two reads, a fresh form token and the code search, are route handlers under the public `supplier/register`, so 46.
     // Changed for the Project workspace (plan step 5): a contractor sends a document, a version and a request, stages a file and downloads one through five portal route handlers (each asks the portal's guard first), so 51; the staff lookup route (dropdown sweep 2) makes 52; the Requisitions and Tenders & quotations exports (step 7.5) make 54; the Projects, Suppliers and Committees exports (step 7.6) make 57; the online award return (stage, lodge) and question routes (Wave V, V3) make 60.
     // Changed for Phase 2 close-out stage B: the contractor marks a defect line rectified through a portal route handler (it asks the portal's guard first), so 61.
-    expect(ROUTE_FILES.length).toBe(61);
+    // Changed for workspace 3b step 4: a contractor raises, replies, moves, answers, attaches, stages a file and downloads one through seven portal route handlers (each asks the portal's guard first), so 68.
+    expect(ROUTE_FILES.length).toBe(68);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });
@@ -179,6 +180,7 @@ describe("every route handler asks who is signed in first, and every one that ch
     "api/opening/filed-file/route.ts#HEAD": "Answers 405 with no database read, no move and no log entry: Next would otherwise answer a HEAD with the POST-only handler's sibling, and a HEAD must not file a document (wave 3c step 4, SEC-4).",
     "supplier/bids/[id]/download/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry, as the staff download does: Next would otherwise answer a HEAD with the GET handler, which reads and logs a download nobody made (SR-10).",
     "supplier/account/data/file/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry: Next would otherwise answer a HEAD with the GET handler, which writes an export row and its audit entry for a file nobody received (N2).",
+    "supplier/projects/work/file/[attachmentId]/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry: the same as the workspace's download (3b step 4).",
     "supplier/projects/documents/file/[attachmentId]/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry: Next would otherwise answer a HEAD with the GET handler, which reads and logs a download nobody made (Project workspace, plan step 5).",
     "requisitions/export/route.ts#HEAD": "Answers 405 with no database read, no bytes and no audit entry: Next would otherwise answer a HEAD with the GET handler, which writes a ListExport entry for a file nobody received (step 7.5).",
     "sourcing/export/route.ts#HEAD": "Answers 405 with no database read, no bytes and no audit entry: Next would otherwise answer a HEAD with the GET handler, which writes a ListExport entry for a file nobody received (step 7.5).",

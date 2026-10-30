@@ -17,7 +17,7 @@
 
 import type { Tx } from "@/lib/audit/record";
 import type { SupplierActor } from "@/lib/auth/types";
-import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
+import { actStatusFault, actStatusText, type ContractAct } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { db } from "@/lib/db";
 import { effectiveCap } from "@/lib/documents/limits";
@@ -67,7 +67,7 @@ export interface UploadPreflight {
  * account's window), and takes no lock. `declaredBytes` is the request's stated length (null where it stated none: the route refuses that next): the window is judged on it, which
  * errs towards refusing, as the body is a little longer than its file.
  */
-export async function preflightProjectUpload(actor: SupplierActor, contractId: string, o: { declaredBytes?: bigint | null; now?: Date } = {}): Promise<{ ok: true; value: UploadPreflight } | { ok: false; outcome: PortalOutcome }> {
+export async function preflightProjectUpload(actor: SupplierActor, contractId: string, o: { declaredBytes?: bigint | null; now?: Date; /** The act x status row that opens staging: the workspace's, or (3b) a work item's. */ act?: ContractAct } = {}): Promise<{ ok: true; value: UploadPreflight } | { ok: false; outcome: PortalOutcome }> {
   const now = o.now ?? new Date();
   const org = await documentOrg(actor.organisationId);
   if (!org) return { ok: false, outcome: out(503, "CLOSED", "The portal is not set up.", { logReason: "NO_ORGANISATION" }) };
@@ -76,7 +76,7 @@ export async function preflightProjectUpload(actor: SupplierActor, contractId: s
   // A supplier whose standing bars it may read its contract and do nothing else (decisions log, 2026-10-09, ruling on 1875(3)).
   const bar = await portalStandingBarOf(db, actor, "TRANSACT", now);
   if (bar) return { ok: false, outcome: out(422, "VALIDATION", bar.en, { logReason: "STANDING_BARS" }) };
-  const shut = actStatusFault("PROJECT_WORKSPACE", ctx.contract.status as ContractStatus);
+  const shut = actStatusFault(o.act ?? "PROJECT_WORKSPACE", ctx.contract.status as ContractStatus);
   if (shut) return { ok: false, outcome: out(422, "VALIDATION", actStatusText(shut), { logReason: shut.code }) };
 
   const notSetUp = (reason: string) => out(422, "CLOSED", contractorFaultText({ code: "CLASS_NOT_SET", level: "block" }, ctx.org.name), { logReason: reason });
@@ -132,6 +132,8 @@ export interface StoreProjectFileInput {
   sha256: string;
   mediaType: string;
   originalFilename: string;
+  /// What the file is staged for: a project document's (the default), or (3b) a work item's.
+  stagedFor?: string;
 }
 
 /**
@@ -157,7 +159,7 @@ export async function storeProjectFile(actor: SupplierActor, i: StoreProjectFile
       recordedBySupplierAccountId: actor.accountId,
       receivedOn: null,
       note: "",
-      stagedFor: STAGED_FOR_PROJECT_DOCUMENT,
+      stagedFor: i.stagedFor ?? STAGED_FOR_PROJECT_DOCUMENT,
       hooks: {
         before: async (tx) => {
           await tx.$queryRaw`SELECT id FROM "SupplierAccount" WHERE id = ${actor.accountId} AND "organisationId" = ${actor.organisationId} FOR UPDATE`;

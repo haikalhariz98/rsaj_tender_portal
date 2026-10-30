@@ -4,13 +4,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * The work layer is pure (plan §5 step 2; AGENTS.md rule 3): nothing in src/lib/work/*.ts but `store.ts`, `load.ts` and (3b) `team-store.ts` reaches the database, Next or the
+ * The work layer is pure (plan §5 step 2; AGENTS.md rule 3): nothing in src/lib/work/*.ts but `store.ts`, `load.ts` and (3b) `team-store.ts`, `portal-store.ts` and `portal-read.ts` reaches the database, Next or the
  * generated client, directly or through what it imports at run time (a type-only import is erased, so it does not count).
  */
 
 const ROOT = path.resolve(__dirname, "../../..");
 const HERE = __dirname;
-const ALLOWED = new Set(["store.ts", "load.ts", "team-store.ts"]);
+const ALLOWED = new Set(["store.ts", "load.ts", "team-store.ts", "portal-store.ts", "portal-read.ts"]);
 const FORBIDDEN_FILES = [path.join(ROOT, "src/lib/db.ts")];
 const FORBIDDEN_PACKAGES = /^(next(\/|$)|@prisma\/|server-only$|react$)/;
 

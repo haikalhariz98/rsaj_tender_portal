@@ -1113,3 +1113,52 @@ describe("the Project team acts: the contract's lock at the edge and nothing els
     }
   });
 });
+
+// ------------------------------------------------------------------ workspace 3b, plan step 4: the contractor's work acts
+//
+// The contractor's cores (`work/portal-store.ts`) run inside `inHeldContract` (the contract's lock, taken by `withLockedContract`), then lock the item with the staff store's own
+// `lockedItem` (exported for this, flagged stricter: as `export { lockedItem }`, not an `export async function`, so the staff store still has exactly its nine cores), then the
+// account's row (the throttle), then the documents in id order. No core takes another order.
+
+const PORTAL_WORK_STORE = "src/lib/work/portal-store.ts";
+
+describe("the contractor's work acts: the contract's lock, the item, the account, then the documents", () => {
+  const storeSrc = read(PORTAL_WORK_STORE);
+  const cores = actions(storeSrc.replace(/\nexport function /g, "\nexport async function "));
+
+  it("the staff store exports lockedItem as a helper, not as a core, and it is the one lock the portal takes on an item", () => {
+    const staff = read(WORK_STORE);
+    expect(staff).toMatch(/^export \{ lockedItem \};$/m);
+    expect(staff).not.toMatch(/^export async function lockedItem/m);
+    expect(storeSrc.match(/lockedItem\(/g)).toHaveLength(1);
+    expect(lex(storeSrc)).not.toMatch(/FOR UPDATE(?![\s\S]*SupplierAccount)/);
+  });
+
+  it("has the five cores, each inside inHeldContract, opening no transaction of its own and taking no lock but the account's row", () => {
+    expect([...cores.keys()].sort()).toEqual(["answerAsContractor", "attachAsContractor", "moveAsContractor", "raiseAsContractor", "replyAsContractor"]);
+    expect(lex(storeSrc)).not.toMatch(/\$transaction|withLockedContract|lockSupplierRow|FROM "Contract"|FROM "Supplier"/);
+    expect([...storeSrc.matchAll(/FROM "(\w+)" WHERE id = \$\{[\w.]+\} AND "organisationId" = \$\{[\w.]+\} FOR UPDATE/g)].map((m) => m[1])).toEqual(["SupplierAccount"]);
+    expect(storeSrc).toMatch(/inHeldContract\(actor, contractId, \(tx, l, today\) => fn\(\{ tx, l, now, today \}\), now\)/);
+  });
+
+  it("each core asks WORK_ITEM first (before any lock or write), the item is locked before it is judged, and the account's row is locked after the item and before the documents", () => {
+    for (const [name, body] of cores) {
+      expect(body.indexOf("gate(c)"), name).toBeGreaterThan(-1);
+      expect(body.indexOf("gate(c)"), name).toBeLessThan(Math.min(...["sharedItem(", "throttle(", ".create(", ".updateMany(", "pinFiles("].map((x) => (body.indexOf(x) < 0 ? Infinity : body.indexOf(x)))));
+    }
+    for (const name of ["attachAsContractor", "replyAsContractor", "moveAsContractor", "answerAsContractor"]) expect(cores.get(name)!.indexOf("sharedItem("), name).toBeGreaterThan(-1);
+    const reply = cores.get("replyAsContractor")!;
+    expect(reply.indexOf("throttle(")).toBeGreaterThan(reply.indexOf("sharedItem("));
+    expect(reply.indexOf(".workItemComment.create(")).toBeGreaterThan(reply.indexOf("throttle("));
+    const raise = cores.get("raiseAsContractor")!;
+    expect(raise.indexOf("contractorRaiseFaults(")).toBeGreaterThan(raise.indexOf("throttle("));
+    expect(raise.indexOf(".workItem.create(")).toBeGreaterThan(raise.indexOf("contractorRaiseFaults("));
+    const move = cores.get("moveAsContractor")!;
+    expect(move.indexOf("moveFaults(")).toBeGreaterThan(move.indexOf("sharedItem("));
+    expect(move.indexOf(".workItem.updateMany(")).toBeGreaterThan(move.indexOf("moveFaults("));
+    const pin = storeSrc.slice(storeSrc.indexOf("async function pinFiles("));
+    expect(pin.indexOf(".sort()")).toBeGreaterThan(-1);
+    expect(pin.indexOf("lockDocument(c.tx,")).toBeGreaterThan(pin.indexOf(".sort()"));
+    expect((storeSrc.match(/lockDocument\(/g) ?? []).length).toBe(1);
+  });
+});

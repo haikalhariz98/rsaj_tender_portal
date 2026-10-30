@@ -288,6 +288,10 @@ describe("a document is attached only by someone who may already open it (OD-2, 
         // Changed for workspace 3a step 3 (faithful: the list grows by exactly this one, under the conditions the project workspace's entry states): a work item's files are pinned by the work act (`attachFiles`), the files the same officer staged for a work item
         // (`stagedFileFaults`), of the class for project files, never SULIT or unclassified (`contractorMayDownload`, judged at the pin), because the contractor will download them (3b). No officer names a document.
         "src/lib/work/store.ts",
+        // Changed for workspace 3b step 4 (faithful: the list grows by exactly this one, under the conditions the entry above states): the contractor's work acts pin the files the SAME ACCOUNT staged
+        // for a work item (`stagedFileFaults` with the contractor side, of the class for project files, never SULIT or unclassified: `contractorMayDownload`, judged at the pin). The contractor attaches only
+        // its own files to an item it holds; no officer, and no one, names another's document.
+        "src/lib/work/portal-store.ts",
       ].sort(),
     );
   });

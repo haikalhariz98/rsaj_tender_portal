@@ -1,4 +1,4 @@
-import { isSignInPath, SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AWARD_RETURN_POST_PATHS, SUPPLIER_AUTH_PAGES, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_DATA_EXPORT, SUPPLIER_POST_PATHS, SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_POST_PATHS } from "@/lib/auth/routes";
+import { isSignInPath, SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AWARD_RETURN_POST_PATHS, SUPPLIER_AUTH_PAGES, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_DATA_EXPORT, SUPPLIER_POST_PATHS, SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS, SUPPLIER_PROJECT_WORK_POST_PATHS, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_POST_PATHS } from "@/lib/auth/routes";
 
 /**
  * Which door a running copy of the product is the front of.
@@ -45,6 +45,8 @@ const PROJECT_PAGE = /^\/supplier\/projects\/[A-Za-z0-9_-]+$/;
 const PROJECT_DOCUMENT_PAGE = /^\/supplier\/projects\/[A-Za-z0-9_-]+\/documents\/[A-Za-z0-9_-]+$/;
 /// One file of a project document, a download. One id segment after the literal `file`; GET only: a HEAD is refused, as for the inspection pages, because the GET logs a download.
 const PROJECT_DOCUMENT_FILE = /^\/supplier\/projects\/documents\/file\/[A-Za-z0-9_-]+$/;
+/// One file of a shared work item, a download (3b step 4). One id segment after the literal `file`; GET only, for the reason above.
+const PROJECT_WORK_FILE = /^\/supplier\/projects\/work\/file\/[A-Za-z0-9_-]+$/;
 /// The organisation's logo, addressed by its own fingerprint.
 const LOGO = /^\/organisation\/logo\/[A-Za-z0-9_-]+$/;
 /// The platform's own files: scripts, styles and fonts, and nothing else under /_next. The image optimiser
@@ -55,7 +57,7 @@ const ICON = "/favicon.ico";
 /// Every write the public copy takes, each at one literal path (Phase 4a): the registration post, and the supplier portal's sign-in, sign-out, activation, reset and account posts.
 /// A stranger can reach the sign-in ones (they are how a supplier becomes signed in); each is a route handler that passes the Origin guard and a form token, and the ones
 /// behind an account then ask who is signed in. No other path takes a write, and the public copy refuses every server action.
-const POST_PATHS: ReadonlySet<string> = new Set([SUBMIT_PATH, ...SUPPLIER_POST_PATHS, ...SUPPLIER_REGISTRATION_POST_PATHS, ...SUPPLIER_COMPANY_POST_PATHS, ...SUPPLIER_BIDS_POST_PATHS, ...SUPPLIER_PROJECTS_POST_PATHS, ...SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS, ...SUPPLIER_AWARD_RETURN_POST_PATHS]);
+const POST_PATHS: ReadonlySet<string> = new Set([SUBMIT_PATH, ...SUPPLIER_POST_PATHS, ...SUPPLIER_REGISTRATION_POST_PATHS, ...SUPPLIER_COMPANY_POST_PATHS, ...SUPPLIER_BIDS_POST_PATHS, ...SUPPLIER_PROJECTS_POST_PATHS, ...SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS, ...SUPPLIER_PROJECT_WORK_POST_PATHS, ...SUPPLIER_AWARD_RETURN_POST_PATHS]);
 
 export interface PublicRequest {
   method: string;
@@ -72,8 +74,8 @@ export function publicAllows({ method, pathname, hasServerAction }: PublicReques
   const m = method.toUpperCase();
   if (m === "POST") return POST_PATHS.has(path);
   if (m !== "GET" && m !== "HEAD") return false;
-  if (m === "HEAD" && (INSPECTION_PAGE.test(path) || RESULT_SCHEDULE.test(path) || PROJECT_DOCUMENT_FILE.test(path))) return false;
-  return PUBLIC_PAGES.has(path) || OPPORTUNITY.test(path) || RESULT_SCHEDULE.test(path) || BID_PAGE.test(path) || PROJECT_PAGE.test(path) || PROJECT_DOCUMENT_PAGE.test(path) || PROJECT_DOCUMENT_FILE.test(path) || LOGO.test(path) || PLATFORM.test(path) || path === ICON;
+  if (m === "HEAD" && (INSPECTION_PAGE.test(path) || RESULT_SCHEDULE.test(path) || PROJECT_DOCUMENT_FILE.test(path) || PROJECT_WORK_FILE.test(path))) return false;
+  return PUBLIC_PAGES.has(path) || OPPORTUNITY.test(path) || RESULT_SCHEDULE.test(path) || BID_PAGE.test(path) || PROJECT_PAGE.test(path) || PROJECT_DOCUMENT_PAGE.test(path) || PROJECT_DOCUMENT_FILE.test(path) || PROJECT_WORK_FILE.test(path) || LOGO.test(path) || PLATFORM.test(path) || path === ICON;
 }
 
 /**

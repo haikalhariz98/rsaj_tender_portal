@@ -45,7 +45,7 @@ const BIDS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && f.file.st
 // upload and download are. This first section keeps its three JSON posts and is not loosened: it only stops counting the routes of the section that holds the others to the same rules and more.
 const PROJECT_DOCUMENT_ROUTES = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/documents/"));
 const AWARD_RETURN_ROUTES = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && (f.file.startsWith("app/supplier/projects/award-return/") || f.file.startsWith("app/supplier/projects/award-query/")));
-const PROJECTS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/") && !f.file.startsWith("app/supplier/projects/documents/") && !AWARD_RETURN_ROUTES.includes(f));
+const PROJECTS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/") && !f.file.startsWith("app/supplier/projects/documents/") && !f.file.startsWith("app/supplier/projects/work/") && !AWARD_RETURN_ROUTES.includes(f)); // 3b step 4: the work routes are held by supplier-work-reach.test.ts
 const PROJECTS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && (f.file.startsWith("app/supplier/projects") || f.file.startsWith("app/supplier/announcements")));
 const COMPANY_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/company/"));
 const REGISTRATION_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/registration/"));

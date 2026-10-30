@@ -18,6 +18,7 @@ import { EARLIER_RECORD } from "@/lib/project-docs/earlier";
 import { loadPortalEarlier } from "@/lib/project-docs/earlier-read";
 import { loadPortalKickOff } from "@/lib/project-docs/kick-off-read";
 import { loadWaitingForYou } from "@/lib/project-docs/portal-read";
+import { portalWaitingRows } from "@/lib/work/portal-read";
 import { loadPortalTeam } from "@/lib/project-docs/team-read";
 import { delayWords, ENTRY_STATE_TONE, ENTRY_STATE_WORDS, PROGRAMME_DECISION_WORDS } from "@/lib/supervision/labels";
 
@@ -46,7 +47,10 @@ type Props = { actor: SupplierActor; ctx: ProjectContext; token: string | null }
 export async function OverviewPanel({ actor, ctx, token }: Props) {
   const o = await overviewTab(db, actor, ctx);
   const award = await loadAwardCard(db, actor, ctx);
-  const waiting = await loadWaitingForYou(db, actor, { contractId: ctx.contract.id });
+  const docsWaiting = await loadWaitingForYou(db, actor, { contractId: ctx.contract.id });
+  // 3b step 4: shared work items waiting on the contractor sit in the same list, after the documents.
+  const work = await portalWaitingRows(actor, { contractId: ctx.contract.id });
+  const waiting = { rows: [...docsWaiting.rows, ...work.rows], next: docsWaiting.next ?? (work.more ? "more" : null) };
   // The team and the meeting are read here, in the panel, never in `overviewTab`: each takes the supplier and organisation from the actor and the held contract.
   const team = await loadPortalTeam(db, actor, ctx);
   const kickOff = await loadPortalKickOff(db, actor, ctx);

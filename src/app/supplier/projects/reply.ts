@@ -3,6 +3,7 @@ import { awardReturnFaultsText, AwardReturnRefused } from "@/lib/award/online-re
 import { CertificateRefusal } from "@/lib/certificate/write";
 import { ProjectRefused } from "@/lib/portal/projects/types";
 import { projectFaultViews } from "@/lib/portal/projects/words";
+import { WorkRefused } from "@/lib/work/store";
 
 /**
  * How My Projects' route handlers answer (Phase 4e). One shape, as My Bids': `ok`, a stable `code` for the page's logic (never printed), and a plain `message`. A finding of the rules is sent
@@ -18,6 +19,11 @@ export function refusalReply(e: unknown): Response | null {
     const message = faults.find((f) => f.level === "block")?.message ?? "That cannot be done.";
     if (e.status === 404) return reply({ ok: false, code: "NOT_FOUND", message: "That is not something you can open." }, 404);
     return reply({ ok: false, code: e.status === 409 ? "CHANGED" : e.status === 429 ? "THROTTLED" : "VALIDATION", message, faults }, e.status);
+  }
+  if (e instanceof WorkRefused) {
+    // An unshared item, another contractor's and an unknown one are the one answer (3b step 4); the rest say what is wrong, in words that name no one of the organisation.
+    if (e.status === 404) return reply({ ok: false, code: "NOT_FOUND", message: "That is not something you can open." }, 404);
+    return reply({ ok: false, code: e.status === 409 ? "CHANGED" : e.status === 429 ? "THROTTLED" : "VALIDATION", message: e.words }, e.status);
   }
   if (e instanceof AwardReturnRefused) {
     if (e.status === 404) return reply({ ok: false, code: "NOT_FOUND", message: "That is not something you can open." }, 404);

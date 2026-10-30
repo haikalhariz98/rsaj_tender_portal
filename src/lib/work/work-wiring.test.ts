@@ -50,7 +50,8 @@ describe("a comment's audience is always commentAudience's (ADR 0048 D4; 3b B-2)
   // false), and the function that writes it asks `commentAudience(` before the write. The contractor's inserts (step 4) are held by the portal scan.
   it("each workItemComment.create in the staff store passes internal from the audience, never a literal, after commentAudience", () => {
     let seen = 0;
-    for (const f of product) {
+    // Flagged (3b step 4): the contractor's store is the one file excluded; it writes only Replies, held by `portal-scan.test.ts` (internal: false with the account).
+    for (const f of product.filter((x) => x !== "src/lib/work/portal-store.ts")) {
       const src = read(f);
       for (const m of src.matchAll(/workItemComment\.(?:create|createMany|upsert)\(/g)) {
         seen++;

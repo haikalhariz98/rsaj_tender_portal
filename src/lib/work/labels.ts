@@ -278,6 +278,27 @@ export const PORTAL_ACTION_WORDS: Readonly<Record<PortalAction, Words>> = {
   OPEN: w("Open"),
 };
 
+/// A refusal of a contractor's move, in words that name no one of the organisation and no status (the staff words name the lead and who moved it last).
+export function portalMoveFaultText(f: MoveFault): string {
+  switch (f.code) {
+    case "NOT_FOR_CONTRACTOR":
+    case "ONLY_ASSIGNEE":
+    case "ONLY_RAISER_OR_LEAD":
+    case "ONLY_ASSIGNEE_RAISER_OR_LEAD":
+      return "This is not yours to move.";
+    case "NOT_A_MOVE":
+      return "This can't be moved from here.";
+    case "MOVED_ALREADY":
+      return "This changed a moment ago. Open it again to see where it is.";
+    case "RESULT_NOT_PASSED":
+      return "The organisation sets the result of an inspection. Reply to say it is ready.";
+    case "COMMENT_NEEDED":
+      return "Say what is still missing.";
+    default:
+      return moveFaultText(f, null, { raiser: "", assignee: null, lead: null });
+  }
+}
+
 /// The contractor itself, where the portal names who holds an item.
 export const PORTAL_YOU_WORDS = w("You");
 export const PORTAL_EMPTY_WORDS = w("Nothing waiting for you.");

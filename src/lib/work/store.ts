@@ -68,13 +68,13 @@ export interface WorkCtx {
 export class WorkRefused extends Error {
   constructor(
     readonly words: string,
-    readonly status: 404 | 409 | 422 = 422,
+    readonly status: 404 | 409 | 422 | 429 = 422,
   ) {
     super(words);
     this.name = "WorkRefused";
   }
 }
-const refuse = (words: string, status: 404 | 409 | 422 = 422): never => {
+const refuse = (words: string, status: 404 | 409 | 422 | 429 = 422): never => {
   throw new WorkRefused(words, status);
 };
 const faultsText = (fs: readonly FieldFault[]): string => [...new Set(fs.map(fieldFaultText))].join(" ");
@@ -117,7 +117,7 @@ const ITEM_SELECT = {
   fromDocumentId: true,
   cancelReason: true,
 } as const;
-type ItemRow = Prisma.WorkItemGetPayload<{ select: typeof ITEM_SELECT }>;
+export type ItemRow = Prisma.WorkItemGetPayload<{ select: typeof ITEM_SELECT }>;
 
 /// The WorkItem row, locked, then read: the one row lock of the workspace. Not found, or on another contract or organisation, reads as not found.
 async function lockedItem(c: WorkCtx, itemId: string): Promise<ItemRow> {
@@ -125,8 +125,11 @@ async function lockedItem(c: WorkCtx, itemId: string): Promise<ItemRow> {
   const row = await c.tx.workItem.findFirst({ where: { id: itemId, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: ITEM_SELECT });
   return row ?? refuse("That item no longer exists.", 404);
 }
+// Not `export async function`: the lock-order scan reads every such export as a core (it must lock and judge), and this is the helper the cores lock with.
+export { lockedItem };
 
-const factsOf = (r: ItemRow): WorkItemFacts => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), sharedAt: r.sharedAt?.toISOString() ?? null, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult });
+/// Exported, with `lockedItem` below, for the contractor's cores (`portal-store.ts`, 3b step 4): one lock helper and one reading of a row, so the portal never restates either.
+export const factsOf = (r: ItemRow): WorkItemFacts => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), sharedAt: r.sharedAt?.toISOString() ?? null, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult });
 
 /// Who is acting, as the rules read them. Every active person of the organisation reads a contract's Work (see `load.ts`).
 const actorOf = (who: StaffActor, lead: { ids: string[] }): WorkActor => ({ side: "STAFF", personId: who.personId, leadIds: lead.ids, mayReadContract: true });

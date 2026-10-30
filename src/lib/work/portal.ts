@@ -10,9 +10,10 @@
  */
 
 import { PORTAL_YOU_WORDS } from "./labels";
-import { contractorActions, isOpen } from "./move";
+import { CLOSED_STATUSES, contractorActions, isOpen, OPEN_STATUSES } from "./move";
 import { isContractor } from "./party";
 import type { Party, PortalAction, PortalGroup, WorkActor, WorkItemFacts } from "./types";
+import { workWhere, type WorkWhere } from "./views";
 
 /// The contractor as the portal's rules read it: the session holds the contract (`inHeldContract`).
 const CONTRACTOR_ACTOR: WorkActor = { side: "CONTRACTOR", personId: null, leadIds: [], mayReadContract: true };
@@ -38,4 +39,13 @@ export function portalStaffLabel(assignee: Party | null, teamIds: ReadonlySet<st
   if (assignee.kind === "CONTRACTOR") return PORTAL_YOU_WORDS.en;
   const name = names.get(assignee.id);
   return name !== undefined && (teamIds.has(assignee.id) || sideIds.has(assignee.id)) ? name : orgName;
+}
+
+/// The database's reading of `portalGroup`, for the portal reader's queries (never without `sharedAt: { not: null }`, which the reader adds). "Waiting for you" is the staff
+/// view "Waiting on {contractor}" word for word (`workWhere`), so the two cannot drift; the db test holds each row to `portalGroup`.
+export function portalWhere(group: PortalGroup): WorkWhere {
+  const waiting = workWhere("contractor", {}, { personId: "" }, null);
+  if (group === "WAITING_FOR_YOU") return waiting;
+  if (group === "CLOSED") return { status: { in: [...CLOSED_STATUSES] } };
+  return { AND: [{ status: { in: [...OPEN_STATUSES] } }, { NOT: waiting }] };
 }

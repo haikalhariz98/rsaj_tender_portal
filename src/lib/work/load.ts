@@ -94,6 +94,13 @@ export async function leadOf(l: LoadedContract, today: Day | null, client: Tx = 
   return { ids, roleLabel: pm ? TEAM_ROLE_WORDS.PROJECT_MANAGER.en : (so?.office.roleLabel ?? null) };
 }
 
+/// Whether the contract's contractor has at least one active portal account (0008 §5.8, "No active portal account"): the awardee's supplier has an ACTIVE account.
+export async function contractorHasActiveAccount(client: Tx, l: LoadedContract): Promise<boolean> {
+  const vendorId = l.award.vendorId;
+  if (!vendorId) return false;
+  return (await client.supplierAccount.count({ where: { organisationId: l.org.id, supplierId: vendorId, status: { in: ["ACTIVE"] } } })) > 0;
+}
+
 // ------------------------------------------------------------------ the context of the tab
 
 export interface WorkContext {

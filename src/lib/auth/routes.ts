@@ -96,6 +96,21 @@ export const SUPPLIER_PROJECT_DOCUMENTS_POSTS = {
 export const SUPPLIER_PROJECT_DOCUMENTS_POST_PATHS: readonly string[] = Object.values(SUPPLIER_PROJECT_DOCUMENTS_POSTS);
 export const SUPPLIER_PROJECT_DOCUMENT_FILE = "/supplier/projects/documents/file";
 
+/// The contractor's work items (workspace 3b step 4): six posts, each a route handler at a literal path (five JSON acts and the multipart staging of one file), and one read, the
+/// download of one file, at a path with one id segment (`SUPPLIER_PROJECT_WORK_FILE` + "/" + the attachment's id; it has its own pattern in `surface.ts`). A supplier must be signed in
+/// to each (a handler answers 401), and no id of a supplier is read from any of them: the supplier is the session's. The ids a request names are a contract's, an item's reference
+/// and staged files', which the stores read only as the session's supplier may reach them (an unshared item, another's and an unknown one are the one 404).
+export const SUPPLIER_PROJECT_WORK_POSTS = {
+  raise: "/supplier/projects/work/raise",
+  reply: "/supplier/projects/work/reply",
+  move: "/supplier/projects/work/move",
+  answer: "/supplier/projects/work/answer",
+  attach: "/supplier/projects/work/attach",
+  upload: "/supplier/projects/work/upload",
+} as const;
+export const SUPPLIER_PROJECT_WORK_POST_PATHS: readonly string[] = Object.values(SUPPLIER_PROJECT_WORK_POSTS);
+export const SUPPLIER_PROJECT_WORK_FILE = "/supplier/projects/work/file";
+
 /// The contractor's online award return and questions (Wave V, V3): the multipart staging of one signed scan, the JSON lodge (signed with the password, asked again) and the JSON question.
 /// A supplier must be signed in to each (a handler answers 401); the supplier is the session's, and a contract that is not its own is the one 404.
 export const SUPPLIER_AWARD_RETURN_POSTS = {
