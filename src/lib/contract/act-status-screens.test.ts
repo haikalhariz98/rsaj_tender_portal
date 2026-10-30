@@ -201,6 +201,9 @@ const GATE_EXCEPTIONS: Readonly<Record<string, string>> = {
   WorkPanelShell: "The item panel's frame: it closes by changing the address and records nothing; what is inside it is followed from WorkItemPanel.",
   Activity: "The item's feed: it filters what is already shown (All or Comments) and records nothing.",
   Composer: "The comment box: its action is commentOnWorkItem (WORK_ITEM row first); WorkItemPanel draws it only while the row is open (ctx.open).",
+  // Workspace 3a review fixes (1309e431): the shared segmented switch replaced the tab's own pills (flagged, stricter: named and reached).
+  Segmented: "The view and List|Board switch: a row of links or buttons that changes the address or the filter shown, and records nothing.",
+  Segment: "One option of the segmented switch: a link to another address, or a button that changes what is shown; it records nothing.",
 };
 
 const SOURCES: Sources = new Map(walk("src").filter((f) => /\.tsx?$/.test(f) && !f.includes("/generated/") && !/\.test\.tsx?$/.test(f)).map((f) => [f, readFileSync(f, "utf8")]));
