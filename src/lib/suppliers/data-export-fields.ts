@@ -449,7 +449,8 @@ export const EXPORT_COLUMNS = {
     // WS-9: unwritten, and never read for the supplier.
     assigneeSupplierAccountId: KEY,
     assignedToContractor: out("NOT_SHOWN_TODAY"),
-    sharedAt: TECH,
+    // WSEC-10 L2: an item staff raised is dated for the contractor by when it was shared with it ("Shared on"), never by when staff raised it (`recordedAt` stays out for those).
+    sharedAt: IN,
     // WB-6: the contractor writes the Answer of an RFI it holds, and reads it.
     answer: IN,
     impact: out("NOT_SHOWN_TODAY"),

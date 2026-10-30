@@ -579,7 +579,7 @@ function kickOffMeetings(src: SupplierExportSource): ExportRow[] {
 
 /**
  * The work items (workspace 3b): an item the supplier raised with what it wrote when it raised it, and on any item, only the replies its own accounts wrote. An item someone
- * else raised shows its title and those replies alone. The type is in the reference ("RFI 3"), never as its code.
+ * else raised shows its title, the day it was shared with the supplier ("Shared on": never when staff raised it, WSEC-10 L2) and those replies. The type is in the reference ("RFI 3"), never as its code.
  */
 function workItems(src: SupplierExportSource): ExportRow[] {
   return src.workItems.map((wi) => {
@@ -588,7 +588,7 @@ function workItems(src: SupplierExportSource): ExportRow[] {
     const ref = type && typeof r.number === "number" ? itemRefText(type, r.number) : null;
     const own = wi.raisedByOwnAccount
       ? [row("wiDetails", text(r.description)), row("wiLocation", text(r.location)), row("wiNeededBy", day(r.dueOn)), row("wiSeverity", enumWords(SEVERITY_WORDS, r.severity)), row("wiHappenedAt", instant(r.happenedAt)), row("wiRaisedAt", instant(r.recordedAt))]
-      : [];
+      : [row("wiSharedAt", instant(r.sharedAt))];
     const replies = wi.replies.map((c) => {
       const x = pick("WorkItemComment", c);
       return row("wiReply", text(x.body), { rows: details([row("wiReplyAt", instant(x.recordedAt))]) });

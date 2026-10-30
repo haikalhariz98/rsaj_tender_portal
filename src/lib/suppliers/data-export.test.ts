@@ -636,7 +636,7 @@ describe("kick-off meetings (ADR 0042 D10, PW-19)", () => {
 });
 
 describe("work items (workspace 3b, ADR 0049 D2)", () => {
-  const item = (values: Record<string, unknown>) => fixture("WorkItem", { type: "RFI", number: 3, title: "Rebar spacing at grid C4", description: "", dueOn: null, location: "", severity: null, happenedAt: null, recordedAt: t("2026-11-03T02:00:00Z"), ...values });
+  const item = (values: Record<string, unknown>) => fixture("WorkItem", { type: "RFI", number: 3, title: "Rebar spacing at grid C4", description: "", dueOn: null, location: "", severity: null, happenedAt: null, recordedAt: t("2026-11-03T02:00:00Z"), sharedAt: t("2026-11-03T04:00:00Z"), ...values });
   const reply = (body: string, at: string) => fixture("WorkItemComment", { body, recordedAt: t(at) });
   const items = () =>
     section(
@@ -657,13 +657,16 @@ describe("work items (workspace 3b, ADR 0049 D2)", () => {
     expect(find(raised!.rows!, "Your reply")).toMatchObject({ value: "Photos attached.", rows: [{ label: "Sent at", value: "2026-11-03T03:00:00.000Z", kind: "instant" }] });
   });
 
-  it("an item someone else raised: its title and the supplier's own replies only, never the organisation's words or working", () => {
+  it("an item someone else raised: its title, when it was shared with the supplier, and the supplier's own replies only, never the organisation's words or working", () => {
     const [, other] = items();
     expect(other!.value).toBe("WK/2026/7 · Drainage works · SI 2");
-    expect(other!.rows!.map((r) => [r.label, r.value])).toEqual([["Title", "Move the manhole"], ["Your reply", "Noted, done."]]);
+    expect(other!.rows!.map((r) => [r.label, r.value])).toEqual([["Title", "Move the manhole"], ["Shared on", "2026-11-03T04:00:00.000Z"], ["Your reply", "Noted, done."]]);
     const json = JSON.stringify(items());
     expect(json).not.toContain(SENTINEL);
     expect(json).not.toContain("Organisation's own words");
+    // WSEC-10 L2: staff's own raising time (recordedAt) is never given for an item staff raised, and the label is never "Raised".
+    expect(JSON.stringify(other)).not.toContain("2026-11-03T02:00:00");
+    expect(other!.rows!.map((r) => r.label)).not.toContain("Raised at");
   });
 
   it("an incident the supplier reported carries its severity in words and when it happened", () => {

@@ -202,6 +202,7 @@ export const EXPORT_LABEL = {
   wiSeverity: "Severity",
   wiHappenedAt: "Happened at",
   wiRaisedAt: "Raised at",
+  wiSharedAt: "Shared on",
   wiReply: "Your reply",
   wiReplyAt: "Sent at",
 } as const satisfies Readonly<Record<string, string>>;
