@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defectActFaults, defectState, frozenLinesOf, onDraftCpc, overdue, reportDefectFaults, withdrawnCount } from "./defects";
+import { DEFECT_TEXT_MAX, defectActFaults, defectState, defectTextTooLong, frozenLinesOf, onDraftCpc, overdue, reportDefectFaults, withdrawnCount } from "./defects";
 import type { DefectEventFact, DefectFact } from "./types";
 
 /** ADR 0047 D1; plan closeout-plan.md §4.3, §6.3: a line's state is derived from its events only. */
@@ -87,5 +87,25 @@ describe("a line on a CPC not yet issued", () => {
     expect(onDraftCpc({ practicalCompletionId: "pc" }, "DRAFT")).toBe(true);
     expect(onDraftCpc({ practicalCompletionId: "pc" }, "ISSUED")).toBe(false);
     expect(onDraftCpc({ practicalCompletionId: null }, null)).toBe(false);
+  });
+});
+
+// WR-6: one 2,000-character limit, judged in the cores.
+describe("the 2,000-character limit", () => {
+  const at = (n: number) => "x".repeat(n);
+  const report = { dlpApplies: true, cpcIssued: true, scheduleIssued: false, dueOn: "2026-10-10", observedOn: "2026-10-01", completionDate: "2026-09-25", dlpEndExclusive: "2027-09-25", today: "2026-10-05" };
+  it("a report's description is refused at 2,001, not at 2,000", () => {
+    expect(codes(reportDefectFaults({ ...report, description: at(DEFECT_TEXT_MAX) }))).toEqual([]);
+    expect(codes(reportDefectFaults({ ...report, description: at(DEFECT_TEXT_MAX + 1) }))).toEqual(["DESCRIPTION_TOO_LONG"]);
+  });
+  it("an act's note is refused at 2,001, not at 2,000", () => {
+    const t = { on: "2026-10-05", today: "2026-10-05" };
+    expect(defectActFaults("RETURN", "REPORTED_RECTIFIED", { ...t, note: at(DEFECT_TEXT_MAX) })).toEqual([]);
+    expect(codes(defectActFaults("RETURN", "REPORTED_RECTIFIED", { ...t, note: at(DEFECT_TEXT_MAX + 1) }))).toEqual(["NOTE_TOO_LONG"]);
+    expect(codes(defectActFaults("WITHDRAW", "OPEN", { ...t, note: at(DEFECT_TEXT_MAX + 1) }))).toEqual(["NOTE_TOO_LONG"]);
+  });
+  it("counts characters, not bytes", () => {
+    expect(defectTextTooLong("\u00e9".repeat(DEFECT_TEXT_MAX))).toBe(false);
+    expect(defectTextTooLong("\u{1F600}".repeat(DEFECT_TEXT_MAX + 1))).toBe(true);
   });
 });

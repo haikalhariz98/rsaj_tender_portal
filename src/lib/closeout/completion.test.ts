@@ -51,3 +51,11 @@ describe("a CPC line (FR-CMP-007)", () => {
     expect(codes(cpcLineFaults({ ...line, dueOn: "2026-09-24" }))).toEqual(["DUE_BEFORE_COMPLETION"]);
   });
 });
+
+describe("a CPC line's length (WR-6)", () => {
+  const line = { certificateStatus: "DRAFT", description: "x", dueOn: "2026-10-30", completionDate: "2026-09-25" };
+  it("is refused at 2,001 characters, not at 2,000", () => {
+    expect(cpcLineFaults({ ...line, description: "x".repeat(2000) })).toEqual([]);
+    expect(cpcLineFaults({ ...line, description: "x".repeat(2001) }).map((f) => f.code)).toEqual(["DESCRIPTION_TOO_LONG"]);
+  });
+});

@@ -10,6 +10,7 @@
 
 import { addMonths } from "@/lib/securities/period";
 
+import { DEFECT_TEXT_MAX, defectTextTooLong } from "./defects";
 import type { Day, Dlp, Finding } from "./types";
 
 /// The DLP frozen on the CPC from the baseline's terms.
@@ -66,6 +67,7 @@ export function cpcLineFaults(i: { certificateStatus: string; description: strin
   const out: Finding[] = [];
   if (i.certificateStatus !== "DRAFT") out.push({ code: "CPC_NOT_DRAFT", level: "block" });
   if (!i.description.trim()) out.push({ code: "DESCRIPTION_REQUIRED", level: "block" });
+  else if (defectTextTooLong(i.description)) out.push({ code: "DESCRIPTION_TOO_LONG", level: "block", data: { max: DEFECT_TEXT_MAX } });
   if (!i.dueOn) out.push({ code: "DUE_REQUIRED", level: "block" });
   else if (i.dueOn < i.completionDate) out.push({ code: "DUE_BEFORE_COMPLETION", level: "block", data: { day: i.completionDate } });
   return out;

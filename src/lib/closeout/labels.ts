@@ -31,6 +31,8 @@ export const CLOSEOUT_FAULT_WORDS: Readonly<Record<string, (d: Data) => string>>
   CPC_NOT_DRAFT: () => "The certificate's list is fixed once it leaves draft.",
   DESCRIPTION_REQUIRED: () => "Say what the defect is.",
   DUE_REQUIRED: () => "Give the day it is to be made good by.",
+  DESCRIPTION_TOO_LONG: (d) => `The defect is over ${Number(d.max ?? 2000).toLocaleString("en")} characters. Shorten it.`,
+  NOTE_TOO_LONG: (d) => `The note is over ${Number(d.max ?? 2000).toLocaleString("en")} characters. Shorten it.`,
   DUE_BEFORE_COMPLETION: (d) => `The due day is before the completion date (${day(d.day)}).`,
   // A defect line
   LINE_CLOSED: (d) => `This defect is already ${d.state === "WITHDRAWN" ? "withdrawn" : "made good"}.`,

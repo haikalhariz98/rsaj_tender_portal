@@ -7,7 +7,7 @@ import { writeAudit } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
 import { cpcLineFaults, cpcRaiseFaults, dlpOf } from "@/lib/closeout/completion";
 import { addLinesFromItems, recordDefectAct, reportDefectLine } from "@/lib/closeout/defect-acts";
-import type { DefectAct } from "@/lib/closeout/defects";
+import { DEFECT_TEXT_MAX, type DefectAct } from "@/lib/closeout/defects";
 import { closeoutRefusal, SECURITY_FORM_WORDS, SECURITY_KIND_WORDS } from "@/lib/closeout/labels";
 import { cmgdIssuedOn, dlpOfRow, finalPaidOf, liveLadWindows, loadCloseout, openLineCount, releaseEventsOf } from "@/lib/closeout/load";
 import { cmgdRaiseFaults } from "@/lib/closeout/making-good";
@@ -150,7 +150,7 @@ export async function addCpcDefect(_prev: FormState, data: FormData): Promise<Fo
   const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
-  const description = r.text("description", "What the defect is", { required: true, max: 2000 });
+  const description = r.text("description", "What the defect is", { required: true, max: DEFECT_TEXT_MAX });
   const location = r.text("location", "Where", { max: 400 });
   const dueOn = r.date("dueOn", "Made good by", { required: true });
   if (r.failed || !dueOn) return { ok: false, errors: r.errors };
@@ -227,7 +227,7 @@ export async function reportDefect(_prev: FormState, data: FormData): Promise<Fo
   const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
-  const description = r.text("description", "What the defect is", { required: true, max: 2000 });
+  const description = r.text("description", "What the defect is", { required: true, max: DEFECT_TEXT_MAX });
   const location = r.text("location", "Where", { max: 400 });
   const dueOn = r.date("dueOn", "Made good by", { required: true });
   const observedOn = r.date("observedOn", "Observed on", { required: true });
@@ -247,7 +247,7 @@ async function onDefect(actor: Extract<Awaited<ReturnType<typeof staffForAct>>, 
   const r = new FormReader(data);
   const defectId = r.text("defectId", "Defect", { required: true });
   const on = r.date("on", "On", { required: true });
-  const note = r.text("note", which === "WITHDRAW" ? "Why it is withdrawn" : which === "RETURN" ? "Why it is not made good" : "Note", { required: which === "WITHDRAW" || which === "RETURN", max: 2000 });
+  const note = r.text("note", which === "WITHDRAW" ? "Why it is withdrawn" : which === "RETURN" ? "Why it is not made good" : "Note", { required: which === "WITHDRAW" || which === "RETURN", max: DEFECT_TEXT_MAX });
   const evidenceId = r.optionalText("evidenceDocumentId");
   if (r.failed || !on) return { ok: false, errors: r.errors };
   const begun = await beginAct(actor, data, "DefectEvent.person", { personField: "personId" });

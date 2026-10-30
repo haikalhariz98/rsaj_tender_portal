@@ -37,7 +37,13 @@ export function defectState(events: readonly DefectEventFact[]): DefectReading {
 export const isOpenLine = (s: DefectState) => s === "OPEN" || s === "REPORTED_RECTIFIED";
 
 /// Past its day (the schedule's, once one is issued) and still open.
-export const overdue = (d: Pick<DefectFact, "dueOn" | "events">, today: Day, scheduleRectifyBy: Day | null): boolean => isOpenLine(defectState(d.events).state) && (scheduleRectifyBy ?? d.dueOn) < today;
+/// The day a line is to be made good by: the latest issued Schedule of Defects' day, else the line's own.
+export const effectiveDue = (dueOn: Day, scheduleRectifyBy: Day | null): Day => scheduleRectifyBy ?? dueOn;
+export const overdue = (d: Pick<DefectFact, "dueOn" | "events">, today: Day, scheduleRectifyBy: Day | null): boolean => isOpenLine(defectState(d.events).state) && effectiveDue(d.dueOn, scheduleRectifyBy) < today;
+
+/// The longest a defect line's text or an act's note may be, in characters (code points, as the database counts them). One limit, judged in the cores, so every edge refuses in the same words.
+export const DEFECT_TEXT_MAX = 2000;
+export const defectTextTooLong = (s: string): boolean => [...s.trim()].length > DEFECT_TEXT_MAX;
 
 export type DefectAct = "REPORT_RECTIFIED" | "ACCEPT" | "RETURN" | "WITHDRAW";
 
@@ -52,6 +58,7 @@ export function defectActFaults(act: DefectAct, state: DefectState, i: { note: s
   else if (act === "REPORT_RECTIFIED" && state !== "OPEN") f("NOT_OPEN");
   else if (act === "RETURN" && state !== "REPORTED_RECTIFIED") f("NOT_REPORTED");
   if ((act === "RETURN" || act === "WITHDRAW") && !i.note.trim()) f(act === "RETURN" ? "RETURN_NOTE_REQUIRED" : "WITHDRAW_REASON_REQUIRED");
+  else if (defectTextTooLong(i.note)) f("NOTE_TOO_LONG", { max: DEFECT_TEXT_MAX });
   if (i.on > i.today) f("DAY_IN_FUTURE", { day: i.on });
   return out;
 }
@@ -74,6 +81,7 @@ export function reportDefectFaults(i: { dlpApplies: boolean; cpcIssued: boolean;
     else if ((i.completionDate && i.observedOn < i.completionDate) || (i.dlpEndExclusive && i.observedOn >= i.dlpEndExclusive)) out.push({ code: "OBSERVED_OUTSIDE_DLP", level: "block", data: { from: i.completionDate, to: i.dlpEndExclusive ? dayPlus(i.dlpEndExclusive, -1) : null } });
   }
   if (!i.description.trim()) out.push({ code: "DESCRIPTION_REQUIRED", level: "block" });
+  else if (defectTextTooLong(i.description)) out.push({ code: "DESCRIPTION_TOO_LONG", level: "block", data: { max: DEFECT_TEXT_MAX } });
   if (!i.dueOn) out.push({ code: "DUE_REQUIRED", level: "block" });
   return out;
 }
