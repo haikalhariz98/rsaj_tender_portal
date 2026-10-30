@@ -38,4 +38,8 @@ export const WORK_PANEL_SIZE: DrawerSize = "md";
 export const WORK_PANEL_PAD = "xl:pr-[34rem]";
 
 /// WB-2: the confirm before a share or a contractor assignment posts. The same words wherever it is asked.
-export const shareConfirmWords = (contractor: string) => ({ question: `Share with ${contractor}?`, words: `${contractor} will see this item, its replies and files added from now. This can't be undone.` });
+/// `noAccount`: the contractor has no active portal account, so it would not be told and could not reply; the box says so before the officer presses Share.
+export const shareConfirmWords = (contractor: string, noAccount = false) => ({
+  question: `Share with ${contractor}?`,
+  words: `${contractor} will see this item, its replies and files added from now. This can't be undone.${noAccount ? ` ${contractor} has no active portal account: it won't be told or able to reply.` : ""}`,
+});

@@ -12,10 +12,12 @@ describe("the staff assignee select and a contractor with no portal account (000
     expect(tab).toContain("noAccount={noAccount}");
     const panel = read("work-item-panel.tsx");
     expect(panel).not.toContain("contractorHasActiveAccount");
-    expect(panel).toContain("noAccount={noAccount}");
+    expect(panel).toContain("shareConfirmWords(contractor, noAccount)");
+    expect(panel).toContain("{ contractor, noAccount }");
     const controls = read("work-controls.tsx");
-    expect(controls).toContain("noAccount && (picked === CONTRACTOR_ASSIGNEE");
-    expect(controls).toContain("No active portal account");
+    // The select is the shared cell, so the chip is its `flag`, shown while the choice or its open question holds the contractor.
+    expect(controls).not.toContain("No active portal account");
+    expect(panel).toContain('flag: noAccount ? { value: CONTRACTOR_ASSIGNEE, text: "No active portal account" }');
   });
 
   it("the New item drawer and the list's assignee picker show the same chip, through the shared select pieces (flag on the form select and on the list's select cell)", () => {

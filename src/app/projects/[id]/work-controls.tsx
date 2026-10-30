@@ -5,18 +5,17 @@ import { useCallback, useId, useRef, useState, useTransition, type ReactNode } f
 
 import { stageFiles, withStaged } from "@/app/projects/[id]/document-editors";
 import { attachWorkFiles, editWorkField, linkWorkItem, removeWorkFile, unlinkWorkItem } from "@/app/projects/[id]/work-actions";
-import { ShareConfirm } from "@/app/projects/[id]/work-editors";
 import { useActGate } from "@/components/act-gate";
 import { RecordEditor } from "@/components/record-editor";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClass } from "@/components/ui/button";
+import { cx } from "@/components/ui/cx";
 import { DrawerHeader } from "@/components/ui/drawer";
 import { Field, FileInput, Input, Select, Textarea } from "@/components/ui/field";
 import { MoreText } from "@/components/ui/more-text";
 import { SidePanel, useRequestClose } from "@/components/ui/side-panel";
 import { WORK_PANEL_SIZE } from "@/app/projects/[id]/work-shared";
 import { STAGED_FOR_WORK_ITEM } from "@/lib/documents/staged-for";
-import { CONTRACTOR_ASSIGNEE } from "@/lib/work/fields";
 
 /**
  * The Work item panel's client pieces (workspace 3a step 5): the shell, one field that saves on its own, the link picker and remover, and the file attacher. Every one calls a
@@ -273,94 +272,6 @@ export function AttachFiles({ contractId, itemId, shared }: { contractId: string
   );
 }
 
-// ------------------------------------------------------------------ the assignee
-
-/// The assignee dropdown. Picking "{contractor}" asks the Share confirm first (WB-2): it posts only on Share, and the pick goes back if the officer keeps it internal.
-export function AssigneeSelect({ contractId, itemId, value, options, contractor, noAccount = false, disabledWhy: askedWhy }: { contractId: string; itemId: string; value: string; options: { value: string; label: string }[]; contractor: string; /** The contractor has no active portal account: it would be told nothing and could not reply. */ noAccount?: boolean; disabledWhy?: string }) {
-  const disabledWhy = useActGate() ?? askedWhy;
-  const [picked, setPicked] = useState(value);
-  const [seen, setSeen] = useState(value);
-  const [asking, setAsking] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const msg = useId();
-  if (seen !== value) {
-    setSeen(value);
-    setPicked(value);
-  }
-  if (disabledWhy) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[14px] text-ink">
-        {options.find((o) => o.value === value)?.label ?? "Unassigned"}
-        <MoreText text={disabledWhy} label="Who can change assignee" />
-      </span>
-    );
-  }
-  const post = (next: string) => {
-    const before = picked;
-    setPicked(next);
-    setMessage(null);
-    start(async () => {
-      const data = new FormData();
-      data.set("contractId", contractId);
-      data.set("itemId", itemId);
-      data.set("field", "assigneePersonId");
-      data.set("value", next);
-      try {
-        const r = await editWorkField(data);
-        if (r.refused) {
-          setPicked(before);
-          setMessage(r.refused);
-        }
-      } catch {
-        setPicked(before);
-        setMessage("That didn't save. Try again.");
-      }
-    });
-  };
-  return (
-    <div className="min-w-0">
-      <Select
-        variant="chip"
-        aria-label="Assignee"
-        aria-describedby={message ? msg : undefined}
-        aria-invalid={message ? true : undefined}
-        value={picked}
-        onChange={(e) => {
-          if (pending) return;
-          const next = e.target.value;
-          if (next === CONTRACTOR_ASSIGNEE) setAsking(next);
-          else post(next);
-        }}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </Select>
-      {noAccount && (picked === CONTRACTOR_ASSIGNEE || asking) && (
-        <Badge tone="warn" className="mt-1">
-          No active portal account
-        </Badge>
-      )}
-      <p id={msg} role="status" className="mt-1 text-[12.5px] font-medium text-rose-700 empty:hidden">
-        {message}
-      </p>
-      {asking && (
-        <ShareConfirm
-          contractor={contractor}
-          onConfirm={() => {
-            post(asking);
-            setAsking(null);
-          }}
-          onCancel={() => setAsking(null)}
-        />
-      )}
-    </div>
-  );
-}
-
 // ------------------------------------------------------------------ removing a file
 
 /// Remove a file from an unshared item: a drawer that asks a reason and names the file. The server judges who may (the attacher or the lead) again.
@@ -382,7 +293,7 @@ export function RemoveFile({ contractId, itemId, attachmentId, filename }: { con
       }}
       submitLabel="Remove file"
       cancelLabel="Keep it"
-      trigger={{ label: "Remove", className: "text-[13px] font-semibold text-rose-700 underline-offset-2 hover:underline", ariaLabel: `Remove ${filename}` }}
+      trigger={{ label: "Remove", className: cx(buttonClass("ghost", "sm"), "text-rose-700"), ariaLabel: `Remove ${filename}` }}
       size="sm"
     />
   );

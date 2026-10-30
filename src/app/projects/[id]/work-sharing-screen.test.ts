@@ -14,6 +14,8 @@ describe("sharing with the contractor: the staff screens (workspace 3b step 5; W
     const w = shareConfirmWords("Acme Builders");
     expect(w.question).toBe("Share with Acme Builders?");
     expect(w.words).toBe("Acme Builders will see this item, its replies and files added from now. This can't be undone.");
+    // With no active portal account the box says what that means before Share is pressed.
+    expect(shareConfirmWords("Acme Builders", true).words).toBe(`${w.words} Acme Builders has no active portal account: it won't be told or able to reply.`);
   });
 
   it("every path that shares or assigns to the contractor asks the confirm first", () => {
@@ -23,11 +25,14 @@ describe("sharing with the contractor: the staff screens (workspace 3b step 5; W
     expect(editors).toMatch(/await new Promise<boolean>[\s\S]*?if \(!yes\) return/);
     expect(editors.indexOf("if (!yes) return")).toBeLessThan(editors.indexOf("await createWorkItem(next)"));
     // The panel's Share posts only from the confirm's onConfirm.
-    expect(editors).toMatch(/<ShareConfirm contractor=\{share\.contractor\} onConfirm=\{doShare\}/);
+    expect(editors).toMatch(/<ShareConfirm contractor=\{share\.contractor\} noAccount=\{share\.noAccount\} onConfirm=\{doShare\}/);
     expect(editors.match(/shareWorkItem\(data\)/g)).toHaveLength(1);
-    // The assignee picker holds the contractor pick until Share is pressed.
-    expect(controls).toMatch(/if \(next === CONTRACTOR_ASSIGNEE\) setAsking\(next\)/);
-    expect(controls).toMatch(/<ShareConfirm[\s\S]*?post\(asking\)/);
+    // The assignee picker (the shared select cell, in the panel and in the list) holds the contractor pick until Share is pressed.
+    expect(controls).not.toContain("AssigneeSelect");
+    for (const f of ["work-item-panel.tsx", "work-panel.tsx"]) expect(src(f)).toMatch(/confirm: \{ when: CONTRACTOR_ASSIGNEE, \.\.\.shareConfirmWords\(contractor, noAccount\)/);
+    const cell = readFileSync(join(process.cwd(), "src/components/data-list.tsx"), "utf8").replace(/\r\n/g, "\n");
+    expect(cell).toMatch(/if \(cell\.confirm && next === cell\.confirm\.when\) setAsking\(next\);\n\s+else apply\(next\);/);
+    expect(cell).toMatch(/<ConfirmDialog[\s\S]*?apply\(asking\)/);
   });
 
   it("the quick-add row never shares", () => {
@@ -44,10 +49,10 @@ describe("sharing with the contractor: the staff screens (workspace 3b step 5; W
     expect(SHARED_BY_DEFAULT).not.toContain("TASK");
   });
 
-  it("the item panel offers the Reply | Internal switch only on a shared item, and the list's picker never offers the contractor on a row that lacks it", () => {
+  it("the item panel offers the Reply | Internal switch only on a shared item, and the list's picker offers the contractor behind the same confirm", () => {
     expect(src("work-item-panel.tsx")).toContain("audiences={shared ? AUDIENCES : undefined}");
     expect(src("work-item-panel.tsx")).toMatch(/AUDIENCES[\s\S]*?value: "REPLY"[\s\S]*?value: "INTERNAL"/);
-    expect(src("work-panel.tsx")).toMatch(/o\.value !== CONTRACTOR_ASSIGNEE \|\| r\.assignee\?\.kind === "CONTRACTOR"/);
+    expect(src("work-panel.tsx")).not.toContain("listPeople");
   });
 
   it("Remove file is offered only on an unshared item, and says why when it is not this reader's", () => {

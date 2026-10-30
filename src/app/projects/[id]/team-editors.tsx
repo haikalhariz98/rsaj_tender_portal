@@ -42,7 +42,7 @@ export function ChangeManager({ contractId, people, currentId }: { contractId: s
       values={{ contractId }}
       action={post(changeProjectManagerAction)}
       submitLabel="Change"
-      trigger={{ label: "Change", className: buttonClass("ghost", "sm") }}
+      trigger={{ label: "Change", className: buttonClass("ghost", "sm"), ariaLabel: "Change the Project manager" }}
       size="sm"
     />
   );

@@ -27,8 +27,8 @@ type Option = { value: string; label: string };
 const hidden = (name: string): Field => ({ kind: "hidden", name });
 const toState = (r: WorkResult): FormState => (r.refused ? { ok: false, message: r.refused } : { ok: true });
 /// The ConfirmDialog for sharing (WB-2): one place, so the New item drawer, the item panel and the assignee picker say the same words.
-export function ShareConfirm({ contractor, onConfirm, onCancel }: { contractor: string; onConfirm: () => void; onCancel: () => void }) {
-  const w = shareConfirmWords(contractor);
+export function ShareConfirm({ contractor, noAccount = false, onConfirm, onCancel }: { contractor: string; noAccount?: boolean; onConfirm: () => void; onCancel: () => void }) {
+  const w = shareConfirmWords(contractor, noAccount);
   return <ConfirmDialog question={w.question} words={w.words} confirmLabel="Share" cancelLabel="Keep it internal" onConfirm={onConfirm} onCancel={onCancel} />;
 }
 const itemHref = (base: string, ref: string) => `${base}${base.includes("?") ? "&" : "?"}item=${encodeURIComponent(ref)}`;
@@ -105,6 +105,7 @@ export function NewItemDrawer({ contractId, contractor, itemHrefBase, types, pri
     {asking && (
       <ShareConfirm
         contractor={contractor}
+        noAccount={noAccount}
         onConfirm={() => {
           asking(true);
           setAsking(null);
@@ -133,7 +134,7 @@ export interface ItemActionsProps {
   /// The menu, in order: a move that needs no words (Reopen), or one that collects them.
   menu: { kind: "move" | "cancel" | "sendBack"; label: string; to: string }[];
   /// "Share with {contractor}" in the menu, when this reader may share this item now; null otherwise.
-  share?: { contractor: string } | null;
+  share?: { contractor: string; noAccount?: boolean } | null;
   /// The contractor's name where a Send back would be a Reply it reads (the contractor holds the item): the drawer says so (WSEC-4). Null: the comment stays internal.
   sendBackSeenBy?: string | null;
 }
@@ -191,7 +192,7 @@ export function ItemActions({ contractId, itemId, from, itemLabel, primary, disa
         {!primary && disabled && <Blocked label={disabled.label} reason={disabled.whoCan} primary />}
         {(menu.length > 0 || share) && (
           <MoreActions label={`More for ${itemLabel}`}>
-            {share && <MoreItem onClick={() => setSharing(true)}>{`Share with ${share.contractor}`}</MoreItem>}
+            {share && <MoreItem onClick={() => setSharing(true)}>{`Share with ${share.contractor}…`}</MoreItem>}
             {menu.map((m) =>
               m.kind === "move" ? (
                 <MoreItem key={m.label} onClick={() => move(m.to)}>
@@ -208,7 +209,7 @@ export function ItemActions({ contractId, itemId, from, itemLabel, primary, disa
                   action={words(m.to)}
                   submitLabel="Cancel item"
                   cancelLabel="Keep it"
-                  trigger={{ label: m.label, className: moreItemClass(true) }}
+                  trigger={{ label: `${m.label}…`, className: moreItemClass(true) }}
                   size="sm"
                 />
               ) : (
@@ -219,7 +220,7 @@ export function ItemActions({ contractId, itemId, from, itemLabel, primary, disa
                   values={base}
                   action={words(m.to)}
                   submitLabel="Send back"
-                  trigger={{ label: m.label, className: moreItemClass() }}
+                  trigger={{ label: `${m.label}…`, className: moreItemClass() }}
                   size="sm"
                 />
               ),
@@ -230,7 +231,7 @@ export function ItemActions({ contractId, itemId, from, itemLabel, primary, disa
       <p role="status" className="text-[12.5px] font-medium text-rose-700 empty:hidden">
         {message}
       </p>
-      {sharing && share && <ShareConfirm contractor={share.contractor} onConfirm={doShare} onCancel={() => setSharing(false)} />}
+      {sharing && share && <ShareConfirm contractor={share.contractor} noAccount={share.noAccount} onConfirm={doShare} onCancel={() => setSharing(false)} />}
     </div>
   );
 }

@@ -29,14 +29,14 @@ import { personIdOf } from "@/lib/work/party";
 import type { WorkAction, WorkActor } from "@/lib/work/types";
 
 import { commentOnWorkItem, editWorkField, moveWorkItem } from "./work-actions";
-import { AssigneeSelect, AttachFiles, FieldEdit, LinkPicker, RemoveFile, UnlinkButton, WorkPanelShell } from "./work-controls";
+import { AttachFiles, FieldEdit, LinkPicker, RemoveFile, UnlinkButton, WorkPanelShell } from "./work-controls";
 import { ItemActions } from "./work-editors";
-import { editWhy, IMPACT_OPTIONS, PRIORITY_OPTIONS, RESULT_OPTIONS, SEVERITY_OPTIONS, STATUS_OPTIONS } from "./work-shared";
+import { editWhy, IMPACT_OPTIONS, PRIORITY_OPTIONS, RESULT_OPTIONS, SEVERITY_OPTIONS, shareConfirmWords, STATUS_OPTIONS } from "./work-shared";
 
 /// The composer's two audiences on a shared item (B-2): Reply is the default (WB-9).
 const AUDIENCES: readonly ComposerAudience[] = [
-  { value: "REPLY", label: "Reply", send: "Send reply" },
-  { value: "INTERNAL", label: "Internal note", send: "Add note", internal: true },
+  { value: "REPLY", label: "Reply", send: "Send reply", placeholder: "Write a reply…" },
+  { value: "INTERNAL", label: "Internal note", send: "Add note", internal: true, placeholder: "Write an internal note…" },
 ];
 const section = "text-[13px] font-semibold tracking-wide text-ink-3 uppercase";
 type Option = { value: string; label: string };
@@ -160,7 +160,7 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
             primary={pa.primary ? { label: wordsOf(pa.primary), to: TARGET[pa.primary] } : null}
             disabled={pa.disabled ? { label: wordsOf(pa.disabled.action), whoCan: pa.disabled.whoCan.en } : null}
             menu={menu}
-            share={mayShare ? { contractor } : null}
+            share={mayShare ? { contractor, noAccount } : null}
             sendBackSeenBy={commentAudience(c, "STAFF", null, "SEND_BACK") === "REPLY" ? contractor : null}
           />
         </div>
@@ -182,7 +182,20 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
             <div className="mb-1 flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-3">
               Assignee {c.assignee?.kind === "CONTRACTOR" && <BuildingIcon size={13} />}
             </div>
-            <AssigneeSelect {...base} value={c.assignee?.kind === "CONTRACTOR" ? CONTRACTOR_ASSIGNEE : (personIdOf(c.assignee) ?? "")} options={peopleOptions} contractor={contractor} noAccount={noAccount} disabledWhy={why} />
+            <SelectCell
+              cell={{
+                kind: "select",
+                name: "value",
+                value: c.assignee?.kind === "CONTRACTOR" ? CONTRACTOR_ASSIGNEE : (personIdOf(c.assignee) ?? ""),
+                options: peopleOptions,
+                label: "Assignee",
+                action: editWorkField,
+                fields: { ...base, field: "assigneePersonId" },
+                disabledWhy: why,
+                flag: noAccount ? { value: CONTRACTOR_ASSIGNEE, text: "No active portal account" } : undefined,
+                confirm: { when: CONTRACTOR_ASSIGNEE, ...shareConfirmWords(contractor, noAccount), confirmLabel: "Share", cancelLabel: "Keep it internal" },
+              }}
+            />
           </div>
           {select("priority", "Priority", c.priority, PRIORITY_OPTIONS)}
           <FieldEdit label="Due" field="dueOn" kind="date" value={c.dueOn ?? ""} display={c.dueOn ? formatDate(dayToDate(c.dueOn)) : ""} {...base} disabledWhy={why} />
@@ -246,7 +259,7 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
                   </a>
                 )}
                 {shared && !f.withdrawnAt && <Badge tone={f.seenByContractor ? "info" : "neutral"}>{f.seenByContractor ? `Visible to ${contractor}` : "Staff only"}</Badge>}
-                {!f.withdrawnAt && <Chip title={f.scanLabel}>{f.scanLabel === SCAN_LABEL.NOT_SCANNED ? NOT_SCANNED_LABEL : f.scanLabel}</Chip>}
+                {!f.withdrawnAt && <Chip tone={f.scanLabel === SCAN_LABEL.THREAT ? "err" : "neutral"} title={f.scanLabel}>{f.scanLabel === SCAN_LABEL.NOT_SCANNED ? NOT_SCANNED_LABEL : f.scanLabel}</Chip>}
                 {ctx.open && !shared && !f.withdrawnAt && (
                   removeFileFaults(c, actor, f.attachedByPersonId, "x", removeFileWords(null, null)).length === 0 ? (
                     <RemoveFile {...base} attachmentId={f.attachmentId} filename={f.filename} />

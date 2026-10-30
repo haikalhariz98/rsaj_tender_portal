@@ -363,7 +363,6 @@ const GATED_BY_PARENT: Readonly<Record<string, string>> = {
   AttachFiles: "WorkItemPanel",
   ItemActions: "WorkItemPanel",
   // Workspace 3b step 5 (flagged, stricter: named and reached): sharing, the contractor assignee, file removal and the Project team card; each posts a Work or team act that asks its row first.
-  AssigneeSelect: "WorkItemPanel",
   RemoveFile: "WorkItemPanel",
   ShareConfirm: "ItemActions",
   AddTeamMember: "ProjectTeamCard",

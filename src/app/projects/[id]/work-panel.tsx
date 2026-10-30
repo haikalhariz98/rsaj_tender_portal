@@ -31,7 +31,7 @@ import { moveWorkItem, editWorkField } from "./work-actions";
 import { NewItemDrawer, QuickAdd } from "./work-editors";
 import { WorkItemPanel } from "./work-item-panel";
 import { WorkItemSkeleton } from "./work-skeleton";
-import { closedWords, editWhy, WORK_PANEL_PAD, IMPACT_OPTIONS, PRIORITY_OPTIONS, QUICK_TYPES, SEVERITY_OPTIONS, STATUS_OPTIONS, TYPE_OPTIONS } from "./work-shared";
+import { closedWords, editWhy, WORK_PANEL_PAD, IMPACT_OPTIONS, PRIORITY_OPTIONS, QUICK_TYPES, SEVERITY_OPTIONS, shareConfirmWords, STATUS_OPTIONS, TYPE_OPTIONS } from "./work-shared";
 
 type Option = { value: string; label: string };
 type Params = Record<string, string | string[] | undefined>;
@@ -168,9 +168,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
       const lateText = latenessWords(lateness(r.dueOn, r.status, ctx.today));
       const dueText = r.dueOn ? formatDate(dayToDate(r.dueOn)) : "";
       const fields = { contractId, itemId: r.id };
-      // Assigning to the contractor shares the item and asks a confirm (WB-2), which only the item panel can: the list's picker offers it only where it is the current value.
-      const listPeople = peopleOptions.filter((o) => o.value !== CONTRACTOR_ASSIGNEE || r.assignee?.kind === "CONTRACTOR");
-      const edit = (field: string, value: string, options: Option[], label: string): Cell => ({ kind: "select", name: "value", value, options, label: `${label} of ${itemRefText(r.type, r.number)}`, action: editWorkField, fields: { ...fields, field }, disabledWhy: why, ...(field === "assigneePersonId" && noAccount ? { flag: { value: CONTRACTOR_ASSIGNEE, text: "No active portal account" } } : {}) });
+      const edit = (field: string, value: string, options: Option[], label: string): Cell => ({ kind: "select", name: "value", value, options, label: `${label} of ${itemRefText(r.type, r.number)}`, action: editWorkField, fields: { ...fields, field }, disabledWhy: why, ...(field === "assigneePersonId" ? { ...(noAccount ? { flag: { value: CONTRACTOR_ASSIGNEE, text: "No active portal account" } } : {}), confirm: { when: CONTRACTOR_ASSIGNEE, ...shareConfirmWords(contractor, noAccount), confirmLabel: "Share", cancelLabel: "Keep it internal" } } : {}) });
       return {
         id: r.id,
         search: `${itemRefText(r.type, r.number)} ${r.title}`,
@@ -187,7 +185,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
             fields: { ...fields, from: r.status },
             disabledWhy: moves.moves.length === 0 ? (moves.stuckWhy ?? (ctx.open ? whoCanWords("MARK_DONE", w).en : why)) : undefined,
           },
-          assignee: inline ? edit("assigneePersonId", r.assignee?.kind === "CONTRACTOR" ? CONTRACTOR_ASSIGNEE : (personIdOf(r.assignee) ?? ""), [{ value: "", label: "Unassigned" }, ...listPeople], "Assignee") : r.assigneeName ? { kind: "person", name: r.assigneeName } : { kind: "text", text: "Unassigned", dim: true },
+          assignee: inline ? edit("assigneePersonId", r.assignee?.kind === "CONTRACTOR" ? CONTRACTOR_ASSIGNEE : (personIdOf(r.assignee) ?? ""), [{ value: "", label: "Unassigned" }, ...peopleOptions], "Assignee") : r.assigneeName ? { kind: "person", name: r.assigneeName } : { kind: "text", text: "Unassigned", dim: true },
           due: lateText ? { kind: "chip", text: `${dueText} · ${lateText}`, tone: "err" } : { kind: "text", text: dueText || "No due date", dim: !dueText },
           priority: edit("priority", r.priority, PRIORITY_OPTIONS, "Priority"),
         },
