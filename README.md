@@ -119,6 +119,7 @@ scripts/               Tooling to render a prototype and diff this app's DOM aga
 | `npm run db:roles` | Makes or brings into line the app's own database login (`APP_DB_PASSWORD`); see below |
 | `npm run test:db` | The tests that need a database, against `TEST_DATABASE_URL` only |
 | `npm run demo:load` / `demo:results` | Load the invented demonstration once; add its Results fixture. Additive: nothing is ever written twice |
+| `npm run demo:work` | Add the work items (WS-22) to a database loaded before them; refuses where the demo is not loaded or already holds work items |
 | `npm run demo:wipe` | Retired: refuses and explains. The trail is permanent, so a demo database is replaced, never emptied |
 
 ## The online sealed-bid demonstration

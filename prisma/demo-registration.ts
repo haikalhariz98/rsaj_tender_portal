@@ -122,7 +122,8 @@ export async function configureRegistrationDemo(db: Db, organisationId: string) 
   }
   // The registration settings: set (invented, ASSUMED) so the demonstration can be walked through. A customer sets its own; the screen shows each unset one as such.
   const policy = await db.supplierPolicy.findUnique({ where: { organisationId } });
-  if (policy && policy.uploadMaxFilesPerApplication == null) {
+  // Keyed on the help contact, which the generic starter pack (loaded by `npm run setup`) leaves unset while it sets the upload limits and classes.
+  if (policy && policy.helpEmail == null) {
     const settings = {
       helpEmail: "procurement@demo.invalid", helpPhone: "+999 7 000 0000", helpProvenance: "ASSUMED" as const,
       uploadMaxFilesPerApplication: 12, uploadMaxBytesPerApplication: BigInt(25) * BigInt(1_048_576), uploadLimitProvenance: "ASSUMED" as const,
@@ -130,7 +131,7 @@ export async function configureRegistrationDemo(db: Db, organisationId: string) 
       onlineDeclarationReplacesPaper: true, onlineDeclarationProvenance: "ASSUMED" as const,
     };
     await db.supplierPolicy.update({ where: { organisationId }, data: settings });
-    entry("SupplierPolicy", policy.id, "Supplier register · registration online", "UPDATE", later(30), diffFields({ helpEmail: "Not set", filesPerRegistration: "Not set", megabytesPerRegistration: "Not set", classOfUploads: "Not set", classOfBankStatement: "Not set", onlineDeclarationReplacesPaper: "Not set" }, { helpEmail: settings.helpEmail, helpPhone: settings.helpPhone, filesPerRegistration: 12, megabytesPerRegistration: 25, classOfUploads: "Contract documents", classOfBankStatement: "Certificates", onlineDeclarationReplacesPaper: "Replaces the paper declaration", limitsFrom: "Assumed" }), "Demonstration settings (invented)");
+    entry("SupplierPolicy", policy.id, "Supplier register · registration online", "UPDATE", later(30), diffFields({ helpEmail: "Not set", filesPerRegistration: policy.uploadMaxFilesPerApplication ?? "Not set", megabytesPerRegistration: policy.uploadMaxBytesPerApplication == null ? "Not set" : Number(policy.uploadMaxBytesPerApplication / BigInt(1_048_576)), classOfUploads: policy.supplierUploadClassId ? "Starter pack class" : "Not set", classOfBankStatement: policy.supplierBankStatementClassId ? "Starter pack class" : "Not set", onlineDeclarationReplacesPaper: policy.onlineDeclarationReplacesPaper == null ? "Not set" : "Replaces the paper declaration" }, { helpEmail: settings.helpEmail, helpPhone: settings.helpPhone, filesPerRegistration: 12, megabytesPerRegistration: 25, classOfUploads: "Contract documents", classOfBankStatement: "Certificates", onlineDeclarationReplacesPaper: "Replaces the paper declaration", limitsFrom: "Assumed" }), "Demonstration settings (invented)");
   }
   for (const [i, t] of TEXTS.entries()) {
     if (await db.declarationText.findFirst({ where: { organisationId, kind: t.kind }, select: { id: true } })) continue;

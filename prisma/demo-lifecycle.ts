@@ -34,6 +34,7 @@ import type { PrismaClient } from "../src/generated/prisma/client";
 import { act, actRoute, claimNumbered } from "./demo-acts";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 import { DEMO_ACTOR } from "./demo-actor";
+import { putSeries, raiseSeries } from "./demo-series";
 import { demoOrgId, demoScope } from "./demo-org";
 
 type Db = PrismaClient;
@@ -164,7 +165,7 @@ export async function configureLifecycleDemo(db: Db, organisationId: string) {
       { id: `${P}vck3`, organisationId, clock: "DAYWORK_SUBSTANTIATION", length: 7, unit: "DAYS", provenance: "ASSUMED", notes: "Invented for the demo." },
     ],
   });
-  await db.numberingSeries.create({ data: { id: `${P}n8`, organisationId, key: "variation", nameEn: "Variations", pattern: "DEMO/VO/{SERIAL}/{YEAR}", padding: 3, resetOn: "CALENDAR_YEAR", nextSerial: 1, serialPeriod: "2026", provenance: "ASSUMED" } });
+  await putSeries(db, { id: `${P}n8`, organisationId, key: "variation", nameEn: "Variations", pattern: "DEMO/VO/{SERIAL}/{YEAR}", padding: 3, resetOn: "CALENDAR_YEAR", nextSerial: 1, serialPeriod: "2026", provenance: "ASSUMED" });
   await db.clauseText.create({ data: { id: `${P}cl2`, organisationId, code: "demo_valuation_of_variations", titleEn: "Valuation of variations (demo)", titleMs: "Penilaian perubahan kerja (demo)", bodyEn: "Variations are valued at the contract's rates where they apply, at rates derived from them where they do not, and otherwise at fair rates (invented demo text).", provenance: "ASSUMED", sortOrder: 2,
     // Ruling 4 (2026-10-06): set, or no pack could be submitted after this loads (a live clause's "mandatory" unset refuses every submission). ASSUMED.
     mandatoryInAgreements: false, notes: "Invented for the demo: not every agreement need carry it." } });
@@ -219,10 +220,7 @@ export async function loadLifecycleSetup(db: Db, organisationId: string): Promis
   await db.sourcingExercise.create({ data: { id: SX, organisationId, specPanelUsed: true, onScreenBillUsed: true, saleMode: "COUNTER", submissionChannel: "PAPER", reference: SX_REF, requisitionId: RQ, title: TITLE, estimatedValue: value, sourcingMethodCode: "open_tender", status: "DOCUMENTS_IN_PREPARATION", contractBasisCode: "bq", createdAt: day("2026-04-20") } });
   await db.exerciseScopePart.create({ data: { id: `${SX}p1`, exerciseId: SX, deliverableKind: "MEASURED_CONSTRUCTION", amount: value, description: TITLE, sortOrder: 1 } });
   // The series move past what the demo took (never back).
-  for (const [id, next] of [[`${P}n1`, 44], [`${P}n5`, 23], [`${P}n2`, 6]] as const) {
-    const s = await db.numberingSeries.findUniqueOrThrow({ where: { id } });
-    if (s.nextSerial < next) await db.numberingSeries.update({ where: { id }, data: { nextSerial: next } });
-  }
+  for (const [id, next] of [[`${P}n1`, 44], [`${P}n5`, 23], [`${P}n2`, 6]] as const) await raiseSeries(db, id, next);
 
   // Its trail, in the requisition actions' shape.
   const { diffFields } = await import("../src/lib/audit/diff");

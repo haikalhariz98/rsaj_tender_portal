@@ -18,6 +18,8 @@
  * (set by `demo:load` where none is set), without which nothing reads Late.
  *
  * demo_con15 (practically complete, Work still open) is NOT the contract WS-22 asks for (executed, not practically complete: only demo_con3 is); it holds the six types a Defect refusal leaves (`loadSecond`).
+ * Accepted by the orchestrator (decisions log, 2026-10-30): WS-22's "two executed, not-yet-PC contracts" is met by demo_con3 (all seven types) and demo_con15
+ * (practically complete, so a Defect is refused, OQ-4); a second ACTIVE demo contract is not built. `npm run demo:work` adds this round to a loaded database that holds none.
  *
  * Ids: WorkItem demo_wki*, WorkItemComment demo_wkc*, WorkItemLink demo_wkl*, StaffNotice demo_wkn* (ACT_PREFIX; grepped free). Runs once: a contract
  * that already holds a work item is left alone.
@@ -232,8 +234,11 @@ export async function checkWorkDemo(db: Db) {
   const closedDays = rows.filter((r) => r.status === "DONE").map((r) => dayOf(r.closedAt!, org.timeZone)!);
   if (!closedDays.some((d) => d >= windowStart) || !closedDays.some((d) => d < windowStart)) fail("done items are not both inside and outside the Done window");
   const second = (await db.workItem.findMany({ where: { contractId: CON2 } })).map((r) => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: r.raisedByPersonId!, assignee: r.assigneePersonId, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult, title: r.title, priority: r.priority }));
-  for (const t of WORK_ITEM_TYPES.filter((x) => x !== "DEFECT")) if (!second.some((r) => r.type === t)) fail(`${CON2} has no ${t}`);
-  if (!second.some((r) => inView(r, "late", { personId: "" }, today))) fail(`${CON2} has nothing late`);
+  // A database loaded before demo_con15 existed has none: its round was skipped, as the loader says.
+  if (await db.contract.findUnique({ where: { id: CON2 }, select: { id: true } })) {
+    for (const t of WORK_ITEM_TYPES.filter((x) => x !== "DEFECT")) if (!second.some((r) => r.type === t)) fail(`${CON2} has no ${t}`);
+    if (!second.some((r) => inView(r, "late", { personId: "" }, today))) fail(`${CON2} has nothing late`);
+  }
   if ((await db.workItemComment.count({ where: { workItemId: { in: rows.map((r) => r.id) }, internal: true } })) < 3) fail("fewer than three comments");
   const links = await db.workItemLink.findMany({ where: { workItemId: { in: rows.map((r) => r.id) } }, select: { projectDocumentId: true } });
   if (links.length < 3 || !links.some((x) => x.projectDocumentId)) fail("fewer than three links, or none to a document");

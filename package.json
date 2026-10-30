@@ -46,6 +46,7 @@
     "demo:funding": "tsx prisma/demo.ts funding",
     "demo:closeout": "tsx prisma/demo.ts closeout",
     "demo:time": "tsx prisma/demo.ts time",
+    "demo:work": "tsx prisma/demo.ts work",
     "demo:switches": "tsx prisma/demo.ts switches"
   },
   "dependencies": {

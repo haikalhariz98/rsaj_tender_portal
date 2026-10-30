@@ -10,7 +10,7 @@
  * numbers are visibly invented.
  */
 
-import { raiseSeries } from "./demo-series";
+import { putSeries, raiseSeries } from "./demo-series";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { DEMO_ACTOR } from "./demo-actor";
 import { demoOrgId } from "./demo-org";
@@ -171,7 +171,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
       loaTemplateId: `${P}dt1`, declarationTemplateId: `${P}dt4`, coveringMemoTemplateId: `${P}dt5`, provenance: "ASSUMED", notes: "Invented demo controls.",
     },
   });
-  await db.numberingSeries.create({ data: { id: `${P}n7`, organisationId, key: "award", nameEn: "Awards", pattern: "DEMO/AWD/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 7, serialPeriod: "2026", provenance: "ASSUMED" } });
+  await putSeries(db, { id: `${P}n7`, organisationId, key: "award", nameEn: "Awards", pattern: "DEMO/AWD/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 7, serialPeriod: "2026", provenance: "ASSUMED" });
   for (const ct of ["ct1", "ct2", "ct3"]) await db.contractType.update({ where: { id: `${P}${ct}` }, data: { contractSeriesKey: "contract" } });
   await db.codeFormat.create({ data: { id: `${P}f5`, organisationId, key: "erp_indent_no", pattern: "XI\\d{9}", example: "XI202600812", description: "XI and nine digits.", provenance: "ASSUMED" } });
 

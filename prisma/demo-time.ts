@@ -20,6 +20,7 @@
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { act } from "./demo-acts";
 import { DEMO_ACTOR } from "./demo-actor";
+import { putSeries } from "./demo-series";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -33,8 +34,7 @@ async function configure(db: Db, organisationId: string) {
   let n = 0;
   const audit = (entity: string, entityId: string, entityLabel: string, changes: { field: string; before: null; after: string }[]) =>
     db.auditEntry.create({ data: { id: `${P}tsau${++n}`, organisationId, entity, entityId, entityLabel, action: "CREATE", at, changes, reason: "Demo time configuration (invented, ASSUMED).", ...DEMO_ACTOR } as never });
-  await db.numberingSeries.create({ data: { id: `${P}tsn1`, organisationId, key: "contract_matter", nameEn: "Contract matters", pattern: "DEMO/CM/{SERIAL}/{YEAR}", padding: 3, resetOn: "CALENDAR_YEAR", nextSerial: 1, serialPeriod: "2026", provenance: "ASSUMED", notes: SOURCE } });
-  await audit("NumberingSeries", `${P}tsn1`, "Numbering · Contract matters", [{ field: "pattern", before: null, after: "DEMO/CM/{SERIAL}/{YEAR}" }]);
+  if (await putSeries(db, { id: `${P}tsn1`, organisationId, key: "contract_matter", nameEn: "Contract matters", pattern: "DEMO/CM/{SERIAL}/{YEAR}", padding: 3, resetOn: "CALENDAR_YEAR", nextSerial: 1, serialPeriod: "2026", provenance: "ASSUMED", notes: SOURCE })) await audit("NumberingSeries", `${P}tsn1`, "Numbering · Contract matters", [{ field: "pattern", before: null, after: "DEMO/CM/{SERIAL}/{YEAR}" }]);
   const rule = (k: number, cond: string, label: string) => ({ id: `${P}tsr${k}`, authorityMatrixId: `${P}mx1`, domain: "eot", cond, ruleKey: `demo.eot.${cond}`, labelEn: label, approverCode: "CEO", clause: `DEMO 9.${k}`, sortOrder: 90 + k });
   await db.authorityRule.createMany({
     data: [rule(1, "no_financial_impact", "Extension of time, no financial impact"), rule(2, "financial_authority", "Extension of time, financial impact from an authority's requirement"), rule(3, "financial_not_authority", "Extension of time, other financial impact")],

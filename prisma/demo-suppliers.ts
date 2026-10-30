@@ -107,6 +107,8 @@ export async function configureSuppliersDemo(db: Db, organisationId: string) {
   for (const [i, l] of LISTS.entries()) {
     // Phase 4a: a country may carry a dial code (an invented one: the demo's countries are not real).
     const callingCode = l.list === "COUNTRY" ? (DEMO_DIAL_CODES[l.code] ?? null) : null;
+    // The generic starter pack (`npm run setup`) may hold the code already (its Partnership): that entry stands.
+    if (await db.supplierListValue.findFirst({ where: { organisationId, list: l.list, code: l.code }, select: { id: true } })) continue;
     await db.supplierListValue.create({ data: { ...l, callingCode, organisationId, provenance: "ASSUMED" } });
     entry("SupplierListValue", l.id, `${KIND_WORDS[l.list]} · ${l.nameEn}`, "CREATE", later(i), diffFields(null, { name: l.nameEn, nameInMalay: l.nameMs, ...(callingCode ? { dialCode: callingCode } : {}), whereItComesFrom: "Assumed" }));
   }
@@ -118,10 +120,14 @@ export async function configureSuppliersDemo(db: Db, organisationId: string) {
     await db.supplierDocumentType.create({ data: { ...t, valueKinds: t.valueKinds as never, organisationId, governingSource: SOURCE, provenance: "ASSUMED", sortOrder: i + 1 } });
     entry("SupplierDocumentType", t.id, `Supplier document type · ${t.nameEn}`, "CREATE", later(30 + i), diffFields(null, { name: t.nameEn, nameInMalay: t.nameMs, expires: triWords(t.expires, "Carries an expiry", "Does not expire"), mandatoryAtRegistration: triWords(t.mandatoryAtRegistration, "Mandatory for every registration", "Not mandatory"), notApplicableAllowed: triWords(t.notApplicableAllowed, "May be recorded as not applicable", "May not be recorded as not applicable"), governingSource: SOURCE, whereItComesFrom: "Assumed" }));
   }
-  if (!(await db.supplierPolicy.findUnique({ where: { organisationId } }))) {
+  // The load runs only on a fresh database, so a policy already there is the generic starter pack's from `npm run setup`: the demo's notice goes over it.
+  const heldPolicy = await db.supplierPolicy.findUnique({ where: { organisationId }, select: { id: true, verificationNoticeEn: true } });
+  const spol = heldPolicy?.id ?? `${P}spol1`;
+  {
     const notice = { verificationNoticeEn: "Documents you lodge are not checked automatically: an officer checks each against its original before your registration is decided (demo wording, invented).", verificationNoticeMs: "Dokumen yang dikemukakan tidak disemak secara automatik: pegawai menyemak setiap satu dengan dokumen asal sebelum pendaftaran diputuskan (teks demo, rekaan)." };
-    await db.supplierPolicy.create({ data: { id: `${P}spol1`, organisationId, ...notice, noticeProvenance: "ASSUMED", governingSource: SOURCE } });
-    entry("SupplierPolicy", `${P}spol1`, "Supplier register · policy", "CREATE", later(50), diffFields(null, { verificationNotice: notice.verificationNoticeEn, verificationNoticeInMalay: notice.verificationNoticeMs, noticeFrom: "Assumed", governingSource: SOURCE }));
+    if (heldPolicy) await db.supplierPolicy.update({ where: { id: spol }, data: { ...notice, noticeProvenance: "ASSUMED", governingSource: SOURCE } });
+    else await db.supplierPolicy.create({ data: { id: spol, organisationId, ...notice, noticeProvenance: "ASSUMED", governingSource: SOURCE } });
+    entry("SupplierPolicy", spol, "Supplier register · policy", heldPolicy ? "UPDATE" : "CREATE", later(50), diffFields(heldPolicy ? { verificationNotice: heldPolicy.verificationNoticeEn } : null, { verificationNotice: notice.verificationNoticeEn, verificationNoticeInMalay: notice.verificationNoticeMs, noticeFrom: "Assumed", governingSource: SOURCE }));
   }
   if (!(await db.numberingSeries.findFirst({ where: { organisationId, key: "supplier" } }))) {
     await db.numberingSeries.create({ data: { id: `${P}n21`, organisationId, key: "supplier", nameEn: "Suppliers", pattern: "DEMO/SUP/{SERIAL}/{YEAR}", padding: 4, resetOn: "NEVER", nextSerial: 1, serialPeriod: "", provenance: "ASSUMED" } });
@@ -159,8 +165,8 @@ export async function configureSuppliersDemo(db: Db, organisationId: string) {
     // Demo wording and figures, invented and ASSUMED: a customer writes its own notice and sets its own limits.
     const intake = { personalDataNoticeEn: "The details you enter are used only to review your application to join the supplier register. Only officers of the procurement office see them. They are kept while the application is considered and, once it is accepted, with the supplier's record; an application that is set aside is erased. To ask for access or a correction, contact the procurement office quoting your reference (demo wording, invented).", personalDataNoticeMs: "Butiran yang anda masukkan hanya digunakan untuk menyemak permohonan anda menyertai daftar pembekal. Hanya pegawai pejabat perolehan melihatnya. Ia disimpan semasa permohonan dipertimbangkan dan, setelah diterima, bersama rekod pembekal; permohonan yang diketepikan dipadam. Untuk meminta akses atau pembetulan, hubungi pejabat perolehan dengan menyatakan rujukan anda (teks demo, rekaan).", personalDataProvenance: "ASSUMED" as const, portalDailyLimit: 100, portalDailyLimitPerNumber: 3, portalLimitProvenance: "ASSUMED" as const };
     await db.supplierPolicy.update({ where: { organisationId }, data: intake });
-    entry("SupplierPolicy", `${P}spol1`, "Supplier register · online applications", "UPDATE", later(66), diffFields({ personalDataNotice: "Not set", personalDataNoticeInMalay: "Not set", noticeFrom: "Not set", applicationsPerDay: "Not set", applicationsPerNumberPerDay: "Not set", limitsFrom: "Not set" }, { personalDataNotice: intake.personalDataNoticeEn, personalDataNoticeInMalay: intake.personalDataNoticeMs, noticeFrom: "Assumed", applicationsPerDay: 100, applicationsPerNumberPerDay: 3, limitsFrom: "Assumed" }));
-    entry("SupplierPolicy", `${P}spol1`, "Supplier register · standing rules", "UPDATE", later(65), diffFields({ expiryBands: "Not set", firstOffenceMonths: "Not set", restrictionEvidence: "Not set" }, { expiryBands: "critical within 30 days, warning within 60, upcoming within 90", bandsFrom: "Assumed", firstOffenceMonths: 60, periodFrom: "Assumed", restrictionEvidence: "Status certificate", restrictionFrom: "Assumed" }));
+    entry("SupplierPolicy", spol, "Supplier register · online applications", "UPDATE", later(66), diffFields({ personalDataNotice: "Not set", personalDataNoticeInMalay: "Not set", noticeFrom: "Not set", applicationsPerDay: "Not set", applicationsPerNumberPerDay: "Not set", limitsFrom: "Not set" }, { personalDataNotice: intake.personalDataNoticeEn, personalDataNoticeInMalay: intake.personalDataNoticeMs, noticeFrom: "Assumed", applicationsPerDay: 100, applicationsPerNumberPerDay: 3, limitsFrom: "Assumed" }));
+    entry("SupplierPolicy", spol, "Supplier register · standing rules", "UPDATE", later(65), diffFields({ expiryBands: "Not set", firstOffenceMonths: "Not set", restrictionEvidence: "Not set" }, { expiryBands: "critical within 30 days, warning within 60, upcoming within 90", bandsFrom: "Assumed", firstOffenceMonths: 60, periodFrom: "Assumed", restrictionEvidence: "Status certificate", restrictionFrom: "Assumed" }));
   }
   await db.authorityRule.createMany({
     data: [

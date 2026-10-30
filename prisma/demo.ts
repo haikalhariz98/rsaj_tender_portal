@@ -1,6 +1,6 @@
 import "dotenv/config";
 // 6.13 Part A step 5: first, so the product's client is the one the demo's acts run through (prisma/demo-acts.ts).
-import { raiseSeries } from "./demo-series";
+import { putSeries, raiseSeries } from "./demo-series";
 import "./demo-acts";
 import { seedActIds } from "./demo-acts";
 
@@ -52,9 +52,11 @@ import { demoOrgId, demoScope } from "./demo-org";
 /**
  * A demonstration dataset, loaded deliberately and never by default.
  *
- * `npm run setup` still creates one empty organisation and nothing else: shipping a
- * threshold or an approver as a starting value is how someone else's policy reaches
- * production. This exists for a different job — comparing our screens against the
+ * `npm run setup` creates one organisation and loads the generic starter pack (ADR 0043): working
+ * values that are not authority. Shipping a threshold or an approver as a starting value is how
+ * someone else's policy reaches production, so none comes from there. The load runs on that fresh
+ * database: where the pack has already made a numbering series or a policy row the demo also sets,
+ * the demo's values go on that row, audited as the demo loader. This exists for a different job — comparing our screens against the
  * approved prototype. An empty table renders an empty state, not columns, so without
  * data there is nothing to measure a column layout against.
  *
@@ -69,6 +71,7 @@ import { demoOrgId, demoScope } from "./demo-org";
  *   npm run demo:funding   put the development fill's funding sources on demo records (prisma/demo-funding.ts, ADR 0046)
  *   npm run demo:time      add the extension of time on demo_con13 and its next interim (prisma/demo-time.ts, Phase 2 close-out stage A)
  *   npm run demo:closeout  add demo_con13's practical completion and its defects (prisma/demo-closeout.ts, Phase 2 close-out stage B)
+ *   npm run demo:work      add the work items on demo_con3 and demo_con15 (prisma/demo-work.ts, WS-22) to a loaded database that holds none; refuses otherwise
  *   npm run demo:wipe      retired (Phase 1d): refuses and explains, removes nothing
  *   npm run demo:switches  retired (ruling 12c): refuses and explains, writes nothing. Configuration rows are written only by demo:load on a fresh database.
  *
@@ -649,14 +652,12 @@ async function load() {
   });
 
   // ------------------------------------------------------------------ records
-  await db.numberingSeries.createMany({
-    data: [
+  for (const row of [
       { id: `${P}n1`, organisationId, key: "requisition", nameEn: "Requisitions", pattern: "DEMO/REQ/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 12, serialPeriod: "2026", provenance: "STATED" },
       { id: `${P}n2`, organisationId, key: "contract", nameEn: "Contracts", pattern: "DEMO/KP/T/{SERIAL}/{YEAR}", padding: 3, resetOn: "CALENDAR_YEAR", nextSerial: 4, serialPeriod: "2026", provenance: "STATED" },
       { id: `${P}n4`, organisationId, key: "meeting", nameEn: "Committee sittings", pattern: "DEMO/SIT/{SERIAL}/{YEAR}", padding: 1, resetOn: "CALENDAR_YEAR", nextSerial: 5, serialPeriod: "2026", provenance: "ASSUMED" },
       { id: `${P}n3`, organisationId, key: "certificate", nameEn: "Certificates", pattern: "DEMO/CERT/{SERIAL}", padding: 5, resetOn: "NEVER", nextSerial: 231, provenance: "OBSERVED" },
-    ],
-  });
+    ] as const) await putSeries(db, row);
 
   await db.documentClass.createMany({
     data: [
@@ -1413,12 +1414,10 @@ async function loadMethodSelection(organisationId: string, from: Date) {
     ],
   });
   await db.classificationPolicy.create({ data: { id: `${P}cp1`, organisationId, dominanceSharePct: "60.0000", provenance: "ASSUMED", notes: "Invented demo threshold." } });
-  await db.numberingSeries.createMany({
-    data: [
+  for (const row of [
       { id: `${P}n5`, organisationId, key: "exercise", nameEn: "Sourcing exercises", pattern: "DEMO/SX/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 8, serialPeriod: "2026", provenance: "ASSUMED" },
       { id: `${P}n6`, organisationId, key: "direct_appointment", nameEn: "Direct appointment dossiers", pattern: "DEMO/DA/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 3, serialPeriod: "2026", provenance: "OBSERVED" },
-    ],
-  });
+    ] as const) await putSeries(db, row);
 
   // Two approved parents, with the trail the 6.1 rules would have written on the day.
   await db.accountCode.create({ data: { id: `${P}ac4`, organisationId, code: "7400400", nameEn: "Civil works", provenance: "ASSUMED", sortOrder: 4, effectiveFrom: from } });
@@ -2306,6 +2305,35 @@ async function closeout() {
   console.log(notes.length ? `Added or noted: ${notes.join("; ")}.` : "The completion and close demonstration is already there: nothing was written.");
 }
 
+/**
+ * Workspace 3a step 6 (WS-22): the work items on demo_con3 and demo_con15 (prisma/demo-work.ts), on a database the demo is already loaded in
+ * and that holds no work item on either yet. It writes no configuration. Anywhere else it refuses and writes nothing.
+ */
+async function work() {
+  const org = await organisation();
+  if (!(await demoIsLoaded(db))) {
+    console.error("The demo is not loaded. Run npm run demo:load, which includes this step. Nothing was written.");
+    process.exitCode = 1;
+    return;
+  }
+  const held = await db.workItem.count({ where: { contractId: { in: [`${P}con3`, `${P}con15`] } } });
+  if (held > 0) {
+    console.error(`The demo contracts already hold ${held} work item${held === 1 ? "" : "s"}: the work demonstration runs once. Nothing was written.`);
+    process.exitCode = 1;
+    return;
+  }
+  await seedActIds(db);
+  const made = await loadWorkDemo(db, org.id);
+  if ((await db.workItem.count({ where: { contractId: `${P}con3` } })) === 0) {
+    console.error(`Nothing was written: ${made.notes.join("; ")}.`);
+    process.exitCode = 1;
+    return;
+  }
+  await checkWorkDemo(db);
+  // No attributeSeededRows: every work row is written by an act that attributes it, and that pass refuses a database holding a second organisation.
+  console.log(`Added or noted: ${made.notes.join("; ")}.`);
+}
+
 const mode = process.argv[2];
 
 if (mode === "wipe") {
@@ -2317,12 +2345,12 @@ if (mode === "switches") {
   console.error(DEMO_SWITCHES_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "project-documents" && mode !== "contractor" && mode !== "wave-v" && mode !== "funding" && mode !== "time" && mode !== "closeout") {
-  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|project-documents|contractor|wave-v|funding|time|closeout>");
+if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "project-documents" && mode !== "contractor" && mode !== "wave-v" && mode !== "funding" && mode !== "time" && mode !== "closeout" && mode !== "work") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|project-documents|contractor|wave-v|funding|time|closeout|work>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "project-documents" ? projectDocuments() : mode === "contractor" ? contractor() : mode === "wave-v" ? waveV() : mode === "funding" ? funding() : mode === "time" ? time() : mode === "closeout" ? closeout() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "project-documents" ? projectDocuments() : mode === "contractor" ? contractor() : mode === "wave-v" ? waveV() : mode === "funding" ? funding() : mode === "time" ? time() : mode === "closeout" ? closeout() : mode === "work" ? work() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);

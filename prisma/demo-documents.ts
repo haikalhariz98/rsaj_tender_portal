@@ -106,10 +106,15 @@ export interface DemoDoc {
 }
 
 export async function loadDocuments(db: Db, organisationId: string) {
-  // Upload rules, only where the organisation has none of its own (OD-3: demo values ASSUMED).
-  if (!(await db.documentStorePolicy.findUnique({ where: { organisationId } }))) {
-    // The Project workspace's files go to the Internal class (contractors download them, so never SULIT or unclassified).
-    await db.documentStorePolicy.create({ data: { id: DEMO_POLICY_ID, organisationId, ...DEMO_POLICY, projectDocumentClassId: `${P}dc1`, provenance: "ASSUMED", notes: "Demo upload rules: PDF, PNG, JPEG and CSV up to 20 MB. Invented, not a recommendation." } });
+  // Upload rules (OD-3: demo values ASSUMED). The load runs only on a fresh database, so rules already there are the generic starter pack's from
+  // `npm run setup`: the demo's go over them, audited.
+  // The Project workspace's files go to the Internal class (contractors download them, so never SULIT or unclassified).
+  const rules = { ...DEMO_POLICY, projectDocumentClassId: `${P}dc1`, provenance: "ASSUMED" as const, notes: "Demo upload rules: PDF, PNG, JPEG and CSV up to 20 MB. Invented, not a recommendation." };
+  const heldRules = await db.documentStorePolicy.findUnique({ where: { organisationId } });
+  if (!heldRules) await db.documentStorePolicy.create({ data: { id: DEMO_POLICY_ID, organisationId, ...rules } });
+  else {
+    await db.documentStorePolicy.update({ where: { id: heldRules.id }, data: rules });
+    await db.auditEntry.create({ data: { id: `${P}docpolicyau`, organisationId, entity: "DocumentStorePolicy", entityId: heldRules.id, entityLabel: "Upload rules", action: "UPDATE", at: new Date(), changes: [{ field: "allowedTypes", before: heldRules.allowedMediaTypes.join(", "), after: rules.allowedMediaTypes.join(", ") }, { field: "projectDocumentClass", before: heldRules.projectDocumentClassId, after: rules.projectDocumentClassId }], reason: "Demonstration upload rules (invented), over the starter pack's.", ...DEMO_ACTOR } as never });
   }
 
   const recorder = { id: `${P}p3`, name: "Chen Wei Ling" };

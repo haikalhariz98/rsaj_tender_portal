@@ -40,16 +40,12 @@ export function seriesWrites(src: string): string[] {
 /// Who may do what to a series besides the issuer and the editor, and why. A verb not listed for a file is a failure.
 const SEEDERS: Readonly<Record<string, { verbs: readonly string[]; why: string }>> = {
   // Phase 1d (ADR 0034 D11): the demo wipe is retired, so neither loader removes a series any more; deleteMany is no longer allowed.
-  "prisma/demo.ts": { verbs: ["createMany"], why: "seeds the demo's series" },
-  "prisma/demo-award.ts": { verbs: ["create"], why: "seeds the demo's award series" },
   "prisma/demo-evaluation.ts": { verbs: ["create"], why: "seeds the demo's evaluation-report series" },
   "prisma/demo-suppliers.ts": { verbs: ["create"], why: "seeds the demo's supplier series" },
-  "prisma/demo-lifecycle.ts": { verbs: ["create", "update"], why: "seeds the variation series, then raises serials the demo took past what the portal would issue (never back, raiseSeries)" },
-  // Phase 2 close-out stage A: the contract matters' series, created once where the demo has none (prisma/demo-time.ts).
-  "prisma/demo-time.ts": { verbs: ["create"], why: "seeds the demo's contract-matter series" },
   // Phase 2 close-out: the database tests' contract fixture gives each test organisation its certificate series (only *.db.test.ts files import it).
   "src/lib/test-db/contract.fixture.ts": { verbs: ["create"], why: "seeds a test organisation's certificate series" },
-  "prisma/demo-series.ts": { verbs: ["update", "alias"], why: "raiseSeries: moves a series on to a serial a loaded part took, never back; its parameter is typed Pick<PrismaClient, \"numberingSeries\"> (the alias)" },
+  // 2026-10-30: demo.ts, demo-award.ts, demo-lifecycle.ts and demo-time.ts seed and raise their series through it.
+  "prisma/demo-series.ts": { verbs: ["create", "update", "alias"], why: "putSeries seeds a demo series, or puts the demo's values on the one the generic starter pack made at setup (never moving its serial back); raiseSeries moves a series on to a serial a loaded part took, never back; the parameters are typed Pick<PrismaClient, \"numberingSeries\"> (the alias)" },
   "scripts/check-numbering-concurrency.ts": { verbs: ["create", "delete"], why: "makes and removes its own temporary series" },
   "src/lib/starter/apply.ts": { verbs: ["create"], why: "a starter pack seeds series only into an organisation with none (ADR 0043 D1); it never advances one" },
 };

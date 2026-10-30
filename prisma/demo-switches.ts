@@ -61,7 +61,8 @@ async function writeScopeSwitches(db: Db, organisationId: string, now: Date, byt
 
   // The upload rules the demonstration set accept the two Office types.
   const store = await db.documentStorePolicy.findUnique({ where: { organisationId } });
-  if (store && store.id === DEMO_POLICY_ID) {
+  // The demo's own, or the starter pack's row the demo put its rules on (demo-documents.ts), which files project documents in demo_dc1.
+  if (store && (store.id === DEMO_POLICY_ID || store.projectDocumentClassId === `${P}dc1`)) {
     const want = [XLSX_TYPE, DOCX_TYPE].filter((t) => !store.allowedMediaTypes.includes(t));
     if (want.length) {
       await db.documentStorePolicy.update({ where: { id: store.id }, data: { allowedMediaTypes: [...store.allowedMediaTypes, ...want] } });
@@ -85,7 +86,8 @@ async function writeScopeSwitches(db: Db, organisationId: string, now: Date, byt
   // exercise below is the demonstration's online sale. The simulator is a demonstration: it must be switched off before go-live (backlog).
   // Only the demonstration's own policy row (as the upload rules above): a customer's own window policy is never given a payment simulator by a load.
   const wpRow = await db.windowPolicy.findUnique({ where: { organisationId } });
-  const wp = wpRow && wpRow.id === `${P}wp1` ? wpRow : null;
+  // The demo's own, or the starter pack's row the demo put its policy on (demo-window.ts), which reads the demo's calendar.
+  const wp = wpRow && (wpRow.id === `${P}wp1` || wpRow.calendarId === `${P}hol1`) ? wpRow : null;
   if (wp && (wp.documentSaleMode == null || wp.electronicDocumentRelease == null || wp.paymentSimulatorOn == null || wp.simulatedPaymentMethods.length === 0)) {
     const to = {
       documentSaleMode: wp.documentSaleMode ?? ("COUNTER" as const),

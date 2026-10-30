@@ -426,15 +426,17 @@ async function loadConfiguration(db: Db, organisationId: string, at: Date, today
     }
   }
 
-  // The policy, only where the organisation has none (its own would be the customer's).
-  if (!(await db.windowPolicy.findUnique({ where: { organisationId } }))) {
+  // The policy, only where the organisation has none (its own would be the customer's), or holds only the generic starter pack's calendar (no date rules).
+  const heldPolicy = await db.windowPolicy.findUnique({ where: { organisationId }, select: { id: true, dateRulesProvenance: true } });
+  if (!heldPolicy || heldPolicy.dateRulesProvenance == null) {
     const channels = await db.publicationChannel.findMany({ where: { organisationId }, select: { id: true, retiredOn: true } });
     const calendars = await db.holidayCalendar.findMany({ where: { organisationId }, select: { id: true, retiredOn: true } });
     const templates = await db.documentTemplate.findMany({ where: { organisationId }, select: { id: true } });
     const fs = policyFaults({ ...POLICY, templateIds: [POLICY.noticeTemplateId, POLICY.invitationTemplateId, POLICY.addendumTemplateId] }, { channels: channels.map((c) => ({ id: c.id, retiredOn: c.retiredOn ? storedDay(c.retiredOn) : null })), calendars: calendars.map((c) => ({ id: c.id, retiredOn: c.retiredOn ? storedDay(c.retiredOn) : null })), templateIds: templates.map((t) => t.id), today });
     if (fs.length) throw new Error(`Demo window policy refused: ${fs.map((f) => f.code).join(", ")}`);
-    await db.windowPolicy.create({ data: { id: POLICY_ID, organisationId, ...POLICY } });
-    entry("WindowPolicy", POLICY_ID, "Invitation controls · policy", "CREATE", after(at, 4), diffFields(null, {
+    if (heldPolicy) await db.windowPolicy.update({ where: { id: heldPolicy.id }, data: POLICY });
+    else await db.windowPolicy.create({ data: { id: POLICY_ID, organisationId, ...POLICY } });
+    entry("WindowPolicy", heldPolicy?.id ?? POLICY_ID, "Invitation controls · policy", heldPolicy ? "UPDATE" : "CREATE", after(at, 4), diffFields(null, {
       minimumDays: 7, targetDays: 10, newspaperMargin: 2, purchaseCutoffDays: 2, dateRulesFrom: "Assumed", defaultClosingTime: "15:00", closingTimeFrom: "Assumed",
       advertisementDay: DAY_RULE_LABEL.LATEST_REQUIRED_CHANNEL, namedChannel: null, dayRuleFrom: "Assumed", holidayCalendar: cal.name, mandatoryAttendance: "Permitted", attendanceFrom: "Assumed",
       noticeTemplate: TEMPLATES[0].nameEn, invitationTemplate: TEMPLATES[1].nameEn, addendumTemplate: TEMPLATES[2].nameEn, sourceCited: SOURCE,
