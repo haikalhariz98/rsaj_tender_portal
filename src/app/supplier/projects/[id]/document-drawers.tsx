@@ -98,6 +98,8 @@ const NO_ERRORS: Errors = {};
 export function Frame({ title, heading, error, errors = NO_ERRORS, busy, holdClose = false, dirty = false, icon, onClose, onSend, canSend, sendLabel, children }: { title: string; heading: string; error: string | null; errors?: Errors; busy: boolean; holdClose?: boolean; dirty?: boolean; icon?: ReactNode; onClose: () => void; onSend: () => void; canSend: boolean; sendLabel: string; children: ReactNode }) {
   const guard = useDiscardGuard(dirty, onClose);
   const body = useRef<HTMLDivElement>(null);
+  // Send is never greyed: pressing it while something is missing says so here and takes the focus to the first empty required field.
+  const [nudged, setNudged] = useState(false);
   useEscape(!guard.asking, busy || holdClose, guard.request);
   useFocusFirstError(body, errors);
   return (
@@ -110,7 +112,10 @@ export function Frame({ title, heading, error, errors = NO_ERRORS, busy, holdClo
             className="flex min-h-0 flex-1 flex-col"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!busy) onSend();
+              if (busy) return;
+              if (canSend) return onSend();
+              setNudged(true);
+              [...(body.current?.querySelectorAll<HTMLInputElement>('[required], [aria-required="true"]') ?? [])].find((el) => el.value === "")?.focus();
             }}
           >
             <DrawerHeader icon={icon ?? <FilesIcon size={17} />} title={title} onClose={() => !busy && !holdClose && guard.request()} />
@@ -120,13 +125,18 @@ export function Frame({ title, heading, error, errors = NO_ERRORS, busy, holdClo
                   {error}
                 </Callout>
               )}
+              {nudged && !canSend && !error && (
+                <Callout tone="err" className="mb-3">
+                  Not ready to send yet. Complete the required fields.
+                </Callout>
+              )}
               <div className="flex flex-col gap-4">{children}</div>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
               <Button variant="ghost" onClick={guard.request} disabled={busy}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" pending={busy} disabled={!canSend}>
+              <Button type="submit" variant="primary" pending={busy}>
                 {sendLabel}
               </Button>
             </div>

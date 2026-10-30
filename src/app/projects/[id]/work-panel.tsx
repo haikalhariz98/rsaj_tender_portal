@@ -21,6 +21,8 @@ import { typeOfferable } from "@/lib/work/fields";
 import { filtersOf, parseWorkQuery, reset, workHref, workServerMode, type WorkQuery } from "@/lib/work/href";
 import { itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, NO_WORK_WORDS, STATUS_WORDS, VIEW_EMPTY_WORDS, viewWords, whoCanWords, type WhoNames } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
+import { linkedAddress, linkedMovesWhen, parseLinkedAddress, pinnedCards } from "@/lib/work/linked";
+import { loadLinkedCards } from "@/lib/work/linked/load";
 import { assigneeOptions, contractorHasActiveAccount, contractorNameOf, linkOptions, loadBoard, loadWorkContext, loadWorkList, namesOf, WORK_SORT_KEYS, type WorkCardRow, type WorkSortKey } from "@/lib/work/load";
 import { CONTRACTOR_ASSIGNEE } from "@/lib/work/fields";
 import { personIdOf } from "@/lib/work/party";
@@ -30,6 +32,7 @@ import { WORK_VIEWS } from "@/lib/work/views";
 import { moveWorkItem, editWorkField } from "./work-actions";
 import { NewItemDrawer, QuickAdd } from "./work-editors";
 import { WorkItemPanel } from "./work-item-panel";
+import { LinkedCardPanel, LinkedPinned } from "./work-linked";
 import { WorkItemSkeleton } from "./work-skeleton";
 import { closedWords, editWhy, WORK_PANEL_PAD, IMPACT_OPTIONS, PRIORITY_OPTIONS, QUICK_TYPES, SEVERITY_OPTIONS, shareConfirmWords, STATUS_OPTIONS, TYPE_OPTIONS } from "./work-shared";
 
@@ -62,6 +65,11 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
   const noAccount = !(await contractorHasActiveAccount(db, l));
   const who = (r: WorkCardRow): WhoNames => ({ raiser: r.raisedByName, assignee: r.assigneeName, lead: ctx.lead.roleLabel ? { roleLabel: ctx.lead.roleLabel, names: ctx.lead.ids.map((id) => leadNames.get(id) ?? "Someone") } : null });
   const at = (change: Partial<WorkQuery>) => workHref(contractId, q, change);
+  // Linked cards (formal acts in progress) are not items, so no item filter or search applies to them: they show only when none is set (Open view), or when one is open.
+  const unfiltered = q.view === "open" && !q.type && !q.assignee && !q.priority && !q.shared && !q.q;
+  const opened = parseLinkedAddress(q.act);
+  const linked = unfiltered || opened ? await loadLinkedCards({ organisationId: org, contractId, timeZone: ctx.timeZone, today: ctx.today }) : [];
+  const shownLinked = unfiltered ? linked : [];
 
   // ---------------------------------------------------------------- the toolbar, the same above the List and the Board
   const views = (
@@ -122,7 +130,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
     );
   } else if (q.mode === "board") {
     const columns = await loadBoard(base);
-    const cards: BoardCard[] = columns.flatMap((c) => c.items).map((r) => {
+    const cards: BoardCard[] = columns.flatMap((c) => c.items).map((r): BoardCard => {
       const m = cardMoves(r, reader, { contractOpen: ctx.open, who: who(r) });
       const late = lateness(r.dueOn, r.status, ctx.today);
       const lateText = latenessWords(late);
@@ -144,10 +152,11 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
         fields: { contractId, itemId: r.id },
       };
     });
+    for (const a of shownLinked) cards.push({ id: `act:${a.kind}:${a.id}`, columnId: a.column, title: a.label, sub: a.stateWords, href: at({ item: null, act: linkedAddress(a.kind, a.id) }), moves: [], stuckWhy: linkedMovesWhen(a.kind), linked: true, fields: {} });
     const cols: BoardColumn[] = columns.map((c) => ({
       id: c.column,
       label: STATUS_WORDS[c.column].en,
-      total: c.total,
+      total: c.total + shownLinked.filter((a) => a.column === c.column).length,
       moreHref: at({ mode: "list", ...reset }),
       olderHref: c.column === "DONE" ? at({ mode: "list", view: "done", ...reset }) : undefined,
       olderCount: c.column === "DONE" ? c.older : undefined,
@@ -202,6 +211,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
     const narrowed = q.view !== "open" || q.type || q.assignee || q.priority || q.shared || q.q;
     body = (
       <>
+        {q.page === 0 && unfiltered && <LinkedPinned {...pinnedCards(linked)} hrefOf={(a) => at({ item: null, act: linkedAddress(a.kind, a.id) })} />}
         {ctx.open && <QuickAdd contractId={contractId} itemHrefBase={itemHrefBase} types={QUICK_TYPES.filter((t) => typeOfferable(t.value, ctx.contractStatus))} />}
         <DataList
           flat
@@ -211,7 +221,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
           emptyTitle={narrowed ? VIEW_EMPTY_WORDS[q.view].en : NO_WORK_WORDS.en}
           toolbarLead={views}
           toolbarFilters={filters}
-          stackBelow={q.item ? "2xl" : "xl"}
+          stackBelow={q.item || q.act ? "2xl" : "xl"}
           columns={columns}
           rows={rows}
           server={workServerMode(contractId, q, { total, page, columns: { item: "item", type: "type", status: "status", assignee: "assignee", due: "due", priority: "priority" } })}
@@ -222,7 +232,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
 
   return (
     <ActGate blocker={shut}>
-      <div className={q.item ? WORK_PANEL_PAD : undefined}>
+      <div className={q.item || opened ? WORK_PANEL_PAD : undefined}>
       <Card className="overflow-hidden">
         <CardHeader
           icon={<ClipboardIcon size={17} />}
@@ -252,9 +262,10 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
       </div>
       {q.item && (
         <Suspense key={q.item} fallback={<WorkItemSkeleton />}>
-          <WorkItemPanel l={l} ctx={ctx} hrefs={{ close: at({ item: null }), item: (ref) => at({ item: ref }) }} personId={actor.personId} address={q.item} people={people} linkOpts={linkOpts} noAccount={noAccount} />
+          <WorkItemPanel l={l} ctx={ctx} hrefs={{ close: at({ item: null, act: null }), item: (ref) => at({ item: ref }) }} personId={actor.personId} address={q.item} people={people} linkOpts={linkOpts} noAccount={noAccount} />
         </Suspense>
       )}
+      {opened && !q.item && <LinkedCardPanel contractId={contractId} card={linked.find((a) => a.kind === opened.kind && a.id === opened.id) ?? null} closeHref={at({ item: null, act: null })} />}
     </ActGate>
   );
 }

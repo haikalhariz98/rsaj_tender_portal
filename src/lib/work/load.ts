@@ -313,7 +313,7 @@ export interface WorkLinkView {
   id: string;
   /// TO: this item links to it; FROM: it links to this item. The panel shows both alike (one row is one link).
   direction: "TO" | "FROM";
-  target: { kind: "ITEM"; ref: string; title: string; status: WorkStatus } | { kind: "DOCUMENT"; id: string; title: string };
+  target: { kind: "ITEM"; ref: string; /** The reference as a screen prints it ("RFI 12"). */ label: string; title: string; status: WorkStatus } | { kind: "DOCUMENT"; id: string; title: string };
 }
 export interface WorkFileView {
   attachmentId: string;
@@ -371,7 +371,7 @@ export async function loadItem(i: { organisationId: string; contractId: string; 
     select: { id: true, versionId: true, attachedAt: true, version: { select: { originalFilename: true, withdrawnAt: true, scanState: true, recordedByPersonId: true, recordedBySupplierAccountId: true, document: { select: { title: true } } } } },
     orderBy: [{ attachedAt: "asc" }, { id: "asc" }],
   });
-  const item = (x: { type: BoardItem["type"]; number: number; title: string; status: WorkStatus }) => ({ kind: "ITEM" as const, ref: itemRef(x.type, x.number), title: x.title, status: x.status });
+  const item = (x: { type: BoardItem["type"]; number: number; title: string; status: WorkStatus }) => ({ kind: "ITEM" as const, ref: itemRef(x.type, x.number), label: itemRefText(x.type, x.number), title: x.title, status: x.status });
   return {
     card: cardOf(r, i.timeZone, await contractorOf(i)),
     description: r.description,

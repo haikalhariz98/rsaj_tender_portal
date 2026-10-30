@@ -8,6 +8,7 @@ import { Activity } from "@/components/ui/activity";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Callout } from "@/components/ui/feedback";
 import { Field, FileInput, Input, Option, Select, Textarea } from "@/components/ui/field";
 import { SUPPLIER_PROJECT_WORK_POSTS } from "@/lib/auth/routes";
@@ -176,14 +177,17 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
   const [errors, setErrors] = useState<Errors>({});
   /// What the last act did, said politely once it has.
   const [said, setSaid] = useState("");
+  /// Accepting closes the item for good on this side (the contractor cannot reopen), so it asks first.
+  const [confirmAccept, setConfirmAccept] = useState(false);
   const staged = useRef<Staged>(new Map());
   const area = useRef<HTMLDivElement>(null);
   const heading = useId();
   const f = useId();
-  const close = () => router.replace(workHref(contractId), { scroll: false });
+  // One close for both sides (the staff panel pushes too): the address is history, so Back reopens the item.
+  const close = () => router.push(workHref(contractId), { scroll: false });
   const answerChanged = answer.trim() !== item.answer.trim();
   const guard = useDiscardGuard(reply.trim() !== "" || answerChanged || files.length > 0, close);
-  useEscape(!guard.asking, busy, guard.request);
+  useEscape(!guard.asking && !confirmAccept, busy, guard.request);
   useFocusFirstError(area, errors);
   const act = canAct && !!token;
   // WSEC-5: a closed item takes no reply, no file and no answer, so those controls are not drawn at all (no control that is always refused).
@@ -262,7 +266,7 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
                   Ask again
                 </Button>
               )}
-              <Button variant="primary" disabled={busy} pending={doing === "move"} onClick={() => (move ? run("move", SUPPLIER_PROJECT_WORK_POSTS.move, moveBody(contractId, item.ref, move, item.status), move === "SEND_FOR_CHECKING" ? "Sent for checking." : "Answer accepted.") : document.getElementById(replyId)?.focus())}>
+              <Button variant="primary" disabled={busy} pending={doing === "move"} onClick={() => (move === "ACCEPT_ANSWER" ? setConfirmAccept(true) : move ? run("move", SUPPLIER_PROJECT_WORK_POSTS.move, moveBody(contractId, item.ref, move, item.status), "Sent for checking.") : document.getElementById(replyId)?.focus())}>
                 {item.actionLabel}
               </Button>
             </div>
@@ -372,6 +376,19 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
         </aside>
       </div>
       {guard.dialog}
+      {confirmAccept && (
+        <ConfirmDialog
+          question={`Accept the answer to ${item.label}?`}
+          words="This closes it. You can't reopen it; if something is still open, raise a new item."
+          confirmLabel="Accept answer"
+          cancelLabel="Not yet"
+          onCancel={() => setConfirmAccept(false)}
+          onConfirm={() => {
+            setConfirmAccept(false);
+            run("move", SUPPLIER_PROJECT_WORK_POSTS.move, moveBody(contractId, item.ref, "ACCEPT_ANSWER", item.status), "Answer accepted.");
+          }}
+        />
+      )}
     </>
   );
 }

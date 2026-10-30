@@ -101,7 +101,6 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
   const wall = detail.happenedAt && ctx.timeZone ? `${dayOf(detail.happenedAt, ctx.timeZone)}T${clockTimeIn(detail.happenedAt, ctx.timeZone)}` : "";
   const happenedWhy = why ?? (ctx.timeZone ? undefined : LATE_NOT_JUDGED_WORDS.en);
   const feed: ActivityEntry[] = activity.map((a) => ({ id: a.id, kind: a.kind === "COMMENT" ? "comment" : "event", who: a.who, at: formatOrgDateTime(a.at, ctx.timeZone), iso: a.at.toISOString(), text: a.kind === "COMMENT" ? a.body : a.text, internal: shared && a.kind === "COMMENT" && a.internal }));
-  const refLabel = (r: string) => r.replace("-", " ");
 
   return (
     <WorkPanelShell
@@ -221,7 +220,7 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
                 {k.target.kind === "ITEM" ? (
                   <>
                     <Link href={hrefs.item(k.target.ref)} scroll={false} className="font-semibold">
-                      {refLabel(k.target.ref)} · {k.target.title}
+                      {k.target.label} · {k.target.title}
                     </Link>
                     <Badge>{STATUS_WORDS[k.target.status].en}</Badge>
                   </>
@@ -230,7 +229,7 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
                     {k.target.title}
                   </Link>
                 )}
-                {editable && <UnlinkButton {...base} linkId={k.id} what={k.target.kind === "ITEM" ? refLabel(k.target.ref) : k.target.title} />}
+                {editable && <UnlinkButton {...base} linkId={k.id} what={k.target.kind === "ITEM" ? k.target.label : k.target.title} />}
               </li>
             ))}
           </ul>

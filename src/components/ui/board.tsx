@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useMemo, useOptimistic, useRef, useState, useTransition, type KeyboardEvent } from "react";
 
+import { LinkIcon } from "@/components/icons";
 import { useSay } from "@/components/i18n/language-context";
 import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
 
@@ -32,6 +33,8 @@ export interface BoardCard {
   /// Column ids this card may move into. Empty: it cannot move, and `stuckWhy` says why (an info popover on the card).
   moves: string[];
   stuckWhy?: string;
+  /// Drawn from another record (a formal act): a dashed border and the chain icon. It never moves, so `moves` is empty and `stuckWhy` says when it does.
+  linked?: boolean;
   /// Sent with the move: the card's own identifiers (item id, the type…), beside `from` and `to`.
   fields: Record<string, string>;
 }
@@ -198,8 +201,9 @@ export function Board({
                       dragging.current = null;
                       setDrag(null);
                     }}
-                    className="relative rounded-xl border border-line/70 bg-surface p-3 shadow-card">
+                    className={cx("relative rounded-xl border bg-surface p-3", c.linked ? "border-dashed border-ink-3/60" : "border-line/70 shadow-card")}>
                     <Link href={c.href} scroll={false} draggable={false} aria-describedby={refused?.card.id === c.id ? refusedId : undefined} className="block pr-7 text-[14px] font-semibold break-words text-ink no-underline hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+                      {c.linked && <LinkIcon size={13} className="mr-1.5 inline align-[-1px] text-ink-3" />}
                       {c.title}
                     </Link>
                     {c.sub && <div className="text-[12.5px] break-words text-ink-3">{c.sub}</div>}

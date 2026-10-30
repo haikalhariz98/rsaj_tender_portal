@@ -21,6 +21,14 @@ describe("the Work address", () => {
     expect(parseWorkQuery(Object.fromEntries(new URL(`http://x${workHref("c1", q)}`).searchParams), SORTS)).toEqual(q);
     expect(workHref("c1", q, { view: "open", ...reset })).not.toMatch(/page=|item=/);
   });
+  it("a linked card's panel is the act address; an item wins, a bad one is dropped, and reset closes it", () => {
+    const q = parseWorkQuery({ act: "VARIATION:abc", mode: "board" }, SORTS);
+    expect(q).toMatchObject({ act: "VARIATION:abc", item: null });
+    expect(parseWorkQuery(Object.fromEntries(new URL(`http://x${workHref("c1", q)}`).searchParams), SORTS)).toEqual(q);
+    expect(parseWorkQuery({ act: "VARIATION:abc", item: "RFI-1" }, SORTS)).toMatchObject({ act: null, item: "RFI-1" });
+    expect(parseWorkQuery({ act: "BOGUS:abc" }, SORTS).act).toBeNull();
+    expect(workHref("c1", q, { view: "late", ...reset })).not.toContain("act=");
+  });
   it("the server mode sorts ascending, then descending, then not at all", () => {
     const cols = { due: "due" };
     const at = (sp: Record<string, string>) => workServerMode("c1", parseWorkQuery(sp, SORTS), { total: 1, page: 0, columns: cols }).sortHrefs.due;

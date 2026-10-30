@@ -354,6 +354,7 @@ const GATED_BY_PARENT: Readonly<Record<string, string>> = {
   OrderPanel: "VariationPage",
   // Workspace 3a step 5: the Work tab's pieces, each rendered by its parent inside WorkPanel's WORK_ITEM gate; the controls read the gate themselves (useActGate).
   WorkItemPanel: "WorkPanel",
+  LinkedCardPanel: "WorkPanel", // 3b-ii step 9 (flagged): read only, a link to the register, whose own page gates its acts.
   QuickAdd: "WorkPanel",
   WorkPanelShell: "WorkItemPanel",
   PanelHead: "WorkPanelShell",

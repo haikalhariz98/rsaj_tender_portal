@@ -8,6 +8,7 @@
 import type { ServerMode } from "@/components/data-list";
 import { PAGE_SIZES } from "@/lib/paging";
 
+import { parseLinkedAddress } from "./linked";
 import { parseItemRef } from "./number";
 import { parseWorkFilters, parseWorkView } from "./views";
 import type { WorkItemType, WorkPriority, WorkView } from "./types";
@@ -30,6 +31,8 @@ export interface WorkQuery {
   dir: "asc" | "desc";
   /// The open item, as the address writes it ("RFI-12"); null when none, or when the word is not a reference.
   item: string | null;
+  /// The open linked card ("VARIATION:id"), which has no reference of its own; null when none. Never held together with `item`.
+  act: string | null;
   stage: string | null;
 }
 
@@ -55,6 +58,7 @@ export function parseWorkQuery(sp: Params, sorts: readonly string[]): WorkQuery 
     sort: sort && sorts.includes(sort) ? sort : null,
     dir: one(sp.dir) === "asc" ? "asc" : "desc",
     item: parseItemRef(item) ? item : null,
+    act: !parseItemRef(item) && parseLinkedAddress(one(sp.act)) ? (one(sp.act) ?? null) : null,
     stage: one(sp.stage) ?? null,
   };
 }
@@ -82,11 +86,12 @@ export function workHref(contractId: string, q: WorkQuery, change: Partial<WorkQ
   if (n.page) p.set("page", String(n.page));
   if (n.size !== 25) p.set("size", String(n.size));
   if (n.item) p.set("item", n.item);
+  else if (n.act) p.set("act", n.act);
   return `/projects/${encodeURIComponent(contractId)}?${p.toString()}`;
 }
 
 /// A change that narrows or reorders: back to the first page, panel closed.
-export const reset: Partial<WorkQuery> = { page: 0, item: null };
+export const reset: Partial<WorkQuery> = { page: 0, item: null, act: null };
 
 /// The list's `server` prop. `columns` maps a column key to its sort key; a column not there is not sortable.
 export function workServerMode(contractId: string, q: WorkQuery, o: { total: number; page: number; columns: Record<string, string> }): ServerMode {
@@ -114,8 +119,8 @@ export function workServerMode(contractId: string, q: WorkQuery, o: { total: num
     total: o.total,
     page: o.page,
     size: q.size,
-    prevHref: o.page > 0 ? workHref(contractId, q, { page: o.page - 1, item: null }) : null,
-    nextHref: (o.page + 1) * q.size < o.total ? workHref(contractId, q, { page: o.page + 1, item: null }) : null,
+    prevHref: o.page > 0 ? workHref(contractId, q, { page: o.page - 1, item: null, act: null }) : null,
+    nextHref: (o.page + 1) * q.size < o.total ? workHref(contractId, q, { page: o.page + 1, item: null, act: null }) : null,
     sizeHrefs: Object.fromEntries(PAGE_SIZES.map((n) => [n, workHref(contractId, q, { size: n, ...reset })])) as ServerMode["sizeHrefs"],
     sortHrefs,
     sorted: sortedColumn ? { key: sortedColumn, dir: q.dir } : null,
