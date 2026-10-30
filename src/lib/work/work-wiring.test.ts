@@ -11,7 +11,8 @@ import { lex } from "@/lib/scan/source";
  */
 
 const ROOT = path.resolve(__dirname, "../../..");
-const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8");
+// Normalised: a Windows checkout may hold CRLF though the repo stores LF.
+const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8").replace(/\r\n/g, "\n");
 const store = read("src/lib/work/store.ts");
 const actions = read("src/app/projects/[id]/work-actions.ts");
 const fn = (src: string, name: string) => {
