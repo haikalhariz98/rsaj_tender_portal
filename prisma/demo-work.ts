@@ -19,10 +19,11 @@
  *
  * demo_con15 (practically complete, Work still open) is NOT the contract WS-22 asks for (executed, not practically complete: only demo_con3 is); it holds the six types a Defect refusal leaves (`loadSecond`).
  * Accepted by the orchestrator (decisions log, 2026-10-30): WS-22's "two executed, not-yet-PC contracts" is met by demo_con3 (all seven types) and demo_con15
- * (practically complete, so a Defect is refused, OQ-4); a second ACTIVE demo contract is not built. `npm run demo:work` adds this round to a loaded database that holds none.
+ * (practically complete, so a Defect is refused, OQ-4); a second ACTIVE demo contract is not built. `npm run demo:work` adds whichever round a loaded database does not hold yet.
  *
- * Ids: WorkItem demo_wki*, WorkItemComment demo_wkc*, WorkItemLink demo_wkl*, StaffNotice demo_wkn* (ACT_PREFIX; grepped free). Runs once: a contract
- * that already holds a work item is left alone.
+ * Ids: WorkItem demo_wki*, WorkItemComment demo_wkc*, WorkItemLink demo_wkl*, StaffNotice demo_wkn*, ProjectTeamMember demo_wtm*, DocumentAttachment demo_wka*, and the
+ * staged files demo_wkd* (ACT_PREFIX; grepped free). Each round runs once: the 3a rounds where demo_con3 holds no work item, the 3b round (`loadSharing`, the contractor's
+ * side) where it has no Project team and no shared item.
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
@@ -71,6 +72,7 @@ async function run(organisationId: string, contractId: string, when: string, wha
 /// The acts on one contract, by the demo people.
 function on(organisationId: string, contractId: string) {
   const ids = new Map<string, string>();
+  const refs = new Map<string, string>();
   const id = (key: string) => ids.get(key) ?? (() => { throw new Error(`demo work: no item ${key}`); })();
   return {
     id,
@@ -82,7 +84,9 @@ function on(organisationId: string, contractId: string) {
         for (const [k, v] of Object.entries(f)) form.set(k, v);
         const n = parseNewItem(form, c.l.org.timeZone);
         if (!n) throw new Error(`demo work: ${key}'s form does not read`);
-        ids.set(key, (await createItem(c, who, n, a!)).id);
+        const made = await createItem(c, who, n, a!);
+        ids.set(key, made.id);
+        refs.set(key, made.ref);
       });
     },
     async edit(when: string, key: string, by: string, field: string, value: string) {
@@ -101,9 +105,28 @@ function on(organisationId: string, contractId: string) {
         moveItem(c, who, { itemId: id(key), expectedFrom: from as never, to: to as never, ...extra }, a),
       );
     },
-    async comment(when: string, key: string, by: string, body: string) {
+    async comment(when: string, key: string, by: string, body: string, audience: "REPLY" | "INTERNAL" | null = null) {
       const { comment } = await import("../src/lib/work/store");
-      await run(organisationId, contractId, when, `${key} comment`, by, "WorkItemComment.person", (c, who, a) => comment(c, who, { itemId: id(key), body, audience: null }, a!));
+      await run(organisationId, contractId, when, `${key} comment`, by, "WorkItemComment.person", (c, who, a) => comment(c, who, { itemId: id(key), body, audience }, a!));
+    },
+    async share(when: string, key: string, by: string) {
+      const { shareItem } = await import("../src/lib/work/store");
+      await run(organisationId, contractId, when, `${key} share`, by, null, (c, who) => shareItem(c, who, { itemId: id(key), share: true }));
+    },
+    async attach(when: string, key: string, by: string, versionId: string) {
+      const { attachFiles } = await import("../src/lib/work/store");
+      await run(organisationId, contractId, when, `${key} attach`, by, null, (c, who) => attachFiles(c, who, { itemId: id(key), stagedVersionIds: [versionId] }));
+    },
+    async team(when: string, by: string, role: import("../src/lib/work/types").TeamRole, personId: string) {
+      const { addTeamMember } = await import("../src/lib/work/team-store");
+      await run(organisationId, contractId, when, `team ${role}`, by, "ProjectTeamMember.addedBy", (c, who, a) => addTeamMember(c, who, { role, personId }, a!));
+    },
+    /// The item's reference as the portal addresses it (RFI-3), for the contractor's acts.
+    ref: (key: string) => refs.get(key) ?? (() => { throw new Error(`demo work: no item ${key}`); })(),
+    /// Remember an item the contractor raised, under a key, for the staff acts that follow.
+    keep(key: string, made: { id: string; ref: string }) {
+      ids.set(key, made.id);
+      refs.set(key, made.ref);
     },
     async link(when: string, key: string, by: string, to: { item?: string; documentId?: string }) {
       const { link } = await import("../src/lib/work/store");
@@ -124,7 +147,13 @@ export async function loadWorkDemo(db: Db, organisationId: string): Promise<{ no
   const dayAgo = (n: number) => dayPlus(today, -n);
 
   if (!(await db.contract.findUnique({ where: { id: CON }, select: { id: true } }))) return { notes: [`${CON} is not loaded: the work demo is skipped`] };
-  if ((await db.workItem.count({ where: { contractId: CON } })) > 0) return { notes: [] };
+  const first = (await db.workItem.count({ where: { contractId: CON } })) > 0 ? [] : await loadFirst(db, organisationId, today, ago, dayAgo);
+  return { notes: [...first, ...(await loadSharing(db, organisationId, today, ago))] };
+}
+
+/// The two 3a rounds on demo_con3 (and demo_con15's), once: only where demo_con3 holds no work item yet.
+async function loadFirst(db: Db, organisationId: string, today: string, ago: (n: number, hhmm: string) => string, dayAgo: (n: number) => string): Promise<string[]> {
+  const { dayPlus } = await import("../src/lib/dates");
   const w = on(organisationId, CON);
   {
     // An RFI answered, sent for review by its assignee and closed by its raiser: Done inside the window. Linked to the site instruction it led to.
@@ -180,7 +209,7 @@ export async function loadWorkDemo(db: Db, organisationId: string): Promise<{ no
     await w.comment(ago(2, "10:00"), "task2", people.eng, "Still needs someone: the quantity surveyor is on leave.");
     await w.link(ago(2, "10:05"), "task2", people.eng, { documentId: `${P}sic1` });
   }
-  return { notes: [`${CON}: work items of every type, twice`, ...(await loadSecond(db, organisationId, today, ago, dayAgo))] };
+  return [`${CON}: work items of every type, twice`, ...(await loadSecond(db, organisationId, today, ago, dayAgo))];
 }
 
 /// Six of the seven types on the second contract (no Defect: it is past practical completion).
@@ -208,14 +237,111 @@ async function loadSecond(db: Db, organisationId: string, today: string, ago: (n
   return [`${CON2}: work items of six types (no Defect after practical completion)`];
 }
 
+/// The contractor's acts, through the portal's own cores (`src/lib/work/portal-store.ts`) on the demo clock, as the demo contractor's portal account. A refusal stops the load.
+function asContractor(actor: import("../src/lib/auth/types").SupplierActor) {
+  return async <T>(when: string, what: string, fn: (a: typeof actor) => Promise<T>): Promise<T> => {
+    const { WorkRefused } = await import("../src/lib/work/store");
+    let out: T | undefined;
+    await act(when, `work: contractor ${what}`, async () => {
+      try {
+        out = await fn(actor);
+        return { ok: true };
+      } catch (e) {
+        if (e instanceof WorkRefused) return { ok: false, message: e.words };
+        throw e;
+      }
+    }, {});
+    return out as T;
+  };
+}
+
+/**
+ * Workspace 3b-i L3 (plan workspace-3b-build-plan.md, "L3"): the contractor's side of Work on demo_con3. A Project team with a Project manager; an instruction raised unshared
+ * with a file, then shared, then given a second file (the first stays staff-only, the contractor sees the second), with a Reply and an Internal note and the contractor's Reply;
+ * an Action assigned to the contractor when raised, and an RFI first held by a person and then moved to the contractor, who writes its Answer and sends it for checking; an RFI
+ * and a near miss raised by the contractor, the RFI answered by the Contract administrator it was routed to and left In review for the contractor to accept. The 3a items stay
+ * unshared. Staff acts run through the staff cores, the contractor's through the portal cores, as the awardee's portal account (`demo.ctr5`, waiting for activation until
+ * `npm run demo:accounts`: the cores judge the supplier and its standing, not the session). The two files are staged as the upload route stages them (rows, as every demo
+ * upload is) and pinned by `attachFiles`.
+ *
+ * Runs once: everything is checked before the first act, and the round is skipped (with its reason) where demo_con3 already has a Project team or a shared item, so a team or
+ * a share made by hand is never written over and a second run adds nothing.
+ */
+async function loadSharing(db: Db, organisationId: string, today: string, ago: (n: number, hhmm: string) => string): Promise<string[]> {
+  const { dayPlus } = await import("../src/lib/dates");
+  const { loadContract } = await import("../src/lib/contract/repo");
+  const { leadOf } = await import("../src/lib/work/load");
+  const { answerAsContractor, moveAsContractor, raiseAsContractor, replyAsContractor } = await import("../src/lib/work/portal-store");
+  const { STAGED_FOR_WORK_ITEM } = await import("../src/lib/documents/staged-for");
+  const { demoPdf, writeDemoDocs } = await import("./demo-documents");
+  const skip = (why: string) => [`${CON}: the sharing round is skipped (${why})`];
+
+  if ((await db.projectTeamMember.count({ where: { contractId: CON } })) > 0 || (await db.workItem.count({ where: { contractId: CON, sharedAt: { not: null } } })) > 0) return skip("it already has a Project team or a shared item");
+  const l = await loadContract(organisationId, CON);
+  if (!l?.award.vendorId) return skip("its award names no supplier on the register");
+  const account = await db.supplierAccount.findFirst({ where: { organisationId, supplierId: l.award.vendorId }, orderBy: { id: "asc" }, select: { id: true, loginName: true, status: true, contact: { select: { id: true, name: true } }, supplier: { select: { registeredName: true } } } });
+  if (!account) return skip("its contractor has no portal account");
+  const policy = await db.documentStorePolicy.findUnique({ where: { organisationId }, select: { projectDocumentClass: { select: { id: true, nameEn: true, classification: true } } } });
+  const fileClass = policy?.projectDocumentClass;
+  if (!fileClass || fileClass.classification === null || fileClass.classification === "SULIT") return skip("the class for project files is not set, or is not one a contractor may download");
+  const lead = (await leadOf(l, today)).ids[0] ?? people.eng;
+
+  const w = on(organisationId, CON);
+  const contractor = asContractor({
+    kind: "SUPPLIER", accountId: account.id, sessionId: "demo loader", contactId: account.contact.id, displayName: account.contact.name, supplierId: l.award.vendorId, supplierName: account.supplier.registeredName,
+    loginName: account.loginName, organisationId, organisationTimeZone: l.org.timeZone, stepUpAt: null, sessionCreatedAt: new Date(), sourceAddress: null, mustChangePassword: false, resetNoticePending: false,
+  });
+  // A wall clock in the organisation's zone (the demo's, UTC+8 with no daylight saving) as the UTC wall clock `writeDemoDocs` reads.
+  const utc = (local: string) => new Date(new Date(`${local}:00.000Z`).getTime() - 8 * 3600_000).toISOString().slice(0, 16);
+  const engName = (await db.person.findUniqueOrThrow({ where: { id: people.eng }, select: { name: true } })).name;
+  const stage = async (key: string, title: string, local: string, lines: string[]) => {
+    const docId = `${P}wkd${key}`;
+    const entry = await writeDemoDocs(db, organisationId, [{ id: docId, title, classId: fileClass.id, className: fileClass.nameEn, classification: fileClass.classification, createdAt: utc(local), stagedFor: STAGED_FOR_WORK_ITEM, versions: [{ id: `${docId}v1`, n: 1, bytes: demoPdf(lines), mediaType: "application/pdf", filename: `${title}.pdf`, receivedOn: null, storedAt: utc(local) }], attachments: [] }], `${P}wkdau${key}_`, { id: people.eng, name: engName });
+    await entry.flush();
+    return `${docId}v1`;
+  };
+
+  // The Project team: the lead names the Project manager, who is the lead from then on and names the Contract administrator a contractor's question is routed to, and a
+  // Site engineer.
+  await w.team(ago(5, "08:30"), lead, "PROJECT_MANAGER", people.eng);
+  await w.team(ago(5, "08:35"), people.eng, "CONTRACT_ADMINISTRATOR", people.bala);
+  await w.team(ago(5, "08:40"), people.eng, "SITE_ENGINEER", people.chen);
+
+  // An instruction raised unshared, with a file only staff ever see; then shared, and a second file the contractor does see. A Reply, an Internal note and the contractor's Reply.
+  await w.raise(ago(4, "08:30"), "siShared", people.eng, { type: "SITE_INSTRUCTION", title: "Traffic signs for the road closure at the river crossing", description: "Advance warning signs 100 m either side, as the revised traffic management plan shows.", dueOn: dayPlus(today, 2), assigneePersonId: people.chen, impact: "NONE", location: "Chainage 0+850" });
+  await w.attach(ago(4, "08:50"), "siShared", people.eng, await stage("1", "Police comments on the closure", ago(4, "08:45"), ["Traffic police comments on the proposed closure.", "For staff: not shared with the contractor."]));
+  await w.share(ago(4, "09:30"), "siShared", people.eng);
+  await w.attach(ago(4, "09:40"), "siShared", people.eng, await stage("2", "Sign layout at the river crossing", ago(4, "09:35"), ["Sign layout, chainage 0+750 to 0+950."]));
+  await w.comment(ago(4, "09:45"), "siShared", people.eng, "The sign layout is attached. Please have the signs up before the closure starts.", "REPLY");
+  await w.comment(ago(4, "10:00"), "siShared", people.chen, "The police asked for a second flagman; we will raise it with the contractor if the signs alone do not work.", "INTERNAL");
+  await contractor(ago(3, "09:00"), "reply", (a) => replyAsContractor(a, { contractId: CON, item: w.ref("siShared"), body: "Signs ordered; they will be up on the morning of the closure." }));
+
+  // Assigned to the contractor when raised (and so shared at once).
+  await w.raise(ago(4, "11:00"), "actionCon", people.eng, { type: "ACTION", title: "Send the method statement for the river crossing", dueOn: dayPlus(today, 5), assigneePersonId: "contractor" });
+  // First held by a person, then moved to the contractor; the contractor writes the Answer and sends it for checking.
+  await w.raise(ago(4, "14:00"), "rfiCon", people.bala, { type: "RFI", title: "Working hours allowed at the river crossing", priority: "NORMAL", dueOn: dayPlus(today, 3), assigneePersonId: people.daniel });
+  await w.edit(ago(3, "10:00"), "rfiCon", people.bala, "assigneePersonId", "contractor");
+  await contractor(ago(2, "10:00"), "answer", (a) => answerAsContractor(a, { contractId: CON, item: w.ref("rfiCon"), answer: "08:00 to 18:00 on weekdays; no work on Sundays or public holidays." }));
+  await contractor(ago(2, "10:05"), "send for checking", (a) => moveAsContractor(a, { contractId: CON, item: w.ref("rfiCon"), action: "SEND_FOR_REVIEW", expectedFrom: "TO_DO", comment: "" }));
+
+  // A question the contractor raised: routed to the Contract administrator, who answers it and sends it for the contractor to accept.
+  w.keep("rfiByCon", await contractor(ago(3, "15:00"), "raise a question", (a) => raiseAsContractor(a, { contractId: CON, type: "RFI", title: "Spoil disposal site for the excavated material", description: "The tender names a site that has since closed. Where should the spoil go?", location: "Chainage 0+800 to 1+600", dueOn: dayPlus(today, 4), severity: "", happenedAt: "", stagedVersionIds: [] })));
+  await w.move(ago(2, "09:00"), "rfiByCon", people.bala, "TO_DO", "IN_PROGRESS");
+  await w.edit(ago(2, "09:10"), "rfiByCon", people.bala, "answer", "Use the council's licensed site at Kampung Demo; the extra haul is at the bill rate.");
+  await w.move(ago(2, "09:15"), "rfiByCon", people.bala, "IN_PROGRESS", "IN_REVIEW");
+  // A near miss the contractor reported: routed to the lead.
+  await contractor(ago(1, "10:00"), "report an incident", (a) => raiseAsContractor(a, { contractId: CON, type: "SAFETY_INCIDENT", title: "Unsecured load on a delivery lorry", description: "Pipes shifted on the lorry as it turned into the site. Nobody was hurt.", location: "Site entrance", dueOn: "", severity: "NEAR_MISS", happenedAt: ago(1, "09:30"), stagedVersionIds: [] }));
+  return [`${CON}: the contractor's side of Work (a Project team, shared items and files, and the contractor's acts as ${account.loginName}${account.status === "ACTIVE" ? "" : ", whose account waits for activation: npm run demo:accounts"})`];
+}
+
 /// Read back through the views' own rule (`inView`), on the load day, as the list and the Board read them.
-export async function checkWorkDemo(db: Db) {
+export async function checkWorkDemo(db: Db, opts: { sharing: boolean } = { sharing: true }) {
   const { inView } = await import("../src/lib/work/views");
   const { dayOf, dayPlus, dayOrNull } = await import("../src/lib/dates");
   const { BOARD_DONE_DAYS } = await import("../src/lib/work/board");
   const { WORK_ITEM_TYPES } = await import("../src/lib/work/types");
   const { assigneeOf, raiserOf } = await import("../src/lib/work/party");
-  const fail = (what: string) => {
+  const fail = (what: string): never => {
     throw new Error(`demo check (work items): ${what}`);
   };
   const org = await db.organisation.findFirstOrThrow({ where: { id: (await db.contract.findUniqueOrThrow({ where: { id: CON }, select: { organisationId: true } })).organisationId }, select: { timeZone: true } });
@@ -243,4 +369,30 @@ export async function checkWorkDemo(db: Db) {
   if ((await db.workItemComment.count({ where: { workItemId: { in: rows.map((r) => r.id) }, internal: true } })) < 3) fail("fewer than three comments");
   const links = await db.workItemLink.findMany({ where: { workItemId: { in: rows.map((r) => r.id) } }, select: { projectDocumentId: true } });
   if (links.length < 3 || !links.some((x) => x.projectDocumentId)) fail("fewer than three links, or none to a document");
+  if (opts.sharing) await checkSharing(db, fail);
+}
+
+/// The 3b round, read back: the team, the shares, the contractor's acts, and what the portal's own reader shows of the shared instruction (the Reply, never the Internal note or the
+/// file attached before sharing).
+async function checkSharing(db: Db, fail: (what: string) => never) {
+  const { loadPortalItem } = await import("../src/lib/work/portal-read");
+  const team = await db.projectTeamMember.findMany({ where: { contractId: CON }, select: { role: true } });
+  if (!team.some((m) => m.role === "PROJECT_MANAGER")) fail("no Project manager");
+  const rows = await db.workItem.findMany({ where: { contractId: CON }, select: { id: true, type: true, number: true, status: true, answer: true, sharedAt: true, assignedToContractor: true, raisedBySupplierAccountId: true } });
+  if (!rows.some((r) => r.sharedAt === null) || !rows.some((r) => r.sharedAt !== null)) fail("not both shared and unshared items");
+  if (rows.filter((r) => r.assignedToContractor).length < 2) fail("fewer than two items assigned to the contractor");
+  if (!rows.some((r) => r.assignedToContractor && r.type === "RFI" && r.status === "IN_REVIEW" && r.answer.trim())) fail("no RFI the contractor answered and sent for checking");
+  const byContractor = rows.filter((r) => r.raisedBySupplierAccountId !== null);
+  if (!byContractor.some((r) => r.type === "RFI" && r.status === "IN_REVIEW" && r.answer.trim())) fail("no RFI the contractor raised, answered and in review");
+  if (!byContractor.some((r) => r.type === "SAFETY_INCIDENT")) fail("no incident the contractor raised");
+  const pins = await db.documentAttachment.findMany({ where: { workItemId: { in: rows.map((r) => r.id) }, detachedAt: null }, select: { workItemId: true, attachedAt: true } });
+  const shared = rows.find((r) => r.sharedAt !== null && pins.some((p) => p.workItemId === r.id && p.attachedAt < r.sharedAt!) && pins.some((p) => p.workItemId === r.id && p.attachedAt >= r.sharedAt!));
+  if (!shared) fail("no shared item with a file from before its sharing and one from after");
+  const comments = await db.workItemComment.findMany({ where: { workItemId: shared!.id }, select: { internal: true, personId: true, supplierAccountId: true } });
+  if (!comments.some((c) => c.internal) || !comments.some((c) => !c.internal && c.personId) || !comments.some((c) => c.supplierAccountId)) fail("the shared item lacks a Reply, an Internal note or the contractor's Reply");
+  // The portal's own reader, as the contractor: one file and two comments (the staff Reply and its own), nothing else.
+  const award = await db.contract.findUniqueOrThrow({ where: { id: CON }, select: { organisationId: true, award: { select: { vendorId: true } } } });
+  const { itemRef } = await import("../src/lib/work/number");
+  const seen = await loadPortalItem({ supplierId: award.award.vendorId!, organisationId: award.organisationId }, CON, itemRef(shared!.type, shared!.number));
+  if (!seen || seen.files.length !== 1 || seen.comments.length !== 2) fail(`the portal shows the shared item ${seen ? `with ${seen.files.length} files and ${seen.comments.length} comments` : "not at all"} (one file and two comments expected)`);
 }

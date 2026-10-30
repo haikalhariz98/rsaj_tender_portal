@@ -71,7 +71,7 @@ import { demoOrgId, demoScope } from "./demo-org";
  *   npm run demo:funding   put the development fill's funding sources on demo records (prisma/demo-funding.ts, ADR 0046)
  *   npm run demo:time      add the extension of time on demo_con13 and its next interim (prisma/demo-time.ts, Phase 2 close-out stage A)
  *   npm run demo:closeout  add demo_con13's practical completion and its defects (prisma/demo-closeout.ts, Phase 2 close-out stage B)
- *   npm run demo:work      add the work items on demo_con3 and demo_con15 (prisma/demo-work.ts, WS-22) to a loaded database that holds none; refuses otherwise
+ *   npm run demo:work      add the work items on demo_con3 and demo_con15 and the contractor's side of Work (prisma/demo-work.ts, WS-22, 3b L3), each round only where it is not there yet
  *   npm run demo:wipe      retired (Phase 1d): refuses and explains, removes nothing
  *   npm run demo:switches  retired (ruling 12c): refuses and explains, writes nothing. Configuration rows are written only by demo:load on a fresh database.
  *
@@ -2306,8 +2306,9 @@ async function closeout() {
 }
 
 /**
- * Workspace 3a step 6 (WS-22): the work items on demo_con3 and demo_con15 (prisma/demo-work.ts), on a database the demo is already loaded in
- * and that holds no work item on either yet. It writes no configuration. Anywhere else it refuses and writes nothing.
+ * Workspace 3a step 6 (WS-22) and 3b-i L3: the work items on demo_con3 and demo_con15, and the contractor's side of Work on demo_con3 (prisma/demo-work.ts), on a database
+ * the demo is already loaded in. Additive by round: each round is written only where it is not there yet (3a: demo_con3 holds no work item; 3b: demo_con3 has no Project
+ * team and no shared item), so a database loaded before 3b gets only the 3b round, and a second run writes nothing and says so. It writes no configuration.
  */
 async function work() {
   const org = await organisation();
@@ -2316,22 +2317,22 @@ async function work() {
     process.exitCode = 1;
     return;
   }
-  const held = await db.workItem.count({ where: { contractId: { in: [`${P}con3`, `${P}con15`] } } });
-  if (held > 0) {
-    console.error(`The demo contracts already hold ${held} work item${held === 1 ? "" : "s"}: the work demonstration runs once. Nothing was written.`);
-    process.exitCode = 1;
-    return;
-  }
+  const on = { contractId: { in: [`${P}con3`, `${P}con15`] } };
+  const count = async () => (await db.workItem.count({ where: on })) + (await db.projectTeamMember.count({ where: on }));
+  const held = await count();
   await seedActIds(db);
   const made = await loadWorkDemo(db, org.id);
-  if ((await db.workItem.count({ where: { contractId: `${P}con3` } })) === 0) {
-    console.error(`Nothing was written: ${made.notes.join("; ")}.`);
+  if ((await count()) === held) {
+    console.error(`Nothing was written${made.notes.length ? `: ${made.notes.join("; ")}` : ": the work demonstration is already there"}.`);
     process.exitCode = 1;
     return;
   }
-  await checkWorkDemo(db);
-  // No attributeSeededRows: every work row is written by an act that attributes it, and that pass refuses a database holding a second organisation.
   console.log(`Added or noted: ${made.notes.join("; ")}.`);
+  // The 3b round is checked where the demo wrote it (a team made by hand on demo_con3 skips it, as the note above says).
+  await checkWorkDemo(db, { sharing: (await db.projectTeamMember.count({ where: { contractId: `${P}con3`, id: { startsWith: `${P}wtm` } } })) > 0 });
+  // Every work row is written by an act that attributes it; the 3b round's two staged files are rows, as an upload's are, so they are attributed here as the other modes do,
+  // where that pass may run (it refuses a database holding a second organisation).
+  if ((await db.organisation.count()) === 1) await attributeSeededRows(db, org.id);
 }
 
 const mode = process.argv[2];

@@ -157,6 +157,9 @@ export const ACT_PREFIX: Readonly<Record<string, string>> = {
   WorkItemComment: "wkc",
   WorkItemLink: "wkl",
   StaffNotice: "wkn",
+  // Workspace 3b-i L3 (the same file): the Project team, and an item's files pinned by `attachFiles`.
+  ProjectTeamMember: "wtm",
+  DocumentAttachment: "wka",
   // Sittings.
   MeetingAttendance: "lat",
   Vote: "lvt",
