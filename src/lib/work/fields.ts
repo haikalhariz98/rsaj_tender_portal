@@ -213,10 +213,15 @@ export function parseNewItem(form: FormLike, timeZone: string | null): NewItem |
   };
 }
 
+/// Whether a type can be raised on a contract in this status (a Defect cannot after completion, OQ-4); the screens offer only these.
+export function typeOfferable(type: string, contractStatus: ContractStatus): boolean {
+  return !(type === "DEFECT" && COMPLETED_CONTRACT_STATUSES.includes(contractStatus));
+}
+
 /// Every fault of a new item: the contract's stage for a Defect (OQ-4), then each field, its own type's fields always and another type's only when given.
 export function newItemFaults(n: NewItem, facts: FieldFacts & { contractStatus: ContractStatus }): FieldFault[] {
   const out: FieldFault[] = [];
-  if (n.type === "DEFECT" && COMPLETED_CONTRACT_STATUSES.includes(facts.contractStatus)) out.push({ code: "DEFECT_AFTER_COMPLETION" });
+  if (!typeOfferable(n.type, facts.contractStatus)) out.push({ code: "DEFECT_AFTER_COMPLETION" });
   const edits: FieldEdit[] = [
     { field: "title", value: n.title },
     { field: "description", value: n.description },

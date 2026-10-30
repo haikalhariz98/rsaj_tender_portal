@@ -1,3 +1,4 @@
+import type { DrawerSize } from "@/components/ui/drawer";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import type { Words } from "@/lib/contract/labels";
@@ -30,3 +31,8 @@ export const SEVERITY_OPTIONS = optionsOf(SEVERITY_WORDS);
 export const STATUS_OPTIONS = optionsOf(STATUS_WORDS);
 /// The types a quick-add row can raise from a title alone (the others need a due date or a severity).
 export const QUICK_TYPES = TYPE_OPTIONS.filter((t) => ["TASK", "ACTION", "INSPECTION", "DEFECT"].includes(t.value));
+
+/// The item panel's width, and the padding that keeps the list clear of it from `xl` up (the panel is fixed to the right edge). One size, so the panel, its skeleton and the
+/// list's padding cannot disagree; `work-shared.test.ts` holds the padding to the size's width.
+export const WORK_PANEL_SIZE: DrawerSize = "md";
+export const WORK_PANEL_PAD = "xl:pr-[34rem]";

@@ -47,6 +47,7 @@ const STATUSES: readonly WorkStatus[] = ["TO_DO", "IN_PROGRESS", "IN_REVIEW", "D
 /// The contract, locked (requisition, exercise, award, contract: `withLockedContract`), the WORK_ITEM row asked first, then the act.
 async function inContract(actor: StaffActor, contractId: string, now: Date, fn: (c: WorkCtx) => Promise<WorkResult>): Promise<WorkResult> {
   let result: WorkResult | null;
+  const told = { count: 0 };
   try {
     result = await withLockedContract(actor.organisationId, contractId, async (tx, l) => {
       // The act x status table, first and under the lock: Work is open from Executed through Final certificate issued (W-2), refused otherwise.
@@ -54,7 +55,7 @@ async function inContract(actor: StaffActor, contractId: string, now: Date, fn: 
       if (shut) return { refused: actStatusText(shut) };
       // The organisation's day, never UTC's; null when no time zone is set.
       const today = dayOf(now, l.org.timeZone);
-      return fn({ tx, l, now, today });
+      return fn({ tx, l, now, today, told });
     });
   } catch (e) {
     if (e instanceof WorkRefused) {
@@ -68,7 +69,7 @@ async function inContract(actor: StaffActor, contractId: string, now: Date, fn: 
   }
   if (result === null) return GONE;
   revalidatePath(`/projects/${contractId}`);
-  if (!result.refused) revalidatePath("/", "layout"); // the inbox counts
+  if (!result.refused && told.count > 0) revalidatePath("/", "layout"); // the inbox counts
   return result;
 }
 

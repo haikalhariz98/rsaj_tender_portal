@@ -81,3 +81,11 @@ describe("activityFeed", () => {
     expect(activityFeed([{ id: "b", body: "x", personName: "A", at: same }], [{ ...rows[1], id: "a", at: same }], KL).map((l) => l.id)).toEqual(["a", "b"]);
   });
 });
+
+describe("a link line says what was linked", () => {
+  it("names the other end from the audit diff", () => {
+    const link = (action: "CREATE" | "DELETE", changes: ActivityAuditRow["changes"]): ActivityAuditRow => ({ id: "l", entity: "WorkItemLink", action, changes, actorName: "Hafiz", at: at(1) });
+    expect(activityFeed([], [link("CREATE", [{ field: "linkedTo", before: null, after: "RFI 12 · Slab" }])], KL)[0]).toMatchObject({ text: "added a link to RFI 12 · Slab" });
+    expect(activityFeed([], [link("DELETE", [{ field: "linkedTo", before: "RFI 12 · Slab", after: null }])], KL)[0]).toMatchObject({ text: "removed a link to RFI 12 · Slab" });
+  });
+});

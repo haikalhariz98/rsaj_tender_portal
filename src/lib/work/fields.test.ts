@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { COMPLETED_CONTRACT_STATUSES } from "@/lib/contract/case-stage";
 
 import { LOCATION_MAX, TEXT_MAX, TITLE_MAX } from "./bounds";
-import { commentFaults, fieldFaults, mayEdit, newItemFaults, parseFieldEdit, parseNewItem, typeHasField, type FieldFacts, type NewItem } from "./fields";
+import { commentFaults, fieldFaults, mayEdit, newItemFaults, parseFieldEdit, parseNewItem, typeHasField, typeOfferable, type FieldFacts, type NewItem } from "./fields";
 import type { WhoNames } from "./labels";
 import { WORK_ITEM_TYPES, type WorkActor, type WorkItemFacts, type WorkItemType } from "./types";
 
@@ -219,5 +219,15 @@ describe("fieldFaults: who edits, and when (W-3)", () => {
     expect(own("happenedAt")).toEqual(["SAFETY_INCIDENT"]);
     expect(own("fromDocumentId")).toEqual(["ACTION"]);
     expect(own("location")).toEqual([...WORK_ITEM_TYPES]);
+  });
+});
+
+describe("typeOfferable", () => {
+  it("agrees with newItemFaults: a Defect is not offered once the works are complete", () => {
+    expect(typeOfferable("DEFECT", "ACTIVE")).toBe(true);
+    for (const s of COMPLETED_CONTRACT_STATUSES) {
+      expect(typeOfferable("DEFECT", s), s).toBe(false);
+      expect(typeOfferable("TASK", s), s).toBe(true);
+    }
   });
 });

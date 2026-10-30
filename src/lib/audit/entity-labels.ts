@@ -12,6 +12,7 @@
  * registers its record type's name in `RECORD_TYPE_WORDS`. Pure.
  */
 
+import { enumValueWords } from "@/lib/work/labels";
 import { INSURANCE_KIND_LABEL, SECURITY_KIND_LABEL } from "@/lib/award/labels";
 import { CHECK_WORDS, COMPARISON_WORDS, CUSTODY_KIND_WORDS, w, type Words } from "@/lib/contract/labels";
 import type { CustodyItemKind, FormationCheckKind, ReconciliationComparison } from "@/lib/contract/types";
@@ -193,6 +194,8 @@ export function historyValueWords(entity: string, field: string, value: string |
   // Phase 1b: a sign-in account's standing is stored as its code and read in words, as History reads it.
   if (value != null && entity === "StaffAccount" && field === "status") return ACCOUNT_STATUS_WORDS[value] ?? value;
   // N1: the stored display language is "EN" or "MS", read as the language's own name.
+  // A work item's status, priority, impact, result and severity are stored as codes and read in the work module's words.
+  if (value != null && entity === "WorkItem") return enumValueWords(field, value) ?? value;
   if (value != null && entity === "StaffAccount" && field === "uiLanguage") return STAFF_LANGUAGE_VALUE_WORDS[value] ?? value;
   if (value == null || entity !== "ApplicationDecision" || field !== "judgedUnder") return value;
   const states = en(DOCUMENT_STATE_LABEL);

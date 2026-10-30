@@ -18,6 +18,7 @@ import { actStatusFault } from "@/lib/contract/act-status";
 import { loadContract, type LoadedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { loadStorePolicy } from "@/lib/documents/service";
+import { likeLiteral } from "@/lib/search/words";
 import { loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
 import { activityFeed, type ActivityLine } from "./activity";
@@ -255,6 +256,8 @@ export interface WorkFileView {
   filename: string;
   title: string;
   attachedAt: Date;
+  /// Set when the store withdrew the file: it is still listed, marked, and not offered as a download.
+  withdrawnAt: Date | null;
 }
 export interface WorkItemDetail {
   card: WorkCardRow;
@@ -291,7 +294,7 @@ export async function loadItem(i: { organisationId: string; contractId: string; 
   if (!r) return null;
   const files = await db.documentAttachment.findMany({
     where: { organisationId: i.organisationId, workItemId: r.id, detachedAt: null },
-    select: { id: true, versionId: true, attachedAt: true, version: { select: { originalFilename: true, document: { select: { title: true } } } } },
+    select: { id: true, versionId: true, attachedAt: true, version: { select: { originalFilename: true, withdrawnAt: true, document: { select: { title: true } } } } },
     orderBy: [{ attachedAt: "asc" }, { id: "asc" }],
   });
   const item = (x: { type: BoardItem["type"]; number: number; title: string; status: WorkStatus }) => ({ kind: "ITEM" as const, ref: itemRef(x.type, x.number), title: x.title, status: x.status });
@@ -308,7 +311,7 @@ export async function loadItem(i: { organisationId: string; contractId: string; 
       ...r.linksFrom.map((l): WorkLinkView => ({ id: l.id, direction: "TO", target: l.toWorkItem ? item(l.toWorkItem) : { kind: "DOCUMENT", id: l.projectDocument!.id, title: l.projectDocument!.title } })),
       ...r.linksTo.map((l): WorkLinkView => ({ id: l.id, direction: "FROM", target: item(l.workItem) })),
     ],
-    files: files.map((f) => ({ attachmentId: f.id, versionId: f.versionId, filename: f.version.originalFilename, title: f.version.document.title, attachedAt: f.attachedAt })),
+    files: files.map((f) => ({ attachmentId: f.id, versionId: f.versionId, filename: f.version.originalFilename, title: f.version.document.title, attachedAt: f.attachedAt, withdrawnAt: f.version.withdrawnAt })),
   };
 }
 
@@ -316,10 +319,10 @@ export async function loadItem(i: { organisationId: string; contractId: string; 
 /// "From" document) are read here, so the pure feed prints a name and never an id.
 export async function loadActivity(i: { organisationId: string; contractId: string; contractNumber: string; item: { id: string; type: BoardItem["type"]; number: number }; timeZone: string | null }): Promise<ActivityLine[]> {
   const [comments, entries] = await Promise.all([
-    db.workItemComment.findMany({ where: { organisationId: i.organisationId, workItemId: i.item.id }, select: { id: true, body: true, recordedAt: true, person: { select: { name: true } } }, orderBy: [{ recordedAt: "asc" }, { id: "asc" }], take: ACTIVITY_CAP }),
+    db.workItemComment.findMany({ where: { organisationId: i.organisationId, workItemId: i.item.id }, select: { id: true, body: true, recordedAt: true, person: { select: { name: true } } }, orderBy: [{ recordedAt: "desc" }, { id: "desc" }], take: ACTIVITY_CAP }),
     db.auditEntry.findMany({
-      where: { organisationId: i.organisationId, entity: { in: ["WorkItem", "WorkItemLink", "DocumentAttachment"] }, entityLabel: { startsWith: workAuditPrefix(i.contractNumber, i.item.type, i.item.number) } },
-      orderBy: [{ at: "asc" }, { id: "asc" }],
+      where: { organisationId: i.organisationId, entity: { in: ["WorkItem", "WorkItemLink", "DocumentAttachment"] }, entityLabel: { startsWith: likeLiteral(workAuditPrefix(i.contractNumber, i.item.type, i.item.number)) } },
+      orderBy: [{ at: "desc" }, { id: "desc" }],
       take: ACTIVITY_CAP,
       include: { actorPerson: { select: { name: true } } },
     }),

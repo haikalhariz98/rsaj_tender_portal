@@ -63,7 +63,11 @@ function changeText(c: FieldChange, names: ReadonlyMap<string, string>, timeZone
 }
 
 function auditLine(r: ActivityAuditRow, names: ReadonlyMap<string, string>, timeZone: string | null): ActivityLine | null {
-  const fixed = ACT_WORDS[`${r.entity}:${r.action}`];
+  const key = `${r.entity}:${r.action}`;
+  // A link line says what was linked (the audit diff's `linkedTo`).
+  const linked = r.entity === "WorkItemLink" ? r.changes.find((c) => c.field === "linkedTo") : undefined;
+  const to = linked?.after ?? linked?.before;
+  const fixed = ACT_WORDS[key] && to ? `${ACT_WORDS[key]} to ${to}` : ACT_WORDS[key];
   const text = fixed ?? (r.action === "UPDATE" ? r.changes.map((c) => changeText(c, names, timeZone)).filter((t) => t !== null).join("; ") : "");
   return text ? { kind: "CHANGE", id: r.id, who: r.actorName ?? SOMEONE, at: r.at, text } : null;
 }

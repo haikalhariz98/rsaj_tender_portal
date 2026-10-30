@@ -8,7 +8,7 @@ import { maskSealedAuditRows } from "@/lib/bids/online/audit-mask";
 import { sealedAuditFactsFor } from "@/lib/bids/online/audit-scope-store";
 import { maskRowsForBlindReader } from "@/lib/evaluation/blind-audit";
 import { blindScopesFor } from "@/lib/evaluation/blind-audit-store";
-import { auditCsv, entriesOnDays, EXPORT_FAULT_TEXT, exportFault, exportFileName, sha256Hex } from "@/lib/audit/export";
+import { auditCsv, entriesOnDays, workIdsIn, EXPORT_FAULT_TEXT, exportFault, exportFileName, sha256Hex } from "@/lib/audit/export";
 import { writeAudit } from "@/lib/audit/record";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -71,7 +71,12 @@ export async function exportAuditTrail(_prev: ExportResult, data: FormData): Pro
       // Rows the sealed mask dropped are not counted (the count itself would say how many online-bid rows there were); rows it changed are.
       const asNamed = new Set<unknown>(named);
       const masked = blind.filter((r, i) => r !== days[i]).length + picked.filter((r) => !asNamed.has(r)).length;
-      const file = auditCsv(picked, zone);
+      // A work item's assignee and source document are ids in the trail; the file names them as of now.
+      const wantedIds = workIdsIn(picked);
+      const [people, documents] = wantedIds.length
+        ? await Promise.all([tx.person.findMany({ where: { organisationId: org.id, id: { in: wantedIds } }, select: { id: true, name: true } }), tx.projectDocument.findMany({ where: { organisationId: org.id, id: { in: wantedIds } }, select: { id: true, title: true } })])
+        : [[], []];
+      const file = auditCsv(picked, zone, new Map([...people.map((p): [string, string] => [p.id, p.name]), ...documents.map((d): [string, string] => [d.id, d.title])]));
       const sha256 = sha256Hex(file);
       const fileName = exportFileName(fromDay!, toDay!);
       const row = await tx.auditExport.create({ data: { organisationId: org.id, fromDay: dayToDate(fromDay!), toDay: dayToDate(toDay!), rowCount: picked.length, sha256, fileName } });

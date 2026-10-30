@@ -200,9 +200,12 @@ describe("links", () => {
     const row = await db.workItemLink.findFirstOrThrow({ where: { workItemId: a.id } });
     expect(h.written.some((w) => w.entity === "WorkItemLink" && w.entityId === row.id)).toBe(true);
     ok(await as(p.raiser, () => unlinkWorkItem(form({ contractId: k.contractId, itemId: b.id, linkId: row.id }))));
-    const trail = (await db.auditEntry.findMany({ where: { entity: "WorkItemLink", entityId: row.id }, orderBy: { at: "asc" } })).map((e) => [e.action, JSON.stringify(e.changes)]);
-    expect(trail.map((t) => t[0])).toEqual(["CREATE", "DELETE"]);
-    expect(trail[1][1]).toContain(itemRef("TASK", a.number));
+    // Audited on both ends, so each item's Activity shows it: a create and a delete under A's label and under B's, each naming the other.
+    const trail = (await db.auditEntry.findMany({ where: { entity: "WorkItemLink", entityId: row.id }, orderBy: [{ at: "asc" }, { entityLabel: "asc" }] })).map((e) => [e.action, JSON.stringify(e.changes), e.entityLabel]);
+    expect(trail.map((t) => t[0]).sort()).toEqual(["CREATE", "CREATE", "DELETE", "DELETE"]);
+    const del = trail.filter((t) => t[0] === "DELETE");
+    expect(del.some((t) => t[2].includes(itemRef("TASK", b.number) + " ·") && t[1].includes(itemRef("TASK", a.number)))).toBe(true);
+    expect(del.some((t) => t[2].includes(itemRef("TASK", a.number) + " ·") && t[1].includes(itemRef("TASK", b.number)))).toBe(true);
   });
 });
 

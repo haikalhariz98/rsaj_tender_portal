@@ -144,3 +144,13 @@ describe("a sign-in account's trail reads in words (Phase 1b)", () => {
     expect(fieldLabel("uiLanguage")).toBe("Display language");
   });
 });
+
+describe("a work item's trail values", () => {
+  it("read in the work module's words; ids and other entities pass through", () => {
+    expect(historyValueWords("WorkItem", "status", "IN_PROGRESS")).toBe("In progress");
+    expect(historyValueWords("WorkItem", "priority", "URGENT")).toBe("Urgent");
+    expect(historyValueWords("WorkItem", "title", "TO_DO")).toBe("TO_DO");
+    expect(historyValueWords("Requisition", "status", "IN_PROGRESS")).toBe("IN_PROGRESS");
+    expect(fieldLabel("assigneePersonId")).toBe("Assignee");
+  });
+});

@@ -77,6 +77,8 @@ const NAMED_FIELDS: Record<string, string> = {
   ...Object.fromEntries(Object.entries(AUTO_LINK_FIELD_WORDS).map(([k, v]) => [k, v.en])),
   // 65-C1: an effective-dated end day is exclusive (inForceOn); History says so as the forms do.
   effectiveTo: END_DAY_LABEL,
+  // The work module's assignee column ("Assignee person" otherwise).
+  assigneePersonId: "Assignee",
   endsOn: END_DAY_LABEL,
   uiLanguage: "Display language",
   tabledByPersonId: "Tabled by",

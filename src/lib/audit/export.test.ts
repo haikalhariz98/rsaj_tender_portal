@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { actorDisplayName } from "./actor";
-import { auditCsv, entriesOnDays, EXPORT_NEEDS_AUDIT_READ_TEXT, exportFault, exportMayBeMadeBy, recordTypeLabel, sha256Hex, type ExportRow } from "./export";
+import { auditCsv, entriesOnDays, EXPORT_NEEDS_AUDIT_READ_TEXT, exportFault, exportMayBeMadeBy, recordTypeLabel, sha256Hex, workIdsIn, type ExportRow } from "./export";
 import { toPosix } from "@/lib/scan/files";
 
 const row = (id: string, at: string, over: Partial<ExportRow> = {}): ExportRow => ({
@@ -189,5 +189,23 @@ describe("the budget commitment's amount is the department estimate, withheld (6
         expect(l, p).not.toMatch(/\bamount:/);
       }
     }
+  });
+});
+
+describe("the export names a work item's people and documents", () => {
+  it("resolves the ids at export time, and reads enums in words", () => {
+    const r = row("w", "2026-09-30T01:00:00Z", {
+      entity: "WorkItem",
+      changes: [
+        { field: "assigneePersonId", before: null, after: "p1" },
+        { field: "status", before: "TO_DO", after: "IN_REVIEW" },
+      ],
+    });
+    expect(workIdsIn([r, row("x", "2026-09-30T01:00:00Z")])).toEqual(["p1"]);
+    const file = auditCsv([r], "Asia/Kuala_Lumpur", new Map([["p1", "Aisyah"]]));
+    expect(file).toContain("Aisyah");
+    expect(file).toContain("In review");
+    expect(file).not.toContain("p1");
+    expect(file).not.toContain("IN_REVIEW");
   });
 });

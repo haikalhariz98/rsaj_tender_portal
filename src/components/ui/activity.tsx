@@ -7,7 +7,7 @@ import { useSay } from "@/components/i18n/language-context";
 import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
 
 import { Avatar } from "./avatar";
-import { cx } from "./cx";
+import { Segment, Segmented } from "./segmented";
 
 /**
  * A record's history as a feed, as data: comments (a person's words) and events (a field changed, a move, a link). The audience filter is "All" or
@@ -51,25 +51,16 @@ export function Activity({
   const shown = only ? entries.filter((e) => e.kind === "comment") : entries;
   return (
     <section aria-label={label}>
-      <div role="group" aria-label={say(WORDS.activityShow)} className="mb-3 inline-flex rounded-full bg-sunken p-0.5">
+      <Segmented role="group" aria-label={say(WORDS.activityShow)} className="mb-3">
         {[
           [false, allLabel ?? say(WORDS.activityAll)],
           [true, commentsLabel ?? say(WORDS.activityComments)],
         ].map(([on, text]) => (
-          <button
-            key={String(on)}
-            type="button"
-            aria-pressed={only === on}
-            onClick={() => setOnly(on as boolean)}
-            className={cx(
-              "rounded-full px-3.5 py-1 text-[13px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500",
-              only === on ? "bg-surface text-ink shadow-card" : "text-ink-3 hover:text-ink",
-            )}
-          >
+          <Segment key={String(on)} on={only === on} onClick={() => setOnly(on as boolean)}>
             {text as string}
-          </button>
+          </Segment>
         ))}
-      </div>
+      </Segmented>
       {shown.length === 0 ? (
         <p className="text-[13.5px] text-ink-3">{empty ?? say(WORDS.activityNothingYet)}</p>
       ) : (

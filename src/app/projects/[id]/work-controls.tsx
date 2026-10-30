@@ -8,9 +8,10 @@ import { attachWorkFiles, linkWorkItem, unlinkWorkItem, editWorkField } from "@/
 import { useActGate } from "@/components/act-gate";
 import { Button } from "@/components/ui/button";
 import { DrawerHeader } from "@/components/ui/drawer";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { Field, FileInput, Input, Select, Textarea } from "@/components/ui/field";
 import { MoreText } from "@/components/ui/more-text";
 import { SidePanel, useRequestClose } from "@/components/ui/side-panel";
+import { WORK_PANEL_SIZE } from "@/app/projects/[id]/work-shared";
 import { STAGED_FOR_WORK_ITEM } from "@/lib/documents/staged-for";
 
 /**
@@ -31,7 +32,7 @@ export function WorkPanelShell({ label, closeHref, title, badge, subtitle, child
   const close = useCallback(() => router.push(closeHref, { scroll: false }), [router, closeHref]);
   return (
     <div className="fixed top-16 right-0 bottom-0 z-30 print:hidden">
-      <SidePanel label={label} onClose={close} size="lg">
+      <SidePanel label={label} onClose={close} size={WORK_PANEL_SIZE}>
         <PanelHead title={title} badge={badge} subtitle={subtitle} close={close} />
         <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
       </SidePanel>
@@ -44,7 +45,7 @@ export function WorkPanelShell({ label, closeHref, title, badge, subtitle, child
 type Kind = "text" | "textarea" | "date" | "datetime-local";
 
 /// A field that saves when asked: Enter (a line) or Save. A field the reader may not change shows its words, with who can in a popover. A refusal stays beside it and keeps what was typed.
-export function FieldEdit({ label, field, value, kind = "text", contractId, itemId, disabledWhy: askedWhy }: { label: string; field: string; value: string; kind?: Kind; contractId: string; itemId: string; disabledWhy?: string }) {
+export function FieldEdit({ label, field, value, display, kind = "text", contractId, itemId, disabledWhy: askedWhy }: { label: string; field: string; value: string; display?: string; kind?: Kind; contractId: string; itemId: string; disabledWhy?: string }) {
   // The contract tab's gate (the WORK_ITEM row) states its words first.
   const disabledWhy = useActGate() ?? askedWhy;
   const id = useId();
@@ -80,7 +81,7 @@ export function FieldEdit({ label, field, value, kind = "text", contractId, item
       <div className="min-w-0">
         <div className="text-[12.5px] font-semibold text-ink-3">{label}</div>
         <div className="flex items-start gap-1.5 text-[14px] break-words whitespace-pre-wrap text-ink">
-          {value || <span className="text-ink-4">Not set</span>}
+          {(display ?? value) || <span className="text-ink-4">Not set</span>}
           <MoreText text={disabledWhy} label={`Who can change ${label.toLowerCase()}`} />
         </div>
       </div>
@@ -212,13 +213,13 @@ export function UnlinkButton({ contractId, itemId, linkId, what }: { contractId:
 export function AttachFiles({ contractId, itemId }: { contractId: string; itemId: string }) {
   const gate = useActGate();
   const staged = useRef(new Map<string, string>());
-  const form = useRef<HTMLFormElement>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [round, setRound] = useState(0);
+  const fileId = useId();
   if (gate) return null;
   return (
     <form
-      ref={form}
       className="flex flex-wrap items-center gap-2"
       onSubmit={(e) => {
         e.preventDefault();
@@ -239,7 +240,7 @@ export function AttachFiles({ contractId, itemId }: { contractId: string; itemId
             if (r.refused) setMessage(`${r.refused} Your files are kept. Press again to retry.`);
             else {
               staged.current.clear();
-              form.current?.reset();
+              setRound((n) => n + 1); // a fresh picker, so the chosen names clear too
             }
           } catch {
             setMessage("That didn't save. Your files are kept. Press again to retry.");
@@ -247,7 +248,7 @@ export function AttachFiles({ contractId, itemId }: { contractId: string; itemId
         });
       }}
     >
-      <input type="file" name="file" multiple required aria-label="Choose files to attach" className="min-w-0 flex-1 text-[13px] text-ink-2 file:mr-3 file:rounded-full file:border-0 file:bg-sunken file:px-3.5 file:py-2 file:text-[13px] file:font-semibold file:text-ink" />
+      <FileInput key={round} id={fileId} name="file" multiple required aria-label="Choose files to attach" className="min-w-0 flex-1" />
       <Button type="submit" size="sm" variant="secondary" pending={pending}>
         Attach
       </Button>

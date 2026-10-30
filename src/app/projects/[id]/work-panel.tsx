@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Suspense } from "react";
 
 import { ActGate } from "@/components/act-gate";
@@ -8,8 +7,8 @@ import { ListFacets } from "@/components/list-facets";
 import { Board, type BoardCard, type BoardColumn } from "@/components/ui/board";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
-import { cx } from "@/components/ui/cx";
 import { EmptyState, Note } from "@/components/ui/feedback";
+import { Segment, Segmented } from "@/components/ui/segmented";
 import type { StaffActor } from "@/lib/auth/types";
 import { actStatusBlocker } from "@/lib/contract/act-status";
 import type { LoadedContract } from "@/lib/contract/repo";
@@ -18,6 +17,7 @@ import { db } from "@/lib/db";
 import type { FacetSpec } from "@/lib/list-facets";
 import { formatDate } from "@/lib/format";
 import { cardMoves } from "@/lib/work/board";
+import { typeOfferable } from "@/lib/work/fields";
 import { filtersOf, parseWorkQuery, reset, workHref, workServerMode, type WorkQuery } from "@/lib/work/href";
 import { itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, NO_WORK_WORDS, STATUS_WORDS, VIEW_EMPTY_WORDS, VIEW_WORDS, whoCanWords, type WhoNames } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
@@ -29,16 +29,13 @@ import { moveWorkItem, editWorkField } from "./work-actions";
 import { NewItemDrawer, QuickAdd } from "./work-editors";
 import { WorkItemPanel } from "./work-item-panel";
 import { WorkItemSkeleton } from "./work-skeleton";
-import { closedWords, editWhy, IMPACT_OPTIONS, PRIORITY_OPTIONS, QUICK_TYPES, SEVERITY_OPTIONS, STATUS_OPTIONS, TYPE_OPTIONS } from "./work-shared";
+import { closedWords, editWhy, WORK_PANEL_PAD, IMPACT_OPTIONS, PRIORITY_OPTIONS, QUICK_TYPES, SEVERITY_OPTIONS, STATUS_OPTIONS, TYPE_OPTIONS } from "./work-shared";
 
 type Option = { value: string; label: string };
 type Params = Record<string, string | string[] | undefined>;
 
 /// More people than this and the list's assignee is read only (the panel edits it): every row would carry the whole picker.
 const INLINE_PEOPLE_MAX = 100;
-
-const pill = "rounded-full px-3.5 py-1 text-[13px] font-semibold no-underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500";
-const pillState = (on: boolean) => (on ? "bg-surface text-ink shadow-card" : "text-ink-3 hover:text-ink");
 
 /**
  * The case's Work tab (workspace 3a, plan §4; design note 0008): one toolbar and one address for the List and the Board, the item panel beside them when `item` names one.
@@ -63,13 +60,13 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
 
   // ---------------------------------------------------------------- the toolbar, the same above the List and the Board
   const views = (
-    <nav aria-label="Work views" className="inline-flex flex-wrap rounded-full bg-sunken p-0.5">
+    <Segmented as="nav" aria-label="Work views" className="flex-wrap">
       {WORK_VIEWS.map((v) => (
-        <Link key={v} href={at({ view: v, ...reset })} scroll={false} aria-current={q.view === v ? "page" : undefined} className={cx(pill, pillState(q.view === v))}>
+        <Segment key={v} on={q.view === v} href={at({ view: v, ...reset })} scroll={false}>
           {VIEW_WORDS[v].en}
-        </Link>
+        </Segment>
       ))}
-    </nav>
+    </Segmented>
   );
   const facet = (key: "type" | "assignee" | "priority", label: string, any: string, options: Option[]): FacetSpec => ({
     key,
@@ -80,14 +77,13 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
   const filters = (
     <>
       <ListFacets facets={[facet("type", "Type", "Any type", TYPE_OPTIONS), facet("assignee", "Assignee", "Anyone", peopleOptions), facet("priority", "Priority", "Any priority", PRIORITY_OPTIONS)]} />
-      <nav aria-label="Layout" className="ml-auto inline-flex rounded-full bg-sunken p-0.5">
+      <Segmented as="nav" aria-label="Layout" className="ml-auto">
         {([["list", "List", <ListIcon key="l" size={15} />], ["board", "Board", <BoardIcon key="b" size={15} />]] as const).map(([mode, label, icon]) => (
-          <Link key={mode} href={at({ mode, page: 0 })} scroll={false} aria-current={q.mode === mode ? "page" : undefined} className={cx(pill, "inline-flex items-center gap-1.5", pillState(q.mode === mode))}>
-            {icon}
+          <Segment key={mode} on={q.mode === mode} href={at({ mode, page: 0 })} scroll={false} icon={icon}>
             {label}
-          </Link>
+          </Segment>
         ))}
-      </nav>
+      </Segmented>
     </>
   );
   const itemHrefBase = at({ item: null });
@@ -95,7 +91,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
     <NewItemDrawer
       contractId={contractId}
       itemHrefBase={itemHrefBase}
-      types={TYPE_OPTIONS}
+      types={TYPE_OPTIONS.filter((t) => typeOfferable(t.value, ctx.contractStatus))}
       priorities={PRIORITY_OPTIONS}
       impacts={IMPACT_OPTIONS}
       severities={SEVERITY_OPTIONS}
@@ -198,7 +194,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
     const narrowed = q.view !== "open" || q.type || q.assignee || q.priority || q.q;
     body = (
       <>
-        {ctx.open && <QuickAdd contractId={contractId} itemHrefBase={itemHrefBase} types={QUICK_TYPES} />}
+        {ctx.open && <QuickAdd contractId={contractId} itemHrefBase={itemHrefBase} types={QUICK_TYPES.filter((t) => typeOfferable(t.value, ctx.contractStatus))} />}
         <DataList
           flat
           selectable={false}
@@ -207,7 +203,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
           emptyTitle={narrowed ? VIEW_EMPTY_WORDS[q.view].en : NO_WORK_WORDS.en}
           toolbarLead={views}
           toolbarFilters={filters}
-          stackBelow="xl"
+          stackBelow={q.item ? "2xl" : "xl"}
           columns={columns}
           rows={rows}
           server={workServerMode(contractId, q, { total, page, columns: { item: "item", type: "type", status: "status", assignee: "assignee", due: "due", priority: "priority" } })}
@@ -218,6 +214,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
 
   return (
     <ActGate blocker={shut}>
+      <div className={q.item ? WORK_PANEL_PAD : undefined}>
       <Card className="overflow-hidden">
         <CardHeader
           icon={<ClipboardIcon size={17} />}
@@ -244,9 +241,10 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
           body
         )}
       </Card>
+      </div>
       {q.item && (
         <Suspense key={q.item} fallback={<WorkItemSkeleton />}>
-          <WorkItemPanel l={l} ctx={ctx} q={q} personId={actor.personId} address={q.item} />
+          <WorkItemPanel l={l} ctx={ctx} q={q} personId={actor.personId} address={q.item} people={people} linkOpts={linkOpts} />
         </Suspense>
       )}
     </ActGate>

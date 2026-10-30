@@ -58,17 +58,33 @@ export const SULIT_WITHHELD = "Withheld: SULIT, not exported";
 /// A value of a registered SULIT field, withheld; an empty one stays empty (nothing to withhold).
 const withheld = (v: unknown) => (v == null || v === "" ? v : SULIT_WITHHELD);
 
+/// A work item's person and document columns hold ids; the file names them, resolved when it is made (`workIdsIn`, then the caller's lookup).
+const isWorkIdField = (entity: string, field: string) => entity === "WorkItem" && (field === "assigneePersonId" || field === "fromDocumentId");
+
+/// The ids in the rows' work item changes that the file should name.
+export function workIdsIn(rows: readonly Pick<ExportRow, "entity" | "changes">[]): string[] {
+  const ids = new Set<string>();
+  for (const r of rows) {
+    if (r.entity !== "WorkItem" || !Array.isArray(r.changes)) continue;
+    for (const c of r.changes as { field?: unknown; before?: unknown; after?: unknown }[]) {
+      if (typeof c?.field !== "string" || !isWorkIdField("WorkItem", c.field)) continue;
+      for (const v of [c.before, c.after]) if (typeof v === "string" && v) ids.add(v);
+    }
+  }
+  return [...ids];
+}
+
 /**
  * The changes with field names as the History drawer reads them, not as stored. A registered SULIT
  * field (`sulit-fields.ts`: a price as read, the company estimate, the paper copy's figure, a
  * withdrawal letter's quote…) is listed with its values withheld: the file leaves the portal, and
  * nothing yet restricts who reads it (NFR-SEC-002, 6.2 OD-8).
  */
-function labelledChanges(changes: unknown, entity = ""): unknown {
+function labelledChanges(changes: unknown, entity = "", names: ReadonlyMap<string, string> = new Map()): unknown {
   if (!Array.isArray(changes)) return changes ?? [];
   const fields = changes.map((c) => (c && typeof c === "object" && "field" in c ? String((c as { field: unknown }).field) : ""));
   // 612-C2: a value an older writer built from a code reads through the label map, as History reads it.
-  const words = (raw: string, v: unknown) => (typeof v === "string" ? historyValueWords(entity, raw, v) : v);
+  const words = (raw: string, v: unknown) => (typeof v !== "string" ? v : isWorkIdField(entity, raw) ? (names.get(v) ?? "someone no longer listed") : historyValueWords(entity, raw, v));
   return changes.map((c) => {
     if (!c || typeof c !== "object" || !("field" in c)) return c;
     const raw = String((c as { field: unknown }).field);
@@ -82,7 +98,7 @@ function labelledChanges(changes: unknown, entity = ""): unknown {
  * lines ended with CRLF as RFC 4180 has it. Nothing in it depends on the clock or the
  * locale, so the same rows always give the same bytes and the same digest.
  */
-export function auditCsv(rows: readonly ExportRow[], timeZone: string): string {
+export function auditCsv(rows: readonly ExportRow[], timeZone: string, names: ReadonlyMap<string, string> = new Map()): string {
   const lines = [EXPORT_COLUMNS.join(",")];
   for (const r of rows) {
     lines.push(
@@ -94,7 +110,7 @@ export function auditCsv(rows: readonly ExportRow[], timeZone: string): string {
         historyEntityLabel(r.entity, r.entityLabel),
         r.entityId,
         r.action,
-        JSON.stringify(labelledChanges(r.changes, r.entity)),
+        JSON.stringify(labelledChanges(r.changes, r.entity, names)),
         r.reason,
         r.unattributed ? "Not attributed: before sign-in" : (r.actorName ?? "A person no longer on record"),
       ]

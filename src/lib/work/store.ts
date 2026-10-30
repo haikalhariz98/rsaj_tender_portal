@@ -53,6 +53,8 @@ export interface WorkCtx {
   l: LoadedContract;
   now: Date;
   today: Day | null;
+  /// Counts the notices an act wrote, so the caller refreshes the inbox's counts only when there are some.
+  told?: { count: number };
 }
 
 /// Raised inside an act's transaction, so that nothing is written. `status` is what a caller may answer with: 404 for what is not the actor's to see, 409 for a change that
@@ -128,7 +130,8 @@ const columnView = (r: ItemRow, field: EditableField | "status" | "cancelReason"
 async function tell(c: WorkCtx, who: StaffActor, r: Pick<ItemRow, "id" | "type" | "number" | "title" | "raisedByPersonId">, assignee: string | null, kind: WorkNoticeKind, occurrence: string): Promise<void> {
   const activeIds = await activeAmong(c.tx, c.l.org.id, [r.raisedByPersonId, assignee, who.personId]);
   const item: NoticeItem = { id: r.id, type: r.type, number: r.number, title: r.title, contractId: c.l.contract.id, contractNumber: c.l.contract.number };
-  await writeNotices(c.tx, c.l.org.id, who.personId, workNoticeDrafts({ kind, actorId: who.personId, raisedBy: r.raisedByPersonId!, assignee, occurrence, activeIds }, item));
+  const wrote = await writeNotices(c.tx, c.l.org.id, who.personId, workNoticeDrafts({ kind, actorId: who.personId, raisedBy: r.raisedByPersonId!, assignee, occurrence, activeIds }, item));
+  if (c.told) c.told.count += wrote;
 }
 
 // ------------------------------------------------------------------ raise an item
@@ -211,6 +214,7 @@ async function lastMove(c: WorkCtx, itemId: string): Promise<{ by: string | null
  * same act (`act` is then the comment's attribution; the other moves have none). Review tells the raiser; send back tells the assignee.
  */
 export async function moveItem(c: WorkCtx, who: StaffActor, i: { itemId: string; expectedFrom: WorkStatus; to: WorkStatus; reason?: string; comment?: string }, act: PreparedAct | null): Promise<void> {
+  gate(c);
   const row = await lockedItem(c, i.itemId);
   const shut = actStatusFault("WORK_ITEM", c.l.contract.status as ContractStatus);
   const lead = await leadOf(c.l, c.today, c.tx);
@@ -270,7 +274,7 @@ export async function link(c: WorkCtx, who: StaffActor, i: { itemId: string; toI
   await mayLink(c, who, row);
   if ((i.toItemId === null) === (i.documentId === null)) return refuse("Pick one item or one document to link.");
   const org = c.l.org.id;
-  let target: { toWorkItemId: string | null; projectDocumentId: string | null; label: string };
+  let target: { toWorkItemId: string | null; projectDocumentId: string | null; label: string; other?: Labelled };
   if (i.toItemId !== null) {
     if (i.toItemId === row.id) return refuse("An item can't link to itself.");
     // Read, never locked: no two item rows are held together.
@@ -279,7 +283,7 @@ export async function link(c: WorkCtx, who: StaffActor, i: { itemId: string; toI
     if (other.contractId !== c.l.contract.id) return refuse(fieldFaultText({ code: "OTHER_CONTRACT" }));
     const there = await c.tx.workItemLink.findFirst({ where: { organisationId: org, OR: [{ workItemId: row.id, toWorkItemId: other.id }, { workItemId: other.id, toWorkItemId: row.id }] }, select: { id: true } });
     if (there) return refuse("Already linked.", 409);
-    target = { toWorkItemId: other.id, projectDocumentId: null, label: `${itemRef(other.type, other.number)} · ${other.title}` };
+    target = { toWorkItemId: other.id, projectDocumentId: null, label: `${itemRef(other.type, other.number)} · ${other.title}`, other };
   } else {
     const doc = await c.tx.projectDocument.findFirst({ where: { id: i.documentId!, organisationId: org }, select: { id: true, contractId: true, title: true } });
     if (!doc) return refuse("That document no longer exists.", 404);
@@ -289,6 +293,8 @@ export async function link(c: WorkCtx, who: StaffActor, i: { itemId: string; toI
   }
   const made = await c.tx.workItemLink.create({ data: { organisationId: org, workItemId: row.id, toWorkItemId: target.toWorkItemId, projectDocumentId: target.projectDocumentId, personId: who.personId, recordedAt: c.now }, select: { id: true } });
   await audit(c, who, row, "WorkItemLink", made.id, "link", "CREATE", diffFields(null, { linkedTo: target.label }));
+  // The other end's Activity shows the link too: the same link, audited under that item, naming this one.
+  if (target.other) await audit(c, who, target.other, "WorkItemLink", made.id, "link", "CREATE", diffFields(null, { linkedTo: `${itemRef(row.type, row.number)} · ${row.title}` }));
   await act.write(c.tx, made.id);
   return { id: made.id };
 }
@@ -308,6 +314,7 @@ export async function unlink(c: WorkCtx, who: StaffActor, i: { itemId: string; l
   const removed = await c.tx.workItemLink.deleteMany({ where: { id: found.id, organisationId: c.l.org.id } });
   if (removed.count !== 1) refuse("That link no longer exists.", 404);
   await audit(c, who, row, "WorkItemLink", found.id, "link", "DELETE", diffFields({ linkedTo: label }, { linkedTo: null }));
+  if (ends) await audit(c, who, ends, "WorkItemLink", found.id, "link", "DELETE", diffFields({ linkedTo: `${itemRef(row.type, row.number)} · ${row.title}` }, { linkedTo: null }));
 }
 
 // ------------------------------------------------------------------ files

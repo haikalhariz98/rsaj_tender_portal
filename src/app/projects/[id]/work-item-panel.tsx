@@ -14,9 +14,9 @@ import { TEXT_MAX } from "@/lib/work/bounds";
 import { cardMoves } from "@/lib/work/board";
 import { typeHasField } from "@/lib/work/fields";
 import { workHref, type WorkQuery } from "@/lib/work/href";
-import { ACTION_WORDS, itemRefText, latenessWords, NCR_WORD, STATUS_WORDS, TYPE_WORDS, whoCanWords } from "@/lib/work/labels";
+import { ACTION_WORDS, itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, STATUS_WORDS, TYPE_WORDS, whoCanWords } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
-import { assigneeOptions, linkOptions, loadActivity, loadItem, whoNamesOf, type WorkContext } from "@/lib/work/load";
+import { loadActivity, loadItem, whoNamesOf, type WorkContext } from "@/lib/work/load";
 import { isOpen, primaryActions, TARGET } from "@/lib/work/move";
 import type { WorkAction, WorkActor } from "@/lib/work/types";
 
@@ -33,7 +33,7 @@ type Option = { value: string; label: string };
  * with the comment box. Whatever the reader may not do is drawn read only with who can in a popover; the same pure rules the acts use decide it here (`primaryActions`, `cardMoves`,
  * `mayEdit`). An address that names no item on this contract says so.
  */
-export async function WorkItemPanel({ l, ctx, q, personId, address }: { l: LoadedContract; ctx: WorkContext; q: WorkQuery; personId: string; address: string }) {
+export async function WorkItemPanel({ l, ctx, q, personId, address, people, linkOpts }: { l: LoadedContract; ctx: WorkContext; q: WorkQuery; personId: string; address: string; people: Option[]; linkOpts: { items: Option[]; documents: Option[] } }) {
   const org = l.org.id;
   const contractId = l.contract.id;
   const closeHref = workHref(contractId, q, { item: null });
@@ -47,10 +47,10 @@ export async function WorkItemPanel({ l, ctx, q, personId, address }: { l: Loade
   }
   const c = detail.card;
   const actor: WorkActor = { personId, leadIds: ctx.lead.ids, mayReadContract: true };
-  const [who, people, links, activity] = await Promise.all([
+  // The pickers come from the tab (it loaded them for the list); the item itself is not offered to link to.
+  const links = { ...linkOpts, items: linkOpts.items.filter((o) => o.value !== c.id) };
+  const [who, activity] = await Promise.all([
     whoNamesOf(db, org, { raisedByPersonId: c.raisedBy, assigneePersonId: c.assignee }, ctx.lead),
-    assigneeOptions({ organisationId: org }),
-    linkOptions({ organisationId: org, contractId, exceptItemId: c.id }),
     loadActivity({ organisationId: org, contractId, contractNumber: ctx.contractNumber, item: { id: c.id, type: c.type, number: c.number }, timeZone: ctx.timeZone }),
   ]);
   const itemLabel = itemRefText(c.type, c.number);
@@ -78,7 +78,9 @@ export async function WorkItemPanel({ l, ctx, q, personId, address }: { l: Loade
     ...people.filter((p) => p.value === personId).map((p) => ({ ...p, label: `${p.label} (me)` })),
     ...people.filter((p) => p.value !== personId),
   ];
-  const wall = detail.happenedAt ? `${dayOf(detail.happenedAt, ctx.timeZone)}T${clockTimeIn(detail.happenedAt, ctx.timeZone)}` : "";
+  // The wall-clock value needs the organisation's time zone; without one the field is read only and says so.
+  const wall = detail.happenedAt && ctx.timeZone ? `${dayOf(detail.happenedAt, ctx.timeZone)}T${clockTimeIn(detail.happenedAt, ctx.timeZone)}` : "";
+  const happenedWhy = why ?? (ctx.timeZone ? undefined : LATE_NOT_JUDGED_WORDS.en);
   const feed: ActivityEntry[] = activity.map((a) => ({ id: a.id, kind: a.kind === "COMMENT" ? "comment" : "event", who: a.who, at: formatOrgDateTime(a.at, ctx.timeZone), iso: a.at.toISOString(), text: a.kind === "COMMENT" ? a.body : a.text }));
   const refLabel = (r: string) => r.replace("-", " ");
 
@@ -137,12 +139,12 @@ export async function WorkItemPanel({ l, ctx, q, personId, address }: { l: Loade
         <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
           {select("assigneePersonId", "Assignee", c.assignee ?? "", peopleOptions)}
           {select("priority", "Priority", c.priority, PRIORITY_OPTIONS)}
-          <FieldEdit label="Due" field="dueOn" kind="date" value={c.dueOn ?? ""} {...base} disabledWhy={why} />
+          <FieldEdit label="Due" field="dueOn" kind="date" value={c.dueOn ?? ""} display={c.dueOn ? formatDate(dayToDate(c.dueOn)) : ""} {...base} disabledWhy={why} />
           <FieldEdit label="Location" field="location" value={c.location} {...base} disabledWhy={why} />
           {typeHasField(c.type, "impact") && select("impact", "Impact", detail.impact ?? "", [{ value: "", label: "Not set" }, ...IMPACT_OPTIONS])}
           {typeHasField(c.type, "inspectionResult") && select("inspectionResult", "Result", c.inspectionResult ?? "NOT_YET", RESULT_OPTIONS)}
           {typeHasField(c.type, "severity") && select("severity", "Severity", detail.severity ?? "", SEVERITY_OPTIONS)}
-          {typeHasField(c.type, "happenedAt") && <FieldEdit label="Happened" field="happenedAt" kind="datetime-local" value={wall} {...base} disabledWhy={why} />}
+          {typeHasField(c.type, "happenedAt") && <FieldEdit label="Happened" field="happenedAt" kind="datetime-local" value={wall} display={detail.happenedAt ? formatOrgDateTime(detail.happenedAt, ctx.timeZone) : ""} {...base} disabledWhy={happenedWhy} />}
           {typeHasField(c.type, "fromDocumentId") && select("fromDocumentId", "From", detail.fromDocument?.id ?? "", [{ value: "", label: "None" }, ...links.documents])}
           <div className="min-w-0">
             <div className="text-[12.5px] font-semibold text-ink-3">Raised by</div>
@@ -187,9 +189,16 @@ export async function WorkItemPanel({ l, ctx, q, personId, address }: { l: Loade
           <ul className="flex flex-col gap-1">
             {detail.files.map((f) => (
               <li key={f.attachmentId} className="text-[13.5px] break-all">
-                <a href={`/api/documents/versions/${encodeURIComponent(f.versionId)}`} className="font-semibold">
-                  {f.filename}
-                </a>
+                {f.withdrawnAt ? (
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-ink-3 line-through">{f.filename}</span>
+                    <Badge tone="warn">Withdrawn</Badge>
+                  </span>
+                ) : (
+                  <a href={`/api/documents/versions/${encodeURIComponent(f.versionId)}`} className="font-semibold">
+                    {f.filename}
+                  </a>
+                )}
               </li>
             ))}
           </ul>
