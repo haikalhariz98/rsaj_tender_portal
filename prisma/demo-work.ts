@@ -270,7 +270,7 @@ function asContractor(actor: import("../src/lib/auth/types").SupplierActor) {
 async function loadSharing(db: Db, organisationId: string, today: string, ago: (n: number, hhmm: string) => string): Promise<string[]> {
   const { dayPlus } = await import("../src/lib/dates");
   const { loadContract } = await import("../src/lib/contract/repo");
-  const { leadOf } = await import("../src/lib/work/load");
+  const { activeAmong, leadOf } = await import("../src/lib/work/load");
   const { answerAsContractor, moveAsContractor, raiseAsContractor, replyAsContractor } = await import("../src/lib/work/portal-store");
   const { STAGED_FOR_WORK_ITEM } = await import("../src/lib/documents/staged-for");
   const { demoPdf, writeDemoDocs } = await import("./demo-documents");
@@ -285,6 +285,14 @@ async function loadSharing(db: Db, organisationId: string, today: string, ago: (
   const fileClass = policy?.projectDocumentClass;
   if (!fileClass || fileClass.classification === null || fileClass.classification === "SULIT") return skip("the class for project files is not set, or is not one a contractor may download");
   const lead = (await leadOf(l, today)).ids[0] ?? people.eng;
+  // What the cores would refuse part-way (the round's acts commit one by one, and the demo is never wiped), asked first.
+  const { actStatusFault } = await import("../src/lib/contract/act-status");
+  const { portalStandingBarOf } = await import("../src/lib/portal/standing-gate-store");
+  const status = l.contract.status as import("../src/lib/contract/types").ContractStatus;
+  if (actStatusFault("PROJECT_TEAM", status) || actStatusFault("WORK_ITEM", status)) return skip("its status does not allow work or team changes");
+  const named = [lead, people.eng, people.bala, people.chen, people.daniel];
+  if ((await activeAmong(db as never, organisationId, named)).size !== new Set(named).size) return skip("someone the round names is not active");
+  if (await portalStandingBarOf(db as never, { supplierId: l.award.vendorId, organisationId }, "TRANSACT")) return skip("its contractor's standing bars it from acting on the portal");
 
   const w = on(organisationId, CON);
   const contractor = asContractor({
