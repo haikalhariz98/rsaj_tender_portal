@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
+import { LockIcon } from "@/components/icons";
 import { useSay } from "@/components/i18n/language-context";
 import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
 
@@ -22,6 +23,8 @@ export interface ActivityEntry {
   iso?: string;
   /// A comment's words, or an event's sentence ("moved it to In review").
   text: string;
+  /// A comment only staff can read, drawn on the amber tint with a lock. Set only where the other side could have read it (a shared item).
+  internal?: boolean;
 }
 
 export function Activity({
@@ -73,7 +76,14 @@ export function Activity({
                   <span className="font-semibold text-ink">{e.who}</span> · {e.iso ? <time dateTime={e.iso}>{e.at}</time> : e.at}
                 </div>
                 {e.kind === "comment" ? (
-                  <p className="mt-1 rounded-xl bg-sunken px-3.5 py-2.5 text-[14px] whitespace-pre-wrap break-words text-ink">{e.text}</p>
+                  <p className={`mt-1 rounded-xl px-3.5 py-2.5 text-[14px] whitespace-pre-wrap break-words text-ink ${e.internal ? "border border-amber-200 bg-amber-50" : "bg-sunken"}`}>
+                    {e.internal && (
+                      <span className="mb-1 flex items-center gap-1 text-[12px] font-semibold text-amber-800">
+                        <LockIcon size={12} /> Internal note
+                      </span>
+                    )}
+                    {e.text}
+                  </p>
                 ) : (
                   <p className="text-[13.5px] break-words text-ink-2">{e.text}</p>
                 )}

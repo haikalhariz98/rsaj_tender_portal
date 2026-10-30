@@ -36,3 +36,6 @@ export const QUICK_TYPES = TYPE_OPTIONS.filter((t) => ["TASK", "ACTION", "INSPEC
 /// list's padding cannot disagree; `work-shared.test.ts` holds the padding to the size's width.
 export const WORK_PANEL_SIZE: DrawerSize = "md";
 export const WORK_PANEL_PAD = "xl:pr-[34rem]";
+
+/// WB-2: the confirm before a share or a contractor assignment posts. The same words wherever it is asked.
+export const shareConfirmWords = (contractor: string) => ({ question: `Share with ${contractor}?`, words: `${contractor} will see this item, its replies and files added from now. This can't be undone.` });

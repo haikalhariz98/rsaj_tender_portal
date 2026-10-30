@@ -203,6 +203,7 @@ const GATE_EXCEPTIONS: Readonly<Record<string, string>> = {
   Composer: "The comment box: its action is commentOnWorkItem (WORK_ITEM row first); WorkItemPanel draws it only while the row is open (ctx.open).",
   // Workspace 3a review fixes (1309e431): the shared segmented switch replaced the tab's own pills (flagged, stricter: named and reached).
   Segmented: "The view and List|Board switch: a row of links or buttons that changes the address or the filter shown, and records nothing.",
+  ConfirmDialog: "The share confirm (workspace 3b WB-2): drawn only after a gated control (the New item drawer, the item menu, the assignee picker) asked; its Share button posts a Work act, which asks the WORK_ITEM row first.",
   Segment: "One option of the segmented switch: a link to another address, or a button that changes what is shown; it records nothing.",
 };
 
@@ -361,6 +362,13 @@ const GATED_BY_PARENT: Readonly<Record<string, string>> = {
   UnlinkButton: "WorkItemPanel",
   AttachFiles: "WorkItemPanel",
   ItemActions: "WorkItemPanel",
+  // Workspace 3b step 5 (flagged, stricter: named and reached): sharing, the contractor assignee, file removal and the Project team card; each posts a Work or team act that asks its row first.
+  AssigneeSelect: "WorkItemPanel",
+  RemoveFile: "WorkItemPanel",
+  ShareConfirm: "ItemActions",
+  AddTeamMember: "ProjectTeamCard",
+  ChangeManager: "ProjectTeamCard",
+  RemoveTeamMember: "ProjectTeamCard",
 };
 
 /// The pages whose families depend on the record: each asks one function for its gates, and wraps its header's acts and
@@ -371,6 +379,8 @@ const PAGE_GATES: Readonly<Record<string, RegExp[]>> = {
   CasePage: [/const formationShut = status \? actStatusBlocker\("FORMATION", status\) : null;/, /<ActGate blocker=\{formationShut\}><StartPreparationDrawer /],
   // Workspace 3a step 5: the Work tab asks the WORK_ITEM row once and states it to every drawer and control beneath.
   WorkPanel: [/const shut = actStatusBlocker\("WORK_ITEM", ctx\.contractStatus\);/, /<ActGate blocker=\{shut\}>/],
+  // Workspace 3b step 5: the Project team card asks the PROJECT_TEAM row once and states it to its drawers.
+  ProjectTeamCard: [/const shut = actStatusBlocker\("PROJECT_TEAM", /, /<ActGate blocker=\{shut\}>/],
   VariationPage: [/const gate = actStatusBlocker\("VARIATION", l\.contract\.status as ContractStatus\);/, /<ActGate blocker=\{gate\}>\s*\{action\}/, /<ActGate blocker=\{gate\}>\s*<Tabs /],
   // Phase 2 close-out stage A: the extension-of-time claim's page asks the EOT row and wraps its header's acts and its body.
   EotClaimPage: [/const refused = actStatusFault\("EOT", l\.contract\.status as ContractStatus\);/, /<ActGate blocker=\{gate\}>\s*\{action\}/, /<ActGate blocker=\{gate\}>\s*<div className="flex flex-col gap-6">/],

@@ -72,6 +72,35 @@ describe("Composer", () => {
   });
 });
 
+describe("Composer audience switch", () => {
+  const audiences = [
+    { value: "REPLY", label: "Reply", send: "Send reply" },
+    { value: "INTERNAL", label: "Internal note", send: "Add note", internal: true },
+  ];
+  it("an unshared item (no audiences) shows no switch and posts no audience", async () => {
+    await act(async () => root.render(createElement(Composer, { action: async () => {}, label: "Comment" })));
+    expect(host.querySelector('[aria-label="Who sees this"]')).toBeNull();
+    expect(host.querySelector('input[name="audience"]')).toBeNull();
+  });
+  it("a shared item defaults to Reply, and Internal note is tinted, locked and posted as INTERNAL", async () => {
+    const action = vi.fn(async (data: FormData) => void data.get("audience"));
+    await act(async () => root.render(createElement(Composer, { action, label: "Comment", audiences })));
+    const pressed = () => [...host.querySelectorAll("button[aria-pressed=true]")].map((b) => b.textContent);
+    expect(pressed()).toEqual(["Reply"]);
+    expect(host.querySelector("button[type=submit]")!.textContent).toBe("Send reply");
+    await act(async () => void [...host.querySelectorAll<HTMLButtonElement>("button[aria-pressed]")].find((b) => b.textContent === "Internal note")!.click());
+    expect(pressed()).toEqual(["Internal note"]);
+    expect(host.querySelector("textarea")!.className).toContain("bg-amber-50");
+    expect(host.querySelector("svg")).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(host.querySelector("textarea")!, "note");
+      host.querySelector("textarea")!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => host.querySelector<HTMLButtonElement>("button[type=submit]")!.click());
+    expect(action.mock.calls[0][0].get("audience")).toBe("INTERNAL");
+  });
+});
+
 describe("Board", () => {
   it("never writes a column id it does not draw", async () => {
     const columns = [{ id: "a", label: "Alpha", total: 1 }];

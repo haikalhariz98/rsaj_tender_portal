@@ -1,10 +1,12 @@
 import Link from "next/link";
 
 import { SelectCell } from "@/components/data-list";
+import { BuildingIcon, SwapIcon } from "@/components/icons";
 import { Activity, type ActivityEntry } from "@/components/ui/activity";
 import { Badge } from "@/components/ui/badge";
-import { Composer } from "@/components/ui/composer";
+import { Composer, type ComposerAudience } from "@/components/ui/composer";
 import { Note } from "@/components/ui/feedback";
+import { MoreText } from "@/components/ui/more-text";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { clockTimeIn, dayOf, dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -12,20 +14,27 @@ import { documentFaultText } from "@/lib/documents/labels";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { TEXT_MAX } from "@/lib/work/bounds";
 import { cardMoves } from "@/lib/work/board";
-import { typeHasField } from "@/lib/work/fields";
+import { removeFileFaults } from "@/lib/work/audience";
+import { CONTRACTOR_ASSIGNEE, typeHasField } from "@/lib/work/fields";
+import { shareFaults } from "@/lib/work/sharing";
 import { workHref, type WorkQuery } from "@/lib/work/href";
-import { ACTION_WORDS, itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, STATUS_WORDS, TYPE_WORDS, whoCanWords } from "@/lib/work/labels";
+import { ACTION_WORDS, itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, removeFileWords, STATUS_WORDS, TYPE_WORDS, whoCanWords } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
-import { loadActivity, loadItem, whoNamesOf, type WorkContext } from "@/lib/work/load";
+import { contractorNameOf, loadActivity, loadItem, namesOf, whoNamesOf, type WorkContext } from "@/lib/work/load";
 import { isOpen, primaryActions, TARGET } from "@/lib/work/move";
 import { personIdOf } from "@/lib/work/party";
 import type { WorkAction, WorkActor } from "@/lib/work/types";
 
 import { commentOnWorkItem, editWorkField, moveWorkItem } from "./work-actions";
-import { AttachFiles, FieldEdit, LinkPicker, UnlinkButton, WorkPanelShell } from "./work-controls";
+import { AssigneeSelect, AttachFiles, FieldEdit, LinkPicker, RemoveFile, UnlinkButton, WorkPanelShell } from "./work-controls";
 import { ItemActions } from "./work-editors";
 import { editWhy, IMPACT_OPTIONS, PRIORITY_OPTIONS, RESULT_OPTIONS, SEVERITY_OPTIONS, STATUS_OPTIONS } from "./work-shared";
 
+/// The composer's two audiences on a shared item (B-2): Reply is the default (WB-9).
+const AUDIENCES: readonly ComposerAudience[] = [
+  { value: "REPLY", label: "Reply", send: "Send reply" },
+  { value: "INTERNAL", label: "Internal note", send: "Add note", internal: true },
+];
 const section = "text-[13px] font-semibold tracking-wide text-ink-3 uppercase";
 type Option = { value: string; label: string };
 
@@ -50,9 +59,12 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
   const actor: WorkActor = { side: "STAFF", personId, leadIds: ctx.lead.ids, mayReadContract: true };
   // The pickers come from the tab (it loaded them for the list); the item itself is not offered to link to.
   const links = { ...linkOpts, items: linkOpts.items.filter((o) => o.value !== c.id) };
-  const [who, activity] = await Promise.all([
+  const contractor = contractorNameOf(l);
+  const shared = c.sharedAt !== null;
+  const [who, activity, attachers] = await Promise.all([
     whoNamesOf(db, org, { raisedByPersonId: personIdOf(c.raisedBy), assigneePersonId: personIdOf(c.assignee), assignedToContractor: c.assignee?.kind === "CONTRACTOR" }, ctx.lead),
     loadActivity({ organisationId: org, contractId, contractNumber: ctx.contractNumber, item: { id: c.id, type: c.type, number: c.number }, timeZone: ctx.timeZone }),
+    namesOf(db, org, detail.files.flatMap((f) => (f.attachedByPersonId ? [f.attachedByPersonId] : []))),
   ]);
   const itemLabel = itemRefText(c.type, c.number);
   const why = editWhy(ctx, c, actor, who);
@@ -63,6 +75,8 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
   // The status select: where this reader may take it now, and where it stands. Cancel and Send back collect words, so they are the menu's, never a select's.
   const moves = cardMoves(c, actor, { contractOpen: ctx.open, who });
   const reachable: string[] = [c.status, ...moves.moves];
+  // Share (WB-2) is in the menu while the reader may do it; the confirm is the client's.
+  const mayShare = ctx.open && !shared && shareFaults(c, actor, true, who).length === 0;
   const pa = primaryActions(c, actor, { contractOpen: ctx.open, who });
   const wordsOf = (a: WorkAction) => ACTION_WORDS[a].en;
   const menu = pa.menu.map((a) => ({ kind: (a === "CANCEL" ? "cancel" : a === "SEND_BACK" ? "sendBack" : "move") as "move" | "cancel" | "sendBack", label: wordsOf(a), to: TARGET[a] }));
@@ -82,7 +96,7 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
   // The wall-clock value needs the organisation's time zone; without one the field is read only and says so.
   const wall = detail.happenedAt && ctx.timeZone ? `${dayOf(detail.happenedAt, ctx.timeZone)}T${clockTimeIn(detail.happenedAt, ctx.timeZone)}` : "";
   const happenedWhy = why ?? (ctx.timeZone ? undefined : LATE_NOT_JUDGED_WORDS.en);
-  const feed: ActivityEntry[] = activity.map((a) => ({ id: a.id, kind: a.kind === "COMMENT" ? "comment" : "event", who: a.who, at: formatOrgDateTime(a.at, ctx.timeZone), iso: a.at.toISOString(), text: a.kind === "COMMENT" ? a.body : a.text }));
+  const feed: ActivityEntry[] = activity.map((a) => ({ id: a.id, kind: a.kind === "COMMENT" ? "comment" : "event", who: a.who, at: formatOrgDateTime(a.at, ctx.timeZone), iso: a.at.toISOString(), text: a.kind === "COMMENT" ? a.body : a.text, internal: shared && a.kind === "COMMENT" && a.internal }));
   const refLabel = (r: string) => r.replace("-", " ");
 
   return (
@@ -94,6 +108,13 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
       subtitle={TYPE_WORDS[c.type].en}
       badge={
         <>
+          {shared ? (
+            <Badge tone="info">
+              <SwapIcon size={12} /> Shared
+            </Badge>
+          ) : (
+            <Badge outline>Not shared</Badge>
+          )}
           {lateText && <Badge tone="err">{lateText}</Badge>}
           {c.type === "INSPECTION" && c.inspectionResult === "FAILED" && isOpen(c.status) && <Badge tone="err">{NCR_WORD.en}</Badge>}
         </>
@@ -124,6 +145,7 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
             primary={pa.primary ? { label: wordsOf(pa.primary), to: TARGET[pa.primary] } : null}
             disabled={pa.disabled ? { label: wordsOf(pa.disabled.action), whoCan: pa.disabled.whoCan.en } : null}
             menu={menu}
+            share={mayShare ? { contractor } : null}
           />
         </div>
 
@@ -138,7 +160,12 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
         {typeHasField(c.type, "answer") && <FieldEdit label="Answer" field="answer" kind="textarea" value={c.answer} {...base} disabledWhy={why} />}
 
         <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-          {select("assigneePersonId", "Assignee", personIdOf(c.assignee) ?? "", peopleOptions)}
+          <div className="min-w-0">
+            <div className="mb-1 flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-3">
+              Assignee {c.assignee?.kind === "CONTRACTOR" && <BuildingIcon size={13} />}
+            </div>
+            <AssigneeSelect {...base} value={c.assignee?.kind === "CONTRACTOR" ? CONTRACTOR_ASSIGNEE : (personIdOf(c.assignee) ?? "")} options={peopleOptions} contractor={contractor} disabledWhy={why} />
+          </div>
           {select("priority", "Priority", c.priority, PRIORITY_OPTIONS)}
           <FieldEdit label="Due" field="dueOn" kind="date" value={c.dueOn ?? ""} display={c.dueOn ? formatDate(dayToDate(c.dueOn)) : ""} {...base} disabledWhy={why} />
           <FieldEdit label="Location" field="location" value={c.location} {...base} disabledWhy={why} />
@@ -189,7 +216,7 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
           {detail.files.length === 0 && <p className="text-[13.5px] text-ink-3">No files.</p>}
           <ul className="flex flex-col gap-1">
             {detail.files.map((f) => (
-              <li key={f.attachmentId} className="text-[13.5px] break-all">
+              <li key={f.attachmentId} className="flex flex-wrap items-center gap-x-2 text-[13.5px] break-all">
                 {f.withdrawnAt ? (
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-ink-3 line-through">{f.filename}</span>
@@ -200,6 +227,14 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
                     {f.filename}
                   </a>
                 )}
+                {shared && !f.withdrawnAt && <Badge tone={f.seenByContractor ? "info" : "neutral"}>{f.seenByContractor ? `Seen by ${contractor}` : "Staff only"}</Badge>}
+                {ctx.open && !shared && !f.withdrawnAt && (
+                  removeFileFaults(c, actor, f.attachedByPersonId, "x", removeFileWords(null, null)).length === 0 ? (
+                    <RemoveFile {...base} attachmentId={f.attachmentId} filename={f.filename} />
+                  ) : isOpen(c.status) ? (
+                    <MoreText text={removeFileWords(f.attachedByPersonId ? (attachers.get(f.attachedByPersonId) ?? null) : null, who.lead).en} label={`Who can remove ${f.filename}`} />
+                  ) : null
+                )}
               </li>
             ))}
           </ul>
@@ -209,7 +244,7 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
         <section aria-label="Activity" className="flex flex-col gap-3">
           <h3 className={section}>Activity</h3>
           <Activity entries={feed} label={`Activity on ${itemLabel}`} />
-          {ctx.open && <Composer action={commentOnWorkItem} fields={base} label={`Comment on ${itemLabel}`} placeholder="Write a comment" max={TEXT_MAX} />}
+          {ctx.open && <Composer action={commentOnWorkItem} fields={base} label={`Comment on ${itemLabel}`} placeholder="Write a comment" max={TEXT_MAX} audiences={shared ? AUDIENCES : undefined} />}
         </section>
       </div>
     </WorkPanelShell>

@@ -76,6 +76,7 @@ import { BaselinePanel } from "./baseline-panel";
 import { KickOffCard } from "./kick-off-card";
 import { DocumentsPanel } from "./documents-panel";
 import { SubmissionsTab } from "./submissions-tab";
+import { ProjectTeamCard } from "./project-team-card";
 import { WorkPanel } from "./work-panel";
 import { WorkSkeleton } from "./work-skeleton";
 import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
@@ -278,7 +279,12 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
       case "overview":
         return supervision && payments && variations && sulit ? <OverviewPanel actor={actor} sulit={sulit} l={lc} awardOpen={visibility === "WHOLE"} facts={facts} today={today} supervision={supervision} payments={payments} variations={variations} /> : null;
       case "team":
-        return supervision ? <TeamPanel actor={actor} l={lc} v={supervision} people={people} today={today} /> : null;
+        return supervision ? (
+          <div className="flex flex-col gap-6">
+            <ProjectTeamCard actor={actor} l={lc} people={people} today={today} />
+            <TeamPanel actor={actor} l={lc} v={supervision} people={people} today={today} />
+          </div>
+        ) : null;
       case "site":
         return supervision ? <SitePanel l={lc} v={supervision} people={people} today={today} page={pageNo} hidden={hiddenActs} /> : null;
       case "payments":

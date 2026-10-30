@@ -19,6 +19,8 @@ export interface WorkQuery {
   type: WorkItemType | null;
   assignee: string | null;
   priority: WorkPriority | null;
+  /// The Shared filter as the address writes it: "yes" shared with the contractor, "no" not shared, null either.
+  shared: "yes" | "no" | null;
   q: string;
   mode: WorkMode;
   /// From 0.
@@ -35,7 +37,7 @@ type Params = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined): string | undefined => (Array.isArray(v) ? v[0] : v);
 
 export function parseWorkQuery(sp: Params, sorts: readonly string[]): WorkQuery {
-  const f = parseWorkFilters({ type: one(sp.type), assignee: one(sp.assignee), priority: one(sp.priority), q: one(sp.q) });
+  const f = parseWorkFilters({ type: one(sp.type), assignee: one(sp.assignee), priority: one(sp.priority), q: one(sp.q), shared: one(sp.shared) });
   const pageText = one(sp.page) ?? "";
   const size = (PAGE_SIZES as readonly number[]).find((n) => String(n) === one(sp.size));
   const sort = one(sp.sort);
@@ -45,6 +47,7 @@ export function parseWorkQuery(sp: Params, sorts: readonly string[]): WorkQuery 
     type: f.type ?? null,
     assignee: f.assignee ?? null,
     priority: f.priority ?? null,
+    shared: f.shared === true ? "yes" : f.shared === false ? "no" : null,
     q: (f.q ?? "").slice(0, 100),
     mode: one(sp.mode) === "board" ? "board" : "list",
     page: /^\d{1,6}$/.test(pageText) ? Number(pageText) : 0,
@@ -57,7 +60,7 @@ export function parseWorkQuery(sp: Params, sorts: readonly string[]): WorkQuery 
 }
 
 /// The filters the loaders take.
-export const filtersOf = (q: WorkQuery) => ({ type: q.type, assignee: q.assignee, priority: q.priority, q: q.q });
+export const filtersOf = (q: WorkQuery) => ({ type: q.type, assignee: q.assignee, priority: q.priority, shared: q.shared === "yes" ? true : q.shared === "no" ? false : null, q: q.q });
 
 /// The address of a query with changes. A change to the view, a filter, the search, the mode or the sort starts at the first page and closes the panel unless the change says otherwise.
 export function workHref(contractId: string, q: WorkQuery, change: Partial<WorkQuery> = {}): string {
@@ -69,6 +72,7 @@ export function workHref(contractId: string, q: WorkQuery, change: Partial<WorkQ
   if (n.type) p.set("type", n.type);
   if (n.assignee) p.set("assignee", n.assignee);
   if (n.priority) p.set("priority", n.priority);
+  if (n.shared) p.set("shared", n.shared);
   if (n.q) p.set("q", n.q);
   if (n.mode === "board") p.set("mode", "board");
   if (n.sort) {
@@ -98,6 +102,7 @@ export function workServerMode(contractId: string, q: WorkQuery, o: { total: num
   if (q.type) keep.type = q.type;
   if (q.assignee) keep.assignee = q.assignee;
   if (q.priority) keep.priority = q.priority;
+  if (q.shared) keep.shared = q.shared;
   if (q.mode === "board") keep.mode = "board";
   if (q.sort) keep.sort = q.sort;
   if (q.sort && q.dir === "asc") keep.dir = "asc";
@@ -115,6 +120,6 @@ export function workServerMode(contractId: string, q: WorkQuery, o: { total: num
     sortHrefs,
     sorted: sortedColumn ? { key: sortedColumn, dir: q.dir } : null,
     // No export route for work items in 3a: the list keeps its own client export of the page shown.
-    clearHref: q.q || q.type || q.assignee || q.priority || q.view !== "open" ? workHref(contractId, q, { q: "", type: null, assignee: null, priority: null, view: "open", ...reset }) : null,
+    clearHref: q.q || q.type || q.assignee || q.priority || q.shared || q.view !== "open" ? workHref(contractId, q, { q: "", type: null, assignee: null, priority: null, shared: null, view: "open", ...reset }) : null,
   };
 }

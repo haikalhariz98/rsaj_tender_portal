@@ -21,7 +21,8 @@ import { typeOfferable } from "@/lib/work/fields";
 import { filtersOf, parseWorkQuery, reset, workHref, workServerMode, type WorkQuery } from "@/lib/work/href";
 import { itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, NO_WORK_WORDS, STATUS_WORDS, VIEW_EMPTY_WORDS, viewWords, whoCanWords, type WhoNames } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
-import { assigneeOptions, linkOptions, loadBoard, loadWorkContext, loadWorkList, namesOf, WORK_SORT_KEYS, type WorkCardRow, type WorkSortKey } from "@/lib/work/load";
+import { assigneeOptions, contractorNameOf, linkOptions, loadBoard, loadWorkContext, loadWorkList, namesOf, WORK_SORT_KEYS, type WorkCardRow, type WorkSortKey } from "@/lib/work/load";
+import { CONTRACTOR_ASSIGNEE } from "@/lib/work/fields";
 import { personIdOf } from "@/lib/work/party";
 import type { WorkActor } from "@/lib/work/types";
 import { WORK_VIEWS } from "@/lib/work/views";
@@ -54,8 +55,9 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
   const reader: WorkActor = { side: "STAFF", personId: actor.personId, leadIds: ctx.lead.ids, mayReadContract: true };
   const base = { organisationId: org, contractId, viewerId: actor.personId, view: q.view, filters: filtersOf(q), today: ctx.today, timeZone: ctx.timeZone };
   const notJudged = q.view === "late" && ctx.today === null;
-  const [people, linkOpts, leadNames] = await Promise.all([assigneeOptions({ organisationId: org }), linkOptions({ organisationId: org, contractId }), namesOf(db, org, ctx.lead.ids)]);
+  const [people, linkOpts, leadNames] = await Promise.all([assigneeOptions({ organisationId: org, contractId }), linkOptions({ organisationId: org, contractId }), namesOf(db, org, ctx.lead.ids)]);
   const peopleOptions: Option[] = [...people.filter((p) => p.value === actor.personId).map((p) => ({ ...p, label: `${p.label} (me)` })), ...people.filter((p) => p.value !== actor.personId)];
+  const contractor = contractorNameOf(l);
   const who = (r: WorkCardRow): WhoNames => ({ raiser: r.raisedByName, assignee: r.assigneeName, lead: ctx.lead.roleLabel ? { roleLabel: ctx.lead.roleLabel, names: ctx.lead.ids.map((id) => leadNames.get(id) ?? "Someone") } : null });
   const at = (change: Partial<WorkQuery>) => workHref(contractId, q, change);
 
@@ -69,7 +71,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
       ))}
     </Segmented>
   );
-  const facet = (key: "type" | "assignee" | "priority", label: string, any: string, options: Option[]): FacetSpec => ({
+  const facet = (key: "type" | "assignee" | "priority" | "shared", label: string, any: string, options: Option[]): FacetSpec => ({
     key,
     label,
     value: q[key] ?? "",
@@ -77,7 +79,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
   });
   const filters = (
     <>
-      <ListFacets facets={[facet("type", "Type", "Any type", TYPE_OPTIONS), facet("assignee", "Assignee", "Anyone", peopleOptions), facet("priority", "Priority", "Any priority", PRIORITY_OPTIONS)]} />
+      <ListFacets facets={[facet("type", "Type", "Any type", TYPE_OPTIONS), facet("assignee", "Assignee", "Anyone", peopleOptions), facet("priority", "Priority", "Any priority", PRIORITY_OPTIONS), facet("shared", "Sharing", "Shared or not", [{ value: "yes", label: `Shared with ${contractor}` }, { value: "no", label: "Not shared" }])]} />
       <Segmented as="nav" aria-label="Layout" className="ml-auto">
         {([["list", "List", <ListIcon key="l" size={15} />], ["board", "Board", <BoardIcon key="b" size={15} />]] as const).map(([mode, label, icon]) => (
           <Segment key={mode} on={q.mode === mode} href={at({ mode, page: 0 })} scroll={false} icon={icon}>
@@ -91,6 +93,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
   const newItem = ctx.open ? (
     <NewItemDrawer
       contractId={contractId}
+      contractor={contractor}
       itemHrefBase={itemHrefBase}
       types={TYPE_OPTIONS.filter((t) => typeOfferable(t.value, ctx.contractStatus))}
       priorities={PRIORITY_OPTIONS}
@@ -128,6 +131,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
         href: at({ item: r.ref }),
         badges: [
           ...(r.dueOn ? [{ text: lateText ? `${formatDate(dayToDate(r.dueOn))} · ${lateText}` : formatDate(dayToDate(r.dueOn)), tone: lateText ? ("err" as const) : undefined }] : []),
+          ...(r.sharedAt ? [{ text: "Shared" }] : []),
           ...(r.priority === "HIGH" ? [{ text: "▲ High", tone: "warn" as const }] : r.priority === "URGENT" ? [{ text: "▲▲ Urgent", tone: "err" as const }] : []),
           ...(r.type === "INSPECTION" && r.inspectionResult === "FAILED" ? [{ text: NCR_WORD.en, tone: "err" as const }] : []),
         ],
@@ -161,12 +165,14 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
       const lateText = latenessWords(lateness(r.dueOn, r.status, ctx.today));
       const dueText = r.dueOn ? formatDate(dayToDate(r.dueOn)) : "";
       const fields = { contractId, itemId: r.id };
+      // Assigning to the contractor shares the item and asks a confirm (WB-2), which only the item panel can: the list's picker offers it only where it is the current value.
+      const listPeople = peopleOptions.filter((o) => o.value !== CONTRACTOR_ASSIGNEE || r.assignee?.kind === "CONTRACTOR");
       const edit = (field: string, value: string, options: Option[], label: string): Cell => ({ kind: "select", name: "value", value, options, label: `${label} of ${itemRefText(r.type, r.number)}`, action: editWorkField, fields: { ...fields, field }, disabledWhy: why });
       return {
         id: r.id,
         search: `${itemRefText(r.type, r.number)} ${r.title}`,
         cells: {
-          item: { kind: "link", text: r.title, sub: itemRefText(r.type, r.number), href: at({ item: r.ref }), scroll: false },
+          item: { kind: "link", text: r.title, sub: r.sharedAt ? `${itemRefText(r.type, r.number)} · Shared` : itemRefText(r.type, r.number), href: at({ item: r.ref }), scroll: false },
           type: { kind: "text", text: TYPE_OPTIONS.find((t) => t.value === r.type)?.label ?? "" },
           status: {
             kind: "select",
@@ -178,7 +184,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
             fields: { ...fields, from: r.status },
             disabledWhy: moves.moves.length === 0 ? (moves.stuckWhy ?? (ctx.open ? whoCanWords("MARK_DONE", w).en : why)) : undefined,
           },
-          assignee: inline ? edit("assigneePersonId", personIdOf(r.assignee) ?? "", [{ value: "", label: "Unassigned" }, ...peopleOptions], "Assignee") : r.assigneeName ? { kind: "person", name: r.assigneeName } : { kind: "text", text: "Unassigned", dim: true },
+          assignee: inline ? edit("assigneePersonId", r.assignee?.kind === "CONTRACTOR" ? CONTRACTOR_ASSIGNEE : (personIdOf(r.assignee) ?? ""), [{ value: "", label: "Unassigned" }, ...listPeople], "Assignee") : r.assigneeName ? { kind: "person", name: r.assigneeName } : { kind: "text", text: "Unassigned", dim: true },
           due: lateText ? { kind: "chip", text: `${dueText} · ${lateText}`, tone: "err" } : { kind: "text", text: dueText || "No due date", dim: !dueText },
           priority: edit("priority", r.priority, PRIORITY_OPTIONS, "Priority"),
         },
@@ -192,7 +198,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
       { key: "due", label: "Due", width: "190px", sortable: true, mobile: "meta" },
       { key: "priority", label: "Priority", width: "130px", sortable: true, mobile: "meta" },
     ];
-    const narrowed = q.view !== "open" || q.type || q.assignee || q.priority || q.q;
+    const narrowed = q.view !== "open" || q.type || q.assignee || q.priority || q.shared || q.q;
     body = (
       <>
         {ctx.open && <QuickAdd contractId={contractId} itemHrefBase={itemHrefBase} types={QUICK_TYPES.filter((t) => typeOfferable(t.value, ctx.contractStatus))} />}
