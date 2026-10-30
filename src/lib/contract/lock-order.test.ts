@@ -991,3 +991,84 @@ describe("the kick-off meeting: staff actions lock the contract, the store locks
     expect(cores.get("changeMeeting")).not.toMatch(/\bact\.(?:write|writeAlso)\(|PreparedAct/);
   });
 });
+
+// ------------------------------------------------------------------ workspace 3a, plan step 3: the work acts
+//
+// Not in CONTRACT_ACT_FILES, as the workspace above: the edge (`work-actions.ts`) owns the contract's lock and the cores (`work/store.ts`) take the one WorkItem row lock
+// after it. `work-wiring.test.ts` holds the clock, the beginAct order, the gate, the single raw lock, its scope and the document lock's order; this holds the rest of the
+// order: the edge's helper, each core (the item locked before it is read, judged or written) and where an attribution is written.
+
+const WORK_ACTIONS = "src/app/projects/[id]/work-actions.ts";
+const WORK_STORE = "src/lib/work/store.ts";
+
+describe("the work acts: the contract's lock at the edge, then the item's row in the store", () => {
+  const actionsSrc = read(WORK_ACTIONS);
+  const storeSrc = read(WORK_STORE);
+  const cores = actions(storeSrc);
+
+  it("the edge's helper reads the organisation's day after the WORK_ITEM row is asked and runs the act after the day, under the contract's lock; it takes no other lock", () => {
+    const at = actionsSrc.indexOf("async function inContract(");
+    const helper = actionsSrc.slice(at, actionsSrc.indexOf("\n}\n", at));
+    expect(helper.indexOf("dayOf(now, l.org.timeZone)")).toBeGreaterThan(helper.indexOf("actStatusFault("));
+    expect(helper.indexOf("fn({ tx, l, now, today })")).toBeGreaterThan(helper.indexOf("dayOf("));
+    expect(lex(actionsSrc)).not.toMatch(/FOR SHARE|FOR NO KEY UPDATE|FOR UPDATE|\$transaction/);
+  });
+
+  it("the store has the seven cores and opens no transaction or savepoint of its own", () => {
+    expect([...cores.keys()].sort()).toEqual(["attachFiles", "comment", "createItem", "editField", "link", "moveItem", "unlink"]);
+    expect(lex(storeSrc)).not.toMatch(/\$transaction|auditedCreate|auditedUpdate/);
+    expect(lex(storeSrc, { only: "comments" })).not.toMatch(/SAVEPOINT/i);
+  });
+
+  it("every core on an existing item locks it before reading it, and nothing reads a WorkItem before that lock; raising locks nothing (no other act can see the new row)", () => {
+    const lockerAt = storeSrc.indexOf("async function lockedItem(");
+    const locker = storeSrc.slice(lockerAt, storeSrc.indexOf("\n}\n", lockerAt));
+    expect(locker.indexOf("FOR UPDATE")).toBeGreaterThan(-1);
+    expect(locker.indexOf("FOR UPDATE")).toBeLessThan(locker.indexOf("workItem.findFirst("));
+    for (const name of ["editField", "moveItem", "comment", "link", "unlink", "attachFiles"]) {
+      const body = cores.get(name)!;
+      const locked = body.indexOf("lockedItem(c, i.itemId)");
+      expect(locked, name).toBeGreaterThan(-1);
+      expect(body.search(/\.workItem\.find\w+\(/), `${name}: a WorkItem read outside the lock`).toSatisfy((n: number) => n === -1 || n > locked);
+      expect((body.match(/lockedItem\(/g) ?? []).length, name).toBe(1);
+    }
+    expect(cores.get("createItem")).not.toContain("lockedItem(");
+  });
+
+  it("each core judges on the locked row and writes after it: the item is locked, then the faults, then the write", () => {
+    for (const [name, judge, write] of [
+      ["editField", "fieldFaults(", ".workItem.updateMany("],
+      ["moveItem", "moveFaults(", ".workItem.updateMany("],
+      ["comment", "commentFaults(", ".workItemComment.create("],
+    ] as const) {
+      const body = cores.get(name)!;
+      const locked = body.indexOf("lockedItem(");
+      const judged = body.indexOf(judge);
+      const written = body.indexOf(write);
+      expect(judged, name).toBeGreaterThan(locked);
+      expect(written, name).toBeGreaterThan(judged);
+    }
+  });
+
+  it("the documents of an attachment are locked after the item, in id order, by the one call", () => {
+    const body = cores.get("attachFiles")!;
+    expect(body.indexOf(".sort()")).toBeGreaterThan(body.indexOf("lockedItem("));
+    expect(body.indexOf("lockDocument(c.tx,")).toBeGreaterThan(body.indexOf(".sort()"));
+    expect((storeSrc.match(/lockDocument\(/g) ?? []).length).toBe(1);
+  });
+
+  it("an attribution is written only on the act's own tx, after the row it names is written", () => {
+    let written = 0;
+    for (const [name, body] of cores) {
+      for (const m of body.matchAll(/\bact\.(?:write|writeAlso)\(\s*([^,)]+)/g)) {
+        written++;
+        expect(m[1].trim(), `${name}: an attribution written on another client`).toBe("c.tx");
+      }
+    }
+    expect(written).toBeGreaterThanOrEqual(4); // raise, send back's comment, comment, link
+    const raise = cores.get("createItem")!;
+    expect(raise.indexOf("act.write(c.tx")).toBeGreaterThan(raise.indexOf("workItem.create("));
+    const talk = cores.get("comment")!;
+    expect(talk.indexOf("act.write(c.tx")).toBeGreaterThan(talk.indexOf("workItemComment.create("));
+  });
+});

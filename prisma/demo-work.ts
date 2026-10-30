@@ -2,7 +2,7 @@
  * Work items demo (workspace 3a step 6, WS-22; plan workspace-3a-build-plan.md §5 "Step 6"). Invented throughout; it sets no policy.
  *
  * On demo_con3 (XI202600799, active), the only demo contract executed and not practically complete when the load ends (a Defect is refused from practical
- * completion on, OQ-4, and the plan's second such contract does not exist: demo_con13 is closed by stage C), two rounds of items, each holding every one of the seven types:
+ * completion on, OQ-4; demo_con13 is closed by stage C), two rounds of items, each holding every one of the seven types:
  * late items (due before the load day), unassigned items, a cancelled task with its reason, an action In review, done items inside and outside the Board's
  * 14-day Done window, an answered RFI, a failed inspection (the NCR view), a send back, item links and comments.
  *
@@ -17,6 +17,8 @@
  * fixed early in October 2026, after the contract was stamped (1 Oct), so they stay outside the Done window. The organisation's time zone is the demo's
  * (set by `demo:load` where none is set), without which nothing reads Late.
  *
+ * demo_con15 (practically complete, Work still open) is NOT the contract WS-22 asks for (executed, not practically complete: only demo_con3 is); it holds the six types a Defect refusal leaves (`loadSecond`).
+ *
  * Ids: WorkItem demo_wki*, WorkItemComment demo_wkc*, WorkItemLink demo_wkl*, StaffNotice demo_wkn* (ACT_PREFIX; grepped free). Runs once: a contract
  * that already holds a work item is left alone.
  */
@@ -28,6 +30,8 @@ type Db = PrismaClient;
 const P = "demo_";
 /// The one demo contract that is executed and not practically complete once the load ends (demo_con13 is closed by stage C; the rest are before execution, complete or ended).
 const CON = `${P}con3`;
+/// A second contract with Work open (not the one WS-22 asks for): practically complete, where Work is still open but a Defect item is refused (OQ-4), so it holds the other six types.
+const CON2 = `${P}con15`;
 const people = { aisyah: `${P}p1`, bala: `${P}p2`, chen: `${P}p3`, daniel: `${P}p4`, eng: `${P}p5`, gopal: `${P}p7` };
 
 type Fields = Record<string, string>;
@@ -174,7 +178,32 @@ export async function loadWorkDemo(db: Db, organisationId: string): Promise<{ no
     await w.comment(ago(2, "10:00"), "task2", people.eng, "Still needs someone: the quantity surveyor is on leave.");
     await w.link(ago(2, "10:05"), "task2", people.eng, { documentId: `${P}sic1` });
   }
-  return { notes: [`${CON}: work items of every type, twice`] };
+  return { notes: [`${CON}: work items of every type, twice`, ...(await loadSecond(db, organisationId, today, ago, dayAgo))] };
+}
+
+/// Six of the seven types on the second contract (no Defect: it is past practical completion).
+async function loadSecond(db: Db, organisationId: string, today: string, ago: (n: number, hhmm: string) => string, dayAgo: (n: number) => string): Promise<string[]> {
+  const { dayPlus } = await import("../src/lib/dates");
+  if (!(await db.contract.findUnique({ where: { id: CON2 }, select: { id: true } }))) return [`${CON2} is not loaded: its work demo is skipped`];
+  if ((await db.workItem.count({ where: { contractId: CON2 } })) > 0) return [];
+  const w = on(organisationId, CON2);
+  await w.raise(ago(6, "09:00"), "rfi", people.eng, { type: "RFI", title: "Colour of the line markings at the junction", dueOn: dayAgo(2), assigneePersonId: people.bala });
+  await w.raise(ago(5, "10:00"), "si", people.bala, { type: "SITE_INSTRUCTION", title: "Repaint the stop line", dueOn: dayPlus(today, 2), assigneePersonId: people.chen, impact: "NONE" });
+  await w.link(ago(5, "10:05"), "si", people.bala, { item: "rfi" });
+  await w.raise(ago(4, "08:00"), "insp", people.bala, { type: "INSPECTION", title: "Drainage run-off after rain", dueOn: dayAgo(1), assigneePersonId: people.daniel });
+  await w.edit(ago(3, "15:00"), "insp", people.daniel, "inspectionResult", "FAILED");
+  await w.raise(ago(2, "11:00"), "incident", people.chen, { type: "SAFETY_INCIDENT", title: "Reversing vehicle struck a cone", severity: "NEAR_MISS", happenedAt: ago(2, "10:30") });
+  await w.raise(ago(7, "09:00"), "action", people.eng, { type: "ACTION", title: "Issue the as-built drawings", dueOn: dayPlus(today, 5), assigneePersonId: people.bala });
+  await w.move(ago(6, "09:00"), "action", people.bala, "TO_DO", "IN_PROGRESS");
+  await w.move(ago(1, "14:00"), "action", people.bala, "IN_PROGRESS", "IN_REVIEW");
+  await w.comment(ago(1, "14:05"), "action", people.bala, "Drawings sent for checking.");
+  await w.raise(ago(5, "09:00"), "taskDone", people.eng, { type: "TASK", title: "Return the site keys", assigneePersonId: people.gopal });
+  await w.move(ago(4, "09:00"), "taskDone", people.gopal, "TO_DO", "IN_PROGRESS");
+  await w.move(ago(4, "14:00"), "taskDone", people.gopal, "IN_PROGRESS", "IN_REVIEW");
+  await w.move(ago(4, "16:00"), "taskDone", people.eng, "IN_REVIEW", "DONE");
+  await w.raise(ago(3, "10:00"), "taskDup", people.eng, { type: "TASK", title: "Book a second survey" });
+  await w.move(ago(3, "10:10"), "taskDup", people.eng, "TO_DO", "CANCELLED", { reason: "The first survey covers it." });
+  return [`${CON2}: work items of six types (no Defect after practical completion)`];
 }
 
 /// Read back through the views' own rule (`inView`), on the load day, as the list and the Board read them.
@@ -202,6 +231,9 @@ export async function checkWorkDemo(db: Db) {
   const windowStart = dayPlus(today!, -(BOARD_DONE_DAYS - 1));
   const closedDays = rows.filter((r) => r.status === "DONE").map((r) => dayOf(r.closedAt!, org.timeZone)!);
   if (!closedDays.some((d) => d >= windowStart) || !closedDays.some((d) => d < windowStart)) fail("done items are not both inside and outside the Done window");
+  const second = (await db.workItem.findMany({ where: { contractId: CON2 } })).map((r) => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: r.raisedByPersonId!, assignee: r.assigneePersonId, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult, title: r.title, priority: r.priority }));
+  for (const t of WORK_ITEM_TYPES.filter((x) => x !== "DEFECT")) if (!second.some((r) => r.type === t)) fail(`${CON2} has no ${t}`);
+  if (!second.some((r) => inView(r, "late", { personId: "" }, today))) fail(`${CON2} has nothing late`);
   if ((await db.workItemComment.count({ where: { workItemId: { in: rows.map((r) => r.id) }, internal: true } })) < 3) fail("fewer than three comments");
   const links = await db.workItemLink.findMany({ where: { workItemId: { in: rows.map((r) => r.id) } }, select: { projectDocumentId: true } });
   if (links.length < 3 || !links.some((x) => x.projectDocumentId)) fail("fewer than three links, or none to a document");
