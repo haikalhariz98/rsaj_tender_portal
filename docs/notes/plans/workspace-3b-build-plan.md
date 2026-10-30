@@ -936,3 +936,20 @@ off during heavy gates):
   - a source's `envelope`, where it is null.
 - **Demo data** for 4b goes into the demo organisation. **No RSAJ row is copied into a seed** (AGENTS.md: no customer's data
   ships).
+
+## Handoff log (built, 2026-10-30)
+
+- **Step 1** (`d5c4c2b8`, `61597d24`): migrations `20261210001100_work_items_shared`, `20261210001200_project_team`. Assigning to the
+  contractor is ONE UPDATE (flag on, `assigneePersonId` null, `sharedAt` only if unset); sharing a shared item is a no-op (PA055);
+  a Reply needs `sharedAt` ≤ `recordedAt` (PA056). Step 3 removes `ProjectTeamMember.addedBy` from `NOT_BUILT`. Step 6 flips
+  `WorkItem.answer` in `data-export-fields.ts` to IN. Step 10: `defectItemId` FK is Restrict — clear it before deleting a `DefectItem`.
+- **Step 2** (`e1be2bd1`, `cce3d78f`): parties (`party.ts`; never compare parties with `===`), `sharing.ts`, `audience.ts`,
+  `team.ts`, `portal.ts`. For step 3: lift the `NOT_YET_SHARED` guard in `store.ts` when the audited share lands (audit `sharedAt`
+  with the assignee change as one line); fix `editField`'s no-change check to compare parties (unassigning a contractor-held item is
+  skipped today); pass the real team and `activeIds` to `leadIds`/`tell`; `whoNamesOf` names a contractor raiser with
+  `contractorActorWords(awardeeName)`; comments use `commentAudience` + `audienceFaults` instead of literal `internal: true`;
+  `removeFileFaults` needs caller-built who-can words; add `TeamFault` words to `labels.ts`; seed `FIXTURE_CONTRACTOR_ITEMS` in the
+  views db test and add the `contractor` view and new filters. For step 4: buttons from `portalAction`, moves from
+  `contractorActions`, groups from `portalGroup`, staff names from `portalStaffLabel`; `portalSeesFile(file, sharedAt)`;
+  `defaultAssignee(...).told` feeds `roleHolders`; contractor acts go through `moveFaults`/`fieldFaults`/`contractorRaiseFaults`
+  with `side: "CONTRACTOR"`.
