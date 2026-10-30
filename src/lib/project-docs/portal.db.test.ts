@@ -667,6 +667,31 @@ describe("staging: the window and the lock (PW-15, PW-32)", () => {
     expect(await db.documentVersion.count({ where: { recordedBySupplierAccountId: c.accountId } })).toBe(PROJECT_FILES_PER_WINDOW);
   });
 
+  it("WSEC-7: staging for a work item is the company's window across its accounts (one place left, two accounts at once, one passes); staging for a project document stays per account", async () => {
+    const a = as(await contractor());
+    const colleague = await makeSupplierAccount(organisationId, { supplierId: a.supplierId });
+    const actor2: SupplierActor = { ...a.actor, accountId: colleague.account!.id, sessionId: `ses_${colleague.account!.id}`, contactId: colleague.contact.id, displayName: colleague.contact.name, loginName: colleague.loginName };
+    const contractId = await contract(a.supplierId);
+    await seedWindow(a.accountId, PROJECT_FILES_PER_WINDOW - 1, { agoMinutes: 10 });
+    const store = blobStore();
+    if ("fault" in store) throw new Error("no store");
+    const org = (await documentOrg(organisationId))!;
+    const one = (actor: SupplierActor, n: number, stagedFor: string) => {
+      const bytes = new TextEncoder().encode(`%PDF-1.4 company ${run} ${n}`);
+      return storeProjectFile(actor, { org, store: store.store, classId: projectClassId, bytes, sha256: sha256Hex(bytes), mediaType: "application/pdf", originalFilename: `company-${n}.pdf`, stagedFor });
+    };
+    // The colleague has staged nothing, yet the company has one place left: the other account's files count for a work item.
+    expect((await preflightProjectUpload(actor2, contractId, { declaredBytes: 10n, act: "WORK_ITEM" })).ok).toBe(true);
+    const results = await Promise.allSettled([one(a.actor, 1, "work-item"), one(actor2, 2, "work-item")]);
+    expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toBeInstanceOf(WindowRefused);
+    // Full now for the company; the preflight says so for either account, without a lock.
+    for (const actor of [a.actor, actor2]) expect((await preflightProjectUpload(actor, contractId, { declaredBytes: 10n, act: "WORK_ITEM" })).ok, actor.accountId).toBe(false);
+    // A project document's window is still the account's own: the colleague has room.
+    expect((await preflightProjectUpload(actor2, contractId, { declaredBytes: 10n })).ok).toBe(true);
+    await one(actor2, 3, "project-document");
+  });
+
   it("storing never runs under the contract's lock: it completes while another transaction holds the contract row", async () => {
     const c = as(await contractor());
     const contractId = await contract(c.supplierId);

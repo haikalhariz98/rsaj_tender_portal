@@ -23,7 +23,7 @@ import { db } from "@/lib/db";
 import { effectiveCap } from "@/lib/documents/limits";
 import { supplierAcceptedTypes } from "@/lib/documents/media";
 import { documentOrg, loadStorePolicy, storeUpload, type DocumentOrg, type UploadResult } from "@/lib/documents/service";
-import { STAGED_FOR_PROJECT_DOCUMENT } from "@/lib/documents/staged-for";
+import { STAGED_FOR_PROJECT_DOCUMENT, STAGED_FOR_WORK_ITEM } from "@/lib/documents/staged-for";
 import { blobStore, deploymentCeiling, type BlobStore } from "@/lib/documents/store";
 import { loadProjectContext, type ProjectContext } from "@/lib/portal/projects/context-store";
 import { portalStandingBarOf } from "@/lib/portal/standing-gate-store";
@@ -93,7 +93,7 @@ export async function preflightProjectUpload(actor: SupplierActor, contractId: s
   if (allowedTypes.length === 0) return { ok: false, outcome: notSetUp("TYPES_NOT_SET") };
   // PW-38: the window, without a lock, before the body is read. PW-32's words; the locked check in `storeProjectFile` is the authority.
   if (o.declaredBytes != null) {
-    const faults = windowFaults({ staged: await windowRows(db, actor, now), incomingBytes: o.declaredBytes, now });
+    const faults = windowFaults({ staged: await windowRows(db, actor, now, o.act === "WORK_ITEM" ? "SUPPLIER" : "ACCOUNT"), incomingBytes: o.declaredBytes, now });
     if (faults.length > 0) return { ok: false, outcome: windowRefusalOutcome(new WindowRefused(faults), ctx.org.name) };
   }
   return { ok: true, value: { ctx, org, store: s.store, classId: policy.projectDocumentClassId, cap: cap.cap, capFrom: cap.from, allowedTypes } };
@@ -115,10 +115,11 @@ export function windowRefusalOutcome(e: WindowRefused, orgName: string): PortalO
   return out(429, "RATE_LIMITED", message, { headers: retry !== null ? { "Retry-After": String(retry * 60) } : undefined, logReason: e.faults[0]?.code ?? "WINDOW", body: { faults: e.faults.map((f) => ({ message: faultText(f, orgName) })) } });
 }
 
-/// The account's store versions of the last hour (a coarse minute of slack; `windowFaults` filters exactly), attached or not: what PW-32's window counts.
-export async function windowRows(client: Tx, actor: SupplierActor, now: Date): Promise<{ at: Date; bytes: bigint }[]> {
+/// The account's store versions of the last hour (a coarse minute of slack; `windowFaults` filters exactly), attached or not: what PW-32's window counts. Staging for a work
+/// item counts the whole COMPANY's (`scope` "SUPPLIER": every account of the supplier, WSEC-7: the contractor is a party as the company, so no per-account bound is left there).
+export async function windowRows(client: Tx, actor: SupplierActor, now: Date, scope: "ACCOUNT" | "SUPPLIER" = "ACCOUNT"): Promise<{ at: Date; bytes: bigint }[]> {
   const rows = await client.documentVersion.findMany({
-    where: { organisationId: actor.organisationId, recordedBySupplierAccountId: actor.accountId, storedAt: { gte: new Date(now.getTime() - (PROJECT_UPLOAD_WINDOW_MINUTES + 1) * 60_000) } },
+    where: { organisationId: actor.organisationId, ...(scope === "SUPPLIER" ? { recordedBySupplierAccount: { supplierId: actor.supplierId } } : { recordedBySupplierAccountId: actor.accountId }), storedAt: { gte: new Date(now.getTime() - (PROJECT_UPLOAD_WINDOW_MINUTES + 1) * 60_000) } },
     select: { storedAt: true, byteSize: true },
   });
   return rows.map((r) => ({ at: r.storedAt, bytes: r.byteSize }));
@@ -162,9 +163,13 @@ export async function storeProjectFile(actor: SupplierActor, i: StoreProjectFile
       stagedFor: i.stagedFor ?? STAGED_FOR_PROJECT_DOCUMENT,
       hooks: {
         before: async (tx) => {
-          await tx.$queryRaw`SELECT id FROM "SupplierAccount" WHERE id = ${actor.accountId} AND "organisationId" = ${actor.organisationId} FOR UPDATE`;
+          // A work item's staging is the company's window (WSEC-7): every account of the supplier is locked, in id order, so two accounts uploading together cannot both pass it.
+          // The account's own row is the lock for every other staging. Both are the account rows' lock class: no supplier row, no contract.
+          const company = i.stagedFor === STAGED_FOR_WORK_ITEM;
+          if (company) await tx.$queryRaw`SELECT id FROM "SupplierAccount" WHERE "supplierId" = ${actor.supplierId} AND "organisationId" = ${actor.organisationId} ORDER BY id FOR UPDATE`;
+          else await tx.$queryRaw`SELECT id FROM "SupplierAccount" WHERE id = ${actor.accountId} AND "organisationId" = ${actor.organisationId} FOR UPDATE`;
           const now = new Date();
-          const faults = windowFaults({ staged: await windowRows(tx, actor, now), incomingBytes: BigInt(i.bytes.byteLength), now });
+          const faults = windowFaults({ staged: await windowRows(tx, actor, now, company ? "SUPPLIER" : "ACCOUNT"), incomingBytes: BigInt(i.bytes.byteLength), now });
           if (faults.length > 0) throw new WindowRefused(faults);
         },
       },

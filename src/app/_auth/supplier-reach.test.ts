@@ -595,6 +595,8 @@ describe("the contractor's Project workspace documents (plan step 5)", () => {
     const store = read("lib/project-docs/portal-upload.ts");
     expect(lex(store)).not.toMatch(/withLockedContract|inHeldContract|lockSupplierRow|FROM "Contract"|FROM "Supplier"|FROM "ProjectDocument"|withLockedOwner/);
     expect(store).toMatch(/FROM "SupplierAccount" WHERE id = \$\{actor\.accountId\}[^`]*FOR UPDATE/);
+    // WSEC-7: a work item's staging is the company's window, so it locks every account of the supplier, in id order (the same lock class; still no supplier row).
+    expect(store).toMatch(/FROM "SupplierAccount" WHERE "supplierId" = \$\{actor\.supplierId\}[^`]*ORDER BY id FOR UPDATE/);
     expect(lex(read(UPLOAD))).not.toMatch(/withLockedContract|inHeldContract/);
     // The window is judged inside the store's own transaction, after the lock, and `now` is taken after it. PW-38 added a lock-free pre-check in the preflight, so the
     // locked check is read within the store's hook, where it stays the authority.
