@@ -112,7 +112,7 @@ lists an item's file only if one of these holds:
 - it was attached at or after the item was shared (`attachedAt >= sharedAt`).
 
 Files attached while the item was internal stay staff-only. On a shared item the composer's 📎 is offered only with Reply. Files
-added under Files are labelled "Seen by {contractor}". So an internal note never carries a file the contractor can see.
+added under Files are labelled "Visible to {contractor}" (WSEC-10 L6: there are no read receipts, so never "Seen by"). So an internal note never carries a file the contractor can see.
 
 **B-4. The contractor on staff surfaces is the company** (WS-9; WS-10 default).
 - Every staff surface reads a contractor actor as the awardee's name with a building avatar: cards, rows, Activity ("{contractor}
@@ -197,8 +197,10 @@ staff raiser, so it is the assignee or the lead. A who-can popover names the lea
 - **Removal** deletes the row with a reason, and the delete is audited (the `WorkItemLink` precedent).
 - Changing the Project manager is a remove and an add in one act.
 - **The act-status row** is `PROJECT_TEAM: executed(PC, MGC, FCI)`, a row of its own, not `WORK_ITEM` reused.
-- **Who may change the team (OQ-B7):** the lead; with no lead, any staff member who may read the case, so that the first manager
-  can be named.
+- **Who may change the team (OQ-B7, amended by WSEC-2):** the Project manager, and the S.O. holders and acting holders in force
+  on the organisation's today (the S.O. keeps the right once a manager is named). With neither (no manager, and no S.O. in force
+  or no time zone) nobody may, and the card is locked: it shows "No project manager" with a popover saying what to set. The first
+  manager is named by the S.O., never by whoever opened the case (`teamChangerIds`, `teamChangeFaults`).
 - Roles route work and notices. They never carry authority: no approval, certificate or document act reads this table. A scan
   holds that.
 
@@ -458,7 +460,7 @@ The `raisedBy: string` → `Party` change reaches every 3a test that builds fact
   amber tint with the lock icon, and 📎 is offered only with Reply.
 - **Activity:** internal notes on the tint with the lock icon; "{contractor} replied".
 - **Files:**
-  - on a shared item, the label "Seen by {contractor}" for files the portal shows;
+  - on a shared item, the label "Visible to {contractor}" for files the portal shows (it read "Seen by" until WSEC-10 L6);
   - "Staff only" for files attached before sharing;
   - **Remove** on unshared items, which asks a reason.
 - **New item drawer:** the "Share with {contractor}" toggle, preset by type (B-1).
@@ -973,7 +975,8 @@ off during heavy gates):
     `seenByContractor` for step 5.
   - **The lead**: `leadOf` reads `ProjectTeamMember` first (an inactive manager is not the lead, WB-7), no time zone needed; the label is "Project
     manager". With no manager it is the S.O. as in 3a. NOTE for tests: `activeContract` always has an S.O. in force (`org.so`), so the S.O. is the
-    lead until a manager is named, and the manager replaces the S.O. as the one who changes the team; a no-lead contract is made by deleting its
+    lead until a manager is named, and ~~the manager replaces the S.O. as the one who changes the team~~ [SUPERSEDED by WSEC-2: the S.O. keeps the right to
+    change the team once a manager is named, and a contract with no lead has nobody who may change it]; a no-lead contract is made by deleting its
     `contractSoAssignment`.
   - **Team**: `team-store.ts` (`addTeamMember`, `removeTeamMember`, `changeProjectManager`; contract lock only, `PROJECT_TEAM` row asked first) and
     `src/app/projects/[id]/team-actions.ts` (`addTeamMemberAction`, `removeTeamMemberAction`, `changeProjectManagerAction`; fields `contractId`,
@@ -1000,3 +1003,17 @@ off during heavy gates):
   - **Built:** `work` is in `PROJECT_TABS` (after Overview); the page loads `loadPortalWork` only on `?tab=work` and `loadPortalItem` only with `&item=RFI-n` (the address Waiting-for-you rows already use). "Ask a question" (primary, required "Answer needed by") and "Report an incident" are the PageHeader actions (blocked with the reason when `canAct` is false). Groups: Waiting for you and With {org} always drawn; Closed is a link `&closed=1` with its count, drawn only when non-empty, and the list appears below with "Hide closed". A group cut by `PORTAL_ROWS_PER_GROUP` says "Showing the first N of M." Each row is a `link` cell whose text is the `portalAction` word and which opens the item drawer (DataList has no button cell; the drawer's top button does the act). `portalStatusWords` (labels.ts) words the standing ("Sent to {org} for checking", "Sent back to you: see the reply", "With {name}", "Closed"). The drawer: facts, Answer (editable only when `mayAnswer` and the contractor can act, WB-6; read only otherwise), Files (download links + add/Attach), Replies only + "Your reply"/Send; the row's one button at the top (Send for checking / Accept answer post `move`; Reply focuses the box), with Ask again beside Accept answer, using the reply box as its required comment. `WorkItemDrawer` and `RaiseDrawer` post with `postBids` and `stageFiles` (now exported from `document-drawers.tsx` with a `route` argument) to `SUPPLIER_PROJECT_WORK_POSTS`.
   - `WorkItem.answer` is IN in `data-export-fields.ts`. The staff assignee select shows the warn chip "No active portal account" (`contractorHasActiveAccount`, called in `work-item-panel.tsx`) when the contractor is the assignee; the New item drawer and the list's picker do not show it. The staff prototype-differences entry is trimmed to match (building icon only in the item panel; attach is its own Files section, not tied to Reply). The portal entry's guard is now `work-screen.test.ts`.
   - **To check in step 7:** (1) the screens were rendered only as markup in tests, not loaded in a browser: supplier routes answer only on the public copy, so run the public copy and walk Work at 1280 and 1600 (keyboard path: row link, drawer, Escape, Send, Ask again, Raise). (2) The drawer has no focus trap (the Documents drawers have none either). (3) Dates in the drawer use `formatDate` (the readers return instants, no zone), so a reply near midnight can read as the neighbouring day: if that matters, `PortalWork` needs the organisation's zone. (4) The Closed link (`closed=1`) is the only address state beyond `item`. (5) Idempotency of retried raises is still the open step-4 proposal.
+- **Security fix pass** (WSEC-1 to WSEC-10, `rulings/workspace-3b-security-rulings.md`; migration `20261210001300_work_item_file_pin`, PA057). Built in the order of the rulings:
+  - **WSEC-1.** `commentAudience` returns INTERNAL for a missing choice (the composer still presets Reply). `comment` and `attachFiles` take `expectedShared` (required; the edge posts `expectedShared` "yes"/"no", anything else is UNREADABLE) and refuse 409 "This item was shared a moment ago. Check before sending." when the locked row differs (`staleShare`, after `lockedItem`). The demo wrapper reads the item's own state. db tests: stale comment, stale attach, and a share racing each.
+  - **WSEC-2.** `teamChangerIds` (lead.ts) = active PM plus S.O. holders and acting holders in force (not `leadIds`, which is the PM alone once named); `teamChangeFaults`/`teamFaults(..., changerIds)` (team.ts); `teamChangersOf` (load.ts) feeds `team-store.judged` and the card, so they cannot drift. `teamFaultText(f, changers)` names the PM and the S.O., or says nobody can and what to set (`TEAM_LOCKED_WORDS`). The step-3 note above that the manager replaces the S.O. is superseded. The demo names its PM through the S.O. in force, unchanged (not run here).
+  - **WSEC-3.** `PortalRow.label` and `itemRefText` everywhere a screen prints a reference; the address form stays in hrefs and bodies; Activity link lines turn "RFI-12" into "RFI 12". ADR 0049 has the consequence; backlog row for a separate portal number.
+  - **WSEC-4.** The Send back drawer shows "{contractor} will see this." (a `note` field) when `commentAudience(..., "SEND_BACK")` is a Reply (`sendBackSeenBy`).
+  - **WSEC-5.** `contractorMayPost` (portal.ts) in the reply, attach and answer cores; MoveFault `ITEM_CLOSED` with contractor-safe words ("This is closed. If something is still open, raise a new item."); `PortalItem.mayPost`; the drawer draws no reply box, picker or answer field on a closed item. CORRECTS the step-4 fact above: replies on a closed item are now refused.
+  - **WSEC-6.** `scanLabel` on staff and portal item files (existing chip); the two malware backlog rows name contractor uploads to work items.
+  - **WSEC-7.** The throttle counts per supplier per contract under the contract lock (no account-row lock any more: `lock-order.test.ts` and `portal-scan.test.ts` are changed to match, stricter); an answer edit counts as a reply, counted from its audit row (actor account of the supplier, an RFI of the contract, a change to `answer`). Work staging (`windowRows(..., "SUPPLIER")`, preflight and locked hook) is the company's window and locks the supplier's account rows in id order; project-document staging is unchanged (per account).
+  - **WSEC-8.** Team card popover "{contractor} may see these names on shared items."; ADR 0049; backlog PDPA data-map row; RSAJ question 48.
+  - **WSEC-9.** `answerIsDraft` + a "Draft" badge with popover on the staff Answer. The Done shortcut was already NOT_A_MOVE for everyone while the contractor holds the item (pinned in `move.test.ts` and now through the action in `work-flow.db.test.ts`). Closing an RFI (staff or contractor) records `answerAccepted: none -> the text` on the move's audit row (`answerAcceptedBy`; Activity says "Answer accepted").
+  - **WSEC-10.** L1 waiting key `work-{contractId}-{ref}`; L2 the supplier export gives `sharedAt` as "Shared on" for staff-raised items (`WorkItem.sharedAt` is IN in the export columns); L3 `PORTAL_ORDER_BY` has no priority; L5 the trigger `DocumentAttachment_work_item_file_pinned` (attachedAt and workItemId immutable; no first detach once the item is shared; PA057), applied to the dev database after a pg_dump backup; L6 "Visible to {contractor}".
+  - **Small.** The "No active portal account" chip now shows in the New item drawer (new `flag` on the record editor's select) and on the list's assignee picker (`flag` on the select cell); the tab reads `contractorHasActiveAccount` once. `PortalWork.timeZone` and `formatOrgDateTime` for the drawer's replies, files and happened-at.
+  - **Not done / still open:** idempotency keys on portal raise and reply (unchanged); the audit screen's entity label still holds the address form ("Work item RFI-12 · ..."); the staff download of a work-item file does not yet refuse an unscanned file (go-live, backlog); browser walk of the public copy still owed (step 7 item 1). The step-6 note "To check (3)" (zone in the drawer) is done.
+

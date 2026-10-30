@@ -55,12 +55,18 @@ settled rule is built now and the question goes to him (the section "For the fou
   - *Lands:* `fields.ts`; `answerAsContractor`; step 6 drawer.
 
 - **WB-7 (OQ-B7). Yes: the lead changes the Project team card.** The lead is the Project manager, else the S.O. holders and acting
-  holders. With no lead, any staff member who may read the case may change it, so the first manager can be named. Every change is
-  audited; Remove asks a reason.
+  holders. **Amended by WSEC-2 (security rulings, 2026-10-30):** the team is changed by the Project manager and by the S.O. holders and
+  acting holders in force, whether or not a manager is named (the S.O. keeps the right once a manager is named); with neither,
+  nobody may change it, and the "any staff member who may read the case" clause is withdrawn. Every change is audited; Remove asks a
+  reason.
   - **Clarification:** a Project manager who is no longer active does not count as the lead, so the card falls back as if none
     were named and can never be locked shut.
   - *Why:* roles route work and never carry authority (WS-3, ADR 0049 D4), so this needs no approval step; the audit row is the
     record.
+  - **Amended (WSEC-2):** the first manager is named by an S.O. in force (or acting), never by whoever opened the case: under the original
+    wording any reader could name themselves Project manager, become the lead permanently and then share any item, and sharing cannot be
+    undone. The card with no manager and no S.O. in force (or no time zone) is locked and shows "No project manager", with a popover
+    saying what to set. Lead rights on items are unchanged.
   - *Lands:* B-12, B-13; `team.ts`, `lead.ts` (with a test for the inactive PM); step 3 team acts; L1.
 
 - **WB-8 (OQ-B8). Yes: several holders, or none, leaves the item unassigned.** With several holders every holder is told; with
