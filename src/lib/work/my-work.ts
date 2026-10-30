@@ -7,6 +7,8 @@
  * - With no time zone there is no today: every dated item is one group, "Open", and the screen says "Needs the organisation's time zone." (WS-19).
  */
 
+import { actStatusFault } from "@/lib/contract/act-status";
+import { CONTRACT_STATUSES, type ContractStatus } from "@/lib/contract/types";
 import { dayPlus } from "@/lib/dates";
 
 import { parseItemRef } from "./number";
@@ -51,9 +53,17 @@ export function myWorkGroup(item: MyWorkFacts, me: { personId: string }, today: 
   return item.dueOn <= dayPlus(today, 6) ? "THIS_WEEK" : "LATER";
 }
 
-/// The same rule as a Prisma `WorkItemWhereInput`, as plain data; the loader adds the organisation.
-export const myWorkWhere = (me: { personId: string }): { OR: Record<string, unknown>[] } => ({
+/// WR-5: the contract statuses in which Work is open, read from the WORK_ITEM row of the act x status table (never a list written here), so a table change moves My work with it.
+export const WORK_OPEN_CONTRACT_STATUSES: readonly ContractStatus[] = CONTRACT_STATUSES.filter((s) => actStatusFault("WORK_ITEM", s) === null);
+
+/// What is on me, apart from where its contract stands: assigned to me and open, or raised by me and In review.
+export const onMeWhere = (me: { personId: string }): { OR: Record<string, unknown>[] } => ({
   OR: [{ assigneePersonId: me.personId, status: { in: [...OPEN_STATUSES] } }, { raisedByPersonId: me.personId, status: "IN_REVIEW" }],
+});
+
+/// The same rule as a Prisma `WorkItemWhereInput`, as plain data; the loader adds the organisation. Items on a contract where Work is shut are not on the to-do list (they stay on the contract's Work tab, read only).
+export const myWorkWhere = (me: { personId: string }): { AND: Record<string, unknown>[] } => ({
+  AND: [onMeWhere(me), { contract: { status: { in: [...WORK_OPEN_CONTRACT_STATUSES] } } }],
 });
 
 /// My work's address: `/my-work?contract={id}&item=RFI-12`. The contract is in it because two contracts can each hold an RFI 1.

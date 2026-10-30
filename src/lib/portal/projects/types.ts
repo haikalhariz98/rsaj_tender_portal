@@ -75,6 +75,7 @@ export type ProjectFault =
   | "REFUSAL_NOTE_TOO_LONG"
   // Phase 2 close-out stage B: a defect line marked rectified.
   | "DEFECT_NOT_FOUND"
+  | "DEFECT_ON_DRAFT_CPC"
   | "DEFECT_NOT_OPEN"
   | "EVIDENCE_NOT_YOURS";
 

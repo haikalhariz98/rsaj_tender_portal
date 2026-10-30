@@ -25,6 +25,7 @@ import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
 import { contractTransition, type StatusWriter } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { storedDay } from "@/lib/dates";
+import { lockLinkedItems, writeScheduleDue } from "@/lib/work/defect-link-store";
 import { loadMatters, matterFactsOf } from "@/lib/matter/load";
 import { matterApproved, type ContractMatterKind } from "@/lib/matter/matter";
 import { matterLabel } from "@/lib/matter/write";
@@ -126,9 +127,14 @@ export async function scheduleIssueRefusal(tx: Tx, _l: LoadedContract, cert: Cer
 
 export async function scheduleAtIssue(tx: Tx, actor: AuditActor, l: LoadedContract, cert: Cert, number: string): Promise<string | null> {
   await lockRow(tx, "DefectSchedule", cert.id);
+  // Contract, then the linked WorkItems, then the lines (the defect link's lock order).
+  const scope = { organisationId: l.org.id, contractId: l.contract.id, contractNumber: l.contract.number };
+  await lockLinkedItems(tx, scope);
   const rows = await lockLines(tx, l.contract.id);
   const s = await tx.defectSchedule.findUniqueOrThrow({ where: { certificateId: cert.id } });
   const frozen = frozenLinesOf(defectFactsOf(rows).filter((d) => isOpenLine(defectState(d.events).state)));
+  // WR-3: an open linked line's item takes the schedule's rectify-by day as its due day.
+  await writeScheduleDue(tx, actor, scope, frozen, storedDay(s.rectifyBy));
   await tx.defectSchedule.update({ where: { id: s.id }, data: { frozenLines: json(frozen) } });
   await writeAudit(tx, { actor, organisationId: l.org.id, entity: "DefectSchedule", entityId: s.id, entityLabel: `${contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } })} · schedule of defects ${number}`, reason: "" }, "UPDATE", diffFields({ defectsScheduled: null }, { defectsScheduled: `${frozen.length} open, as issued` }));
   return null;

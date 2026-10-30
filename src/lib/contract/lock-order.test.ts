@@ -1231,8 +1231,33 @@ describe("the defect link: the contract, then the WorkItem, then the DefectItem"
   it("the contractor's work store marks a linked item fixed through the portal's core, after the item is locked and judged, and writes no status of its own there", () => {
     const portal = read(PORTAL_WORK_STORE);
     const move = fn(portal.replace(/\nexport function /g, "\nexport async function "), "moveAsContractor");
-    expect(at(move, "markFixed(")).toBeGreaterThan(at(move, "moveFaults("));
+    // Changed for the 3b-ii review (WR-1, ruling-driven): the line decides who may act, so the linked branch is taken after the item is locked and the stale-page check, and BEFORE the
+    // item's who-holds-it checks (`moveFaults`). It used to come after them.
+    expect(at(move, "markFixed(")).toBeGreaterThan(at(move, "sharedItem("));
+    expect(at(move, "markFixed(")).toBeGreaterThan(at(move, "i.expectedFrom"));
+    expect(at(move, "markFixed(")).toBeLessThan(at(move, "moveFaults("));
     expect(at(move, "markFixed(")).toBeLessThan(at(move, ".workItem.updateMany("));
+    expect(at(move, 'defectActOf(i.action, "CONTRACTOR")')).toBeLessThan(at(move, "markFixed("));
+  });
+
+  // Stricter (3b-ii review, S1): the void and the schedule issue take the same order.
+  it("a voided CPC unlinks its items sorted by id, each locked before its line, after the certificate is moved", () => {
+    const store = read("src/lib/work/defect-link-store.ts");
+    const un = fn(store, "unlinkPickedBy");
+    expect(at(un, ".sort(")).toBeGreaterThan(-1);
+    expect(at(un, ".sort(")).toBeLessThan(at(un, "lockLinkedItem("));
+    expect(at(un, "workItem!.id")).toBeGreaterThan(-1);
+    const voided = fn(read("src/lib/certificate/write.ts"), "voidCertificate");
+    expect(at(voided, "moveTo(")).toBeGreaterThan(-1);
+    expect(at(voided, "unlinkPickedBy(")).toBeGreaterThan(at(voided, "moveTo("));
+  });
+
+  it("the Schedule of Defects locks the linked items before the lines, and writes their due day through the link's own helper", () => {
+    const hook = fn(read("src/lib/closeout/at-issue.ts"), "scheduleAtIssue");
+    expect(at(hook, "lockLinkedItems(")).toBeGreaterThan(-1);
+    expect(at(hook, "lockLinkedItems(")).toBeLessThan(at(hook, "lockLines("));
+    expect(at(hook, "writeScheduleDue(")).toBeGreaterThan(at(hook, "lockLines("));
+    expect(lex(read("src/lib/closeout/at-issue.ts"))).not.toMatch(/workItem\.update/);
   });
 
   it("every write of a linked item's status is the link's own, or a work core's guarded update", () => {

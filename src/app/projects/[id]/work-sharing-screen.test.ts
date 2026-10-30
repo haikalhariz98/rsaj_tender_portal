@@ -91,7 +91,8 @@ describe("sharing with the contractor: the staff screens (workspace 3b step 5; W
 
   it("WSEC-4: a Send back that will be a Reply says the contractor will see it, in the drawer; one that stays internal says nothing", () => {
     const panel = src("work-item-panel.tsx");
-    expect(panel).toContain('sendBackSeenBy={!c.linked && commentAudience(c, "STAFF", null, "SEND_BACK") === "REPLY" ? contractor : null}');
+    // Changed for the 3b-ii review (WR-2, ruling-driven): on a linked item the portal prints the line's return note whether or not the item is shared, so the marker is always shown there.
+    expect(panel).toContain('sendBackSeenBy={c.linked || commentAudience(c, "STAFF", null, "SEND_BACK") === "REPLY" ? contractor : null}');
     const editors = src("work-editors.tsx");
     expect(editors).toContain("sendBackSeenBy ? [{ kind: \"note\" as const, text: `" + "$" + "{sendBackSeenBy} will see this.` }] : []");
   });

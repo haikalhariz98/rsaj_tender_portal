@@ -58,6 +58,8 @@ const OWN: Readonly<Record<ProjectFault, (d: Data) => Words>> = {
   NOTE_TOO_LONG: (d) => w(`The note is longer than ${n(d, "max")} characters.`),
   ENTRY_NOT_FOUND: () => w("That diary entry is not on this contract."),
   DEFECT_NOT_FOUND: () => w("That defect is not on this contract."),
+  // F6: the portal's Defects tab does not say a draft certificate exists, so these are the not-found words; the Work core words it itself (WR-1).
+  DEFECT_ON_DRAFT_CPC: () => w("That defect is not on this contract."),
   DEFECT_NOT_OPEN: () => w("This defect is already reported rectified, made good or withdrawn."),
   EVIDENCE_NOT_YOURS: () => w("Choose one of the documents you sent on this contract."),
   ALREADY_ATTESTED: () => w("The contractor's agent has already attested this entry."),

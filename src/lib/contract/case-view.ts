@@ -32,6 +32,8 @@ export interface CaseView {
   awardRefused: boolean;
   /// A contract stage (Signing or Project) was asked for on a case with no Contract row yet: the page says what the stage waits for, nothing more.
   noContractYet: boolean;
+  /// The section a folded tab's old address names (`?tab=documents` is Documents' `certificates` section); null otherwise.
+  section: string | null;
 }
 
 export function resolveCaseView(i: CaseViewInput): CaseView {
@@ -40,6 +42,7 @@ export function resolveCaseView(i: CaseViewInput): CaseView {
   let stage: CaseStepKey;
   let tab: string | null;
   let history = false;
+  let section: string | null = null;
   if (i.tab === HISTORY_TAB) {
     // History is case-level. A stage in the address only says which step stays marked.
     stage = named ?? fallback;
@@ -52,12 +55,15 @@ export function resolveCaseView(i: CaseViewInput): CaseView {
   } else if (named) {
     stage = named;
     // A folded tab's old address keeps working under its own stage (`?stage=project&tab=documents`).
-    tab = stageTab(named, i.tab !== undefined && Object.hasOwn(FOLDED_TABS, i.tab) && FOLDED_TABS[i.tab].stage === named ? FOLDED_TABS[i.tab].tab : i.tab);
+    const folded = i.tab !== undefined && Object.hasOwn(FOLDED_TABS, i.tab) && FOLDED_TABS[i.tab].stage === named ? FOLDED_TABS[i.tab] : null;
+    tab = stageTab(named, folded ? folded.tab : i.tab);
+    section = folded?.section ?? null;
   } else {
     const mapped = caseTabToStep(i.tab, i.hasContract);
     if (mapped && "stage" in mapped) {
       stage = mapped.stage;
       tab = mapped.tab;
+      section = mapped.section ?? null;
     } else {
       stage = fallback;
       tab = stageTab(stage, undefined);
@@ -66,7 +72,7 @@ export function resolveCaseView(i: CaseViewInput): CaseView {
   const awardRefused = !history && stage === "award" && i.visibility === "CONTRACT_STAGES_ONLY";
   // Before signing's two tabs are the award's conditions and bond requirement: they are entered before the contract exists (FR-AWD-014).
   const noContractYet = !history && !i.hasContract && stage !== "award" && stage !== "close-out" && stage !== "before-signing";
-  return { stage, tab, history, awardRefused, noContractYet };
+  return { stage, tab, history, awardRefused, noContractYet, section };
 }
 
 /// Whose audit rows the case-level History reads. A reader who sees the contract stages only has the contract's rows alone: the

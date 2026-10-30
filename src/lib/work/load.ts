@@ -28,6 +28,7 @@ import { BOARD_COLUMN_CAP, BOARD_DONE_DAYS, boardColumns, type BoardColumnOf, ty
 import { portalSeesFile } from "./audience";
 import { CONTRACTOR_ASSIGNEE } from "./fields";
 import { leadIds, teamChangerIds } from "./lead";
+import { linkedLineOf, returnNoteOf } from "./defect-link";
 import { assigneeOf, raiserOf } from "./party";
 import { contractorActorWords, itemRefText, TEAM_ROLE_WORDS, type TeamChangers, type WhoNames } from "./labels";
 import { myWorkGroup, myWorkWhere, type MyWorkSection } from "./my-work";
@@ -157,6 +158,16 @@ export async function loadWorkContext(i: { organisationId: string; contractId: s
   };
 }
 
+// ------------------------------------------------------------------ the defect link, read through the relation
+
+/// What a reader needs of a linked item's line: whether it is on a draft CPC's list (`linkedLineOf`), and its events (the return note, `returnNoteOf`).
+export const LINK_SELECT = {
+  select: { practicalCompletionId: true, practicalCompletion: { select: { certificate: { select: { status: true } } } } },
+} as const;
+export const LINK_EVENTS_SELECT = {
+  select: { ...LINK_SELECT.select, events: { select: { kind: true, on: true, note: true, recordedAt: true }, orderBy: [{ recordedAt: "asc" as const }, { id: "asc" as const }] } },
+};
+
 // ------------------------------------------------------------------ the list and the board
 
 /// An item as the list and the board draw it: the rules' row, with the names a screen shows.
@@ -168,6 +179,8 @@ export interface WorkCardRow extends BoardItem {
   assigneeName: string | null;
   /// The item stands for a defect line (its status follows the line's acts).
   linked: boolean;
+  /// The linked item's line is on a draft CPC's list: it moves once the certificate is issued (WR-1).
+  linkedDraft: boolean;
 }
 
 const CARD_SELECT = {
@@ -187,6 +200,7 @@ const CARD_SELECT = {
   assignedToContractor: true,
   sharedAt: true,
   defectItemId: true,
+  defectItem: LINK_SELECT,
   raisedBy: { select: { name: true } },
   assignee: { select: { name: true } },
 } as const;
@@ -212,6 +226,7 @@ const cardOf = (r: CardRow, timeZone: string | null, contractor: string): WorkCa
   assigneeName: r.assignedToContractor ? contractor : (r.assignee?.name ?? null),
   closedOn: r.closedAt ? dayOf(r.closedAt, timeZone) : null,
   linked: r.defectItemId !== null,
+  linkedDraft: linkedLineOf(r.defectItem) === "DRAFT",
 });
 
 const scope = (i: { organisationId: string; contractId: string }) => ({ organisationId: i.organisationId, contractId: i.contractId });
@@ -353,6 +368,8 @@ export interface WorkItemDetail {
   happenedAt: Date | null;
   fromDocument: { id: string; title: string } | null;
   cancelReason: string;
+  /// A linked item's latest return note, read from its line (WR-2).
+  returnNote: string | null;
   recordedAt: Date;
   links: WorkLinkView[];
   files: WorkFileView[];
@@ -372,6 +389,7 @@ export async function loadItem(i: { organisationId: string; contractId: string; 
       happenedAt: true,
       cancelReason: true,
       recordedAt: true,
+      defectItem: LINK_EVENTS_SELECT,
       fromDocument: { select: { id: true, title: true } },
       linksFrom: { select: { id: true, toWorkItem: { select: { type: true, number: true, title: true, status: true } }, projectDocument: { select: { id: true, title: true } } }, orderBy: { recordedAt: "asc" } },
       linksTo: { select: { id: true, workItem: { select: { type: true, number: true, title: true, status: true } } }, orderBy: { recordedAt: "asc" } },
@@ -392,6 +410,7 @@ export async function loadItem(i: { organisationId: string; contractId: string; 
     happenedAt: r.happenedAt,
     fromDocument: r.fromDocument,
     cancelReason: r.cancelReason,
+    returnNote: r.defectItem ? returnNoteOf(r.defectItem.events) : null,
     recordedAt: r.recordedAt,
     links: [
       ...r.linksFrom.map((l): WorkLinkView => ({ id: l.id, direction: "TO", target: l.toWorkItem ? item(l.toWorkItem) : { kind: "DOCUMENT", id: l.projectDocument!.id, title: l.projectDocument!.title } })),
@@ -494,10 +513,10 @@ export interface MyWorkRow {
 /// contract stage, never HIDDEN), so the scope is the organisation. Late first by the database's order (due day ascending, no date last); the groups are `myWorkGroup`'s.
 export async function loadMyWork(i: { organisationId: string; personId: string; today: Day | null }): Promise<{ rows: MyWorkRow[]; more: number }> {
   const where = { organisationId: i.organisationId, ...myWorkWhere({ personId: i.personId }) } as Prisma.WorkItemWhereInput;
-  const [found, total] = await Promise.all([
-    db.workItem.findMany({
-      where,
-      select: {
+  // C3: the cap cuts the least urgent. "To check" is the first group, so it is fetched first; the rest (late first, by due day) fills what is left of the cap.
+  const toCheck: Prisma.WorkItemWhereInput = { AND: [where, { raisedByPersonId: i.personId, status: "IN_REVIEW" }] };
+  const rest: Prisma.WorkItemWhereInput = { AND: [where, { NOT: { raisedByPersonId: i.personId, status: "IN_REVIEW" } }] };
+  const select = {
         id: true,
         contractId: true,
         type: true,
@@ -509,12 +528,11 @@ export async function loadMyWork(i: { organisationId: string; personId: string; 
         assigneePersonId: true,
         assignedToContractor: true,
         contract: { select: { number: true, award: { select: { awardeeName: true } } } },
-      },
-      orderBy: [{ dueOn: { sort: "asc", nulls: "last" } }, { contract: { number: "asc" } }, { type: "asc" }, { number: "asc" }, { id: "asc" }],
-      take: MY_WORK_CAP,
-    }),
-    db.workItem.count({ where }),
-  ]);
+  } as const;
+  const orderBy: Prisma.WorkItemOrderByWithRelationInput[] = [{ dueOn: { sort: "asc", nulls: "last" } }, { contract: { number: "asc" } }, { type: "asc" }, { number: "asc" }, { id: "asc" }];
+  const checking = await db.workItem.findMany({ where: toCheck, select, orderBy, take: MY_WORK_CAP });
+  const [others, total] = await Promise.all([db.workItem.findMany({ where: rest, select, orderBy, take: MY_WORK_CAP - checking.length }), db.workItem.count({ where })]);
+  const found = [...checking, ...others];
   const rows = found.flatMap((r): MyWorkRow[] => {
     const dueOn = dayOrNull(r.dueOn);
     const group = myWorkGroup({ status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), dueOn }, { personId: i.personId }, i.today);
@@ -523,13 +541,17 @@ export async function loadMyWork(i: { organisationId: string; personId: string; 
   return { rows, more: Math.max(0, total - found.length) };
 }
 
-/// The link dropdowns: the contract's other items (open first, then newest) and its project documents, each capped.
-/// The Defect items the draft CPC's list can take: open, on no defect list yet (`addLinesFromItems` judges the same on the locked row).
-export async function pickableDefectItems(i: { organisationId: string; contractId: string }): Promise<{ value: string; label: string }[]> {
-  const rows = await db.workItem.findMany({ where: { ...scope(i), type: "DEFECT", defectItemId: null, status: { in: [...OPEN_STATUSES] } }, select: { id: true, number: true, title: true }, orderBy: { number: "asc" }, take: 200 });
-  return rows.map((x) => ({ value: x.id, label: `${itemRefText("DEFECT", x.number)} · ${x.title}` }));
+/// The most Defect items the CPC's pick list draws; `total` says how many there are.
+export const PICKABLE_DEFECT_CAP = 200;
+
+/// The Defect items the draft CPC's list can take: open, on no defect list yet (`addLinesFromItems` judges the same on the locked row). `total` counts the rest, so the drawer can say "First 200 of N".
+export async function pickableDefectItems(i: { organisationId: string; contractId: string }): Promise<{ options: { value: string; label: string }[]; total: number }> {
+  const where = { ...scope(i), type: "DEFECT" as const, defectItemId: null, status: { in: [...OPEN_STATUSES] } };
+  const [rows, total] = await Promise.all([db.workItem.findMany({ where, select: { id: true, number: true, title: true }, orderBy: { number: "asc" }, take: PICKABLE_DEFECT_CAP }), db.workItem.count({ where })]);
+  return { options: rows.map((x) => ({ value: x.id, label: `${itemRefText("DEFECT", x.number)} · ${x.title}` })), total };
 }
 
+/// The link dropdowns: the contract's other items (open first, then newest) and its project documents, each capped.
 export async function linkOptions(i: { organisationId: string; contractId: string; exceptItemId?: string }): Promise<{ items: { value: string; label: string }[]; documents: { value: string; label: string }[] }> {
   const [items, documents] = await Promise.all([
     db.workItem.findMany({ where: { ...scope(i), ...(i.exceptItemId ? { id: { not: i.exceptItemId } } : {}) }, select: { id: true, type: true, number: true, title: true, status: true }, orderBy: [{ status: "asc" }, { recordedAt: "desc" }, { id: "asc" }], take: 200 }),

@@ -177,6 +177,9 @@ function valueFaults(type: WorkItemType, e: FieldEdit, facts: FieldFacts): Field
 
 const judge = (type: WorkItemType, e: FieldEdit, facts: FieldFacts): FieldFault[] => (typeHasField(type, e.field) ? valueFaults(type, e, facts) : [{ code: "NOT_THIS_TYPE", field: e.field }]);
 
+/// The fields an item that stands for a defect line cannot edit (WR-3).
+export const LINKED_LOCKED_FIELDS: readonly EditableField[] = ["title", "description", "location", "dueOn"];
+
 /// The contractor's one edit (3b B-10, WB-6): the Answer of a shared RFI it holds.
 const contractorMayEdit = (item: WorkItemFacts, actor: WorkActor, edit: FieldEdit): boolean =>
   actor.mayReadContract && item.sharedAt !== null && item.type === "RFI" && isContractor(item.assignee) && edit.field === "answer";
@@ -186,6 +189,8 @@ export function fieldFaults(item: WorkItemFacts, actor: WorkActor, edit: FieldEd
   if (!isOpen(item.status)) return [{ code: "CLOSED_ITEM" }];
   if (actor.side === "CONTRACTOR") return contractorMayEdit(item, actor, edit) ? judge(item.type, edit, facts) : [{ code: "CONTRACTOR_MAY_NOT_EDIT", field: edit.field }];
   if (!mayEdit(item, actor)) return [{ code: "NOT_EDITABLE", whoCan: whoCanWords("EDIT", facts.who) }];
+  // WR-3: the line is the legal record; these four are its text and date. Assignee and severity route work and stay editable.
+  if (item.linkedLine && LINKED_LOCKED_FIELDS.includes(edit.field)) return [{ code: "LINKED_LOCKED", draft: item.linkedLine === "DRAFT" }];
   return judge(item.type, edit, facts);
 }
 

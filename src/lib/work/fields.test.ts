@@ -16,10 +16,11 @@ import {
   typeHasField,
   typeOfferable,
   type ContractorRaise,
+  type FieldEdit,
   type FieldFacts,
   type NewItem,
 } from "./fields";
-import type { WhoNames } from "./labels";
+import { fieldFaultText, type WhoNames } from "./labels";
 import { CONTRACTOR, person } from "./party";
 import { WORK_ITEM_TYPES, type WorkActor, type WorkItemFacts, type WorkItemType } from "./types";
 
@@ -319,5 +320,28 @@ describe("contractorRaiseFaults (B-8, B-15)", () => {
   it("a title is needed; a field of the other type is refused", () => {
     expect(contractorRaiseFaults(raise({ title: "" }), facts)).toEqual([{ code: "TITLE_NEEDED" }]);
     expect(contractorRaiseFaults(raise({ severity: "FIRST_AID" }), facts)).toEqual([{ code: "NOT_THIS_TYPE", field: "severity" }]);
+  });
+});
+
+// WR-3: on a linked item the line's text and date are locked; assignee and priority are not.
+describe("fieldFaults on a linked defect item", () => {
+  const actor: WorkActor = { side: "STAFF", personId: "hafiz", leadIds: [], mayReadContract: true };
+  const who: WhoNames = { raiser: "Hafiz", assignee: null, lead: null };
+  const item = (linkedLine?: "DRAFT" | "RECORDED"): WorkItemFacts => ({ id: "w", type: "DEFECT", number: 1, status: "IN_PROGRESS", raisedBy: person("hafiz"), assignee: person("aisyah"), sharedAt: null, dueOn: null, answer: "", inspectionResult: null, linkedLine });
+  const edits = { title: "New", description: "d", location: "L", dueOn: "2026-12-01" } as const;
+  it("refuses title, description, location and due day, in the draft words while the CPC is a draft", () => {
+    for (const [field, value] of Object.entries(edits)) {
+      expect(fieldFaults(item("DRAFT"), actor, { field, value } as FieldEdit, { ...FACTS, who })).toEqual([{ code: "LINKED_LOCKED", draft: true }]);
+      expect(fieldFaults(item("RECORDED"), actor, { field, value } as FieldEdit, { ...FACTS, who })).toEqual([{ code: "LINKED_LOCKED", draft: false }]);
+      expect(fieldFaults(item(), actor, { field, value } as FieldEdit, { ...FACTS, who })).toEqual([]);
+    }
+  });
+  it("leaves the assignee and the priority editable", () => {
+    expect(fieldFaults(item("RECORDED"), actor, { field: "assigneePersonId", value: "aisyah" }, { ...FACTS, who })).toEqual([]);
+    expect(fieldFaults(item("DRAFT"), actor, { field: "priority", value: "HIGH" }, { ...FACTS, who })).toEqual([]);
+  });
+  it("says it in the house words", () => {
+    expect(fieldFaultText({ code: "LINKED_LOCKED", draft: true })).toBe("This defect is recorded in Close-out. Remove it from the list to change it.");
+    expect(fieldFaultText({ code: "LINKED_LOCKED", draft: false })).toBe("This defect is recorded in Close-out.");
   });
 });

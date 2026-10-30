@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { CONTRACTOR, person } from "./party";
-import { MY_WORK_SECTIONS, myWorkGroup, myWorkHref, myWorkWhere, parseMyWorkAddress, type MyWorkFacts } from "./my-work";
+import { actStatusFault } from "@/lib/contract/act-status";
+
+import { MY_WORK_SECTIONS, myWorkGroup, myWorkHref, myWorkWhere, parseMyWorkAddress, WORK_OPEN_CONTRACT_STATUSES, type MyWorkFacts } from "./my-work";
 
 /** My work (0008 §5.6; WB-10): who an item is on, which group, and the address that carries the contract. */
 
@@ -52,12 +54,20 @@ describe("myWorkGroup", () => {
 
 describe("myWorkWhere", () => {
   it("is assigned to me and open, or raised by me and In review", () => {
-    expect(myWorkWhere(ME)).toEqual({
+    expect(myWorkWhere(ME).AND[0]).toEqual({
       OR: [
         { assigneePersonId: "me", status: { in: ["TO_DO", "IN_PROGRESS", "IN_REVIEW"] } },
         { raisedByPersonId: "me", status: "IN_REVIEW" },
       ],
     });
+  });
+
+  // Changed for the 3b-ii review (WR-5, stricter): items on a contract where Work is shut are not on the list; the statuses are the WORK_ITEM row's, not a list written here.
+  it("keeps only contracts whose status the WORK_ITEM row allows", () => {
+    expect(myWorkWhere(ME).AND[1]).toEqual({ contract: { status: { in: [...WORK_OPEN_CONTRACT_STATUSES] } } });
+    for (const s of WORK_OPEN_CONTRACT_STATUSES) expect(actStatusFault("WORK_ITEM", s)).toBeNull();
+    expect(WORK_OPEN_CONTRACT_STATUSES).toContain("ACTIVE");
+    for (const shut of ["CLOSED", "TERMINATED", "CANCELLED", "IN_PREPARATION"] as const) expect(WORK_OPEN_CONTRACT_STATUSES).not.toContain(shut);
   });
 });
 

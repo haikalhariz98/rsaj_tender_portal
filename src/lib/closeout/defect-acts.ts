@@ -19,10 +19,11 @@ import { capacityText } from "@/lib/supervision/authority";
 import { defectLineText, stateAfter } from "@/lib/work/defect-link";
 import { linkItem, lockLinkedItem, writeThrough } from "@/lib/work/defect-link-store";
 import { isOpen } from "@/lib/work/move";
+import { itemRefText } from "@/lib/work/labels";
 import { itemRef } from "@/lib/work/number";
 
 import { cpcLineFaults } from "./completion";
-import { defectActFaults, defectState, onDraftCpc, reportDefectFaults, type DefectAct } from "./defects";
+import { DEFECT_TEXT_MAX, defectActFaults, defectState, defectTextTooLong, onDraftCpc, reportDefectFaults, type DefectAct } from "./defects";
 import { closeoutRefusal } from "./labels";
 import { defectFactsOf, loadCloseout } from "./load";
 
@@ -44,8 +45,13 @@ export interface DefectActInput {
   evidenceDocumentId: string | null;
 }
 
+/// The event the act appended: the work path keys its notice by it.
+export interface DefectActDone {
+  eventId: string;
+}
+
 /// One act on a line, by an officer: an event appended, never the line changed. The officer must be the S.O. or a representative whose letter covers site observation.
-export async function recordDefectAct(c: ActCtx, act: ActWriter, which: DefectAct, i: DefectActInput): Promise<void> {
+export async function recordDefectAct(c: ActCtx, act: ActWriter, which: DefectAct, i: DefectActInput): Promise<DefectActDone> {
   gate(c);
   const who = await recordedFor(c, act, { act: "OBSERVATION" }, storedDay(i.on));
   const item = await lockLinkedItem(c.tx, scope(c), i.defectId); // the WorkItem, before the line
@@ -61,6 +67,7 @@ export async function recordDefectAct(c: ActCtx, act: ActWriter, which: DefectAc
   await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "DefectEvent", entityId: row.id, entityLabel: `${c.label} · defect: ${d.description.slice(0, 80)}`, reason: "" }, "CREATE", diffFields(null, { defect: EVENT_WORDS[which], on: storedDay(i.on), note: i.note.trim() || null, evidence: evidence?.title ?? null, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }));
   await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
   if (item) await writeThrough(c.tx, c.actor, scope(c), item, stateAfter(which), i.note, c.now);
+  return { eventId: row.id };
 }
 
 /// FR-CMP-007 with the work list (B-18): open Defect items the officer picked become lines on the draft CPC and are linked. The items are locked in ascending id order, each is
@@ -73,22 +80,24 @@ export async function addLinesFromItems(c: ActCtx, act: ActWriter, pc: { id: str
     await c.tx.$queryRaw`SELECT id FROM "WorkItem" WHERE id = ${id} AND "contractId" = ${c.l.contract.id} AND "organisationId" = ${c.l.org.id} FOR UPDATE`;
     const it = await c.tx.workItem.findFirst({ where: { id, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true, type: true, number: true, title: true, description: true, location: true, dueOn: true, status: true, cancelReason: true, defectItemId: true } });
     if (!it) throw new ActRefusal({ ok: false, message: "Not added: an item you picked no longer exists." });
-    const ref = itemRef(it.type, it.number);
+    const ref = itemRefText(it.type, it.number);
     if (it.type !== "DEFECT") throw new ActRefusal({ ok: false, message: `Not added: ${ref} is not a Defect item.` });
     if (it.defectItemId !== null) throw new ActRefusal({ ok: false, message: `Not added: ${ref} is already on a defect list.` });
     if (!isOpen(it.status)) throw new ActRefusal({ ok: false, message: `Not added: ${ref} is closed.` });
+    // WR-6: the line is never cut, so an item whose text is over the line's limit is refused, still unlinked and editable.
+    if (defectTextTooLong(defectLineText(it.title, it.description))) throw new ActRefusal({ ok: false, message: `Not added: ${ref} is longer than ${DEFECT_TEXT_MAX.toLocaleString("en")} characters. Shorten it in Work first.` });
     sources.push({ ...it, type: "DEFECT" as const });
   }
   for (const it of sources) {
     const description = defectLineText(it.title, it.description);
     const dueOn = it.dueOn ?? fallbackDue;
-    if (!dueOn) return fieldError("dueOn", `Give the day to make ${itemRef(it.type, it.number)} good by.`);
+    if (!dueOn) return fieldError("dueOn", `Give the day to make ${itemRefText(it.type, it.number)} good by.`);
     const fs = cpcLineFaults({ certificateStatus: pc.certificateStatus, description, dueOn: storedDay(dueOn), completionDate: storedDay(pc.completionDate) });
     if (fs.length) throw new ActRefusal({ ok: false, message: closeoutRefusal("Not added:", fs) });
     const row = await c.tx.defectItem.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, source: "PRACTICAL_COMPLETION", practicalCompletionId: pc.id, description, location: it.location.trim(), dueOn, reportedByPersonId: who.personId, recordedAt: c.now } });
     await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "DefectItem", entityId: row.id, entityLabel: `${c.label} · defect`, reason: "" }, "CREATE", diffFields(null, { defect: description, where: it.location.trim() || null, madeGoodBy: storedDay(dueOn), onTheCertificate: "practical completion (draft)", fromWorkItem: itemRef(it.type, it.number), recordedFor: who.personName }));
     await act.write(c.tx, row.id, { roleCode: who.roleCode });
-    await linkItem(c.tx, c.actor, s, it, { id: row.id, description }, c.now);
+    await linkItem(c.tx, c.actor, s, it, { id: row.id, description, dueOn: storedDay(dueOn) }, c.now);
   }
   return sources.length;
 }

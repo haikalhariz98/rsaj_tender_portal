@@ -206,6 +206,15 @@ export function moveFaultText(f: MoveFault, action: WorkAction | null, who: WhoN
   }
 }
 
+/// WR-3: why title, description, location and due date of an item that stands for a defect line cannot be edited.
+export const linkedLockWords = (draft: boolean): string => (draft ? "This defect is recorded in Close-out. Remove it from the list to change it." : "This defect is recorded in Close-out.");
+/// WR-1: a linked item whose line is on a draft CPC's list moves once the certificate is issued.
+export const LINKED_DRAFT_WORDS = "Moves once the certificate is issued.";
+/// WR-1: the contractor's stale post on such a line.
+export const LINKED_DRAFT_PORTAL_WORDS = "Not yet: this can be marked as fixed once practical completion is certified.";
+/// WR-4: appended to an officer's refused raise of a Defect on a completed contract.
+export const RECORD_FOR_SO_WORDS = "To record it for the S.O. from paper, use Close-out › Defects.";
+
 /// A refused field, or a refused new item, in one sentence.
 export function fieldFaultText(f: FieldFault): string {
   switch (f.code) {
@@ -231,6 +240,8 @@ export function fieldFaultText(f: FieldFault): string {
       return f.whoCan.en;
     case "CLOSED_ITEM":
       return "Reopen it first.";
+    case "LINKED_LOCKED":
+      return linkedLockWords(f.draft);
     case "ASSIGNEE_NOT_ELIGIBLE":
       return "Pick someone active who can see this contract.";
     case "OTHER_CONTRACT":

@@ -39,6 +39,8 @@ export const PORTAL_ORDER_BY = [{ dueOn: { sort: "asc", nulls: "last" } }, { typ
 
 export function portalAction(item: WorkItemFacts): PortalAction {
   if (!isOpen(item.status)) return "OPEN";
+  // WR-1: on a linked item the button follows the line, whoever holds the item: "Mark as fixed" while the line is open (In progress), Reply while it is reported or on a draft CPC's list.
+  if (item.linkedLine) return item.linkedLine === "RECORDED" && item.status === "IN_PROGRESS" ? "MARK_AS_FIXED" : "REPLY";
   const may = contractorActions(item, CONTRACTOR_ACTOR);
   if (may.includes("MARK_DONE")) return "ACCEPT_ANSWER";
   if (may.includes("SEND_FOR_REVIEW") && item.type !== "INSPECTION") return "SEND_FOR_CHECKING";

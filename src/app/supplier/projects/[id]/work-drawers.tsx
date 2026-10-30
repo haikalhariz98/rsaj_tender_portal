@@ -148,6 +148,8 @@ export interface ItemView {
   dueText: string | null;
   lateText: string | null;
   description: string;
+  /// A linked defect's latest return note, read from its line (WR-2).
+  returnNote: string | null;
   location: string;
   severityLabel: string | null;
   happenedText: string | null;
@@ -163,7 +165,7 @@ export interface ItemView {
   comments: { id: string; by: string; byYou: boolean; body: string; atText: string }[];
 }
 
-const MOVE_OF: Partial<Record<PortalAction, "SEND_FOR_CHECKING" | "ACCEPT_ANSWER">> = { SEND_FOR_CHECKING: "SEND_FOR_CHECKING", ACCEPT_ANSWER: "ACCEPT_ANSWER" };
+const MOVE_OF: Partial<Record<PortalAction, "SEND_FOR_CHECKING" | "MARK_AS_FIXED" | "ACCEPT_ANSWER">> = { SEND_FOR_CHECKING: "SEND_FOR_CHECKING", MARK_AS_FIXED: "MARK_AS_FIXED", ACCEPT_ANSWER: "ACCEPT_ANSWER" };
 
 export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, item }: Common & { orgName: string; canAct: boolean; cannotWhy: string; item: ItemView }) {
   const router = useRouter();
@@ -266,7 +268,7 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
                   Ask again
                 </Button>
               )}
-              <Button variant="primary" disabled={busy} pending={doing === "move"} onClick={() => (move === "ACCEPT_ANSWER" ? setConfirmAccept(true) : move ? run("move", SUPPLIER_PROJECT_WORK_POSTS.move, moveBody(contractId, item.ref, move, item.status), "Sent for checking.") : document.getElementById(replyId)?.focus())}>
+              <Button variant="primary" disabled={busy} pending={doing === "move"} onClick={() => (move === "ACCEPT_ANSWER" ? setConfirmAccept(true) : move ? run("move", SUPPLIER_PROJECT_WORK_POSTS.move, moveBody(contractId, item.ref, move, item.status), move === "MARK_AS_FIXED" ? "Marked as fixed." : "Sent for checking.") : document.getElementById(replyId)?.focus())}>
                 {item.actionLabel}
               </Button>
             </div>
@@ -282,6 +284,7 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
             </div>
             <div className="flex flex-col gap-5">
               {item.description && <p className="text-[14px] whitespace-pre-wrap break-words text-ink">{item.description}</p>}
+              {item.returnNote && <p className="text-[13.5px] whitespace-pre-wrap break-words text-ink-2"><span className="font-semibold text-ink">Returned:</span> {item.returnNote}</p>}
               {(item.location || item.severityLabel || item.happenedText) && (
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13.5px]">
                   {item.location && <><dt className="text-ink-3">Where</dt><dd>{item.location}</dd></>}

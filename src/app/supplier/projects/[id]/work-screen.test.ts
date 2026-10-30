@@ -89,6 +89,7 @@ const view = (o: Partial<ItemView> = {}): ItemView => ({
   standing: "Waiting for you",
   dueText: "Due 20 Nov 2026",
   lateText: null,
+  returnNote: null,
   description: "Which level?",
   location: "",
   severityLabel: null,

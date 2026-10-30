@@ -165,4 +165,10 @@ describe("the folded Certificates address", () => {
     expect(open({ ...live, stage: "project", tab: "documents" })).toMatchObject({ stage: "project", tab: "submissions" });
     expect(open({ ...live, stage: "signing", tab: "documents" }).tab).toBe("formation");
   });
+  // The 3b-ii review (C7): the section the old address names is kept, on either form.
+  it("keeps the Certificates section the old address names", () => {
+    expect(open({ ...live, tab: "documents" }).section).toBe("certificates");
+    expect(open({ ...live, stage: "project", tab: "documents" }).section).toBe("certificates");
+    expect(open({ ...live, tab: "submissions" }).section).toBeNull();
+  });
 });

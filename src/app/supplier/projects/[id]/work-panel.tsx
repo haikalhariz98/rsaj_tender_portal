@@ -34,6 +34,7 @@ function itemView(i: PortalItem, timeZone: string | null): ItemView {
     dueText: dueText(r),
     lateText: latenessWords(r.late),
     description: i.description,
+    returnNote: i.returnNote,
     location: i.location,
     severityLabel: i.severity ? SEVERITY_WORDS[i.severity].en : null,
     happenedText: i.happenedAt ? formatOrgDateTime(i.happenedAt, timeZone) : null,

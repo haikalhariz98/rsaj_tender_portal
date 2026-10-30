@@ -23,7 +23,7 @@ import { answerIsDraft } from "@/lib/work/portal";
 import { shareFaults } from "@/lib/work/sharing";
 import { SCAN_LABEL } from "@/lib/documents/labels";
 import { NOT_SCANNED_LABEL } from "@/lib/ui/upload-logic";
-import { ACTION_WORDS, itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, removeFileWords, STATUS_WORDS, TYPE_WORDS, whoCanWords } from "@/lib/work/labels";
+import { ACTION_WORDS, itemRefText, linkedLockWords, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, removeFileWords, STATUS_WORDS, TYPE_WORDS, whoCanWords } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
 import { contractorNameOf, loadActivity, loadItem, namesOf, whoNamesOf, type WorkContext } from "@/lib/work/load";
 import { isOpen, primaryActions, TARGET } from "@/lib/work/move";
@@ -75,6 +75,8 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
   const itemLabel = itemRefText(c.type, c.number);
   const why = editWhy(ctx, c, actor, who);
   const editable = why === undefined;
+  // WR-3: on a linked item the line is the record: title, description, location and due date are read only, with the reason. An item closed or in a shut contract keeps `why`.
+  const lockWhy = c.linked && editable ? linkedLockWords(c.linkedDraft) : undefined;
   const base = { contractId, itemId: c.id };
   const lateText = latenessWords(lateness(c.dueOn, c.status, ctx.today));
 
@@ -84,7 +86,7 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
   // Share (WB-2) is in the menu while the reader may do it; the confirm is the client's.
   const mayShare = ctx.open && !shared && shareFaults(c, actor, true, who).length === 0;
   // A linked item (a defect line's) offers only the moves that are defect acts; the act answers who may (the S.O. or a representative), so no one is pre-judged here.
-  const lp = c.linked ? linkedPanelActions(c.status, ctx.open) : null;
+  const lp = c.linked ? linkedPanelActions(c.status, ctx.open, "STAFF", c.linkedDraft) : null;
   const pa = lp ? { primary: lp.primary, menu: lp.menu, disabled: null } : primaryActions(c, actor, { contractOpen: ctx.open, who });
   const wordsOf = (a: WorkAction) => ACTION_WORDS[a].en;
   const menu = pa.menu.map((a) => ({ kind: (a === "CANCEL" ? "cancel" : a === "SEND_BACK" ? "sendBack" : "move") as "move" | "cancel" | "sendBack", label: wordsOf(a), to: TARGET[a] }));
@@ -165,7 +167,7 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
             disabled={pa.disabled ? { label: wordsOf(pa.disabled.action), whoCan: pa.disabled.whoCan.en } : null}
             menu={menu}
             share={mayShare ? { contractor, noAccount } : null}
-            sendBackSeenBy={!c.linked && commentAudience(c, "STAFF", null, "SEND_BACK") === "REPLY" ? contractor : null}
+            sendBackSeenBy={c.linked || commentAudience(c, "STAFF", null, "SEND_BACK") === "REPLY" ? contractor : null}
           />
         </div>
 
@@ -175,8 +177,14 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
           </p>
         )}
 
-        <FieldEdit label="Title" field="title" value={c.title} {...base} disabledWhy={why} />
-        <FieldEdit label="Description" field="description" kind="textarea" value={detail.description} {...base} disabledWhy={why} />
+        {detail.returnNote && (
+          <p className="text-[13.5px] text-ink-2">
+            <span className="font-semibold text-ink">Returned:</span> {detail.returnNote}
+          </p>
+        )}
+
+        <FieldEdit label="Title" field="title" value={c.title} {...base} disabledWhy={lockWhy ?? why} />
+        <FieldEdit label="Description" field="description" kind="textarea" value={detail.description} {...base} disabledWhy={lockWhy ?? why} />
         {typeHasField(c.type, "answer") && (
           <FieldEdit label="Answer" field="answer" kind="textarea" value={c.answer} {...base} disabledWhy={why} badge={answerIsDraft(c) ? { text: "Draft", why: `${contractor} has not yet sent it for checking.` } : undefined} />
         )}
@@ -202,8 +210,8 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
             />
           </div>
           {select("priority", "Priority", c.priority, PRIORITY_OPTIONS)}
-          <FieldEdit label="Due" field="dueOn" kind="date" value={c.dueOn ?? ""} display={c.dueOn ? formatDate(dayToDate(c.dueOn)) : ""} {...base} disabledWhy={why} />
-          <FieldEdit label="Location" field="location" value={c.location} {...base} disabledWhy={why} />
+          <FieldEdit label="Due" field="dueOn" kind="date" value={c.dueOn ?? ""} display={c.dueOn ? formatDate(dayToDate(c.dueOn)) : ""} {...base} disabledWhy={lockWhy ?? why} />
+          <FieldEdit label="Location" field="location" value={c.location} {...base} disabledWhy={lockWhy ?? why} />
           {typeHasField(c.type, "impact") && select("impact", "Impact", detail.impact ?? "", [{ value: "", label: "Not set" }, ...IMPACT_OPTIONS])}
           {typeHasField(c.type, "inspectionResult") && select("inspectionResult", "Result", c.inspectionResult ?? "NOT_YET", RESULT_OPTIONS)}
           {typeHasField(c.type, "severity") && select("severity", "Severity", detail.severity ?? "", SEVERITY_OPTIONS)}

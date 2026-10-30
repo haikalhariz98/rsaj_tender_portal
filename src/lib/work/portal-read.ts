@@ -16,8 +16,6 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { SupplierActor } from "@/lib/auth/types";
 import { actStatusFault } from "@/lib/contract/act-status";
 import { loadContract, type LoadedContract } from "@/lib/contract/repo";
-import { CONTRACT_STATUSES } from "@/lib/contract/types";
-import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf, dayOrNull } from "@/lib/dates";
 import { db, type Tx } from "@/lib/db";
 import { exerciseOrg } from "@/lib/method/repo";
@@ -32,10 +30,12 @@ import { portalSeesFile } from "./audience";
 import { PORTAL_ROWS_PER_GROUP } from "./bounds";
 import { lateness } from "./late";
 import { itemRefText } from "./labels";
-import { namesOf, loadTeamMembers } from "./load";
+import { linkedLineOf, returnNoteOf } from "./defect-link";
+import { LINK_EVENTS_SELECT, LINK_SELECT, namesOf, loadTeamMembers } from "./load";
 import { contractorActions, isOpen } from "./move";
 import { itemRef, parseItemRef } from "./number";
 import { assigneeOf, isContractor, person, raiserOf } from "./party";
+import { WORK_OPEN_CONTRACT_STATUSES } from "./my-work";
 import { contractorMayPost, PORTAL_ORDER_BY, portalAction, portalGroup, portalStaffLabel, portalWhere } from "./portal";
 import type { Day, IncidentSeverity, Lateness, Party, PortalAction, PortalGroup, WorkAction, WorkItemFacts, WorkItemType, WorkStatus } from "./types";
 
@@ -72,10 +72,11 @@ const ROW_SELECT = {
   raisedByPersonId: true,
   assigneePersonId: true,
   assignedToContractor: true,
+  defectItem: LINK_SELECT,
 } as const;
 type Row = Prisma.WorkItemGetPayload<{ select: typeof ROW_SELECT }>;
 
-const factsOfRow = (r: Row): WorkItemFacts => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), sharedAt: r.sharedAt?.toISOString() ?? null, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult });
+const factsOfRow = (r: Row): WorkItemFacts => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), sharedAt: r.sharedAt?.toISOString() ?? null, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult, linkedLine: linkedLineOf(r.defectItem) });
 
 export interface PortalRow {
   /// The address form ("RFI-12"): for links and route values only. A screen shows `label`.
@@ -181,6 +182,8 @@ export interface PortalFile {
 export interface PortalItem {
   row: PortalRow;
   description: string;
+  /// A linked defect's latest return note, read from its line, as the Defects view prints it (WR-2); null otherwise.
+  returnNote: string | null;
   location: string;
   /// An RFI's answer; "" on every other type.
   answer: string;
@@ -212,7 +215,7 @@ export async function loadPortalItem(actor: Pick<SupplierActor, "supplierId" | "
   if (!l) return null;
   const r = await db.workItem.findFirst({
     where: { organisationId: actor.organisationId, contractId, type: parsed.type, number: parsed.number, sharedAt: { not: null } },
-    select: { ...ROW_SELECT, description: true, location: true, severity: true, happenedAt: true },
+    select: { ...ROW_SELECT, defectItem: LINK_EVENTS_SELECT, description: true, location: true, severity: true, happenedAt: true },
   });
   if (!r) return null;
   const [comments, attachments] = await Promise.all([
@@ -231,6 +234,7 @@ export async function loadPortalItem(actor: Pick<SupplierActor, "supplierId" | "
   return {
     row: { ref: itemRef(r.type, r.number), label: itemRefText(r.type, r.number), type: r.type, title: r.title, status: r.status, dueOn: facts.dueOn, late: lateness(facts.dueOn, r.status, today), group: portalGroup(facts), action: portalAction(facts), heldBy: label(facts.assignee), raisedByYou: isContractor(facts.raisedBy) },
     description: r.description,
+    returnNote: r.defectItem ? returnNoteOf(r.defectItem.events) : null,
     location: r.location,
     answer: r.type === "RFI" ? r.answer : "",
     severity: r.severity,
@@ -301,7 +305,6 @@ export interface WaitingWorkRow {
   href: string;
 }
 
-const OPEN_STATUSES: readonly ContractStatus[] = CONTRACT_STATUSES.filter((s) => actStatusFault("WORK_ITEM", s) === null);
 
 /// Shared items waiting on the contractor across the contracts its supplier holds: assigned to it and To do or In progress, or raised by it and In review (B-17: derived, never
 /// notified). Contracts whose state shuts work are left out. Capped.
@@ -312,7 +315,7 @@ export async function portalWaitingRows(actor: Pick<SupplierActor, "supplierId" 
     where: {
       organisationId: actor.organisationId,
       sharedAt: { not: null },
-      contract: { organisationId: actor.organisationId, ...(o.contractId ? { id: o.contractId } : {}), status: { in: [...OPEN_STATUSES] }, award: { vendorId: actor.supplierId, status: { in: [...STANDING_AWARD] } } },
+      contract: { organisationId: actor.organisationId, ...(o.contractId ? { id: o.contractId } : {}), status: { in: [...WORK_OPEN_CONTRACT_STATUSES] }, award: { vendorId: actor.supplierId, status: { in: [...STANDING_AWARD] } } },
       AND: [portalWhere("WAITING_FOR_YOU") as Prisma.WorkItemWhereInput],
     },
     select: { ...ROW_SELECT, contractId: true, contract: { select: { number: true, award: { select: { exercise: { select: { title: true } } } } } } },

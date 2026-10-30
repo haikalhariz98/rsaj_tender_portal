@@ -28,11 +28,12 @@ vi.mock("@/app/_auth/act", async () => {
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
 import { recordCertificateSignature, sendCertificateToSigning, voidCertificateAct } from "@/app/projects/[id]/certificates/[certId]/actions";
-import { acceptDefect, addCpcDefect, addCpcDefectsFromItems, raisePracticalCompletion, removeCpcDefect, reportDefect, reportDefectRectified, withdrawDefect } from "@/app/projects/[id]/closeout-actions";
+import { acceptDefect, raiseDefectSchedule, addCpcDefect, addCpcDefectsFromItems, raisePracticalCompletion, removeCpcDefect, reportDefect, reportDefectRectified, withdrawDefect } from "@/app/projects/[id]/closeout-actions";
 import { createWorkItem, editWorkField, moveWorkItem, type WorkResult } from "@/app/projects/[id]/work-actions";
 
 import { CONTRACTOR_ASSIGNEE } from "./fields";
 import { itemRef } from "./number";
+import { loadItem } from "./load";
 import { moveAsContractor } from "./portal-store";
 import type { WorkItemType } from "./types";
 
@@ -44,9 +45,8 @@ const as = <T>(personId: string, fn: () => Promise<T>): Promise<T> => {
   return fn();
 };
 
-async function cpcForm() {
-  const kind = "PRACTICAL_COMPLETION";
-  const templateId = (await db.documentTemplate.create({ data: { organisationId: o.organisationId, code: `${kind.toLowerCase()}_${randomId()}`, nameEn: `${kind} (test)`, formCode: "PRACTI", bodyEn: "Certificate {{certificate.number}} for contract {{contract.number}}.", bodyVersion: 1 } })).id;
+async function cpcForm(kind: "PRACTICAL_COMPLETION" | "SCHEDULE_OF_DEFECTS" = "PRACTICAL_COMPLETION") {
+  const templateId = (await db.documentTemplate.create({ data: { organisationId: o.organisationId, code: `${kind.toLowerCase()}_${randomId()}`, nameEn: `${kind} (test)`, formCode: kind.slice(0, 6), bodyEn: "Certificate {{certificate.number}} for contract {{contract.number}}.", bodyVersion: 1 } })).id;
   await db.formSignatureBlock.createMany({
     data: [
       { organisationId: o.organisationId, templateId, blockOrder: 1, blockKind: "AUTHORISING", labelEn: "Superintending Officer", officeRule: "SO", delegable: false, datesCertificate: true },
@@ -97,6 +97,7 @@ let frozenBefore: unknown;
 beforeAll(async () => {
   o = await contractOrg("DLK");
   await cpcForm();
+  await cpcForm("SCHEDULE_OF_DEFECTS");
   // Completed 60 days ago, with a three-month defects liability period still running.
   k = await activeContract(o, { dueIn: -60, dlpMonths: 3 });
   const s = await makeSupplierAccount(o.organisationId);
@@ -275,7 +276,8 @@ describe("WB-12: a Defect item raised during the defects liability period is cre
     expect(await counts()).toEqual(before);
     const there = await as(o.other, () => reportDefect({ ok: false }, form({ id: k.contractId, description: "Spalling", dueOn: dayOf(14), observedOn: today() })));
     expect(there.ok).toBe(false);
-    expect(here).toBe(there.message);
+    // Changed for the 3b-ii review (WR-4, faithful): the raise adds where to record it for the S.O. from paper.
+    expect(here).toBe(`${there.message} To record it for the S.O. from paper, use Close-out › Defects.`);
   });
 
   it("is refused without the day it was observed, or outside the period, in reportDefect's words, and writes neither", async () => {
@@ -331,5 +333,114 @@ describe("voiding the draft CPC", () => {
     expect(await db.defectItem.count({ where: { id: lineId } })).toBe(1); // the voided CPC keeps its lines; no register reads them
     const trail = await db.auditEntry.findMany({ where: { organisationId: o.organisationId, entity: "WorkItem", entityId: row.id }, orderBy: { at: "asc" } });
     expect(JSON.stringify(trail.at(-1)!.changes)).toMatch(/defectItemId/);
+  });
+});
+
+// ------------------------------------------------------------------ the 3b-ii review fixes (WR-1, WR-2, WR-3, WR-6)
+
+describe("the 3b-ii review: the line decides", () => {
+  let k3: TestContract;
+  let x: Awaited<ReturnType<typeof snag>>;
+  let y: Awaited<ReturnType<typeof snag>>;
+  let long: Awaited<ReturnType<typeof snag>>;
+  let certId = "";
+  const snag3 = async (title: string, who: string, fields: Record<string, string> = {}) => {
+    const r = ok(await as(who, () => createWorkItem(form({ contractId: k3.contractId, type: "DEFECT", title, dueOn: dayOf(20), assigneePersonId: CONTRACTOR_ASSIGNEE, ...fields }))));
+    return db.workItem.findFirstOrThrow({ where: { contractId: k3.contractId, type: "DEFECT", number: Number(r.ref!.split("-")[1]) } });
+  };
+  const fixed3 = (row: { type: WorkItemType; number: number }, expectedFrom: string) => moveAsContractor(supplier, { contractId: k3.contractId, item: itemRef(row.type, row.number), action: "SEND_FOR_REVIEW", expectedFrom: expectedFrom as "IN_PROGRESS", comment: "" });
+
+  it("a pick over 2,000 characters is refused, the item still unlinked; the shorter picks go through", async () => {
+    k3 = await activeContract(o, { dueIn: -60, dlpMonths: 1 });
+    const award = await db.contract.findUniqueOrThrow({ where: { id: k3.contractId }, select: { awardId: true } });
+    await db.award.update({ where: { id: award.awardId }, data: { vendorId: supplier.supplierId } });
+    [x, y] = [await snag3("Racked door frame", o.other), await snag3("Spalled render", o.so)];
+    long = await snag3("Over-long defect", o.so, { description: "z".repeat(2100) });
+    const r = await as(o.so, () => raisePracticalCompletion({ ok: false }, form({ id: k3.contractId, completionDate: k3.due, possessionTakenOn: k3.due, inspectedOn: dayPlus(k3.due, 1), testReasons: "Complete save the defects.", attendeeIds: o.so })));
+    expect(r.ok, r.message).toBe(true);
+    certId = (await db.practicalCompletion.findFirstOrThrow({ where: { contractId: k3.contractId } })).certificateId;
+    const refusedPick = await as(o.so, () => addCpcDefectsFromItems({ ok: false }, form({ id: k3.contractId, itemIds: [x.id, long.id] })));
+    expect(refusedPick.ok).toBe(false);
+    expect(refusedPick.message).toBe(`Not added: Defect ${long.number} is longer than 2,000 characters. Shorten it in Work first.`);
+    expect((await item(long.id)).defectItemId).toBeNull();
+    expect((await item(x.id)).defectItemId).toBeNull();
+    const picked = await as(o.so, () => addCpcDefectsFromItems({ ok: false }, form({ id: k3.contractId, itemIds: [x.id, y.id] })));
+    expect(picked.ok, picked.message).toBe(true);
+  });
+
+  it("on a draft CPC the item is locked in the draft words, the board and panel offer nothing, and the contractor is told 'not yet'", async () => {
+    for (const [field, value] of [["title", "Renamed"], ["description", "More"], ["location", "L"], ["dueOn", dayOf(30)]]) {
+      expect(refused(await as(o.so, () => editWorkField(form({ contractId: k3.contractId, itemId: x.id, field, value }))))).toBe("This defect is recorded in Close-out. Remove it from the list to change it.");
+    }
+    ok(await as(o.so, () => editWorkField(form({ contractId: k3.contractId, itemId: x.id, field: "priority", value: "HIGH" }))));
+    // WR-3: the item took the line's due day at link.
+    expect((await item(x.id)).dueOn?.toISOString().slice(0, 10)).toBe(dayOf(20));
+    await expect(fixed3(x, "IN_PROGRESS")).rejects.toMatchObject({ words: "Not yet: this can be marked as fixed once practical completion is certified." });
+    expect((await item(x.id)).status).toBe("IN_PROGRESS");
+    expect(await db.defectEvent.count({ where: { defectId: (await item(x.id)).defectItemId! } })).toBe(0);
+    expect(refused(await as(o.so, () => moveWorkItem(form({ contractId: k3.contractId, itemId: x.id, from: "IN_PROGRESS", to: "DONE" }))))).toBeTruthy();
+  });
+
+  it("issued, the lock reads 'recorded in Close-out'; the contractor marks fixed an item held by staff; the S.O. who raised it is told once", async () => {
+    await db.approvalInstance.create({ data: { organisationId: o.organisationId, matterKind: "CERTIFICATE", certificateId: certId, domain: "practical_completion", status: "APPROVED", openedAt: new Date() } });
+    const sent = await as(o.so, () => sendCertificateToSigning({ ok: false }, form({ certId })));
+    expect(sent.ok, sent.message).toBe(true);
+    expect((await as(o.so, () => recordCertificateSignature({ ok: false }, form({ certId, blockOrder: "1", personBlock: "yes", personId: o.so, "personId:password": "any" })))).ok).toBe(true);
+    expect((await as(o.so, () => recordCertificateSignature({ ok: false }, form({ certId, blockOrder: "2", personBlock: "no", name: "Tan Mei Hua", icNumber: "000000-00-0013", signedOn: today() })))).ok).toBe(true);
+    expect(refused(await as(o.so, () => editWorkField(form({ contractId: k3.contractId, itemId: x.id, field: "title", value: "Renamed" }))))).toBe("This defect is recorded in Close-out.");
+
+    // y is held by staff (its assignee is the S.O.) and raised by the S.O.: the line decides, not the holder.
+    ok(await as(o.so, () => editWorkField(form({ contractId: k3.contractId, itemId: y.id, field: "assigneePersonId", value: o.so }))));
+    await expect(fixed3(y, "IN_REVIEW")).rejects.toMatchObject({ status: 409 }); // the stale-page check is kept
+    await fixed3(y, "IN_PROGRESS");
+    expect((await item(y.id)).status).toBe("IN_REVIEW");
+    const eventId = (await lineOf(y.id)).events[0].id;
+    // The S.O. is told of the defect once, and not again by the work notice of the same event.
+    const toSo = await db.staffNotice.findMany({ where: { organisationId: o.organisationId, recipientPersonId: o.so, OR: [{ subjectId: eventId }, { subjectId: y.id }] } });
+    expect(toSo.map((n) => n.kind)).toEqual(["DEFECT_RECTIFIED"]);
+
+    // x was raised by someone else (o.other): told by the work notice, and the S.O. only by the defect notice.
+    await fixed3(x, "IN_PROGRESS");
+    const xEvent = (await lineOf(x.id)).events[0].id;
+    expect((await db.staffNotice.findMany({ where: { organisationId: o.organisationId, recipientPersonId: o.other, subjectId: x.id } })).map((n) => n.kind)).toEqual(["WORK_ITEM_TO_CHECK"]);
+    expect(await db.staffNotice.count({ where: { organisationId: o.organisationId, recipientPersonId: o.so, subjectId: xEvent, kind: "DEFECT_RECTIFIED" } })).toBe(1);
+    expect(await db.staffNotice.count({ where: { organisationId: o.organisationId, recipientPersonId: o.so, subjectId: x.id } })).toBe(0);
+  });
+
+  it("a return note stays on the line, no work comment is written, and the panel reads it from the line; a long note is refused in the core's words", async () => {
+    const comments = await db.workItemComment.count({ where: { workItemId: y.id } });
+    expect(refused(await as(o.so, () => moveWorkItem(form({ contractId: k3.contractId, itemId: y.id, from: "IN_REVIEW", to: "IN_PROGRESS", comment: "n".repeat(2001) }))))).toMatch(/note is over 2,000 characters/);
+    ok(await as(o.so, () => moveWorkItem(form({ contractId: k3.contractId, itemId: y.id, from: "IN_REVIEW", to: "IN_PROGRESS", comment: "Still damp." }))));
+    expect(await db.workItemComment.count({ where: { workItemId: y.id } })).toBe(comments);
+    const detail = await loadItem({ organisationId: o.organisationId, contractId: k3.contractId, ref: itemRef(y.type, y.number), timeZone: null });
+    expect(detail?.returnNote).toBe("Still damp.");
+    expect(detail?.card.linkedDraft).toBe(false);
+  });
+
+  it("the Schedule of Defects gives an open linked item its rectify-by day, and leaves a made-good one alone", async () => {
+    // y reported again and accepted: made good. x stays open.
+    await fixed3(y, "IN_PROGRESS");
+    ok(await as(o.so, () => moveWorkItem(form({ contractId: k3.contractId, itemId: y.id, from: "IN_REVIEW", to: "DONE" }))));
+    // The contractor reported x already; return it so the line is open again.
+    ok(await as(o.so, () => moveWorkItem(form({ contractId: k3.contractId, itemId: x.id, from: "IN_REVIEW", to: "IN_PROGRESS", comment: "Redo." }))));
+    const rectifyBy = dayPlus(today(), 14);
+    const r = await as(o.so, () => raiseDefectSchedule({ ok: false }, form({ id: k3.contractId, rectifyBy })));
+    expect(r.ok, r.message).toBe(true);
+    const s = await db.defectSchedule.findFirstOrThrow({ where: { contractId: k3.contractId } });
+    expect((await as(o.so, () => sendCertificateToSigning({ ok: false }, form({ certId: s.certificateId })))).ok).toBe(true);
+    expect((await as(o.so, () => recordCertificateSignature({ ok: false }, form({ certId: s.certificateId, blockOrder: "1", personBlock: "yes", personId: o.so, "personId:password": "any" })))).ok).toBe(true);
+    const issued = await as(o.so, () => recordCertificateSignature({ ok: false }, form({ certId: s.certificateId, blockOrder: "2", personBlock: "no", name: "Tan Mei Hua", icNumber: "000000-00-0013", signedOn: today() })));
+    expect(issued.ok, issued.message).toBe(true);
+    expect((await item(x.id)).dueOn?.toISOString().slice(0, 10)).toBe(rectifyBy);
+    expect((await item(y.id)).dueOn?.toISOString().slice(0, 10)).toBe(dayOf(20));
+    const trail = await db.auditEntry.findMany({ where: { organisationId: o.organisationId, entity: "WorkItem", entityId: x.id }, orderBy: { at: "asc" } });
+    expect(JSON.stringify(trail.at(-1)!.changes)).toMatch(new RegExp(rectifyBy));
+  });
+
+  it("a Defect raised in the liability period with a description over 2,000 characters is refused in the core's words, and writes neither", async () => {
+    const before = { items: await db.workItem.count({ where: { contractId: k.contractId } }), lines: await db.defectItem.count({ where: { contractId: k.contractId } }) };
+    const words = refused(await as(o.so, () => createWorkItem(form({ contractId: k.contractId, type: "DEFECT", title: "Long", description: "q".repeat(2001), dueOn: dayOf(14), observedOn: today() }))));
+    expect(words).toMatch(/^Not recorded:.*over 2,000 characters/);
+    expect({ items: await db.workItem.count({ where: { contractId: k.contractId } }), lines: await db.defectItem.count({ where: { contractId: k.contractId } }) }).toEqual(before);
   });
 });

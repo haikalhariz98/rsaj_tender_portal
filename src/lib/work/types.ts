@@ -52,6 +52,8 @@ export interface WorkItemFacts {
   dueOn: Day | null;
   answer: string; // RFI only; "" elsewhere
   inspectionResult: InspectionResult | null;
+  /// Set where the item stands for a defect line (B-18): its line is on a draft CPC's list, or recorded (issued, or reported during the defects liability period).
+  linkedLine?: "DRAFT" | "RECORDED";
 }
 
 /** Who is acting, as the rules need it. `leadIds` is W-4's set (3b: the team's). The contractor acts as the company: `personId` is null on its side,
@@ -90,6 +92,7 @@ export type FieldFault =
   | { code: "HAPPENED_IN_FUTURE" }
   | { code: "NOT_THIS_TYPE"; field: string }
   | { code: "NOT_EDITABLE"; whoCan: Words } // W-3
+  | { code: "LINKED_LOCKED"; draft: boolean } // title, description, location or due date of an item that stands for a defect line (WR-3)
   | { code: "CLOSED_ITEM" } // Done or Cancelled: reopen first
   | { code: "ASSIGNEE_NOT_ELIGIBLE" } // not in `activeIds`: inactive, another organisation's, or unable to read the case
   | { code: "COMMENT_EMPTY" }

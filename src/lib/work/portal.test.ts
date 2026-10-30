@@ -97,3 +97,17 @@ describe("WSEC-10 L3: the portal's order has no internal priority", () => {
   });
 });
 
+// WR-1: on a linked item the button follows the line, whoever holds the item.
+describe("portalAction on a linked defect item", () => {
+  const linked = (status: WorkStatus, linkedLine: "DRAFT" | "RECORDED", o: Partial<WorkItemFacts> = {}): WorkItemFacts => ({ ...base, type: "DEFECT", status, linkedLine, ...o });
+  it("offers Mark as fixed on an open line, held by staff or by the contractor", () => {
+    expect(portalAction(linked("IN_PROGRESS", "RECORDED"))).toBe("MARK_AS_FIXED");
+    expect(portalAction(linked("IN_PROGRESS", "RECORDED", { assignee: CONTRACTOR }))).toBe("MARK_AS_FIXED");
+  });
+  it("offers Reply only once reported (In review) or on a draft certificate's list, and Open when closed", () => {
+    expect(portalAction(linked("IN_REVIEW", "RECORDED"))).toBe("REPLY");
+    expect(portalAction(linked("IN_PROGRESS", "DRAFT"))).toBe("REPLY");
+    expect(portalAction(linked("IN_PROGRESS", "DRAFT", { assignee: CONTRACTOR }))).toBe("REPLY");
+    expect(portalAction(linked("DONE", "RECORDED"))).toBe("OPEN");
+  });
+});

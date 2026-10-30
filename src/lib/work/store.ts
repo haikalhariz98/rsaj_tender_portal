@@ -45,10 +45,10 @@ import { stagedFileFaults, type StagedFault, type StagedFile } from "@/lib/proje
 import { contractorMayDownload } from "@/lib/project-docs/visibility";
 
 import { FILES_PER_ACT } from "./bounds";
-import { defectActOf, defectLineText, linkedMoveWords } from "./defect-link";
+import { defectActOf, defectLineText, linkedLineOf, linkedMoveWords } from "./defect-link";
 import { commentFaults, defectRaisesLine, fieldFaults, mayEdit, newItemFaults, type EditableField, type FieldEdit, type NewItem } from "./fields";
 import { audienceFaults, commentAudience, removeFileFaults } from "./audience";
-import { fieldFaultText, moveFaultText, removeFileWords, whoCanWords } from "./labels";
+import { fieldFaultText, LINKED_DRAFT_WORDS, moveFaultText, RECORD_FOR_SO_WORDS, removeFileWords, whoCanWords } from "./labels";
 import { activeAmong, leadOf, whoNamesIn, workAuditPrefix } from "./load";
 import { actionOf, answerAcceptedBy, isOpen, moveFaults, TARGET } from "./move";
 import { itemRef, nextNumber } from "./number";
@@ -93,11 +93,11 @@ function gate(c: WorkCtx): void {
 }
 
 /// A defect core's refusal (an `ActRefusal`, in close-out's words) as this store refuses: the same words, the same rollback.
-async function viaDefectCore<T>(fn: () => Promise<T>): Promise<T> {
+async function viaDefectCore<T>(fn: () => Promise<T>, suffix = ""): Promise<T> {
   try {
     return await fn();
   } catch (e) {
-    if (e instanceof ActRefusal) return refuse(e.state.message ?? (Object.values(e.state.errors ?? {}).join(" ") || "Not recorded."));
+    if (e instanceof ActRefusal) return refuse(`${e.state.message ?? (Object.values(e.state.errors ?? {}).join(" ") || "Not recorded.")}${suffix}`);
     throw e;
   }
 }
@@ -135,6 +135,8 @@ const ITEM_SELECT = {
   fromDocumentId: true,
   cancelReason: true,
   defectItemId: true,
+  // WR-1, WR-3: whether the line is on a draft CPC's list, read through the relation (never the line's lock).
+  defectItem: { select: { practicalCompletionId: true, practicalCompletion: { select: { certificate: { select: { status: true } } } } } },
 } as const;
 export type ItemRow = Prisma.WorkItemGetPayload<{ select: typeof ITEM_SELECT }>;
 
@@ -148,7 +150,7 @@ async function lockedItem(c: WorkCtx, itemId: string): Promise<ItemRow> {
 export { lockedItem };
 
 /// Exported, with `lockedItem` below, for the contractor's cores (`portal-store.ts`, 3b step 4): one lock helper and one reading of a row, so the portal never restates either.
-export const factsOf = (r: ItemRow): WorkItemFacts => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), sharedAt: r.sharedAt?.toISOString() ?? null, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult });
+export const factsOf = (r: ItemRow): WorkItemFacts => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), sharedAt: r.sharedAt?.toISOString() ?? null, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult, linkedLine: linkedLineOf(r.defectItem) });
 
 /// Who is acting, as the rules read them. Every active person of the organisation reads a contract's Work (see `load.ts`).
 const actorOf = (who: StaffActor, lead: { ids: string[] }): WorkActor => ({ side: "STAFF", personId: who.personId, leadIds: lead.ids, mayReadContract: true });
@@ -194,7 +196,7 @@ export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: P
   // WB-12: past practical completion a Defect is raised WITH its line in this one act, under `reportDefect`'s own checks and the observer's capacity; its refusals are that act's.
   const line =
     n.type === "DEFECT" && defectRaisesLine(c.l.contract.status as ContractStatus)
-      ? await viaDefectCore(() => reportDefectLine(defectCtx(c, who), act, { description: defectLineText(n.title, n.description), location: n.location, dueOn: n.dueOn === null ? null : dayToDate(n.dueOn), observedOn: n.observedOn ? dayToDate(n.observedOn) : null, alsoSlot: "DefectItem.reportedBy" }))
+      ? await viaDefectCore(() => reportDefectLine(defectCtx(c, who), act, { description: defectLineText(n.title, n.description), location: n.location, dueOn: n.dueOn === null ? null : dayToDate(n.dueOn), observedOn: n.observedOn ? dayToDate(n.observedOn) : null, alsoSlot: "DefectItem.reportedBy" }), ` ${RECORD_FOR_SO_WORDS}`)
       : null;
 
   const max = (await c.tx.workItem.aggregate({ where: { contractId: c.l.contract.id, organisationId: org, type: n.type }, _max: { number: true } }))._max.number;
@@ -312,7 +314,11 @@ async function linkedMove(c: WorkCtx, who: StaffActor, row: ItemRow, i: { expect
   if (!i.viaDefectAct || !act) return stale();
   const ctx = defectCtx(c, who);
   const note = which === "RETURN" ? (i.comment ?? "") : which === "WITHDRAW" ? (i.reason ?? "") : "";
-  await viaDefectCore(() => recordDefectAct(ctx, act, which, { defectId: row.defectItemId!, on: dayToDate(ctx.today), note, evidenceDocumentId: null }));
+  if (linkedLineOf(row.defectItem) === "DRAFT") return refuse(LINKED_DRAFT_WORDS);
+  const { eventId } = await viaDefectCore(() => recordDefectAct(ctx, act, which, { defectId: row.defectItemId!, on: dayToDate(ctx.today), note, evidenceDocumentId: null }));
+  // WR-2: tell the same people the ordinary move of the same name tells, keyed by the defect event. The return note stays on the line's event (no work comment).
+  if (which === "REPORT_RECTIFIED") await tell(c, who, row, "WORK_ITEM_TO_CHECK", eventId);
+  if (which === "RETURN") await tell(c, who, row, "WORK_ITEM_RETURNED", eventId);
 }
 
 /**

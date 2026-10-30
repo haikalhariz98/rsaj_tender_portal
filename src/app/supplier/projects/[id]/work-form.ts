@@ -51,7 +51,7 @@ export const replyBody = (contractId: string, item: string, body: string) => ({ 
 export const answerBody = (contractId: string, item: string, answer: string) => ({ contractId, item, answer });
 export const attachBody = (contractId: string, item: string, stagedVersionIds: readonly string[]) => ({ contractId, item, stagedVersionIds: [...stagedVersionIds] });
 /// A move names the status the screen showed, so a move made on a stale view is refused rather than applied.
-export const moveBody = (contractId: string, item: string, action: Extract<PortalAction, "SEND_FOR_CHECKING" | "ACCEPT_ANSWER" | "ASK_AGAIN">, expectedFrom: string, comment = "") => ({ contractId, item, action, expectedFrom, comment });
+export const moveBody = (contractId: string, item: string, action: Extract<PortalAction, "SEND_FOR_CHECKING" | "MARK_AS_FIXED" | "ACCEPT_ANSWER" | "ASK_AGAIN">, expectedFrom: string, comment = "") => ({ contractId, item, action, expectedFrom, comment });
 
 /// The Work tab address, with or without an open item (the address the "Waiting for you" rows point at).
 export const workHref = (contractId: string, item?: string) => `/supplier/projects/${encodeURIComponent(contractId)}?tab=work${item ? `&item=${encodeURIComponent(item)}` : ""}`;

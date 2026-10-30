@@ -115,7 +115,7 @@ export function parseReplyBody(b: Record<string, unknown>): WorkParsed<ReplyBody
 // ------------------------------------------------------------------ move (Send for checking, Accept answer, Ask again)
 
 /// The three moves the contractor makes, by the words on its buttons, and the action each is in the move table (`move.ts`).
-export const CONTRACTOR_MOVES: Readonly<Partial<Record<PortalAction, WorkAction>>> = { SEND_FOR_CHECKING: "SEND_FOR_REVIEW", ACCEPT_ANSWER: "MARK_DONE", ASK_AGAIN: "SEND_BACK" };
+export const CONTRACTOR_MOVES: Readonly<Partial<Record<PortalAction, WorkAction>>> = { SEND_FOR_CHECKING: "SEND_FOR_REVIEW", MARK_AS_FIXED: "SEND_FOR_REVIEW", ACCEPT_ANSWER: "MARK_DONE", ASK_AGAIN: "SEND_BACK" };
 const STATUSES: readonly WorkStatus[] = ["TO_DO", "IN_PROGRESS", "IN_REVIEW", "DONE", "CANCELLED"];
 
 export interface MoveBody {

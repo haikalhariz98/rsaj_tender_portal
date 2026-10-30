@@ -30,7 +30,8 @@ const refuse = (fs: readonly ProjectFinding[], status: 404 | 409 | 422 = 422): n
   throw new ProjectRefused(fs, status);
 };
 
-export type Reported = { eventId: string };
+/// `told`: the staff the defect notice went to, so a work notice for the same event leaves them out (once each, WR-2).
+export type Reported = { eventId: string; told: string[] };
 export type DefectReport = { contractId: string; defectId: string; note: string; evidenceDocumentId: string | null };
 
 /**
@@ -47,7 +48,7 @@ export async function rectifyWithin(tx: Tx, l: LoadedContract, today: string, ac
   const d = defectFactsOf(rows).find((x) => x.id === i.defectId);
   if (!d) return refuse([{ code: "DEFECT_NOT_FOUND", level: "block" }], 404);
   // F6: a line on a CPC not yet issued is not reported (the contractor's tab lists none until it issues).
-  if (onDraftCpc(rows.lines.find((x) => x.id === d.id)!, rows.cpc?.certificate.status ?? null)) return refuse([{ code: "DEFECT_NOT_FOUND", level: "block" }], 404);
+  if (onDraftCpc(rows.lines.find((x) => x.id === d.id)!, rows.cpc?.certificate.status ?? null)) return refuse([{ code: "DEFECT_ON_DRAFT_CPC", level: "block" }], 404);
   if (defectActFaults("REPORT_RECTIFIED", defectState(d.events).state, { note: i.note, on: today, today }).length) return refuse([{ code: "DEFECT_NOT_OPEN", level: "block" }], 409);
   const evidence = i.evidenceDocumentId ? await tx.projectDocument.findFirst({ where: { id: i.evidenceDocumentId, contractId: l.contract.id, organisationId: actor.organisationId, side: "CONTRACTOR" }, select: { id: true, title: true } }) : null;
   if (i.evidenceDocumentId && !evidence) return refuse([{ code: "EVIDENCE_NOT_YOURS", level: "block" }]);
@@ -56,8 +57,9 @@ export async function rectifyWithin(tx: Tx, l: LoadedContract, today: string, ac
   await writeAudit(tx, { actor: supplierAuditActor(actor), organisationId: actor.organisationId, entity: "DefectEvent", entityId: ev.id, entityLabel: `${label} · defect: ${d.description.slice(0, 80)}` }, "CREATE", diffFields(null, { defect: "reported rectified", on: today, note: i.note.trim() || null, evidence: evidence?.title ?? null, recordedBy: `${actor.displayName}, from the supplier's own portal account` }));
   if (item) await writeThrough(tx, supplierAuditActor(actor), scope, item, stateAfter("REPORT_RECTIFIED"), i.note, toSecond(now));
   const so = await soOfficeOn(l, await loadSupervision(l.contract.id, tx), today, tx);
-  await writeNotices(tx, actor.organisationId, null, defectRectifiedNotices({ eventId: ev.id, contractId: l.contract.id, contractLabel: label, contractorName: l.award.awardeeName, defect: d.description.slice(0, 120), recipients: [...(so?.office.holderIds ?? []), ...(so?.office.actingIds ?? [])] }));
-  return { eventId: ev.id };
+  const drafts = defectRectifiedNotices({ eventId: ev.id, contractId: l.contract.id, contractLabel: label, contractorName: l.award.awardeeName, defect: d.description.slice(0, 120), recipients: [...(so?.office.holderIds ?? []), ...(so?.office.actingIds ?? [])] });
+  await writeNotices(tx, actor.organisationId, null, drafts);
+  return { eventId: ev.id, told: drafts.map((x) => x.recipientPersonId) };
 }
 
 export async function reportRectifiedAsContractor(actor: SupplierActor, i: DefectReport, now: Date = new Date()): Promise<Reported> {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defectActOf, defectLineText, defectItemStatus, linkedDropColumns, linkedItemPatch, linkedMoveWords, linkedPanelActions, lineStateOf, stateAfter } from "./defect-link";
+import { defectActOf, defectLineText, defectItemStatus, linkedDropColumns, linkedDueOn, linkedItemPatch, linkedLineOf, returnNoteOf, linkedMoveWords, linkedPanelActions, lineStateOf, stateAfter } from "./defect-link";
 import type { WorkAction } from "./types";
 
 const NOW = new Date("2026-11-02T03:00:00Z");
@@ -28,7 +28,8 @@ describe("a line's state writes its item's status through (B-18)", () => {
 it("a line reads as the item's title, then its description", () => {
   expect(defectLineText(" Leak ", "")).toBe("Leak");
   expect(defectLineText("Leak", " Block A ")).toBe("Leak: Block A");
-  expect(defectLineText("x", "y".repeat(3000))).toHaveLength(2000);
+  // Changed for the 3b-ii review (WR-6): the text is never cut here; the cores refuse a line over the limit.
+  expect(defectLineText("x", "y".repeat(3000))).toHaveLength(3003);
 });
 
 describe("an item move is a defect act", () => {
@@ -60,5 +61,34 @@ describe("a linked item's panel and drag offer only defect acts", () => {
   });
   it("reads a status as the line state that wrote it", () => {
     for (const st of ["OPEN", "REPORTED_RECTIFIED", "MADE_GOOD", "WITHDRAWN"] as const) expect(lineStateOf(defectItemStatus(st))).toBe(st);
+  });
+});
+
+describe("the 3b-ii review (WR-1, WR-3, WR-6)", () => {
+  it("a linked item on a draft CPC's list is offered nothing on the panel or the board", () => {
+    expect(linkedPanelActions("IN_PROGRESS", true, "STAFF", true)).toEqual({ primary: null, menu: [] });
+    expect(linkedPanelActions("IN_PROGRESS", true, "STAFF", false).primary).toBe("SEND_FOR_REVIEW");
+    expect(linkedDropColumns("IN_PROGRESS", true)).toEqual([]);
+    expect(linkedDropColumns("IN_PROGRESS").length).toBeGreaterThan(0);
+  });
+  it("a linked item's due day is the schedule's rectify-by where one is issued, else the line's", () => {
+    expect(linkedDueOn("2026-10-10", null)).toBe("2026-10-10");
+    expect(linkedDueOn("2026-10-10", "2026-12-01")).toBe("2026-12-01");
+  });
+  it("the line's text is never cut", () => {
+    expect(defectLineText("T", "x".repeat(3000))).toHaveLength(3003);
+  });
+  it("reads a line's state on the draft rule", () => {
+    const pc = (status: string) => ({ practicalCompletionId: "p", practicalCompletion: { certificate: { status } } });
+    expect(linkedLineOf(null)).toBeUndefined();
+    expect(linkedLineOf(pc("DRAFT"))).toBe("DRAFT");
+    expect(linkedLineOf(pc("ISSUED"))).toBe("RECORDED");
+    expect(linkedLineOf({ practicalCompletionId: null, practicalCompletion: null })).toBe("RECORDED");
+  });
+  it("the return note is the open line's latest, from its events", () => {
+    const e = (kind: "REPORTED_RECTIFIED" | "RETURNED" | "MADE_GOOD", note: string, s: number) => ({ kind, on: new Date("2026-10-05T00:00:00Z"), note, recordedAt: new Date(`2026-10-05T00:00:0${s}Z`) });
+    expect(returnNoteOf([e("REPORTED_RECTIFIED", "", 1), e("RETURNED", "Still leaks", 2)])).toBe("Still leaks");
+    expect(returnNoteOf([e("REPORTED_RECTIFIED", "", 1)])).toBeNull();
+    expect(returnNoteOf([e("RETURNED", "No", 1), e("MADE_GOOD", "", 2)])).toBeNull();
   });
 });

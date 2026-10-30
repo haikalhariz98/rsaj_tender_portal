@@ -996,6 +996,22 @@ describe("My work (3b-ii step 8)", () => {
     expect(await onBoss()).toBeNull();
   });
 
+  // WR-5 (3b-ii review): an item on a contract where Work is shut is not on the to-do list, though it stays on that contract's Work tab.
+  it("lists nothing for a contract whose status shuts Work, and the item is still readable on its tab", async () => {
+    const [live, shut] = [await activeContract(org), await activeContract(org)];
+    const me = (await makePerson(org.organisationId, `me ${randomId()}`)).id;
+    const boss = (await makePerson(org.organisationId, `boss ${randomId()}`)).id;
+    const open = await task(boss, live.contractId, { assigneePersonId: me });
+    const stuck = await task(boss, shut.contractId, { assigneePersonId: me });
+    const today = "2026-11-05";
+    expect((await loadMyWork({ organisationId: org.organisationId, personId: me, today })).rows.map((r) => r.id).sort()).toEqual([open.id, stuck.id].sort());
+    await db.contract.update({ where: { id: shut.contractId }, data: { status: "CLOSED" } });
+    const after = await loadMyWork({ organisationId: org.organisationId, personId: me, today });
+    expect(after.rows.map((r) => r.id)).toEqual([open.id]);
+    expect(after.more).toBe(0);
+    expect(await loadItem({ organisationId: org.organisationId, contractId: shut.contractId, ref: itemRef(stuck.type, stuck.number), timeZone: null })).not.toBeNull();
+  });
+
   it("an address with contract= opens the right item when two contracts each hold the same reference", async () => {
     const [a, b] = [await activeContract(org), await activeContract(org)];
     const [ta, tb] = [await task(p.raiser, a.contractId, { title: "In A" }), await task(p.raiser, b.contractId, { title: "In B" })];
