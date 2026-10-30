@@ -42,7 +42,9 @@ import { addTeamMemberAction, changeProjectManagerAction, removeTeamMemberAction
 import { portalSeesFile } from "./audience";
 import { FIXTURE_CONTRACTOR_ITEMS, FIXTURE_ITEMS, FIXTURE_READER, FIXTURE_TODAY } from "./items.fixture";
 import { itemRef } from "./number";
-import { assigneeOptions, linkOptions, loadActivity, loadBoard, loadItem, loadWorkContext, loadWorkList } from "./load";
+import { assigneeOptions, linkOptions, loadActivity, loadBoard, loadItem, loadMyWork, loadWorkContext, loadWorkList } from "./load";
+import { myWorkGroup } from "./my-work";
+import { assigneeOf, raiserOf } from "./party";
 import { inView, parseWorkFilters, workWhere, type WorkFilters, type WorkRow } from "./views";
 import type { Party, WorkView } from "./types";
 
@@ -943,5 +945,68 @@ describe("the views: workWhere against the database agrees with inView", () => {
     expect(board[0].total).toBe(FIXTURE_ITEMS.filter((i) => i.status === "TO_DO").length + 4); // the four extra tasks are To do
     expect(board.every((c) => c.items.length <= 50)).toBe(true);
     for (const c of board.slice(0, 3)) expect(c.items.every((i) => i.status === c.column)).toBe(true);
+  });
+});
+
+describe("My work (3b-ii step 8)", () => {
+  it("is exactly 0008 section 5.6's set across two contracts, grouped as myWorkGroup says, and the database's rule agrees with the in-memory one", async () => {
+    const [a, b] = [await activeContract(org), await activeContract(org)];
+    const me = (await makePerson(org.organisationId, `me ${randomId()}`)).id;
+    const boss = (await makePerson(org.organisationId, `boss ${randomId()}`)).id;
+    const today = "2026-11-05";
+    const mk = (who: string, c: TestContract, fields: Record<string, string>) => task(who, c.contractId, fields);
+    const late = await mk(boss, a, { assigneePersonId: me, dueOn: "2026-11-01" });
+    const dueToday = await mk(boss, b, { assigneePersonId: me, dueOn: today });
+    const week = await mk(boss, a, { assigneePersonId: me, dueOn: "2026-11-11" });
+    const later = await mk(boss, b, { assigneePersonId: me, dueOn: "2026-11-12" });
+    const undated = await mk(boss, a, { assigneePersonId: me });
+    // I raised it and it is In review: To check, whoever holds it.
+    const review = await mk(me, b, { assigneePersonId: boss });
+    ok(await move(boss, b.contractId, review.id, "TO_DO", "IN_REVIEW"));
+    // Not on me: someone else's, mine but Done, mine to the contractor, raised by me but not yet in review.
+    const others = [await mk(boss, a, { assigneePersonId: boss }), await mk(me, a, { assigneePersonId: me }), await mk(me, b, { assigneePersonId: boss }), await mk(boss, b, { assigneePersonId: "contractor" })];
+    ok(await move(me, a.contractId, others[1].id, "TO_DO", "CANCELLED", { reason: "Not needed" }));
+
+    const got = await loadMyWork({ organisationId: org.organisationId, personId: me, today });
+    const byId = new Map(got.rows.map((r) => [r.id, r]));
+    expect(got.more).toBe(0);
+    expect(got.rows.filter((r) => [a.contractId, b.contractId].includes(r.contractId)).map((r) => [r.id, r.group]).sort()).toEqual(
+      [[late.id, "LATE"], [dueToday.id, "TODAY"], [week.id, "THIS_WEEK"], [later.id, "LATER"], [undated.id, "NO_DATE"], [review.id, "TO_CHECK"]].sort(),
+    );
+    for (const o of others) expect(byId.has(o.id), o.title).toBe(false);
+    // The set spans both contracts, each row naming its own.
+    expect(new Set(got.rows.map((r) => r.contractId))).toEqual(new Set([a.contractId, b.contractId]));
+    // The same rule in memory over every item of the organisation reaches the same ids.
+    const every = await db.workItem.findMany({ where: { organisationId: org.organisationId } });
+    const expected = every.filter((r) => myWorkGroup({ status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), dueOn: r.dueOn ? r.dueOn.toISOString().slice(0, 10) : null }, { personId: me }, today)).map((r) => r.id).sort();
+    expect(got.rows.map((r) => r.id).sort()).toEqual(expected);
+    // With no time zone the dated groups are one Open; no date and To check stay.
+    const unjudged = await loadMyWork({ organisationId: org.organisationId, personId: me, today: null });
+    expect(new Map(unjudged.rows.map((r) => [r.id, r.group]))).toEqual(new Map([[late.id, "OPEN"], [dueToday.id, "OPEN"], [week.id, "OPEN"], [later.id, "OPEN"], [undated.id, "NO_DATE"], [review.id, "TO_CHECK"]]));
+    // Another person (or another organisation's person) sees none of it.
+    expect((await loadMyWork({ organisationId: org.organisationId, personId: "nobody", today })).rows).toEqual([]);
+
+    // Moving an item changes its group: the assignee sends the boss's item for checking and it appears for the raiser; the raiser accepts and it leaves.
+    const t = await mk(boss, a, { assigneePersonId: me });
+    const onBoss = async () => (await loadMyWork({ organisationId: org.organisationId, personId: boss, today })).rows.find((r) => r.id === t.id)?.group ?? null;
+    expect(await onBoss()).toBeNull();
+    ok(await move(me, a.contractId, t.id, "TO_DO", "IN_REVIEW"));
+    expect(await onBoss()).toBe("TO_CHECK");
+    ok(await move(boss, a.contractId, t.id, "IN_REVIEW", "DONE"));
+    expect(await onBoss()).toBeNull();
+  });
+
+  it("an address with contract= opens the right item when two contracts each hold the same reference", async () => {
+    const [a, b] = [await activeContract(org), await activeContract(org)];
+    const [ta, tb] = [await task(p.raiser, a.contractId, { title: "In A" }), await task(p.raiser, b.contractId, { title: "In B" })];
+    expect(itemRef(ta.type, ta.number)).toBe(itemRef(tb.type, tb.number));
+    const ref = itemRef(ta.type, ta.number);
+    const open = (contractId: string) => loadItem({ organisationId: org.organisationId, contractId, ref, timeZone: null });
+    expect((await open(a.contractId))?.card.id).toBe(ta.id);
+    expect((await open(b.contractId))?.card.id).toBe(tb.id);
+    // Another organisation's contract reads as nothing, as does a contract id that is not one.
+    const other = await contractOrg("WFX");
+    expect(await loadItem({ organisationId: other.organisationId, contractId: a.contractId, ref, timeZone: null })).toBeNull();
+    expect(await loadWorkContext({ organisationId: other.organisationId, contractId: a.contractId, now: new Date() })).toBeNull();
   });
 });

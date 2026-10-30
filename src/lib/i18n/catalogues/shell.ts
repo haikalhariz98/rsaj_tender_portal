@@ -69,6 +69,7 @@ export const SEGMENT_LABEL: Readonly<Record<string, Words>> = {
   awards: w("Awards"),
   securities: w("Securities"),
   approvals: w("My approvals"),
+  "my-work": w("My work"),
   inbox: w("Inbox"),
   account: w("Your account"),
   welcome: w("Welcome"),

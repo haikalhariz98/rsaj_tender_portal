@@ -15,7 +15,7 @@ import { actorDisplayName } from "@/lib/audit/actor";
 import { dayOf, dayOrNull, dayPlus, instantAt } from "@/lib/dates";
 import { db, type Tx } from "@/lib/db";
 import { actStatusFault } from "@/lib/contract/act-status";
-import { loadContract, type LoadedContract } from "@/lib/contract/repo";
+import { contractLabel, loadContract, type LoadedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { SCAN_LABEL } from "@/lib/documents/labels";
 import { loadStorePolicy } from "@/lib/documents/service";
@@ -29,6 +29,7 @@ import { CONTRACTOR_ASSIGNEE } from "./fields";
 import { leadIds, teamChangerIds } from "./lead";
 import { assigneeOf, raiserOf } from "./party";
 import { contractorActorWords, itemRefText, TEAM_ROLE_WORDS, type TeamChangers, type WhoNames } from "./labels";
+import { myWorkGroup, myWorkWhere, type MyWorkSection } from "./my-work";
 import { itemRef, parseItemRef } from "./number";
 import type { BoardColumn, Day, TeamMember, TeamRole, WorkStatus, WorkView } from "./types";
 import { WORK_ORDER_BY, workWhere, type WorkFilters } from "./views";
@@ -455,6 +456,59 @@ export async function loadTeamCard(i: { organisationId: string; contractId: stri
   const team = await loadTeamMembers(db, i.organisationId, i.contractId);
   const names = await namesOf(db, i.organisationId, team.map((m) => m.personId));
   return team.map((m) => ({ role: m.role, roleLabel: TEAM_ROLE_WORDS[m.role].en, personId: m.personId, name: names.get(m.personId) ?? "Someone" }));
+}
+
+// ------------------------------------------------------------------ My work
+
+/// The most items My work draws: a technical bound; `more` counts the rest.
+export const MY_WORK_CAP = 500;
+
+export interface MyWorkRow {
+  id: string;
+  contractId: string;
+  /// "Contract C-1 · Awardee": the exercise's title is not read, since a restricted exercise's title is not for every reader.
+  contractLabel: string;
+  /// "RFI-12", the address form.
+  ref: string;
+  type: BoardItem["type"];
+  number: number;
+  title: string;
+  status: WorkStatus;
+  dueOn: Day | null;
+  group: MyWorkSection;
+}
+
+/// The items on one staff member across the organisation's contracts (0008 §5.6). Every contract of the organisation is readable to its staff (see the header: Work is a
+/// contract stage, never HIDDEN), so the scope is the organisation. Late first by the database's order (due day ascending, no date last); the groups are `myWorkGroup`'s.
+export async function loadMyWork(i: { organisationId: string; personId: string; today: Day | null }): Promise<{ rows: MyWorkRow[]; more: number }> {
+  const where = { organisationId: i.organisationId, ...myWorkWhere({ personId: i.personId }) } as Prisma.WorkItemWhereInput;
+  const [found, total] = await Promise.all([
+    db.workItem.findMany({
+      where,
+      select: {
+        id: true,
+        contractId: true,
+        type: true,
+        number: true,
+        title: true,
+        status: true,
+        dueOn: true,
+        raisedByPersonId: true,
+        assigneePersonId: true,
+        assignedToContractor: true,
+        contract: { select: { number: true, award: { select: { awardeeName: true } } } },
+      },
+      orderBy: [{ dueOn: { sort: "asc", nulls: "last" } }, { contract: { number: "asc" } }, { type: "asc" }, { number: "asc" }, { id: "asc" }],
+      take: MY_WORK_CAP,
+    }),
+    db.workItem.count({ where }),
+  ]);
+  const rows = found.flatMap((r): MyWorkRow[] => {
+    const dueOn = dayOrNull(r.dueOn);
+    const group = myWorkGroup({ status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), dueOn }, { personId: i.personId }, i.today);
+    return group ? [{ id: r.id, contractId: r.contractId, contractLabel: contractLabel(r.contract), ref: itemRef(r.type, r.number), type: r.type, number: r.number, title: r.title, status: r.status, dueOn, group }] : [];
+  });
+  return { rows, more: Math.max(0, total - found.length) };
 }
 
 /// The link dropdowns: the contract's other items (open first, then newest) and its project documents, each capped.

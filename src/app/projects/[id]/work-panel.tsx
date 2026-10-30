@@ -254,7 +254,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
       </div>
       {q.item && (
         <Suspense key={q.item} fallback={<WorkItemSkeleton />}>
-          <WorkItemPanel l={l} ctx={ctx} q={q} personId={actor.personId} address={q.item} people={people} linkOpts={linkOpts} noAccount={noAccount} />
+          <WorkItemPanel l={l} ctx={ctx} hrefs={{ close: at({ item: null }), item: (ref) => at({ item: ref }) }} personId={actor.personId} address={q.item} people={people} linkOpts={linkOpts} noAccount={noAccount} />
         </Suspense>
       )}
     </ActGate>

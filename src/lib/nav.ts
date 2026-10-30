@@ -45,6 +45,8 @@ export const STAFF_NAV: NavGroup[] = [
       { href: "/dashboard", label: w("Dashboard"), icon: "chart", built: true },
       // The steps waiting for the person signed in, and every open approval's next step by the office deciding it. The count is the steps waiting for them (FR-APR-018).
       { href: "/approvals", label: w("My approvals"), icon: "clock", built: true },
+      // The work items on the person, across projects (0008 §3.4). No count: items assigned to you never reach zero, and a badge that is always on gets ignored.
+      { href: "/my-work", label: w("My work"), icon: "clipboard", built: true },
       // The staff inbox: notices are delivered in the portal (INT-09 deferred: ADR 0044). The count is the unread ones.
       { href: "/inbox", label: w("Inbox"), icon: "inbox", built: true },
     ],

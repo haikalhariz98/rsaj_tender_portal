@@ -21,7 +21,6 @@ import { answerIsDraft } from "@/lib/work/portal";
 import { shareFaults } from "@/lib/work/sharing";
 import { SCAN_LABEL } from "@/lib/documents/labels";
 import { NOT_SCANNED_LABEL } from "@/lib/ui/upload-logic";
-import { workHref, type WorkQuery } from "@/lib/work/href";
 import { ACTION_WORDS, itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, removeFileWords, STATUS_WORDS, TYPE_WORDS, whoCanWords } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
 import { contractorNameOf, loadActivity, loadItem, namesOf, whoNamesOf, type WorkContext } from "@/lib/work/load";
@@ -41,16 +40,17 @@ const AUDIENCES: readonly ComposerAudience[] = [
 ];
 const section = "text-[13px] font-semibold tracking-wide text-ink-3 uppercase";
 type Option = { value: string; label: string };
+export type PanelHrefs = { close: string; item: (ref: string) => string };
 
 /**
  * The side panel of one item (`&item=RFI-12`; plan §4; 0008 §5.4): its status and one primary action, its fields (a type's own after the common ones), links, files, then Activity
  * with the comment box. Whatever the reader may not do is drawn read only with who can in a popover; the same pure rules the acts use decide it here (`primaryActions`, `cardMoves`,
  * `mayEdit`). An address that names no item on this contract says so.
  */
-export async function WorkItemPanel({ l, ctx, q, personId, address, people, linkOpts, noAccount }: { l: LoadedContract; ctx: WorkContext; q: WorkQuery; personId: string; address: string; people: Option[]; linkOpts: { items: Option[]; documents: Option[] }; /** The contractor has no active portal account (read once by the tab). */ noAccount: boolean }) {
+export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address, people, linkOpts, noAccount }: { l: LoadedContract; ctx: WorkContext; /** Where closing the panel goes, and where a linked item opens: the Work tab's address, or My work's. */ hrefs: PanelHrefs; /** My work names the project in the header, with a link into its Work tab. */ project?: { label: string; href: string }; personId: string; address: string; people: Option[]; linkOpts: { items: Option[]; documents: Option[] }; /** The contractor has no active portal account (read once by the tab). */ noAccount: boolean }) {
   const org = l.org.id;
   const contractId = l.contract.id;
-  const closeHref = workHref(contractId, q, { item: null });
+  const closeHref = hrefs.close;
   const detail = await loadItem({ organisationId: org, contractId, ref: address, timeZone: ctx.timeZone });
   if (!detail) {
     return (
@@ -109,7 +109,18 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
       label={`Work item ${itemLabel}`}
       closeHref={closeHref}
       title={`${itemLabel} · ${c.title}`}
-      subtitle={TYPE_WORDS[c.type].en}
+      subtitle={
+        project ? (
+          <>
+            {TYPE_WORDS[c.type].en} ·{" "}
+            <Link href={project.href} className="font-semibold">
+              {project.label}
+            </Link>
+          </>
+        ) : (
+          TYPE_WORDS[c.type].en
+        )
+      }
       badge={
         <>
           {shared ? (
@@ -196,7 +207,7 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
               <li key={k.id} className="flex flex-wrap items-center gap-2 text-[13.5px]">
                 {k.target.kind === "ITEM" ? (
                   <>
-                    <Link href={workHref(contractId, q, { item: k.target.ref })} scroll={false} className="font-semibold">
+                    <Link href={hrefs.item(k.target.ref)} scroll={false} className="font-semibold">
                       {refLabel(k.target.ref)} · {k.target.title}
                     </Link>
                     <Badge>{STATUS_WORDS[k.target.status].en}</Badge>

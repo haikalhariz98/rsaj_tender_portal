@@ -63,6 +63,7 @@ async function inContract(actor: StaffActor, contractId: string, now: Date, fn: 
     if (e instanceof WorkRefused) {
       // A refusal rolled the act back; the page is revalidated all the same, so a screen that guessed (a dragged card) settles on what is there.
       revalidatePath(`/projects/${contractId}`);
+      revalidatePath("/my-work");
       return { refused: e.words };
     }
     const attribution = attributionRefusalState(e);
@@ -71,6 +72,7 @@ async function inContract(actor: StaffActor, contractId: string, now: Date, fn: 
   }
   if (result === null) return GONE;
   revalidatePath(`/projects/${contractId}`);
+  revalidatePath("/my-work"); // the items on a person, across contracts
   if (!result.refused && told.count > 0) revalidatePath("/", "layout"); // the inbox counts
   return result;
 }
