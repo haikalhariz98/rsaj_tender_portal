@@ -12,6 +12,7 @@
 
 import { dayPlus } from "@/lib/dates";
 
+import { linkedDropColumns, linkedMoveWords } from "./defect-link";
 import { isOpen, moveFaults, primaryActions } from "./move";
 import { READ_ONLY_WORDS, whoCanWords, type WhoNames } from "./labels";
 import type { BoardColumn, Day, MoveFault, WorkActor } from "./types";
@@ -57,8 +58,13 @@ export function boardColumns<T extends BoardItem>(items: readonly T[], today: Da
 const DROP_ALLOWS: readonly MoveFault["code"][] = ["ANSWER_NEEDED", "RESULT_NOT_PASSED"];
 
 /// The columns a reader may drop a card in, and, when none, why (who can, or the contract is closed).
-export function cardMoves(item: WorkRow, reader: WorkActor, ctx: { contractOpen: boolean; who: WhoNames }): { moves: BoardColumn[]; stuckWhy: string | null } {
+export function cardMoves(item: WorkRow & { linked?: boolean }, reader: WorkActor, ctx: { contractOpen: boolean; who: WhoNames }): { moves: BoardColumn[]; stuckWhy: string | null } {
   if (!ctx.contractOpen) return { moves: [], stuckWhy: READ_ONLY_WORDS.en };
+  // A linked item moves with its defect line: the drop does not pre-judge who may, the defect act answers.
+  if (item.linked) {
+    const moves = linkedDropColumns(item.status);
+    return { moves, stuckWhy: moves.length ? null : linkedMoveWords(null) };
+  }
   const moves = BOARD_COLUMNS.filter((to) => to !== item.status && moveFaults(item, reader, to, item.status, { contractOpen: true }).every((f) => DROP_ALLOWS.includes(f.code)));
   if (moves.length > 0) return { moves, stuckWhy: null };
   // A closed card has no primary action to be refused: say who can reopen it.

@@ -91,7 +91,7 @@ describe("sharing with the contractor: the staff screens (workspace 3b step 5; W
 
   it("WSEC-4: a Send back that will be a Reply says the contractor will see it, in the drawer; one that stays internal says nothing", () => {
     const panel = src("work-item-panel.tsx");
-    expect(panel).toContain('sendBackSeenBy={commentAudience(c, "STAFF", null, "SEND_BACK") === "REPLY" ? contractor : null}');
+    expect(panel).toContain('sendBackSeenBy={!c.linked && commentAudience(c, "STAFF", null, "SEND_BACK") === "REPLY" ? contractor : null}');
     const editors = src("work-editors.tsx");
     expect(editors).toContain("sendBackSeenBy ? [{ kind: \"note\" as const, text: `" + "$" + "{sendBackSeenBy} will see this.` }] : []");
   });

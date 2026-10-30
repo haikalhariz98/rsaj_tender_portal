@@ -24,7 +24,7 @@ import { lateness } from "@/lib/work/late";
 import { linkedAddress, linkedMovesWhen, parseLinkedAddress, pinnedCards } from "@/lib/work/linked";
 import { loadLinkedCards } from "@/lib/work/linked/load";
 import { assigneeOptions, contractorHasActiveAccount, contractorNameOf, linkOptions, loadBoard, loadWorkContext, loadWorkList, namesOf, WORK_SORT_KEYS, type WorkCardRow, type WorkSortKey } from "@/lib/work/load";
-import { CONTRACTOR_ASSIGNEE } from "@/lib/work/fields";
+import { CONTRACTOR_ASSIGNEE, defectRaisesLine } from "@/lib/work/fields";
 import { personIdOf } from "@/lib/work/party";
 import type { WorkActor } from "@/lib/work/types";
 import { WORK_VIEWS } from "@/lib/work/views";
@@ -112,6 +112,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
       people={[{ value: "", label: "Unassigned" }, ...peopleOptions]}
       documents={linkOpts.documents}
       noAccount={noAccount}
+      defectLine={defectRaisesLine(ctx.contractStatus)}
     />
   ) : null;
 
@@ -212,7 +213,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
     body = (
       <>
         {q.page === 0 && unfiltered && <LinkedPinned {...pinnedCards(linked)} hrefOf={(a) => at({ item: null, act: linkedAddress(a.kind, a.id) })} />}
-        {ctx.open && <QuickAdd contractId={contractId} itemHrefBase={itemHrefBase} types={QUICK_TYPES.filter((t) => typeOfferable(t.value, ctx.contractStatus))} />}
+        {ctx.open && <QuickAdd contractId={contractId} itemHrefBase={itemHrefBase} defectLine={defectRaisesLine(ctx.contractStatus)} types={QUICK_TYPES.filter((t) => typeOfferable(t.value, ctx.contractStatus))} />}
         <DataList
           flat
           selectable={false}

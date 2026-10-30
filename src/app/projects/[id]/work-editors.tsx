@@ -36,14 +36,15 @@ const itemHref = (base: string, ref: string) => `${base}${base.includes("?") ? "
 // ------------------------------------------------------------------ New item
 
 /// The New item drawer. `itemHrefBase` is the Work address without an item; the new item's panel opens on it once raised.
-export function NewItemDrawer({ contractId, contractor, itemHrefBase, types, priorities, impacts, severities, people, documents, noAccount = false }: { contractId: string; contractor: string; itemHrefBase: string; types: Option[]; priorities: Option[]; impacts: Option[]; severities: Option[]; people: Option[]; documents: Option[]; /** The contractor has no active portal account: choosing it as the assignee says so. */ noAccount?: boolean }) {
+export function NewItemDrawer({ contractId, contractor, itemHrefBase, types, priorities, impacts, severities, people, documents, noAccount = false, defectLine = false }: { contractId: string; contractor: string; itemHrefBase: string; types: Option[]; priorities: Option[]; impacts: Option[]; severities: Option[]; people: Option[]; documents: Option[]; /** The contractor has no active portal account: choosing it as the assignee says so. */ noAccount?: boolean; /** A Defect here is made with its defect line (WB-12): it needs the day observed and the day to make it good by. */ defectLine?: boolean }) {
   const router = useRouter();
   // The share confirm (WB-2): the save waits here for the officer's answer; sharing cannot be taken back.
   const [asking, setAsking] = useState<((yes: boolean) => void) | null>(null);
   const save = useCallback<SaveAction>(
     async (_prev, data) => {
       const next = new FormData();
-      for (const [k, v] of data.entries()) if (k !== "shareOn" && k !== "shareOff") next.append(k, v);
+      for (const [k, v] of data.entries()) if (k !== "shareOn" && k !== "shareOff" && k !== "madeGoodBy") next.append(k, v);
+      if (data.get("madeGoodBy")) next.set("dueOn", String(data.get("madeGoodBy")));
       // Two switches, one shown per type (the preset): the one on screen is the one posted.
       const shares = data.get("shareOn") === "on" || data.get("shareOff") === "on";
       if (shares) next.set("share", "on");
@@ -76,6 +77,8 @@ export function NewItemDrawer({ contractId, contractor, itemHrefBase, types, pri
         { kind: "textarea", name: "description", label: "Description" },
         { kind: "select", name: "priority", label: "Priority", placeholder: "Normal", options: priorities },
         { kind: "date", name: "dueOn", label: "Due" },
+        { kind: "date", name: "observedOn", label: "Observed on", required: true },
+        { kind: "date", name: "madeGoodBy", label: "Made good by", required: true },
         { kind: "select", name: "assigneePersonId", label: "Assignee", placeholder: "Unassigned", options: people, flag: noAccount ? { value: CONTRACTOR_ASSIGNEE, text: "No active portal account" } : undefined },
         { kind: "text", name: "location", label: "Location" },
         { kind: "textarea", name: "answer", label: "Answer" },
@@ -88,6 +91,8 @@ export function NewItemDrawer({ contractId, contractor, itemHrefBase, types, pri
         { kind: "switch", name: "shareOff", label: `Share with ${contractor}` },
       ]}
       showWhen={{
+        // A hidden field is not posted: a Defect with a line shows "Made good by" (posted as the due day) in place of "Due".
+        ...(defectLine ? { dueOn: own(...types.map((t) => t.value).filter((v) => v !== "DEFECT")), observedOn: own("DEFECT"), madeGoodBy: own("DEFECT") } : { observedOn: own(), madeGoodBy: own() }),
         answer: own("RFI"),
         impact: own("RFI", "SITE_INSTRUCTION"),
         severity: own("SAFETY_INCIDENT"),
@@ -239,24 +244,32 @@ export function ItemActions({ contractId, itemId, from, itemLabel, primary, disa
 // ------------------------------------------------------------------ quick add
 
 /// The List's quick-add row: a type that needs only a title, and the title; Enter raises it and opens its panel. Types that need more (a due date, a severity) are raised from New item.
-export function QuickAdd({ contractId, itemHrefBase, types }: { contractId: string; itemHrefBase: string; types: Option[] }) {
+export function QuickAdd({ contractId, itemHrefBase, types, defectLine = false }: { contractId: string; itemHrefBase: string; types: Option[]; /** A Defect here is made with its defect line (WB-12): it asks for the day observed and the day to make it good by, with no default. */ defectLine?: boolean }) {
   const router = useRouter();
   const gate = useActGate();
   const [type, setType] = useState(types.find((t) => t.value === "TASK")?.value ?? types[0]?.value ?? "");
   const [title, setTitle] = useState("");
+  const [observedOn, setObservedOn] = useState("");
+  const [madeGoodBy, setMadeGoodBy] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, start] = useTransition();
   if (gate) return null;
+  const needsLine = defectLine && type === "DEFECT";
   return (
     <form
       className="flex flex-col gap-1.5 border-b border-line/70 px-5 py-3 sm:px-6"
       onSubmit={(e) => {
         e.preventDefault();
         if (pending || !title.trim()) return;
+        if (needsLine && (!observedOn || !madeGoodBy)) return setMessage("Give the day it was observed and the day to make it good by.");
         const data = new FormData();
         data.set("contractId", contractId);
         data.set("type", type);
         data.set("title", title);
+        if (needsLine) {
+          data.set("observedOn", observedOn);
+          data.set("dueOn", madeGoodBy);
+        }
         setMessage(null);
         start(async () => {
           try {
@@ -264,6 +277,8 @@ export function QuickAdd({ contractId, itemHrefBase, types }: { contractId: stri
             if (r.refused) setMessage(r.refused);
             else if (r.ref) {
               setTitle("");
+              setObservedOn("");
+              setMadeGoodBy("");
               router.push(itemHref(itemHrefBase, r.ref), { scroll: false });
             }
           } catch {
@@ -285,6 +300,16 @@ export function QuickAdd({ contractId, itemHrefBase, types }: { contractId: stri
         <div className="min-w-48 flex-1">
           <Input aria-label="Title of the new item" placeholder="Add an item, then press Enter" maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} icon={<PlusIcon size={15} />} />
         </div>
+        {needsLine && (
+          <>
+            <div className="w-44 shrink-0">
+              <Input type="date" aria-label="Observed on" required value={observedOn} onChange={(e) => setObservedOn(e.target.value)} />
+            </div>
+            <div className="w-44 shrink-0">
+              <Input type="date" aria-label="Made good by" required value={madeGoodBy} onChange={(e) => setMadeGoodBy(e.target.value)} />
+            </div>
+          </>
+        )}
       </div>
       <p role="status" className="text-[12.5px] font-medium text-rose-700 empty:hidden">
         {message}

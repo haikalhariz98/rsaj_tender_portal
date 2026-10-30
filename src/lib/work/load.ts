@@ -13,6 +13,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { FieldChange } from "@/lib/audit/diff";
 import { actorDisplayName } from "@/lib/audit/actor";
 import { dayOf, dayOrNull, dayPlus, instantAt } from "@/lib/dates";
+import { OPEN_STATUSES } from "./move";
 import { db, type Tx } from "@/lib/db";
 import { actStatusFault } from "@/lib/contract/act-status";
 import { contractLabel, loadContract, type LoadedContract } from "@/lib/contract/repo";
@@ -165,6 +166,8 @@ export interface WorkCardRow extends BoardItem {
   location: string;
   raisedByName: string;
   assigneeName: string | null;
+  /// The item stands for a defect line (its status follows the line's acts).
+  linked: boolean;
 }
 
 const CARD_SELECT = {
@@ -183,6 +186,7 @@ const CARD_SELECT = {
   assigneePersonId: true,
   assignedToContractor: true,
   sharedAt: true,
+  defectItemId: true,
   raisedBy: { select: { name: true } },
   assignee: { select: { name: true } },
 } as const;
@@ -207,6 +211,7 @@ const cardOf = (r: CardRow, timeZone: string | null, contractor: string): WorkCa
   raisedByName: r.raisedByPersonId === null ? contractor : (r.raisedBy?.name ?? "Someone"),
   assigneeName: r.assignedToContractor ? contractor : (r.assignee?.name ?? null),
   closedOn: r.closedAt ? dayOf(r.closedAt, timeZone) : null,
+  linked: r.defectItemId !== null,
 });
 
 const scope = (i: { organisationId: string; contractId: string }) => ({ organisationId: i.organisationId, contractId: i.contractId });
@@ -519,6 +524,12 @@ export async function loadMyWork(i: { organisationId: string; personId: string; 
 }
 
 /// The link dropdowns: the contract's other items (open first, then newest) and its project documents, each capped.
+/// The Defect items the draft CPC's list can take: open, on no defect list yet (`addLinesFromItems` judges the same on the locked row).
+export async function pickableDefectItems(i: { organisationId: string; contractId: string }): Promise<{ value: string; label: string }[]> {
+  const rows = await db.workItem.findMany({ where: { ...scope(i), type: "DEFECT", defectItemId: null, status: { in: [...OPEN_STATUSES] } }, select: { id: true, number: true, title: true }, orderBy: { number: "asc" }, take: 200 });
+  return rows.map((x) => ({ value: x.id, label: `${itemRefText("DEFECT", x.number)} · ${x.title}` }));
+}
+
 export async function linkOptions(i: { organisationId: string; contractId: string; exceptItemId?: string }): Promise<{ items: { value: string; label: string }[]; documents: { value: string; label: string }[] }> {
   const [items, documents] = await Promise.all([
     db.workItem.findMany({ where: { ...scope(i), ...(i.exceptItemId ? { id: { not: i.exceptItemId } } : {}) }, select: { id: true, type: true, number: true, title: true, status: true }, orderBy: [{ status: "asc" }, { recordedAt: "desc" }, { id: "asc" }], take: 200 }),

@@ -5,7 +5,7 @@ import { buttonClass } from "@/components/ui/button";
 import { moreItemClass } from "@/components/ui/more-item-class";
 import { actorField } from "@/lib/auth/actor-field";
 
-import { acceptDefect, addCpcDefect, raiseDefectSchedule, raiseMakingGood, raisePracticalCompletion, removeCpcDefect, reportDefect, reportDefectRectified, returnDefect, returnSecurity, withdrawDefect } from "./closeout-actions";
+import { acceptDefect, addCpcDefect, addCpcDefectsFromItems, raiseDefectSchedule, raiseMakingGood, raisePracticalCompletion, removeCpcDefect, reportDefect, reportDefectRectified, returnDefect, returnSecurity, withdrawDefect } from "./closeout-actions";
 
 /**
  * The drawers of the close-out stage (Phase 2 close-out stage B; plan closeout-plan.md §3.2): the certificate of practical completion and its list,
@@ -59,6 +59,22 @@ export function AddDefectDrawer({ id, onCpc, people, blocker, main, today }: { i
       submitLabel="Add"
       submitBlock={blocker}
       trigger={trig("Add defect", !main, main)}
+    />
+  );
+}
+
+/// The draft CPC's list from the work list: the open Defect items not yet on a list (B-18). Their lines are made and linked; `dueOn` is for the ones with no day of their own.
+export function PickDefectItemsDrawer({ id, items, people, blocker }: { id: string; items: Option[]; people: Option[]; blocker: string | null }) {
+  return (
+    <RecordEditor
+      title="Add defects from the work list"
+      description="Each becomes a line on the certificate and stays linked to its item."
+      fields={[hidden("id"), { kind: "checks", name: "itemIds", label: "Defect items", options: items, empty: "No open Defect items are waiting." }, { kind: "date", name: "dueOn", label: "Made good by", hint: "Used for an item with no due day." }, by("DefectItem.reportedBy", people)]}
+      values={{ id }}
+      action={addCpcDefectsFromItems}
+      submitLabel="Add"
+      submitBlock={blocker}
+      trigger={trig("Add from work list", true)}
     />
   );
 }

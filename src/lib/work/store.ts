@@ -23,7 +23,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields } from "@/lib/audit/diff";
 import { recordDefectAct, reportDefectLine } from "@/lib/closeout/defect-acts";
-import { COMPLETED_CONTRACT_STATUSES } from "@/lib/contract/case-stage";
 import { actCtx, ActRefusal } from "@/lib/matter/act";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import type { PreparedAct } from "@/lib/auth/act-begin";
@@ -47,7 +46,7 @@ import { contractorMayDownload } from "@/lib/project-docs/visibility";
 
 import { FILES_PER_ACT } from "./bounds";
 import { defectActOf, defectLineText, linkedMoveWords } from "./defect-link";
-import { commentFaults, fieldFaults, mayEdit, newItemFaults, type EditableField, type FieldEdit, type NewItem } from "./fields";
+import { commentFaults, defectRaisesLine, fieldFaults, mayEdit, newItemFaults, type EditableField, type FieldEdit, type NewItem } from "./fields";
 import { audienceFaults, commentAudience, removeFileFaults } from "./audience";
 import { fieldFaultText, moveFaultText, removeFileWords, whoCanWords } from "./labels";
 import { activeAmong, leadOf, whoNamesIn, workAuditPrefix } from "./load";
@@ -194,7 +193,7 @@ export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: P
   if (faults.length) refuse(faultsText(faults));
   // WB-12: past practical completion a Defect is raised WITH its line in this one act, under `reportDefect`'s own checks and the observer's capacity; its refusals are that act's.
   const line =
-    n.type === "DEFECT" && COMPLETED_CONTRACT_STATUSES.includes(c.l.contract.status as ContractStatus)
+    n.type === "DEFECT" && defectRaisesLine(c.l.contract.status as ContractStatus)
       ? await viaDefectCore(() => reportDefectLine(defectCtx(c, who), act, { description: defectLineText(n.title, n.description), location: n.location, dueOn: n.dueOn === null ? null : dayToDate(n.dueOn), observedOn: n.observedOn ? dayToDate(n.observedOn) : null, alsoSlot: "DefectItem.reportedBy" }))
       : null;
 

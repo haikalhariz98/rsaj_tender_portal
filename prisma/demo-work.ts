@@ -1,8 +1,8 @@
 /**
  * Work items demo (workspace 3a step 6, WS-22; plan workspace-3a-build-plan.md §5 "Step 6"). Invented throughout; it sets no policy.
  *
- * On demo_con3 (XI202600799, active), the only demo contract executed and not practically complete when the load ends (a Defect is refused from practical
- * completion on, OQ-4; demo_con13 is closed by stage C), two rounds of items, each holding every one of the seven types:
+ * On demo_con3 (XI202600799, active), the only demo contract executed and not practically complete when the load ends (a Defect raised from practical
+ * completion on needs its observed day and due day, WB-12 lifted OQ-4's refusal; demo_con13 is closed by stage C), two rounds of items, each holding every one of the seven types:
  * late items (due before the load day), unassigned items, a cancelled task with its reason, an action In review, done items inside and outside the Board's
  * 14-day Done window, an answered RFI, a failed inspection (the NCR view), a send back, item links and comments.
  *
@@ -17,9 +17,9 @@
  * fixed early in October 2026, after the contract was stamped (1 Oct), so they stay outside the Done window. The organisation's time zone is the demo's
  * (set by `demo:load` where none is set), without which nothing reads Late.
  *
- * demo_con15 (practically complete, Work still open) is NOT the contract WS-22 asks for (executed, not practically complete: only demo_con3 is); it holds the six types a Defect refusal leaves (`loadSecond`).
+ * demo_con15 (practically complete, Work still open) is NOT the contract WS-22 asks for (executed, not practically complete: only demo_con3 is); it holds the six types other than Defect (`loadSecond`; step 12 decides whether it gains the seventh).
  * Accepted by the orchestrator (decisions log, 2026-10-30): WS-22's "two executed, not-yet-PC contracts" is met by demo_con3 (all seven types) and demo_con15
- * (practically complete, so a Defect is refused, OQ-4); a second ACTIVE demo contract is not built. `npm run demo:work` adds whichever round a loaded database does not hold yet.
+ * (practically complete, so it holds six types: WB-12 lifted OQ-4's refusal); a second ACTIVE demo contract is not built. `npm run demo:work` adds whichever round a loaded database does not hold yet.
  *
  * Ids: WorkItem demo_wki*, WorkItemComment demo_wkc*, WorkItemLink demo_wkl*, StaffNotice demo_wkn*, ProjectTeamMember demo_wtm*, DocumentAttachment demo_wka*, and the
  * staged files demo_wkd* (ACT_PREFIX; grepped free). Each round runs once: the 3a rounds where demo_con3 holds no work item, the 3b round (`loadSharing`, the contractor's
@@ -33,7 +33,7 @@ type Db = PrismaClient;
 const P = "demo_";
 /// The one demo contract that is executed and not practically complete once the load ends (demo_con13 is closed by stage C; the rest are before execution, complete or ended).
 const CON = `${P}con3`;
-/// A second contract with Work open (not the one WS-22 asks for): practically complete, where Work is still open but a Defect item is refused (OQ-4), so it holds the other six types.
+/// A second contract with Work open (not the one WS-22 asks for): practically complete, where Work is still open; a Defect now needs its observed day and due day (WB-12 lifted OQ-4), and it holds the other six types.
 const CON2 = `${P}con15`;
 const people = { aisyah: `${P}p1`, bala: `${P}p2`, chen: `${P}p3`, daniel: `${P}p4`, eng: `${P}p5`, gopal: `${P}p7` };
 

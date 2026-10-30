@@ -133,7 +133,7 @@ export function moveFaults(item: WorkItemFacts, actor: WorkActor, to: WorkStatus
 export const blockingFaults = (faults: readonly MoveFault[]): MoveFault[] => faults.filter((f) => !INPUT_FAULTS.includes(f.code));
 
 /// The actions offered on each status, in the order the panel prefers them.
-const CANDIDATES: Readonly<Record<WorkStatus, readonly WorkAction[]>> = {
+export const CANDIDATES: Readonly<Record<WorkStatus, readonly WorkAction[]>> = {
   TO_DO: ["START", "SEND_FOR_REVIEW", "MARK_DONE", "CANCEL"],
   IN_PROGRESS: ["SEND_FOR_REVIEW", "MARK_DONE", "CANCEL"],
   IN_REVIEW: ["MARK_DONE", "SEND_BACK", "CANCEL"],

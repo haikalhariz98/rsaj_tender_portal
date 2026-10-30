@@ -245,6 +245,9 @@ export function parseNewItem(form: FormLike, timeZone: string | null): NewItem |
   };
 }
 
+/// Whether a Defect raised on a contract in this status is created with its defect line (WB-12), so it needs the day observed and the day to make it good by.
+export const defectRaisesLine = (contractStatus: ContractStatus): boolean => COMPLETED_CONTRACT_STATUSES.includes(contractStatus);
+
 /// Whether a type can be raised on a contract in this status; the screens offer only these. A Defect past practical completion needs its line (WB-12), which the DEFECTS row of the table must allow.
 export function typeOfferable(type: string, contractStatus: ContractStatus): boolean {
   return !(type === "DEFECT" && COMPLETED_CONTRACT_STATUSES.includes(contractStatus) && actStatusFault("DEFECTS", contractStatus) !== null);

@@ -27,7 +27,7 @@ vi.mock("@/app/_auth/act", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
-import { recordCertificateSignature, sendCertificateToSigning } from "@/app/projects/[id]/certificates/[certId]/actions";
+import { recordCertificateSignature, sendCertificateToSigning, voidCertificateAct } from "@/app/projects/[id]/certificates/[certId]/actions";
 import { acceptDefect, addCpcDefect, addCpcDefectsFromItems, raisePracticalCompletion, removeCpcDefect, reportDefect, reportDefectRectified, withdrawDefect } from "@/app/projects/[id]/closeout-actions";
 import { createWorkItem, editWorkField, moveWorkItem, type WorkResult } from "@/app/projects/[id]/work-actions";
 
@@ -306,5 +306,30 @@ describe("two people act on one linked pair at once", () => {
     const final = await item(row.id);
     expect(final.status).toBe("DONE");
     expect(final.closedAt).not.toBeNull();
+  });
+});
+
+describe("voiding the draft CPC", () => {
+  it("unlinks the items its list picked: they stay snags, offered again, and the unlink is audited", async () => {
+    const k2 = await activeContract(o, { dueIn: -60, dlpMonths: 3 });
+    const made = ok(await as(o.so, () => createWorkItem(form({ contractId: k2.contractId, type: "DEFECT", title: "Picked then voided", dueOn: dayOf(20) }))));
+    const row = await db.workItem.findFirstOrThrow({ where: { contractId: k2.contractId, type: "DEFECT", number: Number(made.ref!.split("-")[1]) } });
+    const raised = await as(o.so, () => raisePracticalCompletion({ ok: false }, form({ id: k2.contractId, completionDate: k2.due, possessionTakenOn: k2.due, inspectedOn: dayPlus(k2.due, 1), testReasons: "Complete save the defects.", attendeeIds: o.so })));
+    expect(raised.ok, raised.message).toBe(true);
+    const picked = await as(o.so, () => addCpcDefectsFromItems({ ok: false }, form({ id: k2.contractId, itemIds: [row.id] })));
+    expect(picked.ok, picked.message).toBe(true);
+    const lineId = (await item(row.id)).defectItemId!;
+    expect(lineId).not.toBeNull();
+
+    const certId = (await db.practicalCompletion.findFirstOrThrow({ where: { contractId: k2.contractId } })).certificateId;
+    const voided = await as(o.so, () => voidCertificateAct({ ok: false }, form({ certId, reason: "Raised on the wrong day (test)." })));
+    expect(voided.ok, voided.message).toBe(true);
+
+    const after = await item(row.id);
+    expect(after.defectItemId).toBeNull();
+    expect(after.status).toBe("IN_PROGRESS");
+    expect(await db.defectItem.count({ where: { id: lineId } })).toBe(1); // the voided CPC keeps its lines; no register reads them
+    const trail = await db.auditEntry.findMany({ where: { organisationId: o.organisationId, entity: "WorkItem", entityId: row.id }, orderBy: { at: "asc" } });
+    expect(JSON.stringify(trail.at(-1)!.changes)).toMatch(/defectItemId/);
   });
 });

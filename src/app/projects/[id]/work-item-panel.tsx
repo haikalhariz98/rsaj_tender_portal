@@ -14,6 +14,8 @@ import { documentFaultText } from "@/lib/documents/labels";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { TEXT_MAX } from "@/lib/work/bounds";
 import { cardMoves } from "@/lib/work/board";
+import { linkedPanelActions, lineStateOf } from "@/lib/work/defect-link";
+import { DEFECT_STATE_TONE, DEFECT_STATE_WORDS } from "@/lib/closeout/labels";
 import { removeFileFaults } from "@/lib/work/audience";
 import { CONTRACTOR_ASSIGNEE, typeHasField } from "@/lib/work/fields";
 import { commentAudience } from "@/lib/work/audience";
@@ -81,7 +83,9 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
   const reachable: string[] = [c.status, ...moves.moves];
   // Share (WB-2) is in the menu while the reader may do it; the confirm is the client's.
   const mayShare = ctx.open && !shared && shareFaults(c, actor, true, who).length === 0;
-  const pa = primaryActions(c, actor, { contractOpen: ctx.open, who });
+  // A linked item (a defect line's) offers only the moves that are defect acts; the act answers who may (the S.O. or a representative), so no one is pre-judged here.
+  const lp = c.linked ? linkedPanelActions(c.status, ctx.open) : null;
+  const pa = lp ? { primary: lp.primary, menu: lp.menu, disabled: null } : primaryActions(c, actor, { contractOpen: ctx.open, who });
   const wordsOf = (a: WorkAction) => ACTION_WORDS[a].en;
   const menu = pa.menu.map((a) => ({ kind: (a === "CANCEL" ? "cancel" : a === "SEND_BACK" ? "sendBack" : "move") as "move" | "cancel" | "sendBack", label: wordsOf(a), to: TARGET[a] }));
 
@@ -129,6 +133,7 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
           ) : (
             <Badge outline>Not shared</Badge>
           )}
+          {c.linked && <Badge tone={DEFECT_STATE_TONE[lineStateOf(c.status)]}>{`Defect line: ${DEFECT_STATE_WORDS[lineStateOf(c.status)]}`}</Badge>}
           {lateText && <Badge tone="err">{lateText}</Badge>}
           {c.type === "INSPECTION" && c.inspectionResult === "FAILED" && isOpen(c.status) && <Badge tone="err">{NCR_WORD.en}</Badge>}
         </>
@@ -160,7 +165,7 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
             disabled={pa.disabled ? { label: wordsOf(pa.disabled.action), whoCan: pa.disabled.whoCan.en } : null}
             menu={menu}
             share={mayShare ? { contractor, noAccount } : null}
-            sendBackSeenBy={commentAudience(c, "STAFF", null, "SEND_BACK") === "REPLY" ? contractor : null}
+            sendBackSeenBy={!c.linked && commentAudience(c, "STAFF", null, "SEND_BACK") === "REPLY" ? contractor : null}
           />
         </div>
 

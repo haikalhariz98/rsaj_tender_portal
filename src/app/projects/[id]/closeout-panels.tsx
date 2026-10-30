@@ -18,6 +18,7 @@ import type { LoadedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayPlus, daysFrom, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { pickableDefectItems } from "@/lib/work/load";
 import { formatDate } from "@/lib/format";
 import type { ClockPlan } from "@/lib/inbox/clock-plan";
 import { formatMoney, senFromDecimal } from "@/lib/money";
@@ -27,7 +28,7 @@ import { heldOnLatest } from "@/lib/payment/assemble";
 import { interimsInProgressOf, issuedInterims, releaseStateOf } from "@/lib/payment/load";
 import type { HiddenAct } from "@/lib/supervision/authority";
 
-import { AddDefectDrawer, DefectActDrawer, RaiseCmgdDrawer, RaiseCpcDrawer, RaiseScheduleDrawer, RemoveDefectDrawer, ReturnSecurityDrawer, type Option } from "./closeout-editors";
+import { AddDefectDrawer, DefectActDrawer, PickDefectItemsDrawer, RaiseCmgdDrawer, RaiseCpcDrawer, RaiseScheduleDrawer, RemoveDefectDrawer, ReturnSecurityDrawer, type Option } from "./closeout-editors";
 import { ReleaseDrawer } from "./payment-editors";
 
 /**
@@ -176,6 +177,7 @@ export async function DefectsPanel({ l, v, people, today, hidden }: Props) {
   const rectifyBy = scheduleRectifyBy(v.rows);
   const facts = defectFactsOf(v.rows);
   const documents = (await db.projectDocument.findMany({ where: { contractId: id, organisationId: l.org.id }, select: { id: true, title: true }, orderBy: { createdAt: "desc" } })).map((d) => ({ value: d.id, label: d.title }));
+  const pickable = cpcDraft ? await pickableDefectItems({ organisationId: l.org.id, contractId: id }) : [];
   const observedOf = (lineId: string) => {
     const on = v.rows.lines.find((x) => x.id === lineId)?.observedOn;
     return on ? formatDate(storedDay(on)) : null;
@@ -216,6 +218,7 @@ export async function DefectsPanel({ l, v, people, today, hidden }: Props) {
                 <span className="flex items-center gap-2">
                   {adding && <AddDefectDrawer id={id} onCpc={adding.onCpc} people={people} blocker={adding.family === "COMPLETION" ? completion : defects} main today={today} />}
                   <MoreActions label="Defect actions">
+                    {cpcDraft && <PickDefectItemsDrawer id={id} items={pickable} people={people} blocker={completion} />}
                     {cpcDraft && <RemoveDefectDrawer id={id} lines={facts.map((d) => ({ value: d.id, label: d.description.slice(0, 80) }))} blocker={completion} />}
                     {lineActs && <DefectActDrawer id={id} act="REPORT" lines={fresh} documents={documents} people={people} today={today} blocker={defects} />}
                     {lineActs && <DefectActDrawer id={id} act="ACCEPT" lines={open} people={people} today={today} blocker={defects} />}

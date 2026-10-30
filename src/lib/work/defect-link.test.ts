@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defectActOf, defectLineText, defectItemStatus, linkedItemPatch, linkedMoveWords, stateAfter } from "./defect-link";
+import { defectActOf, defectLineText, defectItemStatus, linkedDropColumns, linkedItemPatch, linkedMoveWords, linkedPanelActions, lineStateOf, stateAfter } from "./defect-link";
 import type { WorkAction } from "./types";
 
 const NOW = new Date("2026-11-02T03:00:00Z");
@@ -42,5 +42,23 @@ describe("an item move is a defect act", () => {
   });
   it("the contractor's only move is Mark as fixed", () => {
     expect((["START", "SEND_FOR_REVIEW", "MARK_DONE", "SEND_BACK", "CANCEL", "REOPEN"] as const).map((a) => defectActOf(a, "CONTRACTOR"))).toEqual([null, "REPORT_RECTIFIED", null, null, null, null]);
+  });
+});
+
+describe("a linked item's panel and drag offer only defect acts", () => {
+  it("offers the moves that have an act, whoever the reader is", () => {
+    expect(linkedPanelActions("IN_PROGRESS", true)).toEqual({ primary: "SEND_FOR_REVIEW", menu: ["MARK_DONE", "CANCEL"] });
+    expect(linkedPanelActions("IN_REVIEW", true)).toEqual({ primary: "MARK_DONE", menu: ["SEND_BACK", "CANCEL"] });
+    expect(linkedPanelActions("DONE", true)).toEqual({ primary: null, menu: [] }); // Reopen is Close-out's
+    expect(linkedPanelActions("IN_PROGRESS", false)).toEqual({ primary: null, menu: [] });
+    expect(linkedPanelActions("IN_PROGRESS", true, "CONTRACTOR")).toEqual({ primary: "SEND_FOR_REVIEW", menu: [] });
+  });
+  it("drops only where a defect act stands for the drop", () => {
+    expect(linkedDropColumns("IN_PROGRESS")).toEqual(["IN_REVIEW", "DONE"]);
+    expect(linkedDropColumns("IN_REVIEW")).toEqual(["DONE"]); // back to In progress is a send back, which needs a note
+    expect(linkedDropColumns("DONE")).toEqual([]);
+  });
+  it("reads a status as the line state that wrote it", () => {
+    for (const st of ["OPEN", "REPORTED_RECTIFIED", "MADE_GOOD", "WITHDRAWN"] as const) expect(lineStateOf(defectItemStatus(st))).toBe(st);
   });
 });

@@ -46,6 +46,7 @@ import { draftSigningFaults } from "./kinds";
 import { KIND_ISSUE_HOOK } from "./issue-hooks";
 import { matterSigning } from "@/lib/matter/matter";
 import { certificateMatterFacts } from "@/lib/time/at-issue";
+import { unlinkPickedBy } from "@/lib/work/defect-link-store";
 import { voidFaults } from "./void";
 import { allSigned, maskedIc, signFaults, type SignInput } from "./signature";
 import { englishOnly, readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
@@ -528,6 +529,11 @@ export async function voidCertificate(c: CertCtx, reason: string) {
   await audit(c, "Certificate", cert.id, labelOf(c), "UPDATE", diffFields({ stage: STATUS_WORDS[s].en }, { stage: STATUS_WORDS.VOID.en }), reason.trim());
   // Close-out stage C: a voided final account's waivers are not applied any more either.
   if (cert.kind === "INTERIM_PAYMENT" || cert.kind === "FINAL") await unapplyWaivers(c);
+  // Workspace 3b-ii step 10: the Defect items its list picked are unlinked (they stay snags), under contract, WorkItem, DefectItem.
+  if (cert.kind === "PRACTICAL_COMPLETION") {
+    const pc = await c.tx.practicalCompletion.findUnique({ where: { certificateId: cert.id }, select: { id: true } });
+    if (pc) await unlinkPickedBy(c.tx, c.actor, { organisationId: c.l.org.id, contractId: c.l.contract.id, contractNumber: c.l.contract.number }, pc.id);
+  }
 }
 
 /// Review M2: the waivers a voided interim applied are not applied any more, so the next interim applies them again (the credit is not lost).

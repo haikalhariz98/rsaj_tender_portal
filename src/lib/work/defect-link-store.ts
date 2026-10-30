@@ -69,3 +69,12 @@ export async function unlinkItem(tx: Tx, actor: AuditActor, s: LinkScope, item: 
   if (done.count !== 1) throw new Error(`The item ${itemRef(item.type, item.number)} changed under its own lock.`);
   await audit(tx, actor, s, item, diffFields({ defectItemId: line.description.slice(0, 120) }, { defectItemId: null }));
 }
+
+/// A voided CPC takes its list with it: every picked item is unlinked (it stays a snag, offered again for the next CPC). Contract lock held; each item is locked in id order before any line.
+export async function unlinkPickedBy(tx: Tx, actor: AuditActor, s: LinkScope, practicalCompletionId: string): Promise<void> {
+  const lines = await tx.defectItem.findMany({ where: { practicalCompletionId, organisationId: s.organisationId, workItem: { isNot: null } }, select: { id: true, description: true, workItem: { select: { id: true } } } });
+  for (const l of lines.sort((x, y) => (x.workItem!.id < y.workItem!.id ? -1 : 1))) {
+    const item = await lockLinkedItem(tx, s, l.id);
+    if (item) await unlinkItem(tx, actor, s, item, l);
+  }
+}
