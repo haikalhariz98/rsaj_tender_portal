@@ -953,3 +953,38 @@ off during heavy gates):
   `contractorActions`, groups from `portalGroup`, staff names from `portalStaffLabel`; `portalSeesFile(file, sharedAt)`;
   `defaultAssignee(...).told` feeds `roleHolders`; contractor acts go through `moveFaults`/`fieldFaults`/`contractorRaiseFaults`
   with `side: "CONTRACTOR"`.
+- **Step 3** (`4baf33f4`; staff side): `store.ts` gains `shareItem` and `removeFile`; the share guard is lifted. Assigning to the
+  contractor, a create with the toggle on and `shareItem` all write `sharedAt` and audit it. For step 4 and step 5:
+  - **Audit encoding (one logical line).** An assignee change is ONE `assigneePersonId` change whose value is a person id or the token
+    `CONTRACTOR_ASSIGNEE` ("contractor"), plus a `sharedAt` change (ISO string) when it shares. Never a second `assignedToContractor` line.
+    Activity maps the token to the awardee's name; the org-wide audit screen and the CSV export read it as "The contractor" (`CONTRACTOR_AUDIT_WORDS`:
+    those surfaces know no contract). If the founder wants the awardee's name there, the export needs a contract lookup per row.
+  - **`attachedAt` is now `c.now` (second precision) in `attachFiles`, and `shareInstant` pushes a share one second past the item's latest live file**
+    when that file was attached in the share's own second. Without it a file attached earlier in the same second as the share read as attached
+    after it and leaked (found by the db test). Step 4's contractor attach should write `attachedAt: c.now` too (its files are always seen, so it is
+    only for consistency). A file attached in the share's own second may read as before it and stay staff-only: the safe side.
+  - **`comment(c, who, { itemId, body, audience })`**: `audience` is `REPLY`, `INTERNAL` or null (null on an unshared item is internal; on a shared
+    one the default `DEFAULT_AUDIENCE`). A Reply asked for on an unshared item is REFUSED ("Share it first, or write an internal note."), not kept
+    internal. The audience it becomes is also judged against `sharedAt` (PA056). The edge parses `audience` strictly: anything else is UNREADABLE.
+  - **Send back** writes a Reply only where `commentAudience(..., "SEND_BACK")` says (the contractor holds the item); `internal` is always
+    `audience === "INTERNAL"`, never a literal (the work-wiring scan holds it).
+  - **`removeFile`**: attacher = `version.recordedByPersonId` (true by construction: `attachFiles` pins only the actor's own staged versions). The
+    audit is `detached(...)` under the item's label with the reason; Activity says "removed a file". `WorkFileView` gains `attachedByPersonId` and
+    `seenByContractor` for step 5.
+  - **The lead**: `leadOf` reads `ProjectTeamMember` first (an inactive manager is not the lead, WB-7), no time zone needed; the label is "Project
+    manager". With no manager it is the S.O. as in 3a. NOTE for tests: `activeContract` always has an S.O. in force (`org.so`), so the S.O. is the
+    lead until a manager is named, and the manager replaces the S.O. as the one who changes the team; a no-lead contract is made by deleting its
+    `contractSoAssignment`.
+  - **Team**: `team-store.ts` (`addTeamMember`, `removeTeamMember`, `changeProjectManager`; contract lock only, `PROJECT_TEAM` row asked first) and
+    `src/app/projects/[id]/team-actions.ts` (`addTeamMemberAction`, `removeTeamMemberAction`, `changeProjectManagerAction`; fields `contractId`,
+    `role`, `personId`, `reason`). Audit rows hold role words and the person's NAME (never an id). Readers: `loadTeamMembers`, `loadTeamCard`,
+    `assigneeOptions({ organisationId, contractId })` (groups TEAM, CONTRACTOR, EVERYONE; the contractor's value is "contractor"). The panels still call
+    `assigneeOptions` without `contractId`, so the contractor is NOT yet in the dropdown: step 5 passes `contractId` together with the WB-2 confirm.
+  - **Not exported on purpose: `lockedItem`.** `lock-order.test.ts`'s `actions()` treats every exported async function of `store.ts` as a core and the
+    scans there assert each locks via `lockedItem(c, i.itemId)`. Step 4 exports it from `store.ts` and changes that helper's assumption in the
+    same commit (or moves the item lock to a small shared module), flagged stricter.
+  - `whoNamesOf(client, orgId, row, lead, contractorName?)` reads a contractor raiser (no person) and `assignedToContractor`; the store uses
+    `whoNamesIn(c, ...)` so `store.ts` never names the awardee (the notice-body scan bans the word there). `work-item-panel.tsx` passes
+    `assignedToContractor` (one line, compile-only).
+  - Tests: the 3a scan "every comment insert passes `internal: true`" is replaced by a stricter one (flagged in the commit); `work-flow.db.test.ts`
+    holds the share, the audience, the file removal, the team and lead, and the contractor rows of the views.
