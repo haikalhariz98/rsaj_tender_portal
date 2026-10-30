@@ -14,7 +14,8 @@ import { documentFaultText } from "@/lib/documents/labels";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { TEXT_MAX } from "@/lib/work/bounds";
 import { cardMoves } from "@/lib/work/board";
-import { linkedPanelActions, lineStateOf } from "@/lib/work/defect-link";
+import { linkedMoveWords, linkedPanelActions, lineStateOf } from "@/lib/work/defect-link";
+import { mayActOnDefectLines } from "@/lib/supervision/capacity-on";
 import { DEFECT_STATE_TONE, DEFECT_STATE_WORDS } from "@/lib/closeout/labels";
 import { removeFileFaults } from "@/lib/work/audience";
 import { CONTRACTOR_ASSIGNEE, typeHasField } from "@/lib/work/fields";
@@ -23,7 +24,7 @@ import { answerIsDraft } from "@/lib/work/portal";
 import { shareFaults } from "@/lib/work/sharing";
 import { SCAN_LABEL } from "@/lib/documents/labels";
 import { NOT_SCANNED_LABEL } from "@/lib/ui/upload-logic";
-import { ACTION_WORDS, itemRefText, linkedLockWords, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, removeFileWords, STATUS_WORDS, TYPE_WORDS, whoCanWords } from "@/lib/work/labels";
+import { ACTION_WORDS, contractorSeesWords, defectListSeesWords, itemRefText, linkedLockWords, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, removeFileWords, STATUS_WORDS, TYPE_WORDS, whoCanWords } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
 import { contractorNameOf, loadActivity, loadItem, namesOf, whoNamesOf, type WorkContext } from "@/lib/work/load";
 import { isOpen, primaryActions, TARGET } from "@/lib/work/move";
@@ -81,12 +82,14 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
   const lateText = latenessWords(lateness(c.dueOn, c.status, ctx.today));
 
   // The status select: where this reader may take it now, and where it stands. Cancel and Send back collect words, so they are the menu's, never a select's.
-  const moves = cardMoves(c, actor, { contractOpen: ctx.open, who });
+  // WRS-3: on a linked item a reader the line's who-may refuses (the one rule `recordedFor` uses) is offered no defect move; Reply, assignee and severity stay.
+  const mayAct = !c.linked || (ctx.today !== null && (await mayActOnDefectLines(l, db, personId, ctx.today)));
+  const moves = mayAct ? cardMoves(c, actor, { contractOpen: ctx.open, who }) : { moves: [], stuckWhy: linkedMoveWords(null) };
   const reachable: string[] = [c.status, ...moves.moves];
   // Share (WB-2) is in the menu while the reader may do it; the confirm is the client's.
   const mayShare = ctx.open && !shared && shareFaults(c, actor, true, who).length === 0;
   // A linked item (a defect line's) offers only the moves that are defect acts; the act answers who may (the S.O. or a representative), so no one is pre-judged here.
-  const lp = c.linked ? linkedPanelActions(c.status, ctx.open, "STAFF", c.linkedDraft) : null;
+  const lp = c.linked ? linkedPanelActions(c.status, ctx.open, "STAFF", c.linkedDraft, mayAct) : null;
   const pa = lp ? { primary: lp.primary, menu: lp.menu, disabled: null } : primaryActions(c, actor, { contractOpen: ctx.open, who });
   const wordsOf = (a: WorkAction) => ACTION_WORDS[a].en;
   const menu = pa.menu.map((a) => ({ kind: (a === "CANCEL" ? "cancel" : a === "SEND_BACK" ? "sendBack" : "move") as "move" | "cancel" | "sendBack", label: wordsOf(a), to: TARGET[a] }));
@@ -134,6 +137,13 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
             </Badge>
           ) : (
             <Badge outline>Not shared</Badge>
+          )}
+          {/* WRS-1: the item stays unshared, but a linked item's title, description, location and due day are on the defect list the contractor reads. */}
+          {c.linked && !shared && (
+            <span className="inline-flex items-center gap-1 text-[12.5px] text-ink-3">
+              {contractorSeesWords(contractor)}
+              <MoreText text={defectListSeesWords(contractor)} label="What it will see" />
+            </span>
           )}
           {c.linked && (
             <Link href={`/projects/${encodeURIComponent(contractId)}?stage=close-out&tab=defects`} className="no-underline" title="Open the contract's defects">

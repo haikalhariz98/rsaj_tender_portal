@@ -4,6 +4,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { moreItemClass } from "@/components/ui/more-item-class";
 import { actorField } from "@/lib/auth/actor-field";
+import { defectListSeesWords } from "@/lib/work/labels";
 
 import { acceptDefect, addCpcDefect, addCpcDefectsFromItems, raiseDefectSchedule, raiseMakingGood, raisePracticalCompletion, removeCpcDefect, reportDefect, reportDefectRectified, returnDefect, returnSecurity, withdrawDefect } from "./closeout-actions";
 
@@ -64,12 +65,12 @@ export function AddDefectDrawer({ id, onCpc, people, blocker, main, today }: { i
 }
 
 /// The draft CPC's list from the work list: the open Defect items not yet on a list (B-18). Their lines are made and linked; `dueOn` is for the ones with no day of their own.
-export function PickDefectItemsDrawer({ id, items, total, people, blocker }: { id: string; items: Option[]; total: number; people: Option[]; blocker: string | null }) {
+export function PickDefectItemsDrawer({ id, items, total, people, blocker, contractor }: { id: string; items: Option[]; total: number; people: Option[]; blocker: string | null; contractor: string }) {
   return (
     <RecordEditor
       title="Add defects from the work list"
       description={`Each becomes a line on the certificate and stays linked to its item.${total > items.length ? ` Showing ${items.length} of ${total}. Add these, then open again for the rest.` : ""}`}
-      fields={[hidden("id"), { kind: "checks", name: "itemIds", label: "Defect items", filterable: true, options: items, empty: "No open Defect items are waiting." }, { kind: "date", name: "dueOn", label: "Made good by", hint: "Used for an item with no due day." }, by("DefectItem.reportedBy", people)]}
+      fields={[hidden("id"), { kind: "note", text: defectListSeesWords(contractor) }, { kind: "checks", name: "itemIds", label: "Defect items", filterable: true, options: items, empty: "No open Defect items are waiting." }, { kind: "date", name: "dueOn", label: "Made good by", hint: "Used for an item with no due day." }, by("DefectItem.reportedBy", people)]}
       values={{ id }}
       action={addCpcDefectsFromItems}
       submitLabel="Add"

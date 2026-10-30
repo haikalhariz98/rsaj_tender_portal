@@ -84,6 +84,9 @@ describe("each kind of case opens on the right default step (C5 done-when 1)", (
 
 describe("the address names the view", () => {
   const base = { awardStatus: "ACCEPTED" as const, contract: "ACTIVE" as const, facts: { award: award("ACCEPTED"), beforeSigning: before(), signing: signing("ACTIVE") } };
+  it("WRS-7: an old ?tab=documents address (a stored notice href) opens Documents at the Certificates section", () => {
+    for (const stage of [undefined, "project"]) expect(open({ ...base, stage, tab: "documents" })).toMatchObject({ stage: "project", tab: "submissions", section: "certificates" });
+  });
   it("?stage= with a tab of that stage opens it, with a foreign tab the stage's first (F0-5)", () => {
     expect(open({ ...base, stage: "project", tab: "site" })).toMatchObject({ stage: "project", tab: "site" });
     expect(open({ ...base, stage: "signing", tab: "site" })).toMatchObject({ stage: "signing", tab: "formation" });

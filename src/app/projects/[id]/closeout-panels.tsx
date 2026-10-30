@@ -18,7 +18,7 @@ import type { LoadedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayPlus, daysFrom, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { pickableDefectItems } from "@/lib/work/load";
+import { contractorNameOf, pickableDefectItems } from "@/lib/work/load";
 import { formatDate } from "@/lib/format";
 import type { ClockPlan } from "@/lib/inbox/clock-plan";
 import { formatMoney, senFromDecimal } from "@/lib/money";
@@ -218,7 +218,7 @@ export async function DefectsPanel({ l, v, people, today, hidden }: Props) {
                 <span className="flex items-center gap-2">
                   {adding && <AddDefectDrawer id={id} onCpc={adding.onCpc} people={people} blocker={adding.family === "COMPLETION" ? completion : defects} main today={today} />}
                   <MoreActions label="Defect actions">
-                    {cpcDraft && <PickDefectItemsDrawer id={id} items={pickable.options} total={pickable.total} people={people} blocker={completion} />}
+                    {cpcDraft && <PickDefectItemsDrawer id={id} items={pickable.options} total={pickable.total} people={people} blocker={completion} contractor={contractorNameOf(l)} />}
                     {cpcDraft && <RemoveDefectDrawer id={id} lines={facts.map((d) => ({ value: d.id, label: d.description.slice(0, 80) }))} blocker={completion} />}
                     {lineActs && <DefectActDrawer id={id} act="REPORT" lines={fresh} documents={documents} people={people} today={today} blocker={defects} />}
                     {lineActs && <DefectActDrawer id={id} act="ACCEPT" lines={open} people={people} today={today} blocker={defects} />}

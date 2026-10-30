@@ -75,6 +75,7 @@ import type { ContactSubject } from "@/lib/project-docs/team-read";
 import { BaselinePanel } from "./baseline-panel";
 import { KickOffCard } from "./kick-off-card";
 import { DocumentsPanel } from "./documents-panel";
+import { ScrollToSection } from "@/components/ui/scroll-to-section";
 import { SubmissionsTab } from "./submissions-tab";
 import { ProjectTeamCard } from "./project-team-card";
 import { WorkPanel } from "./work-panel";
@@ -317,6 +318,7 @@ export default async function CasePage(props: PageProps<"/projects/[id]">) {
           <div className="flex flex-col gap-6">
             <SubmissionsTab l={lc} actor={actor} organisationId={l.org.id} contractId={c.id} status={status!} docs={docs} docsAfter={docsAfter} earlier={earlier} />
             {documentFacts && <DocumentsPanel contractId={c.id} page={pageNo} facts={documentFacts} />}
+            {view.section && <ScrollToSection id={view.section} />}
           </div>
         );
       default:

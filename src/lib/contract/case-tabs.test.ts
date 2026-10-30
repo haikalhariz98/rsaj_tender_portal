@@ -162,6 +162,11 @@ describe("the Certificates tab folded into Documents (WS-5)", () => {
     const at = { stage: "project", tab: "submissions", section: "certificates" };
     for (const c of [true, false]) expect(caseTabToStep("documents", c)).toEqual(at);
   });
+  it("WRS-7: the page scrolls the named section into view, and the card carries that id", () => {
+    const read = (f: string) => readFileSync(join(process.cwd(), f), "utf8").replace(/\r\n/g, "\n");
+    expect(read("src/app/projects/[id]/page.tsx")).toContain("{view.section && <ScrollToSection id={view.section} />}");
+    expect(read("src/app/projects/[id]/documents-panel.tsx")).toContain('id="certificates"');
+  });
   it("the stored notice href forms resolve", () => {
     expect(caseTabToStep("submissions", true)).toEqual({ stage: "project", tab: "submissions" });
   });
