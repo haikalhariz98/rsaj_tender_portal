@@ -48,3 +48,6 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# RSAJ master data filled in with real (personal) data: never committed
+docs/rsaj-data/*filled*
