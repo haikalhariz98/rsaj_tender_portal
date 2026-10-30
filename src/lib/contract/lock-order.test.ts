@@ -18,7 +18,8 @@ import { toPosix } from "@/lib/scan/files";
 /// Phase 2 close-out: `contract.fixture.ts` stands up an organisation, an active contract and its baseline for the post-award acts' database tests; only `*.db.test.ts` files import it (lock-order.test.ts holds that).
 const TEST_ONLY_FIXTURES = ["online-opening.fixture.ts", "contract.fixture.ts"];
 const ROOT = path.join(__dirname, "../../..");
-const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8");
+// Normalised: a Windows checkout may hold CRLF though the repo stores LF.
+const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8").replace(/\r\n/g, "\n");
 const ACTIONS = "src/app/projects/[id]/actions.ts";
 /// 6.13 Part A: supervising the contract, its own module of acts under the same lock order.
 const SUPERVISION = "src/app/projects/[id]/supervision-actions.ts";
@@ -1010,7 +1011,7 @@ describe("the work acts: the contract's lock at the edge, then the item's row in
     const at = actionsSrc.indexOf("async function inContract(");
     const helper = actionsSrc.slice(at, actionsSrc.indexOf("\n}\n", at));
     expect(helper.indexOf("dayOf(now, l.org.timeZone)")).toBeGreaterThan(helper.indexOf("actStatusFault("));
-    expect(helper.indexOf("fn({ tx, l, now, today })")).toBeGreaterThan(helper.indexOf("dayOf("));
+    expect(helper.indexOf("fn({ tx, l, now, today")).toBeGreaterThan(helper.indexOf("dayOf("));
     expect(lex(actionsSrc)).not.toMatch(/FOR SHARE|FOR NO KEY UPDATE|FOR UPDATE|\$transaction/);
   });
 
