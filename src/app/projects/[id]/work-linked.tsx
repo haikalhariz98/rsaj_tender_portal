@@ -7,6 +7,7 @@ import { Note } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
 import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
+import { BOARD_DONE_DAYS } from "@/lib/work/board";
 import { STATUS_WORDS } from "@/lib/work/labels";
 import { LINKED_WORDS, linkedMovesWhen, linkedRegisterHref, type LinkedCard } from "@/lib/work/linked";
 
@@ -20,20 +21,19 @@ export function LinkedCardPanel({ contractId, card, closeHref }: { contractId: s
   if (!card) {
     return (
       <WorkPanelShell label="Linked card" closeHref={closeHref} title="Not on the board">
-        <Note>That act is not on this contract&apos;s board. It may have been decided more than 14 days ago.</Note>
+        <Note>That act is not on this contract&apos;s board. It may have been decided more than {BOARD_DONE_DAYS} days ago.</Note>
       </WorkPanelShell>
     );
   }
   const words = LINKED_WORDS[card.kind];
   return (
-    <WorkPanelShell label={`Linked ${words.noun} ${card.label}`} closeHref={closeHref} title={card.label} subtitle={<span className="inline-flex items-center gap-1.5"><LinkIcon size={13} /> {words.register}</span>} badge={<Badge>{card.stateWords}</Badge>}>
+    <WorkPanelShell label={`Linked ${card.label}`} closeHref={closeHref} title={card.label} subtitle={<span className="inline-flex items-center gap-1.5"><LinkIcon size={13} /> {words.register}</span>} badge={<Badge>{card.stateWords}</Badge>}>
       <div className="flex flex-col gap-5">
         <KeyValues
           columns={2}
           items={[
-            { label: "State", value: card.stateWords },
             { label: "On the board", value: STATUS_WORDS[card.column].en },
-            ...(card.decidedOn ? [{ label: "Date", value: formatDate(dayToDate(card.decidedOn)) }] : []),
+            ...(card.decidedOn ? [{ label: "Decided on", value: formatDate(dayToDate(card.decidedOn)) }] : []),
           ]}
         />
         <p className="text-[13.5px] text-ink-3">{linkedMovesWhen(card.kind)}</p>
@@ -51,8 +51,8 @@ export function LinkedCardPanel({ contractId, card, closeHref }: { contractId: s
 export function LinkedPinned({ cards, more, hrefOf }: { cards: LinkedCard[]; more: number; hrefOf: (c: LinkedCard) => string }) {
   if (cards.length === 0) return null;
   return (
-    <section aria-label="Contract acts in progress" className="mx-5 mb-3 rounded-xl border border-dashed border-ink-3/60 px-4 py-3 sm:mx-6">
-      <h3 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-ink-3">
+    <section aria-labelledby="linked-pinned-h" className="mx-5 mb-3 rounded-xl border border-dashed border-ink-3/60 px-4 py-3 sm:mx-6">
+      <h3 id="linked-pinned-h" className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-ink-3">
         <LinkIcon size={14} /> Contract acts
       </h3>
       <ul className="flex flex-col gap-1.5">

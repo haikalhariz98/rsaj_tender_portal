@@ -36,6 +36,8 @@ export const QUICK_TYPES = TYPE_OPTIONS.filter((t) => ["TASK", "ACTION", "INSPEC
 /// list's padding cannot disagree; `work-shared.test.ts` holds the padding to the size's width.
 export const WORK_PANEL_SIZE: DrawerSize = "md";
 export const WORK_PANEL_PAD = "xl:pr-[34rem]";
+/// The small caps heading over a group of rows (the item panel's sections, My work's groups).
+export const SECTION_HEADING = "scroll-mt-24 text-[13px] font-semibold tracking-wide text-ink-3 uppercase";
 
 /// WB-2: the confirm before a share or a contractor assignment posts. The same words wherever it is asked.
 /// `noAccount`: the contractor has no active portal account, so it would not be told and could not reply; the box says so before the officer presses Share.

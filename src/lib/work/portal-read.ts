@@ -120,7 +120,7 @@ export interface PortalWork {
 
 const GROUPS: readonly PortalGroup[] = ["WAITING_FOR_YOU", "WITH_ORG", "CLOSED"];
 const shared = (ctx: { org: { id: string }; contract: { id: string } }, group: PortalGroup): Prisma.WorkItemWhereInput => ({ organisationId: ctx.org.id, contractId: ctx.contract.id, sharedAt: { not: null }, AND: [portalWhere(group) as Prisma.WorkItemWhereInput] });
-const canAct = (ctx: ProjectContext): boolean => actStatusFault("WORK_ITEM", ctx.contract.status) === null && ctx.org.timeZone !== null;
+export const canAct = (ctx: ProjectContext): boolean => actStatusFault("WORK_ITEM", ctx.contract.status) === null && ctx.org.timeZone !== null;
 
 /// The contract's shared items in three groups, each capped (B-14). Null: the contract is not this supplier's.
 export async function loadPortalWork(actor: Pick<SupplierActor, "supplierId" | "organisationId">, contractId: string, now: Date = new Date(), page = 0): Promise<PortalWork | null> {

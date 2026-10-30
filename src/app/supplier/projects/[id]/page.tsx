@@ -14,7 +14,7 @@ import { db } from "@/lib/db";
 import { loadProjectContext } from "@/lib/portal/projects/context-store";
 import { isProjectTab, type ProjectTab } from "@/lib/portal/projects/types";
 import { SEVERITY_WORDS } from "@/lib/work/labels";
-import { loadPortalItem, loadPortalWork } from "@/lib/work/portal-read";
+import { canAct, loadPortalItem, loadPortalWork } from "@/lib/work/portal-read";
 
 import { requireSupplier } from "../../../_auth/supplier";
 import { RaiseDrawer } from "./work-drawers";
@@ -55,7 +55,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     { id: "work", label: "Work", icon: <ToolsIcon size={15} />, lazy: true, panel: tab === "work" ? (
       <div className="flex flex-col gap-5">
         {completed && (
-          <Segmented as="nav" aria-label="Work view">
+          <Segmented as="nav" aria-label="Work views">
             <Segment on={!defectsView} href={workHref(id)} scroll={false}>Items</Segment>
             <Segment on={defectsView} href={`${workHref(id)}&view=defects`} scroll={false}>Defects</Segment>
           </Segmented>
@@ -78,7 +78,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         badge={<Badge tone={ctx.contract.status === "ACTIVE" ? "ok" : ctx.contract.status === "CANCELLED" || ctx.contract.status === "TERMINATED" ? "err" : "neutral"}>{status}</Badge>}
         subtitle={`Contract ${ctx.contract.number} · ${ctx.contract.reference} · ${actor.supplierName}`}
         meta={[actor.displayName]}
-        {...(work ? { actions: workActions(id, token, work.canAct), actionsNoteId: "work-note", actionsNote: work.canAct ? undefined : WORK_NOT_NOW } : {})}
+        {...(tab === "work" ? { actions: workActions(id, token, canAct(ctx)), actionsNoteId: "work-note", actionsNote: canAct(ctx) ? undefined : WORK_NOT_NOW } : {})}
       />
       {acting && !token && (
         <Callout tone="warn" title="Sending is closed" className="mb-5">

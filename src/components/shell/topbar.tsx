@@ -116,7 +116,7 @@ export function crumbTrail(segments: readonly string[], recordName: string | nul
   if (segments[0] === "projects" && segments[2] === "certificates" && crumbs.length >= 3) {
     if (parentName) crumbs[1].label = named(parentName);
     crumbs[2].label = CRUMB_WORDS.certificates;
-    crumbs[2].href = `/projects/${segments[1]}?stage=project&tab=submissions&section=certificates`;
+    crumbs[2].href = `/projects/${segments[1]}?stage=project&tab=submissions&section=certificates#certificates`;
   }
   // 6.13 Part A step 4: a variation sits on its contract's Variations tab: "Projects › <contract> › Variations › <variation>".
   if (segments[0] === "projects" && segments[2] === "variations" && crumbs.length >= 3) {

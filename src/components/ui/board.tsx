@@ -203,7 +203,12 @@ export function Board({
                     }}
                     className={cx("relative rounded-xl border bg-surface p-3", c.linked ? "border-dashed border-ink-3/60" : "border-line/70 shadow-card")}>
                     <Link href={c.href} scroll={false} draggable={false} aria-describedby={refused?.card.id === c.id ? refusedId : undefined} className="block pr-7 text-[14px] font-semibold break-words text-ink no-underline hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
-                      {c.linked && <LinkIcon size={13} className="mr-1.5 inline align-[-1px] text-ink-3" />}
+                      {c.linked && (
+                        <>
+                          <LinkIcon size={13} className="mr-1.5 inline align-[-1px] text-ink-3" />
+                          <span className="sr-only">Linked: </span>
+                        </>
+                      )}
                       {c.title}
                     </Link>
                     {c.sub && <div className="text-[12.5px] break-words text-ink-3">{c.sub}</div>}

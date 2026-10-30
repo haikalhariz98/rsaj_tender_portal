@@ -1,19 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useId, useState, useTransition } from "react";
 
 import { createWorkItem, moveWorkItem, shareWorkItem, type WorkResult } from "@/app/projects/[id]/work-actions";
 import { useActGate } from "@/components/act-gate";
 import { PlusIcon } from "@/components/icons";
 import { RecordEditor, type Field, type FormState, type SaveAction } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/field";
+import { Field as FormField, Input, Select } from "@/components/ui/field";
 import { MoreActions, MoreItem } from "@/components/ui/more-actions";
 import { moreItemClass } from "@/components/ui/more-item-class";
 import { Blocked } from "@/components/ui/blocked";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { MoreText } from "@/components/ui/more-text";
 import { CONTRACTOR_ASSIGNEE } from "@/lib/work/fields";
+import { contractorSeesWords, defectListSeesWords } from "@/lib/work/labels";
 import { SHARED_BY_DEFAULT } from "@/lib/work/sharing";
 import { shareConfirmWords } from "./work-shared";
 
@@ -78,7 +80,7 @@ export function NewItemDrawer({ contractId, contractor, itemHrefBase, types, pri
         { kind: "select", name: "priority", label: "Priority", placeholder: "Normal", options: priorities },
         { kind: "date", name: "dueOn", label: "Due" },
         { kind: "date", name: "observedOn", label: "Observed on", required: true },
-        { kind: "date", name: "madeGoodBy", label: "Made good by", required: true },
+        { kind: "date", name: "madeGoodBy", label: "Made good by", required: true, hint: contractorSeesWords(contractor), info: defectListSeesWords(contractor) },
         { kind: "select", name: "assigneePersonId", label: "Assignee", placeholder: "Unassigned", options: people, flag: noAccount ? { value: CONTRACTOR_ASSIGNEE, text: "No active portal account" } : undefined },
         { kind: "text", name: "location", label: "Location" },
         { kind: "textarea", name: "answer", label: "Answer" },
@@ -244,7 +246,7 @@ export function ItemActions({ contractId, itemId, from, itemLabel, primary, disa
 // ------------------------------------------------------------------ quick add
 
 /// The List's quick-add row: a type that needs only a title, and the title; Enter raises it and opens its panel. Types that need more (a due date, a severity) are raised from New item.
-export function QuickAdd({ contractId, itemHrefBase, types, defectLine = false }: { contractId: string; itemHrefBase: string; types: Option[]; /** A Defect here is made with its defect line (WB-12): it asks for the day observed and the day to make it good by, with no default. */ defectLine?: boolean }) {
+export function QuickAdd({ contractId, contractor, itemHrefBase, types, defectLine = false }: { contractId: string; contractor: string; itemHrefBase: string; types: Option[]; /** A Defect here is made with its defect line (WB-12): it asks for the day observed and the day to make it good by, with no default. */ defectLine?: boolean }) {
   const router = useRouter();
   const gate = useActGate();
   const [type, setType] = useState(types.find((t) => t.value === "TASK")?.value ?? types[0]?.value ?? "");
@@ -253,15 +255,22 @@ export function QuickAdd({ contractId, itemHrefBase, types, defectLine = false }
   const [madeGoodBy, setMadeGoodBy] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const observedId = useId();
+  const madeGoodId = useId();
   if (gate) return null;
   const needsLine = defectLine && type === "DEFECT";
   return (
     <form
       className="flex flex-col gap-1.5 border-b border-line/70 px-5 py-3 sm:px-6"
+      noValidate
       onSubmit={(e) => {
         e.preventDefault();
         if (pending || !title.trim()) return;
-        if (needsLine && (!observedOn || !madeGoodBy)) return setMessage("Give the day it was observed and the day to make it good by.");
+        if (needsLine && (!observedOn || !madeGoodBy)) {
+          setMessage("Give the day it was observed and the day to make it good by.");
+          document.getElementById(observedOn ? madeGoodId : observedId)?.focus();
+          return;
+        }
         const data = new FormData();
         data.set("contractId", contractId);
         data.set("type", type);
@@ -287,7 +296,7 @@ export function QuickAdd({ contractId, itemHrefBase, types, defectLine = false }
         });
       }}
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-end gap-2">
         <div className="w-40 shrink-0">
           <Select aria-label="Type of the new item" variant="chip" chipLabel="Add" value={type} onChange={(e) => setType(e.target.value)}>
             {types.map((t) => (
@@ -303,14 +312,24 @@ export function QuickAdd({ contractId, itemHrefBase, types, defectLine = false }
         {needsLine && (
           <>
             <div className="w-44 shrink-0">
-              <Input type="date" aria-label="Observed on" required value={observedOn} onChange={(e) => setObservedOn(e.target.value)} />
+              <FormField label="Observed on" htmlFor={observedId} required>
+                <Input id={observedId} type="date" value={observedOn} aria-invalid={message && !observedOn ? true : undefined} onChange={(e) => setObservedOn(e.target.value)} />
+              </FormField>
             </div>
             <div className="w-44 shrink-0">
-              <Input type="date" aria-label="Made good by" required value={madeGoodBy} onChange={(e) => setMadeGoodBy(e.target.value)} />
+              <FormField label="Made good by" htmlFor={madeGoodId} required>
+                <Input id={madeGoodId} type="date" value={madeGoodBy} aria-invalid={message && !madeGoodBy ? true : undefined} onChange={(e) => setMadeGoodBy(e.target.value)} />
+              </FormField>
             </div>
           </>
         )}
       </div>
+      {needsLine && (
+        <p className="flex items-center gap-1.5 text-[12.5px] text-ink-3">
+          {contractorSeesWords(contractor)}
+          <MoreText text={defectListSeesWords(contractor)} label="What it will see" />
+        </p>
+      )}
       <p role="status" className="text-[12.5px] font-medium text-rose-700 empty:hidden">
         {message}
       </p>

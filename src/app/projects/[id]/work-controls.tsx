@@ -48,7 +48,7 @@ export function WorkPanelShell({ label, closeHref, title, badge, subtitle, child
 type Kind = "text" | "textarea" | "date" | "datetime-local";
 
 /// A field that saves when asked: Enter (a line) or Save. A field the reader may not change shows its words, with who can in a popover. A refusal stays beside it and keeps what was typed.
-export function FieldEdit({ label, field, value, display, kind = "text", contractId, itemId, disabledWhy: askedWhy, badge }: { label: string; field: string; value: string; display?: string; kind?: Kind; contractId: string; itemId: string; disabledWhy?: string; /** A state of the value (Draft), with what it means in a popover. */ badge?: { text: string; why: string } }) {
+export function FieldEdit({ label, field, value, display, kind = "text", contractId, itemId, disabledWhy: askedWhy, locked, badge }: { label: string; field: string; value: string; display?: string; kind?: Kind; contractId: string; itemId: string; disabledWhy?: string; /** The reason is said once above the fields (a linked item's lock), so no popover here. */ locked?: boolean; /** A state of the value (Draft), with what it means in a popover. */ badge?: { text: string; why: string } }) {
   // The contract tab's gate (the WORK_ITEM row) states its words first.
   const disabledWhy = useActGate() ?? askedWhy;
   const id = useId();
@@ -93,7 +93,7 @@ export function FieldEdit({ label, field, value, display, kind = "text", contrac
         </div>
         <div className="flex items-start gap-1.5 text-[14px] break-words whitespace-pre-wrap text-ink">
           {(display ?? value) || <span className="text-ink-4">Not set</span>}
-          <MoreText text={disabledWhy} label={`Who can change ${label.toLowerCase()}`} />
+          {!locked && <MoreText text={disabledWhy} label={`Why ${label.toLowerCase()} can't be changed`} />}
         </div>
       </div>
     );

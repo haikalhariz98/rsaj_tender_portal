@@ -33,14 +33,14 @@ import type { WorkAction, WorkActor } from "@/lib/work/types";
 import { commentOnWorkItem, editWorkField, moveWorkItem } from "./work-actions";
 import { AttachFiles, FieldEdit, LinkPicker, RemoveFile, UnlinkButton, WorkPanelShell } from "./work-controls";
 import { ItemActions } from "./work-editors";
-import { editWhy, IMPACT_OPTIONS, PRIORITY_OPTIONS, RESULT_OPTIONS, SEVERITY_OPTIONS, shareConfirmWords, STATUS_OPTIONS } from "./work-shared";
+import { editWhy, SECTION_HEADING, IMPACT_OPTIONS, PRIORITY_OPTIONS, RESULT_OPTIONS, SEVERITY_OPTIONS, shareConfirmWords, STATUS_OPTIONS } from "./work-shared";
 
 /// The composer's two audiences on a shared item (B-2): Reply is the default (WB-9).
 const AUDIENCES: readonly ComposerAudience[] = [
   { value: "REPLY", label: "Reply", send: "Send reply", placeholder: "Write a reply…" },
   { value: "INTERNAL", label: "Internal note", send: "Add note", internal: true, placeholder: "Write an internal note…" },
 ];
-const section = "text-[13px] font-semibold tracking-wide text-ink-3 uppercase";
+const section = SECTION_HEADING;
 type Option = { value: string; label: string };
 export type PanelHrefs = { close: string; item: (ref: string) => string };
 
@@ -135,7 +135,11 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
           ) : (
             <Badge outline>Not shared</Badge>
           )}
-          {c.linked && <Badge tone={DEFECT_STATE_TONE[lineStateOf(c.status)]}>{`Defect line: ${DEFECT_STATE_WORDS[lineStateOf(c.status)]}`}</Badge>}
+          {c.linked && (
+            <Link href={`/projects/${encodeURIComponent(contractId)}?stage=close-out&tab=defects`} className="no-underline" title="Open the contract's defects">
+              <Badge tone={DEFECT_STATE_TONE[lineStateOf(c.status)]}>{`Defect line: ${DEFECT_STATE_WORDS[lineStateOf(c.status)]}`}</Badge>
+            </Link>
+          )}
           {lateText && <Badge tone="err">{lateText}</Badge>}
           {c.type === "INSPECTION" && c.inspectionResult === "FAILED" && isOpen(c.status) && <Badge tone="err">{NCR_WORD.en}</Badge>}
         </>
@@ -172,19 +176,20 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
         </div>
 
         {c.status === "CANCELLED" && detail.cancelReason && (
-          <p className="text-[13.5px] text-ink-2">
+          <p className="text-[13.5px] break-words whitespace-pre-wrap text-ink-2">
             <span className="font-semibold text-ink">Cancelled:</span> {detail.cancelReason}
           </p>
         )}
 
         {detail.returnNote && (
-          <p className="text-[13.5px] text-ink-2">
+          <p className="text-[13.5px] break-words whitespace-pre-wrap text-ink-2">
             <span className="font-semibold text-ink">Returned:</span> {detail.returnNote}
           </p>
         )}
 
-        <FieldEdit label="Title" field="title" value={c.title} {...base} disabledWhy={lockWhy ?? why} />
-        <FieldEdit label="Description" field="description" kind="textarea" value={detail.description} {...base} disabledWhy={lockWhy ?? why} />
+        {lockWhy && <Note>{lockWhy}</Note>}
+        <FieldEdit label="Title" field="title" value={c.title} {...base} disabledWhy={lockWhy ?? why} locked={!!lockWhy} />
+        <FieldEdit label="Description" field="description" kind="textarea" value={detail.description} {...base} disabledWhy={lockWhy ?? why} locked={!!lockWhy} />
         {typeHasField(c.type, "answer") && (
           <FieldEdit label="Answer" field="answer" kind="textarea" value={c.answer} {...base} disabledWhy={why} badge={answerIsDraft(c) ? { text: "Draft", why: `${contractor} has not yet sent it for checking.` } : undefined} />
         )}
@@ -210,8 +215,8 @@ export async function WorkItemPanel({ l, ctx, hrefs, project, personId, address,
             />
           </div>
           {select("priority", "Priority", c.priority, PRIORITY_OPTIONS)}
-          <FieldEdit label="Due" field="dueOn" kind="date" value={c.dueOn ?? ""} display={c.dueOn ? formatDate(dayToDate(c.dueOn)) : ""} {...base} disabledWhy={lockWhy ?? why} />
-          <FieldEdit label="Location" field="location" value={c.location} {...base} disabledWhy={lockWhy ?? why} />
+          <FieldEdit label="Due" field="dueOn" kind="date" value={c.dueOn ?? ""} display={c.dueOn ? formatDate(dayToDate(c.dueOn)) : ""} {...base} disabledWhy={lockWhy ?? why} locked={!!lockWhy} />
+          <FieldEdit label="Location" field="location" value={c.location} {...base} disabledWhy={lockWhy ?? why} locked={!!lockWhy} />
           {typeHasField(c.type, "impact") && select("impact", "Impact", detail.impact ?? "", [{ value: "", label: "Not set" }, ...IMPACT_OPTIONS])}
           {typeHasField(c.type, "inspectionResult") && select("inspectionResult", "Result", c.inspectionResult ?? "NOT_YET", RESULT_OPTIONS)}
           {typeHasField(c.type, "severity") && select("severity", "Severity", detail.severity ?? "", SEVERITY_OPTIONS)}

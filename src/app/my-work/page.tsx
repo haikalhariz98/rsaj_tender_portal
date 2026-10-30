@@ -1,5 +1,6 @@
 import { requireStaff } from "@/app/_auth/actor";
 import { DataList, type Column, type Row } from "@/components/data-list";
+import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Callout, EmptyState, Note } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
@@ -10,7 +11,7 @@ import { lateness } from "@/lib/work/late";
 import { loadMyWork, type MyWorkRow } from "@/lib/work/load";
 import { MY_WORK_EMPTY_WORDS, MY_WORK_SECTIONS, MY_WORK_WORDS, myWorkHref, parseMyWorkAddress } from "@/lib/work/my-work";
 import { organisationToday } from "@/lib/org-time";
-import { WORK_PANEL_PAD } from "../projects/[id]/work-shared";
+import { SECTION_HEADING, WORK_PANEL_PAD } from "../projects/[id]/work-shared";
 
 import { MyWorkItemPanel } from "./item-panel";
 
@@ -53,25 +54,25 @@ export default async function MyWorkPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title="My work" info={{ title: "My work", text: "Open items assigned to you on every project, and items you raised that are waiting for you to check. Formal approvals are in My approvals." }} />
-      {today === null && found.some((r) => r.dueOn) && <Callout tone="warn" className="mb-6" title={LATE_NOT_JUDGED_WORDS.en} />}
+      {today === null && found.some((r) => r.dueOn) && <Callout tone="warn" className="mb-6" title={LATE_NOT_JUDGED_WORDS.en} action={<ButtonLink href="/configuration/organisation" size="sm" variant="secondary">Set time zone</ButtonLink>} />}
       <div className={open.item ? WORK_PANEL_PAD : undefined}>
         {groups.length === 0 ? (
           <Card className="overflow-hidden">
-            <EmptyState title={MY_WORK_EMPTY_WORDS} />
+            <EmptyState title={MY_WORK_EMPTY_WORDS} action={<ButtonLink href="/projects" size="sm" variant="secondary">Go to projects</ButtonLink>} />
           </Card>
         ) : (
           <div className="flex flex-col gap-6">
             {groups.map((g) => (
               <section key={g.section} aria-labelledby={`my-work-${g.section}`}>
-                <h2 id={`my-work-${g.section}`} className="mb-2 text-[13px] font-semibold tracking-wide text-ink-3 uppercase">
-                  {MY_WORK_WORDS[g.section]} <span className="ml-1 text-ink-4">{g.rows.length}</span>
+                <h2 id={`my-work-${g.section}`} className={`mb-2 ${SECTION_HEADING}`}>
+                  {MY_WORK_WORDS[g.section]} <span className="ml-1 text-ink-4 tabular-nums">{g.rows.length}</span>
                 </h2>
                 <Card className="overflow-hidden">
-                  <DataList flat selectable={false} toolbar={false} paging={false} stackBelow="xl" columns={COLUMNS} rows={g.rows.map(rowOf)} emptyTitle={MY_WORK_EMPTY_WORDS} />
+                  <DataList flat selectable={false} toolbar={false} stackBelow={open.item ? "2xl" : "xl"} columns={COLUMNS} rows={g.rows.map(rowOf)} emptyTitle={MY_WORK_EMPTY_WORDS} />
                 </Card>
               </section>
             ))}
-            {more > 0 && <Note>{`Showing the first ${found.length} of ${found.length + more}.`}</Note>}
+            {more > 0 && <Note>{`Showing the first ${found.length} of ${found.length + more}. Open a project's Work tab for the rest.`}</Note>}
           </div>
         )}
       </div>
