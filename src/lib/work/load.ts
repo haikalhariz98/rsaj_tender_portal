@@ -17,6 +17,7 @@ import { db, type Tx } from "@/lib/db";
 import { actStatusFault } from "@/lib/contract/act-status";
 import { loadContract, type LoadedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
+import { SCAN_LABEL } from "@/lib/documents/labels";
 import { loadStorePolicy } from "@/lib/documents/service";
 import { likeLiteral } from "@/lib/search/words";
 import { loadSupervision, soOfficeOn } from "@/lib/supervision/load";
@@ -25,9 +26,9 @@ import { activityFeed, type ActivityLine } from "./activity";
 import { BOARD_COLUMN_CAP, BOARD_DONE_DAYS, boardColumns, type BoardColumnOf, type BoardItem } from "./board";
 import { portalSeesFile } from "./audience";
 import { CONTRACTOR_ASSIGNEE } from "./fields";
-import { leadIds } from "./lead";
+import { leadIds, teamChangerIds } from "./lead";
 import { assigneeOf, raiserOf } from "./party";
-import { contractorActorWords, itemRefText, TEAM_ROLE_WORDS, type WhoNames } from "./labels";
+import { contractorActorWords, itemRefText, TEAM_ROLE_WORDS, type TeamChangers, type WhoNames } from "./labels";
 import { itemRef, parseItemRef } from "./number";
 import type { BoardColumn, Day, TeamMember, TeamRole, WorkStatus, WorkView } from "./types";
 import { WORK_ORDER_BY, workWhere, type WorkFilters } from "./views";
@@ -86,12 +87,30 @@ export async function loadTeamMembers(client: Tx, organisationId: string, contra
 /// W-4, B-13: the lead on the organisation's day. The Project manager when named and active (no time zone needed), else every holder and acting holder of the
 /// contract's S.O. office (which needs the day). `roleLabel` is the office's label for the words.
 export async function leadOf(l: LoadedContract, today: Day | null, client: Tx = db): Promise<{ ids: string[]; roleLabel: string | null }> {
-  const team = await loadTeamMembers(client, l.org.id, l.contract.id);
-  const activeIds = await activeAmong(client, l.org.id, team.map((m) => m.personId));
-  const so = today === null ? null : await soOfficeOn(l, await loadSupervision(l.contract.id, client), today, client);
+  const { team, activeIds, so } = await leadFacts(l, today, client);
   const ids = leadIds(team, so?.office ?? null, today, activeIds);
   const pm = team.some((m) => m.role === "PROJECT_MANAGER" && activeIds.has(m.personId));
   return { ids, roleLabel: pm ? TEAM_ROLE_WORDS.PROJECT_MANAGER.en : (so?.office.roleLabel ?? null) };
+}
+
+/// The team, who of it is active, and the S.O. office on the day: what the lead and the team's changers are both read from.
+async function leadFacts(l: LoadedContract, today: Day | null, client: Tx) {
+  const team = await loadTeamMembers(client, l.org.id, l.contract.id);
+  const activeIds = await activeAmong(client, l.org.id, team.map((m) => m.personId));
+  const so = today === null ? null : await soOfficeOn(l, await loadSupervision(l.contract.id, client), today, client);
+  return { team, activeIds, so };
+}
+
+/// WSEC-2: who may change the team on the organisation's day, and the words naming them (the active Project manager, and the S.O. office in force). `ids` is empty when nobody may.
+export async function teamChangersOf(l: LoadedContract, today: Day | null, client: Tx = db): Promise<{ ids: string[]; words: TeamChangers; hasManager: boolean }> {
+  const { team, activeIds, so } = await leadFacts(l, today, client);
+  const office = so?.office ?? null;
+  const ids = teamChangerIds(team, office, today, activeIds);
+  const pmIds = team.filter((m) => m.role === "PROJECT_MANAGER" && activeIds.has(m.personId)).map((m) => m.personId);
+  const soIds = office && today !== null ? [...new Set([...office.holderIds, ...office.actingIds])].sort() : [];
+  const names = await namesOf(client, l.org.id, ids);
+  const said = (label: string, group: string[]) => ({ roleLabel: label, names: group.map((id) => names.get(id) ?? "Someone") });
+  return { ids, hasManager: pmIds.length > 0, words: [...(pmIds.length ? [said(TEAM_ROLE_WORDS.PROJECT_MANAGER.en, pmIds)] : []), ...(soIds.length && office ? [said(office.roleLabel, soIds)] : [])] };
 }
 
 /// Whether the contract's contractor has at least one active portal account (0008 §5.8, "No active portal account"): the awardee's supplier has an ACTIVE account.
@@ -306,8 +325,12 @@ export interface WorkFileView {
   /// Who attached it: the staff member whose staged file it was (null when the contractor uploaded it). `attachFiles` pins only the actor's own staged versions, so
   /// the version's recorder is the person who attached it; "Remove" is theirs or the lead's (B-6).
   attachedByPersonId: string | null;
-  /// Whether the portal lists it ("Seen by {contractor}", B-3): the contractor's own file, or attached at or after the share.
+  /// Whether the portal lists it ("Visible to {contractor}", B-3, WSEC-10 L6: there are no read receipts, so never "seen"): the contractor's own file, or attached at or after the share.
   seenByContractor: boolean;
+  /// What the scan says of the file (WSEC-6): "Not scanned for malware" until something scans. A contractor's file must not look as trusted as a staff one.
+  scanLabel: string;
+  /// The contractor uploaded it (not staff): shown beside the scan state.
+  byContractor: boolean;
 }
 export interface WorkItemDetail {
   card: WorkCardRow;
@@ -344,7 +367,7 @@ export async function loadItem(i: { organisationId: string; contractId: string; 
   if (!r) return null;
   const files = await db.documentAttachment.findMany({
     where: { organisationId: i.organisationId, workItemId: r.id, detachedAt: null },
-    select: { id: true, versionId: true, attachedAt: true, version: { select: { originalFilename: true, withdrawnAt: true, recordedByPersonId: true, recordedBySupplierAccountId: true, document: { select: { title: true } } } } },
+    select: { id: true, versionId: true, attachedAt: true, version: { select: { originalFilename: true, withdrawnAt: true, scanState: true, recordedByPersonId: true, recordedBySupplierAccountId: true, document: { select: { title: true } } } } },
     orderBy: [{ attachedAt: "asc" }, { id: "asc" }],
   });
   const item = (x: { type: BoardItem["type"]; number: number; title: string; status: WorkStatus }) => ({ kind: "ITEM" as const, ref: itemRef(x.type, x.number), title: x.title, status: x.status });
@@ -370,6 +393,8 @@ export async function loadItem(i: { organisationId: string; contractId: string; 
       withdrawnAt: f.version.withdrawnAt,
       attachedByPersonId: f.version.recordedByPersonId,
       seenByContractor: portalSeesFile({ attachedAt: f.attachedAt, byContractor: f.version.recordedBySupplierAccountId !== null }, r.sharedAt),
+      scanLabel: SCAN_LABEL[f.version.scanState],
+      byContractor: f.version.recordedBySupplierAccountId !== null,
     })),
   };
 }

@@ -25,17 +25,18 @@ import { loadProjectContext, type ProjectContext } from "@/lib/portal/projects/c
 import { STANDING_AWARD } from "@/lib/portal/projects/visibility";
 import { organisationSideOn } from "@/lib/project-docs/side-store";
 import { contractorMayDownload } from "@/lib/project-docs/visibility";
+import { SCAN_LABEL } from "@/lib/documents/labels";
 import { loadSupervision } from "@/lib/supervision/load";
 
 import { portalSeesFile } from "./audience";
 import { PORTAL_ROWS_PER_GROUP } from "./bounds";
 import { lateness } from "./late";
+import { itemRefText } from "./labels";
 import { namesOf, loadTeamMembers } from "./load";
 import { contractorActions, isOpen } from "./move";
 import { itemRef, parseItemRef } from "./number";
 import { assigneeOf, isContractor, person, raiserOf } from "./party";
-import { portalAction, portalGroup, portalStaffLabel, portalWhere } from "./portal";
-import { WORK_ORDER_BY } from "./views";
+import { contractorMayPost, PORTAL_ORDER_BY, portalAction, portalGroup, portalStaffLabel, portalWhere } from "./portal";
 import type { Day, IncidentSeverity, Lateness, Party, PortalAction, PortalGroup, WorkAction, WorkItemFacts, WorkItemType, WorkStatus } from "./types";
 
 /// Where a contractor downloads an item's file: the route that applies `portalSeesFile` itself (`src/app/supplier/projects/work/file/[attachmentId]/route.ts`).
@@ -77,7 +78,10 @@ type Row = Prisma.WorkItemGetPayload<{ select: typeof ROW_SELECT }>;
 const factsOfRow = (r: Row): WorkItemFacts => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), sharedAt: r.sharedAt?.toISOString() ?? null, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult });
 
 export interface PortalRow {
+  /// The address form ("RFI-12"): for links and route values only. A screen shows `label`.
   ref: string;
+  /// What a screen shows (WSEC-3): the type word and the number ("RFI 12", "Incident 3"), never the address form.
+  label: string;
   type: WorkItemType;
   title: string;
   status: WorkStatus;
@@ -103,6 +107,8 @@ export interface PortalGroupView {
 
 export interface PortalWork {
   orgName: string;
+  /// The organisation's time zone: the drawer's instants are read in it, not in the server's.
+  timeZone: string | null;
   today: Day | null;
   /// Whether the contractor can act at all now: the contract's state opens work (`WORK_ITEM`) and the organisation's time zone is set (a portal act is refused without it).
   canAct: boolean;
@@ -126,7 +132,7 @@ export async function loadPortalWork(actor: Pick<SupplierActor, "supplierId" | "
       const where = shared(orgCtx, group);
       const [total, rows] = await Promise.all([
         db.workItem.count({ where }),
-        db.workItem.findMany({ where, select: ROW_SELECT, orderBy: group === "CLOSED" ? [{ closedAt: "desc" }, { id: "asc" }] : ([...WORK_ORDER_BY] as Prisma.WorkItemOrderByWithRelationInput[]), take: PORTAL_ROWS_PER_GROUP }),
+        db.workItem.findMany({ where, select: ROW_SELECT, orderBy: group === "CLOSED" ? [{ closedAt: "desc" }, { id: "asc" }] : ([...PORTAL_ORDER_BY] as Prisma.WorkItemOrderByWithRelationInput[]), take: PORTAL_ROWS_PER_GROUP }),
       ]);
       return { group, total, rows };
     }),
@@ -135,6 +141,7 @@ export async function loadPortalWork(actor: Pick<SupplierActor, "supplierId" | "
   const who = await staffNames(db, l, today, staffIds);
   return {
     orgName: ctx.org.name,
+    timeZone: ctx.org.timeZone,
     today,
     canAct: canAct(ctx),
     groups: per.map((g) => ({
@@ -143,7 +150,7 @@ export async function loadPortalWork(actor: Pick<SupplierActor, "supplierId" | "
       more: g.total > g.rows.length,
       rows: g.rows.map((r) => {
         const facts = factsOfRow(r);
-        return { ref: itemRef(r.type, r.number), type: r.type, title: r.title, status: r.status, dueOn: facts.dueOn, late: lateness(facts.dueOn, r.status, today), group: portalGroup(facts), action: portalAction(facts), heldBy: portalStaffLabel(facts.assignee, who.team, who.side, who.names, ctx.org.name), raisedByYou: isContractor(facts.raisedBy) };
+        return { ref: itemRef(r.type, r.number), label: itemRefText(r.type, r.number), type: r.type, title: r.title, status: r.status, dueOn: facts.dueOn, late: lateness(facts.dueOn, r.status, today), group: portalGroup(facts), action: portalAction(facts), heldBy: portalStaffLabel(facts.assignee, who.team, who.side, who.names, ctx.org.name), raisedByYou: isContractor(facts.raisedBy) };
       }),
     })),
   };
@@ -164,6 +171,8 @@ export interface PortalFile {
   attachedAt: Date;
   byYou: boolean;
   href: string;
+  /// What the scan says of the file (WSEC-6): "Not scanned for malware" until something scans. A contractor's file must not look as trusted as a staff one.
+  scanLabel: string;
 }
 export interface PortalItem {
   row: PortalRow;
@@ -178,6 +187,8 @@ export interface PortalItem {
   moves: WorkAction[];
   /// The Answer of an RFI it holds is editable while the item is open (WB-6).
   mayAnswer: boolean;
+  /// Whether the contractor may reply to, attach to or answer the item (WSEC-5): open items only. A closed item shows none of those controls.
+  mayPost: boolean;
   comments: PortalComment[];
   files: PortalFile[];
   orgName: string;
@@ -204,7 +215,7 @@ export async function loadPortalItem(actor: Pick<SupplierActor, "supplierId" | "
     db.workItemComment.findMany({ where: { organisationId: actor.organisationId, workItemId: r.id, internal: false }, select: { body: true, recordedAt: true, personId: true, supplierAccountId: true }, orderBy: [{ recordedAt: "asc" }, { id: "asc" }], take: REPLIES_CAP }),
     db.documentAttachment.findMany({
       where: { organisationId: actor.organisationId, workItemId: r.id, purpose: "WORK_ITEM_FILE", detachedAt: null, version: { withdrawnAt: null } },
-      select: { id: true, attachedAt: true, version: { select: { originalFilename: true, recordedBySupplierAccountId: true, document: { select: { classificationSnapshot: true, documentClass: { select: { classification: true } } } } } } },
+      select: { id: true, attachedAt: true, version: { select: { originalFilename: true, scanState: true, recordedBySupplierAccountId: true, document: { select: { classificationSnapshot: true, documentClass: { select: { classification: true } } } } } } },
       orderBy: [{ attachedAt: "asc" }, { id: "asc" }],
     }),
   ]);
@@ -214,7 +225,7 @@ export async function loadPortalItem(actor: Pick<SupplierActor, "supplierId" | "
   const label = (p: Party | null) => portalStaffLabel(p, who.team, who.side, who.names, ctx.org.name);
   const mine = (id: string | null) => id !== null;
   return {
-    row: { ref: itemRef(r.type, r.number), type: r.type, title: r.title, status: r.status, dueOn: facts.dueOn, late: lateness(facts.dueOn, r.status, today), group: portalGroup(facts), action: portalAction(facts), heldBy: label(facts.assignee), raisedByYou: isContractor(facts.raisedBy) },
+    row: { ref: itemRef(r.type, r.number), label: itemRefText(r.type, r.number), type: r.type, title: r.title, status: r.status, dueOn: facts.dueOn, late: lateness(facts.dueOn, r.status, today), group: portalGroup(facts), action: portalAction(facts), heldBy: label(facts.assignee), raisedByYou: isContractor(facts.raisedBy) },
     description: r.description,
     location: r.location,
     answer: r.type === "RFI" ? r.answer : "",
@@ -222,10 +233,11 @@ export async function loadPortalItem(actor: Pick<SupplierActor, "supplierId" | "
     happenedAt: r.happenedAt,
     moves: contractorActions(facts, CONTRACTOR_ACTOR),
     mayAnswer: r.type === "RFI" && isContractor(facts.assignee) && isOpen(r.status),
+    mayPost: contractorMayPost(r),
     comments: comments.map((c) => ({ by: mine(c.supplierAccountId) ? "You" : label(c.personId ? person(c.personId) : null), byYou: mine(c.supplierAccountId), body: c.body, at: c.recordedAt })),
     files: attachments
       .filter((a) => portalSeesFile({ attachedAt: a.attachedAt, byContractor: a.version.recordedBySupplierAccountId !== null }, r.sharedAt) && contractorMayDownload({ versionVisible: true, documentClassification: a.version.document.classificationSnapshot, classClassification: a.version.document.documentClass.classification }))
-      .map((a) => ({ attachmentId: a.id, filename: a.version.originalFilename, attachedAt: a.attachedAt, byYou: a.version.recordedBySupplierAccountId !== null, href: workFileHref(a.id) })),
+      .map((a) => ({ attachmentId: a.id, filename: a.version.originalFilename, attachedAt: a.attachedAt, byYou: a.version.recordedBySupplierAccountId !== null, href: workFileHref(a.id), scanLabel: SCAN_LABEL[a.version.scanState] })),
     orgName: ctx.org.name,
     canAct: canAct(ctx),
   };
@@ -273,7 +285,8 @@ export async function findWorkFile(client: Tx, actor: Pick<SupplierActor, "suppl
 
 // ------------------------------------------------------------------ waiting for you
 
-/// A work row of "Waiting for you", in the shape of a document's (`WaitingRow`, `project-docs/portal-read.ts`) so the one list draws both. `documentId` is a stable key, not a document.
+/// A work row of "Waiting for you", in the shape of a document's (`WaitingRow`, `project-docs/portal-read.ts`) so the one list draws both. `documentId` is a stable key, not a document:
+/// the contract and the item's reference, never the row's internal id (WSEC-10 L1).
 export interface WaitingWorkRow {
   contractId: string;
   contractLabel: string;
@@ -307,9 +320,9 @@ export async function portalWaitingRows(actor: Pick<SupplierActor, "supplierId" 
     rows: rows.slice(0, take).map((r) => ({
       contractId: r.contractId,
       contractLabel: `${r.contract.number} · ${r.contract.award.exercise.title}`,
-      documentId: `work-${r.id}`,
+      documentId: `work-${r.contractId}-${itemRef(r.type, r.number)}`,
       title: r.title,
-      kindLabel: itemRef(r.type, r.number),
+      kindLabel: itemRefText(r.type, r.number),
       stateLabel: isContractor(raiserOf(r)) ? "To accept" : "Waiting for you",
       href: workItemPortalHref(r.contractId, itemRef(r.type, r.number)),
     })),

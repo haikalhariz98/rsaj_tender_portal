@@ -1118,11 +1118,11 @@ describe("the Project team acts: the contract's lock at the edge and nothing els
 //
 // The contractor's cores (`work/portal-store.ts`) run inside `inHeldContract` (the contract's lock, taken by `withLockedContract`), then lock the item with the staff store's own
 // `lockedItem` (exported for this, flagged stricter: as `export { lockedItem }`, not an `export async function`, so the staff store still has exactly its nine cores), then the
-// account's row (the throttle), then the documents in id order. No core takes another order.
+// documents in id order. The throttle takes no lock of its own (WSEC-7): it counts per supplier per contract under the contract's lock. No core takes another order.
 
 const PORTAL_WORK_STORE = "src/lib/work/portal-store.ts";
 
-describe("the contractor's work acts: the contract's lock, the item, the account, then the documents", () => {
+describe("the contractor's work acts: the contract's lock, the item, then the documents", () => {
   const storeSrc = read(PORTAL_WORK_STORE);
   const cores = actions(storeSrc.replace(/\nexport function /g, "\nexport async function "));
 
@@ -1131,17 +1131,19 @@ describe("the contractor's work acts: the contract's lock, the item, the account
     expect(staff).toMatch(/^export \{ lockedItem \};$/m);
     expect(staff).not.toMatch(/^export async function lockedItem/m);
     expect(storeSrc.match(/lockedItem\(/g)).toHaveLength(1);
-    expect(lex(storeSrc)).not.toMatch(/FOR UPDATE(?![\s\S]*SupplierAccount)/);
+    expect(lex(storeSrc)).not.toMatch(/FOR UPDATE/);
   });
 
-  it("has the five cores, each inside inHeldContract, opening no transaction of its own and taking no lock but the account's row", () => {
+  it("has the five cores, each inside inHeldContract, opening no transaction of its own and taking no lock of its own (the throttle counts under the contract's lock: WSEC-7)", () => {
     expect([...cores.keys()].sort()).toEqual(["answerAsContractor", "attachAsContractor", "moveAsContractor", "raiseAsContractor", "replyAsContractor"]);
     expect(lex(storeSrc)).not.toMatch(/\$transaction|withLockedContract|lockSupplierRow|FROM "Contract"|FROM "Supplier"/);
-    expect([...storeSrc.matchAll(/FROM "(\w+)" WHERE id = \$\{[\w.]+\} AND "organisationId" = \$\{[\w.]+\} FOR UPDATE/g)].map((m) => m[1])).toEqual(["SupplierAccount"]);
+    expect([...storeSrc.matchAll(/FROM "(\w+)" WHERE id = \$\{[\w.]+\} AND "organisationId" = \$\{[\w.]+\} FOR UPDATE/g)].map((m) => m[1])).toEqual([]);
+    // Two accounts of one supplier act under the same contract lock, so the per-supplier count cannot be passed by both: the throttle counts the company's rows, not the account's.
+    expect(storeSrc).toContain("const mine = { supplierId: actor.supplierId }");
     expect(storeSrc).toMatch(/inHeldContract\(actor, contractId, \(tx, l, today\) => fn\(\{ tx, l, now, today \}\), now\)/);
   });
 
-  it("each core asks WORK_ITEM first (before any lock or write), the item is locked before it is judged, and the account's row is locked after the item and before the documents", () => {
+  it("each core asks WORK_ITEM first (before any lock or write), the item is locked before it is judged, and the throttle counts after the item and before any write", () => {
     for (const [name, body] of cores) {
       expect(body.indexOf("gate(c)"), name).toBeGreaterThan(-1);
       expect(body.indexOf("gate(c)"), name).toBeLessThan(Math.min(...["sharedItem(", "throttle(", ".create(", ".updateMany(", "pinFiles("].map((x) => (body.indexOf(x) < 0 ? Infinity : body.indexOf(x)))));

@@ -42,13 +42,18 @@ describe("every item a contractor reads or locks is shared", () => {
 
   it("each workItem read in the portal store names sharedAt, except the number's aggregate (every item of the type, so an unshared number is never reused)", () => {
     const q = calls(lex(store), /\bworkItem\.(?:findFirst|findMany|aggregate)\(/g);
-    const unshared = q.filter((c) => !/sharedAt: \{ not: null \}/.test(c));
-    expect(q.length - unshared.length).toBe(1); // sharedItem's
-    // The ones that do not: the number's aggregate, and the throttle's count and oldest row of the account's own raises (none reads anyone else's).
+    const inline = q.filter((c) => /sharedAt: \{ not: null \}/.test(c));
+    const byWhere = q.filter((c) => !/sharedAt: \{ not: null \}/.test(c) && /\{ where[,\s]/.test(c));
+    const unshared = q.filter((c) => !inline.includes(c) && !byWhere.includes(c));
+    expect(inline).toHaveLength(2); // sharedItem's, and the throttle's list of the shared RFIs an answer edit may have been made on
+    expect(byWhere).toHaveLength(1); // the throttle's oldest raise, whose `where` names sharedAt (below)
+    expect(lex(store)).toMatch(/const where = \{[^\n]*sharedAt: \{ not: null \}[^\n]*raisedBySupplierAccount: mine/);
+    // The one that does not: the number's aggregate. The throttle's reads (WSEC-7) name sharedAt as well: they count the company's own raises and the shared RFIs it may have answered.
     expect(unshared.filter((c) => /_max: \{ number: true \}/.test(c))).toHaveLength(1);
-    expect(unshared.filter((c) => /raisedBySupplierAccountId: actor\.accountId/.test(c))).toHaveLength(unshared.length - 1);
-    // The throttle counts the account's own rows; it reads no one else's.
-    expect(lex(store)).toMatch(/raisedBySupplierAccountId: actor\.accountId/);
+    expect(unshared).toHaveLength(1);
+    // The throttle counts the company's own rows (any account of the awardee supplier, on this contract); it reads no one else's.
+    expect(lex(store)).toMatch(/const mine = \{ supplierId: actor\.supplierId \}/);
+    expect(lex(store)).toMatch(/raisedBySupplierAccount: mine/);
   });
 
   it("every portal core reaches an existing item through sharedItem (the one 404), and re-checks sharedAt on the locked row", () => {

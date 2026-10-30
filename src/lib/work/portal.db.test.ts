@@ -444,17 +444,24 @@ describe("leaks: nothing unshared, another's or internal reaches a contractor", 
     const waiting = await portalWaitingRows(c.actor);
     expect(waiting.rows.map((r) => r.title)).toEqual(["Visible one"]);
     expect(waiting.rows[0].href).toContain(`item=${encodeURIComponent(ref(sharedHeld))}`);
+    // WSEC-10 L1: the row's key is the contract and the reference, never the item's internal id; the label is the type word and number.
+    expect(waiting.rows[0].documentId).toBe(`work-${k.contractId}-${ref(sharedHeld)}`);
+    expect(waiting.rows[0].documentId).not.toContain(sharedHeld.id);
+    expect(waiting.rows[0].kindLabel).toBe(`RFI ${sharedHeld.number}`);
     // Each row sits in the group the pure rule says.
     for (const g of work.groups) for (const r of g.rows) expect(r.group).toBe(g.group satisfies PortalGroup);
     const raw = await db.workItem.findUniqueOrThrow({ where: { id: sharedHeld.id } });
     expect(portalGroup({ id: raw.id, type: raw.type, number: raw.number, status: raw.status, raisedBy: { kind: "PERSON", id: p.raiser }, assignee: { kind: "CONTRACTOR" }, sharedAt: raw.sharedAt!.toISOString(), dueOn: null, answer: "", inspectionResult: null })).toBe("WAITING_FOR_YOU");
   });
 
-  it("an internal note never appears in any reader; a staff reply does; an old comment keeps its audience when the item is shared later", async () => {
+  it("an internal note never appears in any reader; a staff reply does; a comment written before the share keeps its audience when the item is shared later", async () => {
     const c = await contractor();
     const k = await held(c);
-    const it0 = await item(k.contractId);
+    // Unshared first: the internal note is written while the item is internal, and the share comes after it (the test's name, which it did not do before).
+    const it0 = await item(k.contractId, { shared: null });
     await db.workItemComment.create({ data: { organisationId: org.organisationId, workItemId: it0.id, body: "INTERNAL: do not tell the contractor", internal: true, personId: p.raiser, recordedAt: new Date(Date.now() - 60_000) } });
+    expect(await loadPortalItem(c.actor, k.contractId, ref(it0))).toBeNull();
+    await db.workItem.update({ where: { id: it0.id }, data: { sharedAt: new Date(Date.now() - 45_000) } });
     await db.workItemComment.create({ data: { organisationId: org.organisationId, workItemId: it0.id, body: "We are checking.", internal: false, personId: p.raiser, recordedAt: new Date(Date.now() - 30_000) } });
     const seen = (await loadPortalItem(c.actor, k.contractId, ref(it0)))!;
     expect(seen.comments.map((x) => x.body)).toEqual(["We are checking."]);
@@ -535,5 +542,148 @@ describe("the contract's state", () => {
     const it0 = await item(k.contractId);
     expect((await refusal(replyAsContractor(c.actor, REPLY(k.contractId, ref(it0))))).message).toBeTruthy();
     expect(await db.workItemComment.count({ where: { workItemId: it0.id } })).toBe(0);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ the security audit's fixes
+
+describe("3b security (WSEC-5): the contractor does not reply, attach or answer on a closed item", () => {
+  it("a Done or Cancelled item refuses a reply, a file and an answer in words that name no one and tell the contractor what to do; nothing is written", async () => {
+    const c = await contractor();
+    const k = await held(c);
+    for (const status of ["DONE", "CANCELLED"] as const) {
+      const it0 = await item(k.contractId, { assignee: "contractor", status, answer: "Level 2.1" });
+      const staged = await stage(c.accountId);
+      const attempts = [
+        () => replyAsContractor(c.actor, REPLY(k.contractId, ref(it0))),
+        () => attachAsContractor(c.actor, { contractId: k.contractId, item: ref(it0), stagedVersionIds: [staged] }),
+        () => answerAsContractor(c.actor, { contractId: k.contractId, item: ref(it0), answer: "A changed answer" }),
+      ];
+      for (const a of attempts) {
+        const e = await refusal(a());
+        expect(e, status).toMatchObject({ status: 422 });
+        expect(e.message).toBe("This is closed. If something is still open, raise a new item.");
+        for (const key of Object.keys(names)) expect(e.message).not.toContain(names[key]);
+      }
+      expect(await db.workItemComment.count({ where: { workItemId: it0.id } })).toBe(0);
+      expect(await db.documentAttachment.count({ where: { workItemId: it0.id } })).toBe(0);
+      expect((await db.workItem.findUniqueOrThrow({ where: { id: it0.id } })).answer).toBe("Level 2.1");
+      // The drawer is told: no control that is always refused.
+      const seen = (await loadPortalItem(c.actor, k.contractId, ref(it0)))!;
+      expect([seen.mayPost, seen.mayAnswer]).toEqual([false, false]);
+    }
+    const open = await item(k.contractId, { assignee: "contractor" });
+    expect((await loadPortalItem(c.actor, k.contractId, ref(open)))!.mayPost).toBe(true);
+    await replyAsContractor(c.actor, REPLY(k.contractId, ref(open)));
+  });
+});
+
+describe("3b security (WSEC-7): the throttle is the company's on the contract, across its accounts, and an answer edit is a reply", () => {
+  const seedReplies = (itemId: string, accountId: string, n: number) =>
+    db.workItemComment.createMany({ data: Array.from({ length: n }, (_, i) => ({ organisationId: org.organisationId, workItemId: itemId, body: `r${i}`, internal: false, supplierAccountId: accountId, recordedAt: new Date(Date.now() - 60_000) })) });
+
+  it("replies by another account of the same supplier count toward the bound; another contract of the same supplier does not", async () => {
+    const c = await contractor();
+    const c2 = await contractor({ supplierId: c.supplierId });
+    const k = await held(c);
+    const it0 = await item(k.contractId);
+    await seedReplies(it0.id, c2.accountId, CONTRACTOR_REPLIES_PER_WINDOW);
+    const e = await refusal(replyAsContractor(c.actor, REPLY(k.contractId, ref(it0))));
+    expect(e).toMatchObject({ status: 429 });
+    expect(e.message).toMatch(/send 100 replies in 60 minutes/);
+    // The same company on another contract it holds has its own count.
+    const k2 = await held(c);
+    const other = await item(k2.contractId);
+    await replyAsContractor(c.actor, REPLY(k2.contractId, ref(other)));
+  });
+
+  it("raises by another account of the same supplier count toward the bound", async () => {
+    const c = await contractor();
+    const c2 = await contractor({ supplierId: c.supplierId });
+    const k = await held(c);
+    await db.workItem.createMany({
+      data: Array.from({ length: CONTRACTOR_RAISES_PER_WINDOW }, (_, n) => ({ organisationId: org.organisationId, contractId: k.contractId, type: "RFI" as const, number: n + 1, title: `Seed ${n}`, dueOn: D(today()), raisedBySupplierAccountId: c2.accountId, sharedAt: new Date(), recordedAt: new Date(Date.now() - (1 + n) * 60_000 + 30_000) })),
+    });
+    const e = await refusal(raiseAsContractor(c.actor, RAISE(k.contractId)));
+    expect(e).toMatchObject({ status: 429 });
+    expect(e.message).toMatch(/raise 20 items in 60 minutes/);
+  });
+
+  it("two accounts of one supplier replying at once with one place left: exactly one is let through (the contract's lock)", async () => {
+    const c = await contractor();
+    const c2 = await contractor({ supplierId: c.supplierId });
+    const k = await held(c);
+    const it0 = await item(k.contractId);
+    await seedReplies(it0.id, c.accountId, CONTRACTOR_REPLIES_PER_WINDOW - 1);
+    const results = await Promise.allSettled([replyAsContractor(c.actor, REPLY(k.contractId, ref(it0), "From the first")), replyAsContractor(c2.actor, REPLY(k.contractId, ref(it0), "From the second"))]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({ status: 429 });
+    expect(await db.workItemComment.count({ where: { workItemId: it0.id, supplierAccountId: { in: [c.accountId, c2.accountId] } } })).toBe(CONTRACTOR_REPLIES_PER_WINDOW);
+  });
+
+  it("two accounts raising at once with one place left: exactly one is let through", async () => {
+    const c = await contractor();
+    const c2 = await contractor({ supplierId: c.supplierId });
+    const k = await held(c);
+    await db.workItem.createMany({
+      data: Array.from({ length: CONTRACTOR_RAISES_PER_WINDOW - 1 }, (_, n) => ({ organisationId: org.organisationId, contractId: k.contractId, type: "RFI" as const, number: n + 1, title: `Seed ${n}`, dueOn: D(today()), raisedBySupplierAccountId: c.accountId, sharedAt: new Date(), recordedAt: new Date(Date.now() - 60_000) })),
+    });
+    const results = await Promise.allSettled([raiseAsContractor(c.actor, RAISE(k.contractId)), raiseAsContractor(c2.actor, RAISE(k.contractId))]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({ status: 429 });
+  });
+
+  it("an edit of an RFI's answer counts against the reply bound: the 100th reply-or-edit is let through and the next is refused, by either account; an unchanged answer costs nothing", async () => {
+    const c = await contractor();
+    const c2 = await contractor({ supplierId: c.supplierId });
+    const k = await held(c);
+    const mine = await item(k.contractId, { assignee: "contractor" });
+    await seedReplies(mine.id, c.accountId, CONTRACTOR_REPLIES_PER_WINDOW - 2);
+    await answerAsContractor(c.actor, { contractId: k.contractId, item: ref(mine), answer: "First draft." });
+    await answerAsContractor(c2.actor, { contractId: k.contractId, item: ref(mine), answer: "First draft." }); // unchanged: no write, no audit row, no cost
+    await answerAsContractor(c2.actor, { contractId: k.contractId, item: ref(mine), answer: "Second draft." });
+    const e = await refusal(answerAsContractor(c.actor, { contractId: k.contractId, item: ref(mine), answer: "Third draft." }));
+    expect(e).toMatchObject({ status: 429 });
+    expect(e.message).toMatch(/send 100 replies in 60 minutes/);
+    expect((await db.workItem.findUniqueOrThrow({ where: { id: mine.id } })).answer).toBe("Second draft.");
+    expect((await refusal(replyAsContractor(c.actor, REPLY(k.contractId, ref(mine)))))).toMatchObject({ status: 429 });
+    expect(await db.auditEntry.count({ where: { entityId: mine.id, actorKind: "SUPPLIER" } })).toBe(2);
+  });
+});
+
+describe("3b security (WSEC-9, WSEC-10): accepting an answer is audited with its text; the portal reads in the organisation's zone and shows scan labels and no internal priority", () => {
+  it("the contractor accepting an answer it was given records the text it accepted on the same audit row", async () => {
+    const c = await contractor();
+    const k = await held(c);
+    const it0 = await item(k.contractId, { raiser: "contractor", assignee: "staff", status: "IN_REVIEW", answer: "Use 20 mm bars." });
+    await moveAsContractor(c.actor, MOVE(k.contractId, ref(it0), "ACCEPT_ANSWER", "IN_REVIEW"));
+    const row = (await db.auditEntry.findMany({ where: { entityId: it0.id, action: "UPDATE" } }))[0];
+    expect(row.changes).toEqual(expect.arrayContaining([{ field: "status", before: "IN_REVIEW", after: "DONE" }, { field: "answerAccepted", before: null, after: "Use 20 mm bars." }]));
+  });
+
+  it("the portal's order drops internal priority: two items due together come in reference order whatever staff rated them", async () => {
+    const c = await contractor();
+    const k = await held(c);
+    const first = await item(k.contractId, { assignee: "contractor" });
+    const second = await item(k.contractId, { assignee: "contractor" });
+    await db.workItem.update({ where: { id: second.id }, data: { priority: "URGENT" } });
+    await db.workItem.update({ where: { id: first.id }, data: { priority: "LOW" } });
+    const rows = (await loadPortalWork(c.actor, k.contractId))!.groups.find((g) => g.group === "WAITING_FOR_YOU")!.rows;
+    expect(rows.map((r) => r.ref)).toEqual([ref(first), ref(second)]);
+  });
+
+  it("the work carries the organisation's zone; every file says what its scan says; a row names its type and number, not its key", async () => {
+    const c = await contractor();
+    const k = await held(c);
+    const it0 = await item(k.contractId, { assignee: "contractor", type: "TASK" });
+    await attachAsContractor(c.actor, { contractId: k.contractId, item: ref(it0), stagedVersionIds: [await stage(c.accountId, "mine.pdf")] });
+    await staffFile(it0.id, new Date());
+    const work = (await loadPortalWork(c.actor, k.contractId))!;
+    expect(work.timeZone).toBe("Asia/Kuala_Lumpur");
+    expect(work.groups.flatMap((g) => g.rows).map((r) => r.label)).toEqual([`Task ${it0.number}`]);
+    const seen = (await loadPortalItem(c.actor, k.contractId, ref(it0)))!;
+    expect(seen.row.label).toBe(`Task ${it0.number}`);
+    expect(seen.files.length).toBe(2);
+    expect(seen.files.every((f) => f.scanLabel === "Not scanned for malware")).toBe(true);
   });
 });

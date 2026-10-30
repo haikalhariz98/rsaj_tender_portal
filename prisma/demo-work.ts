@@ -69,6 +69,10 @@ async function run(organisationId: string, contractId: string, when: string, wha
   }, {});
 }
 
+/// The demo has no page to have seen a share state: it reads the item's own, inside the act (WSEC-1's `expectedShared`).
+const sharedNow = async (c: { tx: { workItem: { findUniqueOrThrow(a: { where: { id: string }; select: { sharedAt: true } }): Promise<{ sharedAt: Date | null }> } } }, itemId: string): Promise<boolean> =>
+  (await c.tx.workItem.findUniqueOrThrow({ where: { id: itemId }, select: { sharedAt: true } })).sharedAt !== null;
+
 /// The acts on one contract, by the demo people.
 function on(organisationId: string, contractId: string) {
   const ids = new Map<string, string>();
@@ -107,7 +111,7 @@ function on(organisationId: string, contractId: string) {
     },
     async comment(when: string, key: string, by: string, body: string, audience: "REPLY" | "INTERNAL" | null = null) {
       const { comment } = await import("../src/lib/work/store");
-      await run(organisationId, contractId, when, `${key} comment`, by, "WorkItemComment.person", (c, who, a) => comment(c, who, { itemId: id(key), body, audience }, a!));
+      await run(organisationId, contractId, when, `${key} comment`, by, "WorkItemComment.person", async (c, who, a) => comment(c, who, { itemId: id(key), body, audience, expectedShared: await sharedNow(c, id(key)) }, a!));
     },
     async share(when: string, key: string, by: string) {
       const { shareItem } = await import("../src/lib/work/store");
@@ -115,7 +119,7 @@ function on(organisationId: string, contractId: string) {
     },
     async attach(when: string, key: string, by: string, versionId: string) {
       const { attachFiles } = await import("../src/lib/work/store");
-      await run(organisationId, contractId, when, `${key} attach`, by, null, (c, who) => attachFiles(c, who, { itemId: id(key), stagedVersionIds: [versionId] }));
+      await run(organisationId, contractId, when, `${key} attach`, by, null, async (c, who) => attachFiles(c, who, { itemId: id(key), stagedVersionIds: [versionId], expectedShared: await sharedNow(c, id(key)) }));
     },
     async team(when: string, by: string, role: import("../src/lib/work/types").TeamRole, personId: string) {
       const { addTeamMember } = await import("../src/lib/work/team-store");
@@ -309,8 +313,8 @@ async function loadSharing(db: Db, organisationId: string, today: string, ago: (
     return `${docId}v1`;
   };
 
-  // The Project team: the lead names the Project manager, who is the lead from then on and names the Contract administrator a contractor's question is routed to, and a
-  // Site engineer.
+  // The Project team: the S.O. in force (the lead until a manager is named) names the Project manager (WSEC-2: only the manager and the S.O. change the team), who is the lead
+  // from then on and names the Contract administrator a contractor's question is routed to, and a Site engineer.
   await w.team(ago(5, "08:30"), lead, "PROJECT_MANAGER", people.eng);
   await w.team(ago(5, "08:35"), people.eng, "CONTRACT_ADMINISTRATOR", people.bala);
   await w.team(ago(5, "08:40"), people.eng, "SITE_ENGINEER", people.chen);

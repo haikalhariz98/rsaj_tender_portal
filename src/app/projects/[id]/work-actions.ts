@@ -34,9 +34,9 @@ import type { Audience, WorkStatus } from "@/lib/work/types";
  *                        `share` ("on" shares it; the quick-add row posts none, so it never shares).
  *   editWorkField        `field` (a column of `fields.ts`), `value`. The select cell posts its pick as `value`; "contractor" as an assignee shares the item (one-way).
  *   moveWorkItem         `from` (the status the reader saw), `to`; `reason` for Cancel; `comment` for Send back. The Board posts the card's `fields` with `from` and `to`.
- *   commentOnWorkItem    `body`; `audience` ("REPLY" or "INTERNAL"; absent takes the default, which an unshared item makes internal).
+ *   commentOnWorkItem    `body`; `expectedShared` ("yes" or "no": the share state the page was drawn with; required); `audience` ("REPLY" or "INTERNAL"; absent is internal on the server, WSEC-1).
  *   shareWorkItem        `share` ("on"; "off" is refused: sharing can't be undone).   removeWorkFile   `attachmentId`, `reason`.
- *   linkWorkItem         `toItemId` or `documentId`.   unlinkWorkItem   `linkId`.   attachWorkFiles   `stagedVersionId` (repeated).
+ *   linkWorkItem         `toItemId` or `documentId`.   unlinkWorkItem   `linkId`.   attachWorkFiles   `stagedVersionId` (repeated); `expectedShared` as for a comment (required).
  */
 
 export type WorkResult = { refused?: string; ref?: string };
@@ -98,6 +98,12 @@ const statusOf = (data: FormData, name: string): WorkStatus | null => {
 const audienceOf = (data: FormData): Audience | null | false => {
   const v = text(data, "audience");
   return v === "" ? null : v === "REPLY" || v === "INTERNAL" ? v : false;
+};
+
+/// The share state the page was drawn with (WSEC-1): "yes" or "no". Anything else is null, which the act refuses as unreadable (a post that cannot say what it saw cannot be judged).
+const expectedSharedOf = (data: FormData): boolean | null => {
+  const v = text(data, "expectedShared");
+  return v === "yes" ? true : v === "no" ? false : null;
 };
 
 // ------------------------------------------------------------------ the acts
@@ -171,12 +177,13 @@ export async function commentOnWorkItem(data: FormData): Promise<WorkResult> {
   const itemId = idOf(data, "itemId");
   const body = text(data, "body");
   const audience = audienceOf(data);
-  if (!contractId || !itemId || audience === false) return UNREADABLE;
+  const expectedShared = expectedSharedOf(data);
+  if (!contractId || !itemId || audience === false || expectedShared === null) return UNREADABLE;
   const begun = await beginAct(actor, data, "WorkItemComment.person", { personField: "personId", onBehalf: false });
   if (!begun.ok) return { refused: stateWords(begun.state) };
   const act = begun.act;
   return inContract(actor, contractId, now, async (c) => {
-    await comment(c, actor, { itemId, body, audience }, act);
+    await comment(c, actor, { itemId, body, audience, expectedShared }, act);
     return {};
   });
 }
@@ -225,10 +232,11 @@ export async function attachWorkFiles(data: FormData): Promise<WorkResult> {
   const now = toSecond(new Date());
   const contractId = idOf(data, "contractId");
   const itemId = idOf(data, "itemId");
-  if (!contractId || !itemId) return UNREADABLE;
+  const expectedShared = expectedSharedOf(data);
+  if (!contractId || !itemId || expectedShared === null) return UNREADABLE;
   const stagedVersionIds = idsOf(data, "stagedVersionId");
   return inContract(actor, contractId, now, async (c) => {
-    await attachFiles(c, actor, { itemId, stagedVersionIds });
+    await attachFiles(c, actor, { itemId, stagedVersionIds, expectedShared });
     return {};
   });
 }

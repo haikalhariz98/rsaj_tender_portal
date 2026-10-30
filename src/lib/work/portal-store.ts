@@ -4,7 +4,7 @@
  *
  * Each core runs in `inHeldContract`: the contract locked, held by the session's supplier (another's reads as not found), the standing bar applied, and the organisation's day
  * read (a contractor act is refused `DAY_NOT_KNOWN` with no time zone, as every other portal act is). Lock order: the contract, then the `WorkItem` row (`lockedItem`, the staff
- * store's own helper), then the account's row (the throttle), then the store's documents in id order. Nothing here locks in another order.
+ * store's own helper), then the store's documents in id order. The throttle takes no lock of its own: it counts under the contract's lock (WSEC-7). Nothing here locks in another order.
  *
  * Every core: the `WORK_ITEM` row of the act x status table, the item (shared, or it reads as NOT FOUND, the one answer for an unshared item, another contractor's and an unknown
  * one), the pure faults (`moveFaults`, `fieldFaults`, `contractorRaiseFaults`, `commentFaults`, `audienceFaults`, with `side: "CONTRACTOR"`), the guarded write, `writeAudit` with
@@ -39,10 +39,11 @@ import { CONTRACTOR_RAISES_PER_WINDOW, CONTRACTOR_REPLIES_PER_WINDOW, CONTRACTOR
 import { commentFaults, contractorRaiseFaults, fieldFaults, parseFieldEdit, type ContractorRaise } from "./fields";
 import { fieldFaultText, portalMoveFaultText } from "./labels";
 import { activeAmong, leadOf, loadTeamMembers, workAuditPrefix } from "./load";
-import { actionOf, moveFaults, TARGET } from "./move";
+import { actionOf, answerAcceptedBy, moveFaults, TARGET } from "./move";
 import { nextNumber, itemRef, parseItemRef } from "./number";
 import { workNoticeDrafts, type NoticeItem } from "./notices";
 import { assigneeOf, personIdOf, raiserOf } from "./party";
+import { contractorMayPost } from "./portal";
 import { factsOf, lockedItem, WorkRefused, type ItemRow, type WorkCtx } from "./store";
 import { defaultAssignee } from "./team";
 import type { FieldFault, WorkActor, WorkNoticeKind } from "./types";
@@ -87,21 +88,41 @@ async function sharedItem(c: WorkCtx, ref: string): Promise<ItemRow> {
 // ------------------------------------------------------------------ the throttle (B-14)
 
 /**
- * At most `CONTRACTOR_RAISES_PER_WINDOW` raises and `CONTRACTOR_REPLIES_PER_WINDOW` replies per ACCOUNT per window, across every contract it reaches. The account's row is locked
- * first, so two acts of one account (on two contracts) cannot both pass the bound; the count is of the rows themselves, so a retried or refused act costs nothing. A refusal
- * names the limit and when to try again. Ask again's comment is a reply and counts as one.
+ * At most `CONTRACTOR_RAISES_PER_WINDOW` raises and `CONTRACTOR_REPLIES_PER_WINDOW` replies per SUPPLIER per CONTRACT per window (WSEC-7): the contractor is a party as the company
+ * (ADR 0049 D2), so the bound is the company's however many accounts it signs in with. Counted under the contract's lock the core already holds, so two accounts acting together
+ * cannot both pass it; the count is of the rows themselves, so a retried or refused act costs nothing. An edit of an RFI's answer writes an audit row and counts as a reply. A
+ * refusal names the limit and when to try again. Ask again's comment is a reply and counts as one.
  */
 async function throttle(c: WorkCtx, actor: SupplierActor, kind: "RAISE" | "REPLY"): Promise<void> {
-  await c.tx.$queryRaw`SELECT id FROM "SupplierAccount" WHERE id = ${actor.accountId} AND "organisationId" = ${actor.organisationId} FOR UPDATE`;
   const since = new Date(c.now.getTime() - CONTRACTOR_WINDOW_MINUTES * 60_000);
   const limit = kind === "RAISE" ? CONTRACTOR_RAISES_PER_WINDOW : CONTRACTOR_REPLIES_PER_WINDOW;
-  const where = { organisationId: actor.organisationId, recordedAt: { gt: since } };
-  const [count, oldest] =
-    kind === "RAISE"
-      ? await Promise.all([c.tx.workItem.count({ where: { ...where, raisedBySupplierAccountId: actor.accountId } }), c.tx.workItem.findFirst({ where: { ...where, raisedBySupplierAccountId: actor.accountId }, orderBy: { recordedAt: "asc" }, select: { recordedAt: true } })])
-      : await Promise.all([c.tx.workItemComment.count({ where: { ...where, supplierAccountId: actor.accountId } }), c.tx.workItemComment.findFirst({ where: { ...where, supplierAccountId: actor.accountId }, orderBy: { recordedAt: "asc" }, select: { recordedAt: true } })]);
+  const org = c.l.org.id;
+  const contractId = c.l.contract.id;
+  const mine = { supplierId: actor.supplierId };
+  let count: number;
+  let oldest: Date | null;
+  if (kind === "RAISE") {
+    const where = { organisationId: org, contractId, sharedAt: { not: null }, recordedAt: { gt: since }, raisedBySupplierAccount: mine };
+    const [n, first] = await Promise.all([c.tx.workItem.count({ where }), c.tx.workItem.findFirst({ where, orderBy: { recordedAt: "asc" }, select: { recordedAt: true } })]);
+    count = n;
+    oldest = first?.recordedAt ?? null;
+  } else {
+    const commentWhere = { organisationId: org, recordedAt: { gt: since }, workItem: { contractId }, supplierAccount: mine };
+    // An answer edit has no row of its own: its audit row, written by one of the company's accounts on an RFI of this contract, is what is counted.
+    const [accounts, rfis] = await Promise.all([c.tx.supplierAccount.findMany({ where: { organisationId: org, ...mine }, select: { id: true } }), c.tx.workItem.findMany({ where: { organisationId: org, contractId, sharedAt: { not: null }, type: "RFI" }, select: { id: true } })]);
+    const editWhere = { organisationId: org, entity: "WorkItem", entityId: { in: rfis.map((r) => r.id) }, actorKind: "SUPPLIER" as const, actorSupplierAccountId: { in: accounts.map((a) => a.id) }, at: { gt: since }, changes: { array_contains: [{ field: "answer" }] } };
+    const [n, firstComment, edits, firstEdit] = await Promise.all([
+      c.tx.workItemComment.count({ where: commentWhere }),
+      c.tx.workItemComment.findFirst({ where: commentWhere, orderBy: { recordedAt: "asc" }, select: { recordedAt: true } }),
+      c.tx.auditEntry.count({ where: editWhere }),
+      c.tx.auditEntry.findFirst({ where: editWhere, orderBy: { at: "asc" }, select: { at: true } }),
+    ]);
+    count = n + edits;
+    const times = [firstComment?.recordedAt, firstEdit?.at].filter((t): t is Date => t !== undefined);
+    oldest = times.length ? new Date(Math.min(...times.map((t) => t.getTime()))) : null;
+  }
   if (count < limit) return;
-  const minutes = oldest ? Math.max(1, Math.ceil((oldest.recordedAt.getTime() + CONTRACTOR_WINDOW_MINUTES * 60_000 - c.now.getTime()) / 60_000)) : CONTRACTOR_WINDOW_MINUTES;
+  const minutes = oldest ? Math.max(1, Math.ceil((oldest.getTime() + CONTRACTOR_WINDOW_MINUTES * 60_000 - c.now.getTime()) / 60_000)) : CONTRACTOR_WINDOW_MINUTES;
   refuse(`You can ${kind === "RAISE" ? `raise ${limit} items` : `send ${limit} replies`} in ${CONTRACTOR_WINDOW_MINUTES} minutes. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`, 429);
 }
 
@@ -197,6 +218,7 @@ export function attachAsContractor(actor: SupplierActor, i: AttachBody): Promise
   return inWork(actor, i.contractId, async (c) => {
     gate(c);
     const row = await sharedItem(c, i.item);
+    if (!contractorMayPost(row)) return refuse(portalMoveFaultText({ code: "ITEM_CLOSED" }));
     return { count: await pinFiles(c, actor, row, i.stagedVersionIds) };
   });
 }
@@ -273,6 +295,7 @@ export function replyAsContractor(actor: SupplierActor, i: ReplyBody): Promise<{
   return inWork(actor, i.contractId, async (c) => {
     gate(c);
     const row = await sharedItem(c, i.item);
+    if (!contractorMayPost(row)) return refuse(portalMoveFaultText({ code: "ITEM_CLOSED" }));
     const faults = commentFaults(i.body);
     if (faults.length) refuse(faultsText(faults));
     // PA056: a Reply needs the share's instant at or before its own. A share is pushed up to a second past a file attached in the same second, so a reply in that second is
@@ -311,7 +334,9 @@ export function moveAsContractor(actor: SupplierActor, i: MoveBody): Promise<voi
     const closed = action === "MARK_DONE";
     const done = await c.tx.workItem.updateMany({ where: { id: row.id, contractId: c.l.contract.id, organisationId: c.l.org.id, status: row.status }, data: { status: target, closedAt: closed ? c.now : null } });
     if (done.count !== 1) return refuse(portalMoveFaultText({ code: "MOVED_ALREADY", by: null, at: "" }), 409);
-    const auditId = await audit(c, actor, row, "WorkItem", row.id, row.title, "UPDATE", diffFields({ status: row.status }, { status: target }));
+    // WSEC-9: accepting an answer accepts the text as it stands, and the trail records it.
+    const accepted = answerAcceptedBy(action, factsOf(row));
+    const auditId = await audit(c, actor, row, "WorkItem", row.id, row.title, "UPDATE", diffFields({ status: row.status, ...(accepted === null ? {} : { answerAccepted: null }) }, { status: target, ...(accepted === null ? {} : { answerAccepted: accepted }) }));
     if (action === "SEND_BACK") {
       const written = await c.tx.workItemComment.create({ data: { organisationId: c.l.org.id, workItemId: row.id, body: i.comment.trim(), internal: false, supplierAccountId: actor.accountId, recordedAt: c.now }, select: { id: true } });
       await audit(c, actor, row, "WorkItemComment", written.id, "comment", "CREATE", diffFields(null, { comment: i.comment.trim(), audience: "Reply" }));
@@ -328,10 +353,12 @@ export function answerAsContractor(actor: SupplierActor, i: AnswerBody): Promise
   return inWork(actor, i.contractId, async (c) => {
     gate(c);
     const row = await sharedItem(c, i.item);
+    if (!contractorMayPost(row)) return refuse(portalMoveFaultText({ code: "ITEM_CLOSED" }));
     const edit = { field: "answer", value: i.answer } as const;
     const faults = fieldFaults(factsOf(row), CONTRACTOR_ACTOR, edit, { now: c.now, activeIds: new Set(), timeZone: c.l.org.timeZone, fromDocumentOnContract: true, who: { raiser: "", assignee: null, lead: null } });
     if (faults.length) refuse(faultsText(faults));
     if (row.answer === i.answer) return;
+    await throttle(c, actor, "REPLY"); // an edit writes an audit row: it counts against the reply bound (WSEC-7)
     const done = await c.tx.workItem.updateMany({ where: { id: row.id, contractId: c.l.contract.id, organisationId: c.l.org.id, status: row.status }, data: { answer: i.answer } });
     if (done.count !== 1) refuse(portalMoveFaultText({ code: "MOVED_ALREADY", by: null, at: "" }), 409);
     await audit(c, actor, row, "WorkItem", row.id, row.title, "UPDATE", diffFields({ answer: row.answer || null }, { answer: i.answer || null }));

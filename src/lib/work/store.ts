@@ -43,7 +43,7 @@ import { commentFaults, fieldFaults, mayEdit, newItemFaults, type EditableField,
 import { audienceFaults, commentAudience, removeFileFaults } from "./audience";
 import { fieldFaultText, moveFaultText, removeFileWords, whoCanWords } from "./labels";
 import { activeAmong, leadOf, whoNamesIn, workAuditPrefix } from "./load";
-import { actionOf, isOpen, moveFaults, TARGET } from "./move";
+import { actionOf, answerAcceptedBy, isOpen, moveFaults, TARGET } from "./move";
 import { itemRef, nextNumber } from "./number";
 import { workNoticeDrafts, type NoticeItem } from "./notices";
 import { CONTRACTOR_ASSIGNEE } from "./fields";
@@ -296,7 +296,19 @@ export async function moveItem(c: WorkCtx, who: StaffActor, i: { itemId: string;
     data: { status: i.to, closedAt: closed ? c.now : null, ...(cancelReason === undefined ? {} : { cancelReason }) },
   });
   if (done.count !== 1) refuse("Someone changed this a moment ago.", 409);
-  const auditId = await audit(c, who, row, "WorkItem", row.id, row.title, "UPDATE", diffFields({ status: row.status, ...(cancelReason === undefined ? {} : { cancelReason: row.cancelReason }) }, { status: i.to, ...(cancelReason === undefined ? {} : { cancelReason }) }), cancelReason ?? "");
+  // WSEC-9: closing an RFI accepts the answer as it stands (it may be the contractor's draft); the trail records the text it accepted.
+  const accepted = answerAcceptedBy(action, factsOf(row));
+  const auditId = await audit(
+    c,
+    who,
+    row,
+    "WorkItem",
+    row.id,
+    row.title,
+    "UPDATE",
+    diffFields({ status: row.status, ...(cancelReason === undefined ? {} : { cancelReason: row.cancelReason }), ...(accepted === null ? {} : { answerAccepted: null }) }, { status: i.to, ...(cancelReason === undefined ? {} : { cancelReason }), ...(accepted === null ? {} : { answerAccepted: accepted }) }),
+    cancelReason ?? "",
+  );
 
   if (action === "SEND_BACK") {
     if (!act) throw new Error("Sending back writes a comment, which needs its attribution (beginAct).");
@@ -314,14 +326,21 @@ export async function moveItem(c: WorkCtx, who: StaffActor, i: { itemId: string;
 
 // ------------------------------------------------------------------ comment
 
+/// WSEC-1: the share state the page saw against the locked row. Sharing is one-way, so the only difference there can be is "shared a moment ago".
+function staleShare(row: Pick<ItemRow, "sharedAt">, expectedShared: boolean): void {
+  if ((row.sharedAt !== null) !== expectedShared) refuse("This item was shared a moment ago. Check before sending.", 409);
+}
+
 /// How an audience reads in the audit row of a comment.
 const AUDIENCE_WORDS: Readonly<Record<Audience, string>> = { REPLY: "Reply", INTERNAL: "Internal note" };
 
 /// A comment (any staff member who may read the contract). Its audience is chosen now and stored (B-2): on an unshared item it is internal, and a Reply asked for there is
-/// refused (never quietly kept internal); on a shared item the composer's choice, else the default. The raiser and the assignee, but for the writer, are told once each.
-export async function comment(c: WorkCtx, who: StaffActor, i: { itemId: string; body: string; audience: Audience | null }, act: PreparedAct): Promise<{ id: string }> {
+/// refused (never quietly kept internal); on a shared item the composer's choice, and Internal when none is made (WSEC-1). `expectedShared` is the share state the page was drawn
+/// with: a row that differs (shared a moment ago) is refused 409, so a note written as internal can never go out as a Reply. The raiser and the assignee, but for the writer, are told once each.
+export async function comment(c: WorkCtx, who: StaffActor, i: { itemId: string; body: string; audience: Audience | null; expectedShared: boolean }, act: PreparedAct): Promise<{ id: string }> {
   gate(c);
   const row = await lockedItem(c, i.itemId);
+  staleShare(row, i.expectedShared);
   const sharedAt = row.sharedAt?.toISOString() ?? null;
   const audience = commentAudience(factsOf(row), "STAFF", i.audience, "COMMENT");
   // The choice is judged as asked (a Reply on an unshared item is refused, not kept internal), and the audience it becomes is judged against the share's instant (PA056).
@@ -410,9 +429,10 @@ const STAGED_WORDS: Readonly<Record<StagedFault, string>> = {
  * never pinned twice). The class for project files must be set: while it is not, attaching is refused by name. Only the actor's own staged files are looked up, so an
  * id of anyone else's reads as unknown and the faults are no oracle on the store.
  */
-export async function attachFiles(c: WorkCtx, who: StaffActor, i: { itemId: string; stagedVersionIds: readonly string[] }): Promise<{ count: number }> {
+export async function attachFiles(c: WorkCtx, who: StaffActor, i: { itemId: string; stagedVersionIds: readonly string[]; expectedShared: boolean }): Promise<{ count: number }> {
   gate(c);
   const row = await lockedItem(c, i.itemId);
+  staleShare(row, i.expectedShared); // WSEC-1: a file attached from a page that saw the item unshared must not reach the contractor
   const ids = i.stagedVersionIds;
   if (ids.length === 0) return refuse("Choose a file first.");
   if (ids.length > FILES_PER_ACT) return refuse(`Attach at most ${FILES_PER_ACT} files at a time.`);

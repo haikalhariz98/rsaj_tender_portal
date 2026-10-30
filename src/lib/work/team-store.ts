@@ -4,7 +4,7 @@
  *
  * Each core runs INSIDE a locked contract handed to it by its caller (`team-actions.ts`, `withLockedContract`), so none takes the contract's lock, and none takes any
  * other: the team acts lock the contract only (the contract lock serialises two people naming a manager; the partial unique index is the backstop). The same steps as the
- * work acts, in order: 1. the `PROJECT_TEAM` act x status row; 2. who may change the team (the lead; with no lead, any staff reader, WB-7); 3. the pure faults (`teamFaults`);
+ * work acts, in order: 1. the `PROJECT_TEAM` act x status row; 2. who may change the team (the Project manager or an S.O. in force; with neither, nobody: WSEC-2); 3. the pure faults (`teamFaults`);
  * 4. the guarded write; 5. `writeAudit` with the before and after, as words and never ids; 6. (no notices); 7. `act.write` for the added row's slot. A refusal throws
  * `WorkRefused` before the first write, so nothing is left.
  */
@@ -18,7 +18,7 @@ import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 
 import { teamFaultText, TEAM_ROLE_WORDS } from "./labels";
-import { activeAmong, leadOf, loadTeamMembers, namesOf } from "./load";
+import { activeAmong, loadTeamMembers, namesOf, teamChangersOf } from "./load";
 import { WorkRefused, type WorkCtx } from "./store";
 import { teamFaults, type TeamChange, type TeamFault } from "./team";
 import type { TeamRole, WorkActor } from "./types";
@@ -35,14 +35,12 @@ const REPLACED = "Replaced by another Project manager.";
 /// Steps 2 and 3: who may, then the change against the team as it stands. Throws the refusal in words.
 async function judged(c: WorkCtx, who: StaffActor, change: TeamChange): Promise<Awaited<ReturnType<typeof loadTeamMembers>>> {
   const team = await loadTeamMembers(c.tx, c.l.org.id, c.l.contract.id);
-  const lead = await leadOf(c.l, c.today, c.tx);
-  const actor: WorkActor = { side: "STAFF", personId: who.personId, leadIds: lead.ids, mayReadContract: true };
+  const changers = await teamChangersOf(c.l, c.today, c.tx);
+  const actor: WorkActor = { side: "STAFF", personId: who.personId, leadIds: [], mayReadContract: true };
   const activeIds = await activeAmong(c.tx, c.l.org.id, [change.personId]);
-  const faults: TeamFault[] = teamFaults(team, change, actor, activeIds);
+  const faults: TeamFault[] = teamFaults(team, change, actor, activeIds, changers.ids);
   if (faults.length === 0) return team;
-  const names = await namesOf(c.tx, c.l.org.id, lead.ids);
-  const said = lead.roleLabel ? { roleLabel: lead.roleLabel, names: lead.ids.map((id) => names.get(id) ?? "Someone") } : null;
-  throw new WorkRefused([...new Set(faults.map((f) => teamFaultText(f, said)))].join(" "));
+  throw new WorkRefused([...new Set(faults.map((f) => teamFaultText(f, changers.words)))].join(" "));
 }
 
 const label = (c: WorkCtx) => `Contract ${c.l.contract.number} · Project team member`;
