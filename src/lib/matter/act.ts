@@ -21,9 +21,10 @@ import { dayOf } from "@/lib/dates";
 import type { Tx } from "@/lib/audit/record";
 import type { ActWriter } from "@/lib/auth/act-writer";
 import type { AuditActor } from "@/lib/auth/types";
-import { capacityFor, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
+import type { ActNeed, ActWho, Capacity } from "@/lib/supervision/authority";
 import { supervisionRefusal } from "@/lib/supervision/labels";
-import { delegationFactsOf, loadSupervision, recorderFaultToday, soOfficeOn } from "@/lib/supervision/load";
+import { capacityOn } from "@/lib/supervision/capacity-on";
+import { recorderFaultToday } from "@/lib/supervision/load";
 
 import { loadMatters, type MatterRow } from "./load";
 import { MatterRefusal } from "./route-write";
@@ -99,9 +100,7 @@ export async function personNamed(c: ActCtx, personId: string | null, field = "p
 /// in force covers the act); refused otherwise.
 export async function recordedFor(c: ActCtx, who: ActWho, need: ActNeed, on: string, field = "personId"): Promise<{ person: { id: string; name: string }; capacity: Capacity; soLabel: string; soRoleCode: string }> {
   const person = await personNamed(c, who.subjectPersonId, field);
-  const s = await loadSupervision(c.l.contract.id, c.tx);
-  const so = await soOfficeOn(c.l, s, on, c.tx);
-  const r = capacityFor(person.id, need, so?.office ?? null, delegationFactsOf(s), on);
+  const { s, so, r } = await capacityOn(c.l, c.tx, person.id, need, on);
   if (!r.capacity) throw new ActRefusal({ ok: false, message: supervisionRefusal("Not recorded:", r.faults) });
   // FR-SUP-004 (Phase 3d): the officer who records it is judged too, whoever it is recorded for.
   const recorder = await recorderFaultToday(c.l, s, who.recorderId, need, on, so?.office ?? null, c.today, c.tx);

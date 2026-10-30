@@ -229,7 +229,7 @@ export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: P
     },
     select: ITEM_SELECT,
   });
-  const auditId = await audit(c, who, row, "WorkItem", row.id, row.title, "CREATE", diffFields(null, { type: row.type, number: itemRef(row.type, number), title: row.title, description: row.description || null, priority: row.priority, dueOn: dayOrNull(row.dueOn), location: row.location || null, assigneePersonId: partyView(assigneeOf(row)), sharedAt: row.sharedAt?.toISOString() ?? null, answer: row.answer || null, impact: row.impact, inspectionResult: row.inspectionResult, severity: row.severity, happenedAt: row.happenedAt?.toISOString() ?? null, fromDocumentId: row.fromDocumentId, ...(line ? { defectItemId: line.description.slice(0, 120) } : {}) }));
+  const auditId = await audit(c, who, row, "WorkItem", row.id, row.title, "CREATE", diffFields(null, { type: row.type, number: itemRef(row.type, number), title: row.title, description: row.description || null, priority: row.priority, dueOn: dayOrNull(row.dueOn), location: row.location || null, assigneePersonId: partyView(assigneeOf(row)), sharedAt: row.sharedAt?.toISOString() ?? null, answer: row.answer || null, impact: row.impact, inspectionResult: row.inspectionResult, severity: row.severity, happenedAt: row.happenedAt?.toISOString() ?? null, fromDocumentId: row.fromDocumentId, ...(line ? { status: row.status, defectItemId: line.description.slice(0, 120) } : {}) }));
   if (row.assigneePersonId) await tell(c, who, row, "WORK_ITEM_ASSIGNED", auditId);
   await act.write(c.tx, row.id);
   return { id: row.id, ref: itemRef(row.type, number) };
@@ -315,10 +315,9 @@ async function linkedMove(c: WorkCtx, who: StaffActor, row: ItemRow, i: { expect
   const ctx = defectCtx(c, who);
   const note = which === "RETURN" ? (i.comment ?? "") : which === "WITHDRAW" ? (i.reason ?? "") : "";
   if (linkedLineOf(row.defectItem) === "DRAFT") return refuse(LINKED_DRAFT_WORDS);
-  const { eventId } = await viaDefectCore(() => recordDefectAct(ctx, act, which, { defectId: row.defectItemId!, on: dayToDate(ctx.today), note, evidenceDocumentId: null }));
-  // WR-2: tell the same people the ordinary move of the same name tells, keyed by the defect event. The return note stays on the line's event (no work comment).
-  if (which === "REPORT_RECTIFIED") await tell(c, who, row, "WORK_ITEM_TO_CHECK", eventId);
-  if (which === "RETURN") await tell(c, who, row, "WORK_ITEM_RETURNED", eventId);
+  // WRS-4: the defect core tells the people working the item (keyed by the defect event). The return note stays on the line's event (no work comment).
+  const done = await viaDefectCore(() => recordDefectAct(ctx, act, which, { defectId: row.defectItemId!, on: dayToDate(ctx.today), note, evidenceDocumentId: null }));
+  if (c.told) c.told.count += done.workTold;
 }
 
 /**

@@ -17,14 +17,14 @@ import { storedDay } from "@/lib/dates";
 import { ActRefusal, fieldError, recordedFor, tableRefusal, type ActCtx } from "@/lib/matter/act";
 import { capacityText } from "@/lib/supervision/authority";
 import { defectLineText, stateAfter } from "@/lib/work/defect-link";
-import { linkItem, lockLinkedItem, writeThrough } from "@/lib/work/defect-link-store";
+import { linkItem, lockLinkedItem, tellLinkedWork, writeThrough } from "@/lib/work/defect-link-store";
 import { isOpen } from "@/lib/work/move";
 import { itemRefText } from "@/lib/work/labels";
 import { itemRef } from "@/lib/work/number";
 
 import { cpcLineFaults } from "./completion";
 import { DEFECT_TEXT_MAX, defectActFaults, defectState, defectTextTooLong, onDraftCpc, reportDefectFaults, type DefectAct } from "./defects";
-import { closeoutRefusal } from "./labels";
+import { closeoutRefusal, waitingToBeCheckedWords } from "./labels";
 import { defectFactsOf, loadCloseout } from "./load";
 
 const EVENT_OF: Readonly<Record<DefectAct, "REPORTED_RECTIFIED" | "MADE_GOOD" | "RETURNED" | "WITHDRAWN">> = { REPORT_RECTIFIED: "REPORTED_RECTIFIED", ACCEPT: "MADE_GOOD", RETURN: "RETURNED", WITHDRAW: "WITHDRAWN" };
@@ -45,9 +45,11 @@ export interface DefectActInput {
   evidenceDocumentId: string | null;
 }
 
-/// The event the act appended: the work path keys its notice by it.
+/// The event the act appended.
 export interface DefectActDone {
   eventId: string;
+  /// How many work notices the act wrote (the work path refreshes the inbox counts when there are some).
+  workTold: number;
 }
 
 /// One act on a line, by an officer: an event appended, never the line changed. The officer must be the S.O. or a representative whose letter covers site observation.
@@ -66,8 +68,13 @@ export async function recordDefectAct(c: ActCtx, act: ActWriter, which: DefectAc
   const row = await c.tx.defectEvent.create({ data: { organisationId: c.l.org.id, defectId: d.id, kind: EVENT_OF[which], on: i.on, note: i.note.trim(), evidenceDocumentId: evidence?.id ?? null, personId: who.person.id, recordedAt: c.now } });
   await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "DefectEvent", entityId: row.id, entityLabel: `${c.label} · defect: ${d.description.slice(0, 80)}`, reason: "" }, "CREATE", diffFields(null, { defect: EVENT_WORDS[which], on: storedDay(i.on), note: i.note.trim() || null, evidence: evidence?.title ?? null, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }));
   await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
-  if (item) await writeThrough(c.tx, c.actor, scope(c), item, stateAfter(which), i.note, c.now);
-  return { eventId: row.id };
+  let workTold = 0;
+  if (item) {
+    await writeThrough(c.tx, c.actor, scope(c), item, stateAfter(which), i.note, c.now);
+    // WRS-4: whoever records it, the people working the linked item hear of the move once.
+    if (which === "REPORT_RECTIFIED" || which === "RETURN") workTold = await tellLinkedWork(c.tx, c.l, c.today, item, { kind: which, eventId: row.id, actorIds: [who.person.id, ...(c.actor.kind === "STAFF" ? [c.actor.personId] : [])] });
+  }
+  return { eventId: row.id, workTold };
 }
 
 /// FR-CMP-007 with the work list (B-18): open Defect items the officer picked become lines on the draft CPC and are linked. The items are locked in ascending id order, each is
@@ -78,12 +85,14 @@ export async function addLinesFromItems(c: ActCtx, act: ActWriter, pc: { id: str
   const sources = [];
   for (const id of ids) {
     await c.tx.$queryRaw`SELECT id FROM "WorkItem" WHERE id = ${id} AND "contractId" = ${c.l.contract.id} AND "organisationId" = ${c.l.org.id} FOR UPDATE`;
-    const it = await c.tx.workItem.findFirst({ where: { id, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true, type: true, number: true, title: true, description: true, location: true, dueOn: true, status: true, cancelReason: true, defectItemId: true } });
+    const it = await c.tx.workItem.findFirst({ where: { id, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true, type: true, number: true, title: true, description: true, location: true, dueOn: true, status: true, cancelReason: true, defectItemId: true, raisedByPersonId: true, assigneePersonId: true, assignedToContractor: true } });
     if (!it) throw new ActRefusal({ ok: false, message: "Not added: an item you picked no longer exists." });
     const ref = itemRefText(it.type, it.number);
     if (it.type !== "DEFECT") throw new ActRefusal({ ok: false, message: `Not added: ${ref} is not a Defect item.` });
     if (it.defectItemId !== null) throw new ActRefusal({ ok: false, message: `Not added: ${ref} is already on a defect list.` });
     if (!isOpen(it.status)) throw new ActRefusal({ ok: false, message: `Not added: ${ref} is closed.` });
+    // WRS-2: an item the contractor reported fixed is not reset by a pick; the checker accepts it or sends it back first.
+    if (it.status === "IN_REVIEW") throw new ActRefusal({ ok: false, message: waitingToBeCheckedWords(ref) });
     // WR-6: the line is never cut, so an item whose text is over the line's limit is refused, still unlinked and editable.
     if (defectTextTooLong(defectLineText(it.title, it.description))) throw new ActRefusal({ ok: false, message: `Not added: ${ref} is longer than ${DEFECT_TEXT_MAX.toLocaleString("en")} characters. Shorten it in Work first.` });
     sources.push({ ...it, type: "DEFECT" as const });

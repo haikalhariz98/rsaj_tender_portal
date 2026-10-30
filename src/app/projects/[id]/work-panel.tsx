@@ -213,7 +213,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
     body = (
       <>
         {q.page === 0 && unfiltered && <LinkedPinned {...pinnedCards(linked)} hrefOf={(a) => at({ item: null, act: linkedAddress(a.kind, a.id) })} />}
-        {ctx.open && <QuickAdd contractId={contractId} itemHrefBase={itemHrefBase} defectLine={defectRaisesLine(ctx.contractStatus)} types={QUICK_TYPES.filter((t) => typeOfferable(t.value, ctx.contractStatus))} />}
+        {ctx.open && <QuickAdd contractId={contractId} contractor={contractor} itemHrefBase={itemHrefBase} defectLine={defectRaisesLine(ctx.contractStatus)} types={QUICK_TYPES.filter((t) => typeOfferable(t.value, ctx.contractStatus))} />}
         <DataList
           flat
           selectable={false}

@@ -239,7 +239,8 @@ export async function loadPortalItem(actor: Pick<SupplierActor, "supplierId" | "
     answer: r.type === "RFI" ? r.answer : "",
     severity: r.severity,
     happenedAt: r.happenedAt,
-    moves: contractorActions(facts, CONTRACTOR_ACTOR),
+    // WRS-5: on a linked item the only contractor act is Mark as fixed (`portalAction`), posted through the linked branch; the item-level moves do not apply.
+    moves: facts.linkedLine ? [] : contractorActions(facts, CONTRACTOR_ACTOR),
     mayAnswer: r.type === "RFI" && isContractor(facts.assignee) && isOpen(r.status),
     mayPost: contractorMayPost(r),
     comments: comments.map((c) => ({ by: mine(c.supplierAccountId) ? "You" : label(c.personId ? person(c.personId) : null), byYou: mine(c.supplierAccountId), body: c.body, at: c.recordedAt })),

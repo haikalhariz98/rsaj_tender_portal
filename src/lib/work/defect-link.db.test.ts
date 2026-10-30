@@ -28,12 +28,17 @@ vi.mock("@/app/_auth/act", async () => {
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
 import { recordCertificateSignature, sendCertificateToSigning, voidCertificateAct } from "@/app/projects/[id]/certificates/[certId]/actions";
-import { acceptDefect, raiseDefectSchedule, addCpcDefect, addCpcDefectsFromItems, raisePracticalCompletion, removeCpcDefect, reportDefect, reportDefectRectified, withdrawDefect } from "@/app/projects/[id]/closeout-actions";
+import { acceptDefect, raiseDefectSchedule, addCpcDefect, addCpcDefectsFromItems, raisePracticalCompletion, removeCpcDefect, reportDefect, reportDefectRectified, returnDefect, withdrawDefect } from "@/app/projects/[id]/closeout-actions";
 import { createWorkItem, editWorkField, moveWorkItem, type WorkResult } from "@/app/projects/[id]/work-actions";
 
 import { CONTRACTOR_ASSIGNEE } from "./fields";
 import { itemRef } from "./number";
-import { loadItem } from "./load";
+import { loadContract } from "@/lib/contract/repo";
+import { reportRectifiedAsContractor } from "@/lib/portal/projects/defect-store";
+import { mayActOnDefectLines } from "@/lib/supervision/capacity-on";
+
+import { loadActivity, loadItem, loadMyWork, pickableDefectItems } from "./load";
+import { loadPortalItem } from "./portal-read";
 import { moveAsContractor } from "./portal-store";
 import type { WorkItemType } from "./types";
 
@@ -253,6 +258,9 @@ describe("WB-12: a Defect item raised during the defects liability period is cre
     expect(line.observedOn?.toISOString().slice(0, 10)).toBe(today());
     expect(line.reportedByPersonId).toBe(o.so);
     expect(line.location).toBe("Block B");
+    // WRS-6: the create's audit row reads back whole, with the status the item was created in.
+    const created = await db.auditEntry.findFirstOrThrow({ where: { organisationId: o.organisationId, entity: "WorkItem", entityId: row.id, action: "CREATE" } });
+    expect((created.changes as unknown as { field: string; after: string }[]).find((x) => x.field === "status")?.after).toBe("IN_PROGRESS");
     const slots = h.written.filter((w) => w.entityId === row.id || w.entityId === line.id).map((w) => `${w.entity}.${w.slot}`);
     expect(slots.length).toBe(2);
     expect(new Set(slots).size).toBe(2);
@@ -333,6 +341,11 @@ describe("voiding the draft CPC", () => {
     expect(await db.defectItem.count({ where: { id: lineId } })).toBe(1); // the voided CPC keeps its lines; no register reads them
     const trail = await db.auditEntry.findMany({ where: { organisationId: o.organisationId, entity: "WorkItem", entityId: row.id }, orderBy: { at: "asc" } });
     expect(JSON.stringify(trail.at(-1)!.changes)).toMatch(/defectItemId/);
+    // WRS-8: the item's Activity says why, and nobody is told.
+    expect(trail.at(-1)!.reason).toBe("the certificate was voided");
+    const feed = await loadActivity({ organisationId: o.organisationId, contractId: k2.contractId, contractNumber: (await db.contract.findUniqueOrThrow({ where: { id: k2.contractId }, select: { number: true } })).number, item: { id: row.id, type: "DEFECT", number: row.number }, timeZone: null });
+    expect(feed.filter((l) => l.kind === "CHANGE").map((l) => (l as { text: string }).text)).toContain("Removed from the defect list: the certificate was voided.");
+    expect(await db.staffNotice.count({ where: { organisationId: o.organisationId, subjectId: row.id } })).toBe(0);
   });
 });
 
@@ -442,5 +455,101 @@ describe("the 3b-ii review: the line decides", () => {
     const words = refused(await as(o.so, () => createWorkItem(form({ contractId: k.contractId, type: "DEFECT", title: "Long", description: "q".repeat(2001), dueOn: dayOf(14), observedOn: today() }))));
     expect(words).toMatch(/^Not recorded:.*over 2,000 characters/);
     expect({ items: await db.workItem.count({ where: { contractId: k.contractId } }), lines: await db.defectItem.count({ where: { contractId: k.contractId } }) }).toEqual(before);
+  });
+});
+
+// ------------------------------------------------------------------ the 3b-ii security round (WRS-2, WRS-3, WRS-4, WRS-5)
+
+describe("the 3b-ii security round", () => {
+  let k4: TestContract;
+  let waiting: Awaited<ReturnType<typeof snag>>;
+  let byOther: Awaited<ReturnType<typeof snag>>;
+  let bySo: Awaited<ReturnType<typeof snag>>;
+  let forReturn: Awaited<ReturnType<typeof snag>>;
+  const snag4 = async (title: string, who: string, assignee: string) => {
+    const r = ok(await as(who, () => createWorkItem(form({ contractId: k4.contractId, type: "DEFECT", title, dueOn: dayOf(20), assigneePersonId: assignee }))));
+    return db.workItem.findFirstOrThrow({ where: { contractId: k4.contractId, type: "DEFECT", number: Number(r.ref!.split("-")[1]) } });
+  };
+  const told = (personId: string, eventId: string) => db.staffNotice.findMany({ where: { organisationId: o.organisationId, recipientPersonId: personId, OR: [{ subjectId: eventId }, { occurrence: eventId }] }, orderBy: { kind: "asc" } });
+  const report = (row: { defectItemId: string | null }) => reportRectifiedAsContractor(supplier, { contractId: k4.contractId, defectId: row.defectItemId!, note: "", evidenceDocumentId: null });
+
+  it("WRS-2: an In-review item is not offered for the CPC, and a stale pick is refused in words, the item unlinked and unmoved", async () => {
+    k4 = await activeContract(o, { dueIn: -60, dlpMonths: 1 });
+    const award = await db.contract.findUniqueOrThrow({ where: { id: k4.contractId }, select: { awardId: true } });
+    await db.award.update({ where: { id: award.awardId }, data: { vendorId: supplier.supplierId } });
+    waiting = await snag4("Waiting to be checked", o.so, o.other);
+    [byOther, bySo, forReturn] = [await snag4("Raised by another", o.other, CONTRACTOR_ASSIGNEE), await snag4("Raised by the S.O.", o.so, CONTRACTOR_ASSIGNEE), await snag4("To be returned", o.so, o.other)];
+    for (const [from, to] of [["TO_DO", "IN_PROGRESS"], ["IN_PROGRESS", "IN_REVIEW"]]) ok(await as(o.other, () => moveWorkItem(form({ contractId: k4.contractId, itemId: waiting.id, from, to }))));
+    expect((await item(waiting.id)).status).toBe("IN_REVIEW");
+    const r = await as(o.so, () => raisePracticalCompletion({ ok: false }, form({ id: k4.contractId, completionDate: k4.due, possessionTakenOn: k4.due, inspectedOn: dayPlus(k4.due, 1), testReasons: "Complete save the defects.", attendeeIds: o.so })));
+    expect(r.ok, r.message).toBe(true);
+
+    const offered = await pickableDefectItems({ organisationId: o.organisationId, contractId: k4.contractId });
+    expect(offered.options.map((x) => x.value)).not.toContain(waiting.id);
+    expect(offered.options.map((x) => x.value)).toContain(byOther.id);
+    const stale = await as(o.so, () => addCpcDefectsFromItems({ ok: false }, form({ id: k4.contractId, itemIds: [byOther.id, waiting.id] })));
+    expect(stale.ok).toBe(false);
+    expect(stale.message).toBe(`Not added: Defect ${waiting.number} is waiting to be checked. Accept or send it back in Work first.`);
+    expect((await item(waiting.id)).defectItemId).toBeNull();
+    expect((await item(waiting.id)).status).toBe("IN_REVIEW");
+    expect((await item(byOther.id)).defectItemId).toBeNull(); // the whole pick is refused
+    expect(await db.defectItem.count({ where: { contractId: k4.contractId } })).toBe(0);
+
+    const picked = await as(o.so, () => addCpcDefectsFromItems({ ok: false }, form({ id: k4.contractId, itemIds: [byOther.id, bySo.id, forReturn.id] })));
+    expect(picked.ok, picked.message).toBe(true);
+    const certId = (await db.practicalCompletion.findFirstOrThrow({ where: { contractId: k4.contractId } })).certificateId;
+    expect((await issue(certId)).ok).toBe(true);
+  });
+
+  it("WRS-5: the portal reader offers a linked item no item-level moves, and still its Mark as fixed", async () => {
+    const view = await loadPortalItem(supplier, k4.contractId, itemRef(byOther.type, byOther.number));
+    expect(view).not.toBeNull();
+    expect(view!.moves).toEqual([]);
+    expect(view!.row.action).toBe("MARK_AS_FIXED");
+  });
+
+  it("WRS-4: the contractor's report from the portal's Defects view tells the item's raiser once, and the S.O. only by the defect notice", async () => {
+    const { eventId } = await report(await item(byOther.id));
+    expect((await item(byOther.id)).status).toBe("IN_REVIEW");
+    expect((await told(o.other, eventId)).map((n) => n.kind)).toEqual(["WORK_ITEM_TO_CHECK"]);
+    expect((await told(o.so, eventId)).map((n) => n.kind)).toEqual(["DEFECT_RECTIFIED"]);
+    // An S.O. who is also the raiser is told once.
+    const again = await report(await item(bySo.id));
+    expect((await told(o.so, again.eventId)).map((n) => n.kind)).toEqual(["DEFECT_RECTIFIED"]);
+  });
+
+  it("WRS-4: a return recorded in Close-out tells the assignee, and not the officer who recorded it", async () => {
+    const line = (await item(forReturn.id)).defectItemId!;
+    expect((await as(o.so, () => reportDefectRectified({ ok: false }, form({ id: k4.contractId, defectId: line, on: today() })))).ok).toBe(true);
+    const reportEvent = (await lineOf(forReturn.id)).events[0].id;
+    expect(await told(o.so, reportEvent)).toEqual([]); // the raiser recorded it
+    const back = await as(o.so, () => returnDefect({ ok: false }, form({ id: k4.contractId, defectId: line, on: today(), note: "Redo the skirting." })));
+    expect(back.ok, back.message).toBe(true);
+    const events = (await lineOf(forReturn.id)).events;
+    const returned = events.find((e) => e.kind === "RETURNED")!;
+    expect((await told(o.other, returned.id)).map((n) => n.kind)).toEqual(["WORK_ITEM_RETURNED"]);
+    expect(await told(o.so, returned.id)).toEqual([]);
+  });
+
+  it("WRS-3: the who-may read agrees with the act, and My work lists a linked item as 'To check' only for someone who may accept it", async () => {
+    const l = (await loadContract(o.organisationId, k4.contractId))!;
+    expect(await mayActOnDefectLines(l, db, o.so, today())).toBe(true);
+    expect(await mayActOnDefectLines(l, db, o.other, today())).toBe(false);
+    // The act refuses the same person (the one rule).
+    const byOtherLine = (await item(byOther.id)).defectItemId!;
+    expect((await as(o.other, () => acceptDefect({ ok: false }, form({ id: k4.contractId, defectId: byOtherLine, on: today() })))).ok).toBe(false);
+
+    const group = async (personId: string, itemId: string) => (await loadMyWork({ organisationId: o.organisationId, personId, today: today() })).rows.find((r) => r.id === itemId)?.group ?? null;
+    // byOther: raised by o.other (not the S.O.), In review on a line: not "to check" for them. bySo: the S.O. raised it and may accept it.
+    expect(await group(o.other, byOther.id)).toBeNull();
+    // An unlinked item keeps the item's own rule: its raiser still checks it.
+    await as(o.other, () => createWorkItem(form({ contractId: k4.contractId, type: "TASK", title: "Plain task", assigneePersonId: o.so })));
+    const plain = await db.workItem.findFirstOrThrow({ where: { contractId: k4.contractId, title: "Plain task" } });
+    for (const [from, to] of [["TO_DO", "IN_PROGRESS"], ["IN_PROGRESS", "IN_REVIEW"]]) ok(await as(o.so, () => moveWorkItem(form({ contractId: k4.contractId, itemId: plain.id, from, to }))));
+    expect(await group(o.other, plain.id)).toBe("TO_CHECK");
+    expect(await group(o.so, bySo.id)).toBe("TO_CHECK");
+    // Assigned to me stays, whoever I am: forReturn is open again and assigned to o.other.
+    expect(await group(o.other, forReturn.id)).not.toBeNull();
+    expect(await group(o.other, forReturn.id)).not.toBe("TO_CHECK");
   });
 });

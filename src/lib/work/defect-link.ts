@@ -38,10 +38,11 @@ export const returnNoteOf = (events: readonly { kind: DefectEventKind; on: Date;
 /// The line state a linked item's status stands for (the inverse of `defectItemStatus`; a returned line reads Open again). To Do cannot be a linked status.
 export const lineStateOf = (status: WorkStatus): DefectState => (status === "IN_REVIEW" ? "REPORTED_RECTIFIED" : status === "DONE" ? "MADE_GOOD" : status === "CANCELLED" ? "WITHDRAWN" : "OPEN");
 
-/// What a linked item's panel offers: only the moves with a defect act, whoever the reader is (the act answers who may). Send for checking or Mark done is the primary action.
-export function linkedPanelActions(status: WorkStatus, contractOpen: boolean, side: "STAFF" | "CONTRACTOR" = "STAFF", draft = false): { primary: WorkAction | null; menu: WorkAction[] } {
+/// What a linked item's panel offers: only the moves with a defect act, to a reader who may act on the lines (the act answers too). Send for checking or Mark done is the primary action.
+export function linkedPanelActions(status: WorkStatus, contractOpen: boolean, side: "STAFF" | "CONTRACTOR" = "STAFF", draft = false, mayAct = true): { primary: WorkAction | null; menu: WorkAction[] } {
   // WR-1: a line on a draft CPC's list is acted on once the certificate is issued, so nothing is offered (no control that is always refused).
-  const offered = contractOpen && !draft ? CANDIDATES[status].filter((a) => defectActOf(a, side) !== null) : [];
+  // WRS-3: a reader the line's who-may refuses (`mayActOnDefectLines`) is offered no defect move either.
+  const offered = contractOpen && !draft && mayAct ? CANDIDATES[status].filter((a) => defectActOf(a, side) !== null) : [];
   const primary = offered.find((a) => a === "SEND_FOR_REVIEW" || a === "MARK_DONE") ?? null;
   return { primary, menu: offered.filter((a) => a !== primary) };
 }

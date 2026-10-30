@@ -142,3 +142,6 @@ export function owedByContractor(recommended: Sen): { label: string; value: stri
   if (recommended >= 0n) return null;
   return { label: "Owed by the contractor", value: formatMoney(-recommended), note: "The contract stays open until recovering an amount the contractor owes is built." };
 }
+
+/// WRS-2: a pick of a Defect item that is In review is refused in these words.
+export const waitingToBeCheckedWords = (ref: string): string => `Not added: ${ref} is waiting to be checked. Accept or send it back in Work first.`;

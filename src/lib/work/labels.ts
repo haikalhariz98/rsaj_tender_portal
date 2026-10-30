@@ -209,7 +209,7 @@ export function moveFaultText(f: MoveFault, action: WorkAction | null, who: WhoN
 /// WR-3: why title, description, location and due date of an item that stands for a defect line cannot be edited.
 export const linkedLockWords = (draft: boolean): string => (draft ? "This defect is recorded in Close-out. Remove it from the list to change it." : "This defect is recorded in Close-out.");
 /// WR-1: a linked item whose line is on a draft CPC's list moves once the certificate is issued.
-export const LINKED_DRAFT_WORDS = "Moves once the certificate is issued.";
+export const LINKED_DRAFT_WORDS = "Moves once practical completion is certified.";
 /// WR-1: the contractor's stale post on such a line.
 export const LINKED_DRAFT_PORTAL_WORDS = "Not yet: this can be marked as fixed once practical completion is certified.";
 /// WR-4: appended to an officer's refused raise of a Defect on a completed contract.
@@ -357,3 +357,11 @@ export function teamFaultText(f: TeamFault, changers: TeamChangers): string {
       return "Give a reason.";
   }
 }
+
+/// WRS-8: the item's Activity line when its defect line was taken off the list for a reason.
+export const removedFromListWords = (why: string): string => `Removed from the defect list: ${why}.`;
+
+/// WRS-1: what the contractor reads of a defect line (the title, description, location and due day, `defectLineText` and the line), said wherever staff copy an item's words to a line.
+export const defectListSeesWords = (contractor: string): string => `${contractor} will see the title, description, location and due day on the defect list.`;
+/// WRS-1: the short marker beside a field or a share state, with `defectListSeesWords` in its popover.
+export const contractorSeesWords = (contractor: string): string => `${contractor} will see this.`;

@@ -21,6 +21,7 @@ import type { ContractStatus } from "@/lib/contract/types";
 import { SCAN_LABEL } from "@/lib/documents/labels";
 import { loadStorePolicy } from "@/lib/documents/service";
 import { likeLiteral } from "@/lib/search/words";
+import { mayActOnDefectLines } from "@/lib/supervision/capacity-on";
 import { loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
 import { activityFeed, type ActivityLine } from "./activity";
@@ -445,7 +446,7 @@ export async function loadActivity(i: { organisationId: string; contractId: stri
     contractorOf(i),
   ]);
   // A contractor's act (a SUPPLIER row, a comment with an account) is the company on staff surfaces, never the contact (B-4, WS-9).
-  const rows = entries.map((e) => ({ id: e.id, entity: e.entity, action: e.action as "CREATE" | "UPDATE" | "DELETE", changes: (e.changes ?? []) as unknown as FieldChange[], actorName: e.actorKind === "SUPPLIER" ? contractor : actorDisplayName(e), at: e.at }));
+  const rows = entries.map((e) => ({ id: e.id, entity: e.entity, action: e.action as "CREATE" | "UPDATE" | "DELETE", changes: (e.changes ?? []) as unknown as FieldChange[], actorName: e.actorKind === "SUPPLIER" ? contractor : actorDisplayName(e), at: e.at, reason: e.reason }));
   const ids = new Set<string>();
   for (const r of rows) for (const c of r.changes) if ((c.field === "assigneePersonId" || c.field === "fromDocumentId") && c.before) ids.add(c.before);
   for (const r of rows) for (const c of r.changes) if ((c.field === "assigneePersonId" || c.field === "fromDocumentId") && c.after) ids.add(c.after);
@@ -456,7 +457,7 @@ export async function loadActivity(i: { organisationId: string; contractId: stri
   const names = new Map([...people, ...documents.map((d): [string, string] => [d.id, d.title]), [CONTRACTOR_ASSIGNEE, contractor]]);
   return activityFeed(
     comments.map((c) => ({ id: c.id, body: c.body, personName: c.supplierAccountId !== null ? contractor : (c.person?.name ?? null), at: c.recordedAt, internal: c.internal })),
-    rows.map((r) => ({ id: r.id, entity: r.entity, action: r.action, changes: r.changes, actorName: r.actorName, at: r.at })),
+    rows.map((r) => ({ id: r.id, entity: r.entity, action: r.action, changes: r.changes, actorName: r.actorName, at: r.at, reason: r.reason })),
     i.timeZone,
     names,
   );
@@ -527,15 +528,23 @@ export async function loadMyWork(i: { organisationId: string; personId: string; 
         raisedByPersonId: true,
         assigneePersonId: true,
         assignedToContractor: true,
+        defectItemId: true,
         contract: { select: { number: true, award: { select: { awardeeName: true } } } },
   } as const;
   const orderBy: Prisma.WorkItemOrderByWithRelationInput[] = [{ dueOn: { sort: "asc", nulls: "last" } }, { contract: { number: "asc" } }, { type: "asc" }, { number: "asc" }, { id: "asc" }];
   const checking = await db.workItem.findMany({ where: toCheck, select, orderBy, take: MY_WORK_CAP });
   const [others, total] = await Promise.all([db.workItem.findMany({ where: rest, select, orderBy, take: MY_WORK_CAP - checking.length }), db.workItem.count({ where })]);
   const found = [...checking, ...others];
+  // WRS-3: a linked In-review item raised by me is "to check" only if I may accept it, asked once per contract through the one who-may (`mayActOnDefectLines`).
+  const linkedContracts = [...new Set(found.filter((r) => r.defectItemId !== null && r.status === "IN_REVIEW" && r.raisedByPersonId === i.personId).map((r) => r.contractId))];
+  const mayAccept = new Map<string, boolean>();
+  for (const id of linkedContracts) {
+    const l = i.today ? await loadContract(i.organisationId, id) : null;
+    mayAccept.set(id, l !== null && i.today !== null && (await mayActOnDefectLines(l, db, i.personId, i.today)));
+  }
   const rows = found.flatMap((r): MyWorkRow[] => {
     const dueOn = dayOrNull(r.dueOn);
-    const group = myWorkGroup({ status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), dueOn }, { personId: i.personId }, i.today);
+    const group = myWorkGroup({ status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), dueOn, cannotAccept: r.defectItemId !== null && mayAccept.get(r.contractId) === false }, { personId: i.personId }, i.today);
     return group ? [{ id: r.id, contractId: r.contractId, contractLabel: contractLabel(r.contract), ref: itemRef(r.type, r.number), type: r.type, number: r.number, title: r.title, status: r.status, dueOn, group }] : [];
   });
   return { rows, more: Math.max(0, total - found.length) };
@@ -544,9 +553,9 @@ export async function loadMyWork(i: { organisationId: string; personId: string; 
 /// The most Defect items the CPC's pick list draws; `total` says how many there are.
 export const PICKABLE_DEFECT_CAP = 200;
 
-/// The Defect items the draft CPC's list can take: open, on no defect list yet (`addLinesFromItems` judges the same on the locked row). `total` counts the rest, so the drawer can say "First 200 of N".
+/// The Defect items the draft CPC's list can take: open and not In review (WRS-2: it waits to be checked), on no defect list yet (`addLinesFromItems` judges the same on the locked row). `total` counts the rest, so the drawer can say "First 200 of N".
 export async function pickableDefectItems(i: { organisationId: string; contractId: string }): Promise<{ options: { value: string; label: string }[]; total: number }> {
-  const where = { ...scope(i), type: "DEFECT" as const, defectItemId: null, status: { in: [...OPEN_STATUSES] } };
+  const where = { ...scope(i), type: "DEFECT" as const, defectItemId: null, status: { in: OPEN_STATUSES.filter((s) => s !== "IN_REVIEW") } };
   const [rows, total] = await Promise.all([db.workItem.findMany({ where, select: { id: true, number: true, title: true }, orderBy: { number: "asc" }, take: PICKABLE_DEFECT_CAP }), db.workItem.count({ where })]);
   return { options: rows.map((x) => ({ value: x.id, label: `${itemRefText("DEFECT", x.number)} · ${x.title}` })), total };
 }

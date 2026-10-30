@@ -38,12 +38,14 @@ export interface MyWorkFacts {
   raisedBy: Party;
   assignee: Party | null;
   dueOn: Day | null;
+  /// WRS-3: a linked In-review item whose reader may not accept it (`mayActOnDefectLines` says no) is not "to check" for them; it stays on them only if assigned.
+  cannotAccept?: boolean;
 }
 
 /// The group an item sits in for this reader, or null when it is not on them.
 export function myWorkGroup(item: MyWorkFacts, me: { personId: string }, today: Day | null): MyWorkSection | null {
   const assigned = personIdOf(item.assignee) === me.personId && OPEN_STATUSES.includes(item.status);
-  const toCheck = personIdOf(item.raisedBy) === me.personId && item.status === "IN_REVIEW";
+  const toCheck = personIdOf(item.raisedBy) === me.personId && item.status === "IN_REVIEW" && !item.cannotAccept;
   if (toCheck) return "TO_CHECK";
   if (!assigned) return null;
   if (item.dueOn === null) return "NO_DATE";

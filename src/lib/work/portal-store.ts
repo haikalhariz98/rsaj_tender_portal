@@ -136,14 +136,13 @@ type NoticeRow = Pick<ItemRow, "id" | "type" | "number" | "title" | "raisedByPer
 
 /// Tell staff, actor null. The pure rule names the people (`workNoticeDrafts`): the staff raiser and assignee, the role's holders on a raise with no single default
 /// assignee, and the lead on every kind on an item the contractor raised. The contractor is never told, and a body holds the reference, title and contract number only.
-async function tell(c: WorkCtx, r: NoticeRow, kind: WorkNoticeKind, occurrence: string, roleHolders: readonly string[] = [], alreadyTold: ReadonlySet<string> = new Set()): Promise<void> {
+async function tell(c: WorkCtx, r: NoticeRow, kind: WorkNoticeKind, occurrence: string, roleHolders: readonly string[] = []): Promise<void> {
   const raisedBy = raiserOf(r);
   const assignee = assigneeOf(r);
   const lead = await leadOf(c.l, c.today, c.tx);
   const activeIds = await activeAmong(c.tx, c.l.org.id, [personIdOf(raisedBy), personIdOf(assignee), ...lead.ids, ...roleHolders]);
   const item: NoticeItem = { id: r.id, type: r.type, number: r.number, title: r.title, contractId: c.l.contract.id, contractNumber: c.l.contract.number };
-  // Once each: a person the defect notice of the same event already told is left out of the work notice (the two are of different kinds, so the table's key would not).
-  const drafts = workNoticeDrafts({ kind, actorId: null, raisedBy, assignee, leadIds: lead.ids, roleHolders, occurrence, activeIds }, item).filter((d) => !alreadyTold.has(d.recipientPersonId));
+  const drafts = workNoticeDrafts({ kind, actorId: null, raisedBy, assignee, leadIds: lead.ids, roleHolders, occurrence, activeIds }, item);
   const wrote = await writeNotices(c.tx, c.l.org.id, null, drafts);
   if (c.told) c.told.count += wrote;
 }
@@ -361,9 +360,9 @@ export function moveAsContractor(actor: SupplierActor, i: MoveBody): Promise<voi
 /// The contractor reports a linked defect rectified: `rectifyWithin`'s rules and words (the portal's Defects tab asks the same core), refused here as this store refuses.
 async function markFixed(c: WorkCtx, actor: SupplierActor, row: ItemRow, i: MoveBody): Promise<void> {
   try {
+    // WRS-4: `rectifyWithin` tells the raiser of the linked item itself.
     const done = await rectifyWithin(c.tx, c.l, c.today ?? refuse("The day is not known. Tell the procurement office."), actor, { contractId: i.contractId, defectId: row.defectItemId!, note: "", evidenceDocumentId: null }, c.now);
-    // WR-2: the work notice an ordinary "Send for checking" gives the raiser, keyed by the defect event, to nobody the defect notice already told.
-    await tell(c, row, "WORK_ITEM_TO_CHECK", done.eventId, [], new Set(done.told));
+    if (c.told) c.told.count += done.workTold;
   } catch (e) {
     // WR-1: the item is visible, so a line on a draft certificate is "not yet", never "not on this contract".
     if (e instanceof ProjectRefused && e.faults.some((f) => f.code === "DEFECT_ON_DRAFT_CPC")) return refuse(LINKED_DRAFT_PORTAL_WORDS);

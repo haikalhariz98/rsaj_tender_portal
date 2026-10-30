@@ -13,7 +13,7 @@ import { defectRectifiedNotices } from "@/lib/inbox/notices";
 import { writeNotices } from "@/lib/inbox/store";
 import { loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 import { stateAfter } from "@/lib/work/defect-link";
-import { lockLinkedItem, writeThrough } from "@/lib/work/defect-link-store";
+import { lockLinkedItem, tellLinkedWork, writeThrough } from "@/lib/work/defect-link-store";
 
 import { inHeldContract, supplierAuditActor } from "./submission-store";
 import { ProjectRefused, type ProjectFinding } from "./types";
@@ -30,8 +30,8 @@ const refuse = (fs: readonly ProjectFinding[], status: 404 | 409 | 422 = 422): n
   throw new ProjectRefused(fs, status);
 };
 
-/// `told`: the staff the defect notice went to, so a work notice for the same event leaves them out (once each, WR-2).
-export type Reported = { eventId: string; told: string[] };
+/// `told`: the staff the defect notice went to.
+export type Reported = { eventId: string; told: string[]; workTold: number };
 export type DefectReport = { contractId: string; defectId: string; note: string; evidenceDocumentId: string | null };
 
 /**
@@ -59,7 +59,10 @@ export async function rectifyWithin(tx: Tx, l: LoadedContract, today: string, ac
   const so = await soOfficeOn(l, await loadSupervision(l.contract.id, tx), today, tx);
   const drafts = defectRectifiedNotices({ eventId: ev.id, contractId: l.contract.id, contractLabel: label, contractorName: l.award.awardeeName, defect: d.description.slice(0, 120), recipients: [...(so?.office.holderIds ?? []), ...(so?.office.actingIds ?? [])] });
   await writeNotices(tx, actor.organisationId, null, drafts);
-  return { eventId: ev.id, told: drafts.map((x) => x.recipientPersonId) };
+  const told = drafts.map((x) => x.recipientPersonId);
+  // WRS-4: the linked item's raiser hears of it once, whichever screen reported; not those the defect notice told.
+  const workTold = item ? await tellLinkedWork(tx, l, today, item, { kind: "REPORT_RECTIFIED", eventId: ev.id, actorIds: [], alreadyTold: told }) : 0;
+  return { eventId: ev.id, told, workTold };
 }
 
 export async function reportRectifiedAsContractor(actor: SupplierActor, i: DefectReport, now: Date = new Date()): Promise<Reported> {

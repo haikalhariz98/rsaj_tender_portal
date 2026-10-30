@@ -9,7 +9,7 @@
 import type { FieldChange } from "@/lib/audit/diff";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 
-import { enumValueWords, FIELD_WORDS } from "./labels";
+import { enumValueWords, FIELD_WORDS, removedFromListWords } from "./labels";
 
 export interface ActivityComment {
   id: string;
@@ -28,6 +28,8 @@ export interface ActivityAuditRow {
   changes: readonly FieldChange[];
   actorName: string | null;
   at: Date;
+  /// The audit row's reason, where the act gave one.
+  reason?: string;
 }
 
 export type ActivityLine = { kind: "COMMENT"; id: string; who: string; at: Date; body: string; internal: boolean } | { kind: "CHANGE"; id: string; who: string; at: Date; text: string };
@@ -74,7 +76,9 @@ function auditLine(r: ActivityAuditRow, names: ReadonlyMap<string, string>, time
   // The audit holds the address form ("RFI-12"); a screen shows the type word and the number ("RFI 12", "Incident 3": WSEC-3).
   const to = (linked?.after ?? linked?.before)?.replace(/^([A-Za-z]+)-(\d+) · /, "$1 $2 · ");
   const fixed = ACT_WORDS[key] && to ? `${ACT_WORDS[key]} to ${to}` : ACT_WORDS[key];
-  const text = fixed ?? (r.action === "UPDATE" ? r.changes.map((c) => changeText(c, names, timeZone)).filter((t) => t !== null).join("; ") : "");
+  // WRS-8: a line taken off the defect list with a reason (a voided certificate) says why.
+  const unlinked = r.entity === "WorkItem" && r.action === "UPDATE" && r.reason && r.changes.some((c) => c.field === "defectItemId" && c.after === null) ? removedFromListWords(r.reason) : null;
+  const text = unlinked ?? fixed ?? (r.action === "UPDATE" ? r.changes.map((c) => changeText(c, names, timeZone)).filter((t) => t !== null).join("; ") : "");
   return text ? { kind: "CHANGE", id: r.id, who: r.actorName ?? SOMEONE, at: r.at, text } : null;
 }
 

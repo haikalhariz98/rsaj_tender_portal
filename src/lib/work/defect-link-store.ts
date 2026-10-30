@@ -8,12 +8,16 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import type { AuditActor } from "@/lib/auth/types";
 import type { DefectState } from "@/lib/closeout/types";
+import type { LoadedContract } from "@/lib/contract/repo";
+import { writeNotices } from "@/lib/inbox/store";
 
 import { dayOrNull, dayToDate } from "@/lib/dates";
 
 import { linkedDueOn, linkedItemPatch } from "./defect-link";
-import { workAuditPrefix } from "./load";
+import { activeAmong, leadOf, workAuditPrefix } from "./load";
+import { workNoticeDrafts } from "./notices";
 import { itemRef } from "./number";
+import { assigneeOf, personIdOf, raiserOf } from "./party";
 import type { Day, WorkStatus } from "./types";
 
 export interface LinkScope {
@@ -30,9 +34,12 @@ export interface LinkedItem {
   status: WorkStatus;
   cancelReason: string;
   dueOn: Date | null;
+  raisedByPersonId: string | null;
+  assigneePersonId: string | null;
+  assignedToContractor: boolean;
 }
 
-const SELECT = { id: true, type: true, number: true, title: true, status: true, cancelReason: true, dueOn: true } as const;
+const SELECT = { id: true, type: true, number: true, title: true, status: true, cancelReason: true, dueOn: true, raisedByPersonId: true, assigneePersonId: true, assignedToContractor: true } as const;
 
 /// The item that stands for a line, locked (null: the line has none). Taken BEFORE the line's own lock. The link only changes under the contract's lock, so it is stable here.
 export async function lockLinkedItem(tx: Tx, s: Pick<LinkScope, "organisationId" | "contractId">, defectId: string): Promise<LinkedItem | null> {
@@ -69,18 +76,21 @@ export async function linkItem(tx: Tx, actor: AuditActor, s: LinkScope, item: Li
 }
 
 /// The line is taken off the list: the item stays a snag, with the status it has. It must be cleared before the line is deleted (the key restricts).
-export async function unlinkItem(tx: Tx, actor: AuditActor, s: LinkScope, item: LinkedItem, line: { id: string; description: string }): Promise<void> {
+export async function unlinkItem(tx: Tx, actor: AuditActor, s: LinkScope, item: LinkedItem, line: { id: string; description: string }, reason = ""): Promise<void> {
   const done = await tx.workItem.updateMany({ where: { id: item.id, organisationId: s.organisationId, contractId: s.contractId, defectItemId: line.id }, data: { defectItemId: null } });
   if (done.count !== 1) throw new Error(`The item ${itemRef(item.type, item.number)} changed under its own lock.`);
-  await audit(tx, actor, s, item, diffFields({ defectItemId: line.description.slice(0, 120) }, { defectItemId: null }));
+  await audit(tx, actor, s, item, diffFields({ defectItemId: line.description.slice(0, 120) }, { defectItemId: null }), reason);
 }
+
+/// WRS-8: why a voided certificate unlinks its items; the item's Activity reads it (`removedFromListWords`). No notice: the void is the event.
+export const VOIDED_REASON = "the certificate was voided";
 
 /// A voided CPC takes its list with it: every picked item is unlinked (it stays a snag, offered again for the next CPC). Contract lock held; each item is locked in id order before any line.
 export async function unlinkPickedBy(tx: Tx, actor: AuditActor, s: LinkScope, practicalCompletionId: string): Promise<void> {
   const lines = await tx.defectItem.findMany({ where: { practicalCompletionId, organisationId: s.organisationId, workItem: { isNot: null } }, select: { id: true, description: true, workItem: { select: { id: true } } } });
   for (const l of lines.sort((x, y) => (x.workItem!.id < y.workItem!.id ? -1 : 1))) {
     const item = await lockLinkedItem(tx, s, l.id);
-    if (item) await unlinkItem(tx, actor, s, item, l);
+    if (item) await unlinkItem(tx, actor, s, item, l, VOIDED_REASON);
   }
 }
 
@@ -100,4 +110,19 @@ export async function writeScheduleDue(tx: Tx, actor: AuditActor, s: LinkScope, 
     if (done.count !== 1) throw new Error(`The item ${itemRef(item.type, item.number)} moved under its own lock.`);
     await audit(tx, actor, s, item, diffFields({ dueOn: dayOrNull(item.dueOn) }, { dueOn: due }), "Schedule of Defects issued");
   }
+}
+
+/**
+ * WRS-4: the work notice of a defect event on a linked item, sent from the defect cores so that whichever screen records the event (Close-out, the portal's Defects view, Work, the portal's
+ * Work tab) tells the same people once. Send for checking / Mark as fixed (a report) tells the item's raiser; Send back (a return) tells its assignee; the lead too on a contractor-raised item.
+ * Keyed by the defect event, and left out: whoever recorded it (`actorIds`) and whoever the defect notice already told (`alreadyTold`).
+ */
+export async function tellLinkedWork(tx: Tx, l: LoadedContract, today: Day | null, item: LinkedItem, e: { kind: "REPORT_RECTIFIED" | "RETURN"; eventId: string; actorIds: readonly string[]; alreadyTold?: readonly string[] }): Promise<number> {
+  const raisedBy = raiserOf(item);
+  const assignee = assigneeOf(item);
+  const lead = await leadOf(l, today, tx);
+  const activeIds = await activeAmong(tx, l.org.id, [personIdOf(raisedBy), personIdOf(assignee), ...lead.ids]);
+  const skip = new Set([...e.actorIds, ...(e.alreadyTold ?? [])]);
+  const drafts = workNoticeDrafts({ kind: e.kind === "RETURN" ? "WORK_ITEM_RETURNED" : "WORK_ITEM_TO_CHECK", actorId: null, raisedBy, assignee, leadIds: lead.ids, occurrence: e.eventId, activeIds }, { id: item.id, type: item.type, number: item.number, title: item.title, contractId: l.contract.id, contractNumber: l.contract.number }).filter((d) => !skip.has(d.recipientPersonId));
+  return writeNotices(tx, l.org.id, null, drafts);
 }
