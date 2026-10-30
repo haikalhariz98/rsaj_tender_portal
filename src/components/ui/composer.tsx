@@ -7,7 +7,6 @@ import { useSay } from "@/components/i18n/language-context";
 import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
 
 import { Button } from "./button";
-import { cx } from "./cx";
 import { Textarea } from "./field";
 import { formDataOf } from "./form-submit";
 import { Segment, Segmented } from "./segmented";
@@ -19,6 +18,8 @@ export interface ComposerAudience {
   label: string;
   send: string;
   internal?: boolean;
+  /// The box's placeholder while this audience is picked ("Write a reply…").
+  placeholder?: string;
 }
 
 /**
@@ -89,9 +90,9 @@ export function Composer({
     >
       {audiences && picked && (
         <div className="flex flex-wrap items-center gap-2">
-          <Segmented role="group" aria-label="Who sees this">
+          <Segmented role="radiogroup" aria-label={say(WORDS.whoSees)}>
             {audiences.map((a) => (
-              <Segment key={a.value} on={a.value === picked.value} onClick={() => setChoice(a.value)} icon={a.internal ? <LockIcon size={13} /> : undefined}>
+              <Segment key={a.value} radio on={a.value === picked.value} onClick={() => setChoice(a.value)} icon={a.internal ? <LockIcon size={13} /> : undefined}>
                 {a.label}
               </Segment>
             ))}
@@ -100,10 +101,10 @@ export function Composer({
         </div>
       )}
       <Textarea
-        className={cx(picked?.internal && "border-amber-300! bg-amber-50!")}
+        tone={picked?.internal ? "internal" : undefined}
         name="body"
         aria-label={label}
-        placeholder={placeholder}
+        placeholder={picked?.placeholder ?? placeholder}
         maxLength={max}
         rows={3}
         aria-invalid={message ? true : undefined}

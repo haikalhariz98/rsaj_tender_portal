@@ -33,6 +33,7 @@ export function Activity({
   allLabel,
   commentsLabel,
   empty,
+  filter = true,
 }: {
   entries: ActivityEntry[];
   /// The accessible name of the feed.
@@ -40,6 +41,8 @@ export function Activity({
   allLabel?: string;
   commentsLabel?: string;
   empty?: string;
+  /// `false`: no All | Comments switch (a feed of comments only, such as the portal's replies).
+  filter?: boolean;
 }) {
   const say = useSay();
   const params = useSearchParams();
@@ -51,9 +54,10 @@ export function Activity({
     else url.searchParams.delete("activity");
     window.history.replaceState(null, "", url);
   };
-  const shown = only ? entries.filter((e) => e.kind === "comment") : entries;
+  const shown = filter && only ? entries.filter((e) => e.kind === "comment") : entries;
   return (
     <section aria-label={label}>
+      {filter && (
       <Segmented role="group" aria-label={say(WORDS.activityShow)} className="mb-3">
         {[
           [false, allLabel ?? say(WORDS.activityAll)],
@@ -64,6 +68,7 @@ export function Activity({
           </Segment>
         ))}
       </Segmented>
+      )}
       {shown.length === 0 ? (
         <p className="text-[13.5px] text-ink-3">{empty ?? say(WORDS.activityNothingYet)}</p>
       ) : (

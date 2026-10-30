@@ -14,6 +14,7 @@ import { useLanguage, useSay } from "@/components/i18n/language-context";
 import { AvatarStack, Avatar } from "@/components/ui/avatar";
 import { Badge, Chip, SulitLock, SulitWithheld } from "@/components/ui/badge";
 import { Button, ButtonLink, buttonClass, iconButtonClass } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter, Note } from "@/components/ui/feedback";
 import { MoreText } from "@/components/ui/more-text";
@@ -281,6 +282,7 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
           <Link
             href={cell.href}
             scroll={cell.scroll}
+            aria-label={cell.label}
             className={cx("block font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline", line)}
           >
             {cell.text}
@@ -1127,6 +1129,8 @@ export function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }
   const [refused, setRefused] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const refusedId = useId();
+  const flagId = useId();
+  const [asking, setAsking] = useState<string | null>(null);
   const [seen, setSeen] = useState(cell.value);
   if (seen !== cell.value) {
     setSeen(cell.value);
@@ -1137,9 +1141,33 @@ export function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }
       <span className="inline-flex items-center gap-1.5">
         <span>{cell.options.find((o) => o.value === cell.value)?.label ?? dash}</span>
         <MoreText text={cell.disabledWhy} label={sayWith(WORDS.whoCanChange, language, { label: cell.label })} />
+        {cell.flag && cell.value === cell.flag.value && <Badge tone="warn">{cell.flag.text}</Badge>}
       </span>
     );
   }
+  /// Post one pick; the cell shows it at once and goes back, saying the refusal, if it is refused.
+  const apply = (next: string) => {
+    const before = value;
+    setValue(next);
+    setRefused(null);
+    const data = new FormData();
+    for (const [k, v] of Object.entries(cell.fields)) data.set(k, v);
+    data.set(cell.name, next);
+    start(async () => {
+      try {
+        const r = await cell.action(data);
+        if (r?.refused) {
+          setValue(before);
+          setRefused(r.refused);
+        }
+      } catch {
+        setValue(before);
+        setRefused(say(WORDS.didNotSave));
+      }
+    });
+  };
+  // The flag shows while the choice holds its value, and while the question about picking it is open.
+  const flagged = cell.flag && (value === cell.flag.value || asking === cell.flag.value) ? cell.flag.text : null;
   return (
     <div className="min-w-0">
       {/* The spinner sits beside the chip, inside its height (h-9), so a working cell is no taller than a resting one. */}
@@ -1149,31 +1177,15 @@ export function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }
         aria-label={cell.label}
         searchable={cell.searchable}
         aria-disabled={pending || undefined}
-        aria-describedby={refused ? refusedId : undefined}
+        aria-describedby={cx(cell.flag && flagId, refused && refusedId) || undefined}
         aria-invalid={refused ? true : undefined}
         value={value}
         onChange={(e) => {
           // Not `disabled` while pending (a disabled trigger drops focus): a pick made meanwhile is ignored.
           if (pending) return;
           const next = e.target.value;
-          const before = value;
-          setValue(next);
-          setRefused(null);
-          const data = new FormData();
-          for (const [k, v] of Object.entries(cell.fields)) data.set(k, v);
-          data.set(cell.name, next);
-          start(async () => {
-            try {
-              const r = await cell.action(data);
-              if (r?.refused) {
-                setValue(before);
-                setRefused(r.refused);
-              }
-            } catch {
-              setValue(before);
-              setRefused(say(WORDS.didNotSave));
-            }
-          });
+          if (cell.confirm && next === cell.confirm.when) setAsking(next);
+          else apply(next);
         }}
       >
         {cell.options.map((o) => (
@@ -1184,15 +1196,33 @@ export function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }
       </Select>
       {pending && <SpinnerIcon size={14} className="shrink-0 text-brand-700" />}
       </div>
-      {cell.flag && value === cell.flag.value && (
-        <Badge tone="warn" className="mt-1">
-          {cell.flag.text}
-        </Badge>
+      {/* Always present where the cell can be flagged, so the chip's words are announced when it appears and the select names it. */}
+      {cell.flag && (
+        <div id={flagId} role="status" className="empty:hidden">
+          {flagged && (
+            <Badge tone="warn" className="mt-1">
+              {flagged}
+            </Badge>
+          )}
+        </div>
       )}
       {refused && (
         <div id={refusedId} role="status" className="mt-1 break-words text-[12.5px] text-rose-700">
           {refused}
         </div>
+      )}
+      {asking && cell.confirm && (
+        <ConfirmDialog
+          question={cell.confirm.question}
+          words={cell.confirm.words}
+          confirmLabel={cell.confirm.confirmLabel}
+          cancelLabel={cell.confirm.cancelLabel}
+          onConfirm={() => {
+            apply(asking);
+            setAsking(null);
+          }}
+          onCancel={() => setAsking(null)}
+        />
       )}
     </div>
   );

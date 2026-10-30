@@ -85,10 +85,11 @@ describe("Composer audience switch", () => {
   it("a shared item defaults to Reply, and Internal note is tinted, locked and posted as INTERNAL", async () => {
     const action = vi.fn(async (data: FormData) => void data.get("audience"));
     await act(async () => root.render(createElement(Composer, { action, label: "Comment", audiences })));
-    const pressed = () => [...host.querySelectorAll("button[aria-pressed=true]")].map((b) => b.textContent);
+    const pressed = () => [...host.querySelectorAll("button[aria-checked=true]")].map((b) => b.textContent);
+    expect(host.querySelector('[role=radiogroup][aria-label="Who sees this"]')).not.toBeNull();
     expect(pressed()).toEqual(["Reply"]);
     expect(host.querySelector("button[type=submit]")!.textContent).toBe("Send reply");
-    await act(async () => void [...host.querySelectorAll<HTMLButtonElement>("button[aria-pressed]")].find((b) => b.textContent === "Internal note")!.click());
+    await act(async () => void [...host.querySelectorAll<HTMLButtonElement>("button[role=radio]")].find((b) => b.textContent === "Internal note")!.click());
     expect(pressed()).toEqual(["Internal note"]);
     expect(host.querySelector("textarea")!.className).toContain("bg-amber-50");
     expect(host.querySelector("svg")).not.toBeNull();

@@ -9,7 +9,7 @@ import { FORM_TOKEN_HEADER } from "@/lib/auth/form-token-shape";
 import { NOT_SCANNED_LABEL, progressPercent, progressText, uploadOutcome, type UploadAnswer, type UploadPhase } from "@/lib/ui/upload-logic";
 
 import { Chip } from "./badge";
-import { CONTROL, NOTCH_LABEL, NOTCH_WRAP, inputClass, type ControlSize } from "./control";
+import { CONTROL, CONTROL_INTERNAL, NOTCH_LABEL, NOTCH_WRAP, inputClass, type ControlSize } from "./control";
 import { cx } from "./cx";
 import { FieldProvider, fieldAria, useFieldContext } from "./field-context";
 
@@ -216,11 +216,12 @@ export function FileInput({
   );
 }
 
-export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+/// `tone="internal"`: the amber tint of an internal note (a comment only staff read).
+export function Textarea({ className, tone, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & { tone?: "internal" }) {
   const ctx = useFieldContext();
   return (
     <textarea
-      className={cx(CONTROL, "min-h-24 px-3.5 py-2.5 text-[16px] leading-relaxed sm:text-[14px]", className)}
+      className={cx(tone === "internal" ? CONTROL_INTERNAL : CONTROL, "min-h-24 px-3.5 py-2.5 text-[16px] leading-relaxed sm:text-[14px]", className)}
       {...props}
       {...fieldAria(ctx, props)}
     />

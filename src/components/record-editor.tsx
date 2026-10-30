@@ -667,7 +667,7 @@ function FieldInput({
 
     return (
       <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error}>
-        <Select id={id} name={field.name} defaultValue={current} searchable={field.searchable} search={field.search ? { url: field.search.url, minChars: 0 } : undefined} aria-invalid={error ? true : undefined}>
+        <Select id={id} name={field.name} defaultValue={current} searchable={field.searchable} search={field.search ? { url: field.search.url, minChars: 0 } : undefined} aria-invalid={error ? true : undefined} aria-describedby={field.flag && !hint && !error ? `${id}-flag` : undefined}>
           <option value="" disabled={field.placeholderDisabled && current !== ""}>{field.placeholder ?? say(WORDS.notSet)}</option>
           {orphaned && <option value={current}>{field.orphanLabel ?? current}</option>}
           {field.options.map((o) => (
@@ -676,10 +676,15 @@ function FieldInput({
             </option>
           ))}
         </Select>
-        {flagged && (
-          <Badge tone="warn" className="mt-1.5">
-            {flagged}
-          </Badge>
+        {/* Always present where the field can be flagged, so the chip's words are announced when it appears. */}
+        {field.flag && (
+          <div id={`${id}-flag`} role="status" className="empty:hidden">
+            {flagged && (
+              <Badge tone="warn" className="mt-1.5">
+                {flagged}
+              </Badge>
+            )}
+          </div>
         )}
       </Field>
     );

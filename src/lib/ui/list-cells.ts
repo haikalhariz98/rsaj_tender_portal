@@ -25,7 +25,7 @@ export type Cell =
   | { kind: "badge"; text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }
   | { kind: "chip"; text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }
   | { kind: "person"; name: string; sub?: string }
-  | { kind: "link"; text: string; href: string; sub?: string; /** `false`: following it keeps the scroll position (a link that opens a panel beside the list). */ scroll?: false }
+  | { kind: "link"; text: string; href: string; /** The link's accessible name where `text` alone repeats down the column ("Reply" on every row). */ label?: string; sub?: string; /** `false`: following it keeps the scroll position (a link that opens a panel beside the list). */ scroll?: false }
   /// A link that is an act: a button that calls a server action with `fields`, which does its work and then redirects (the inbox's notice, AC-47). Not an anchor, so a prefetch never runs it.
   | { kind: "open"; text: string; action: (data: FormData) => Promise<void>; fields: Record<string, string>; sub?: string }
   /// A file to save: a plain anchor with the `download` attribute (never a client-side Link, which could prefetch it and write a log row for a download nobody made).
@@ -54,7 +54,7 @@ export type Cell =
   | { kind: "withheld"; words: string }
   /// An inline choice that is an act: picking calls the server action with `fields` plus `name` = the chosen value. The action returns `{ refused }` (the words) to
   /// refuse, and the cell reverts and says them. With `disabledWhy` the choice is read only: the current label shows, with who can change it in a popover.
-  | { kind: "select"; name: string; value: string; options: { value: string; label: string }[]; label: string; action: (data: FormData) => Promise<{ refused?: string } | void>; fields: Record<string, string>; disabledWhy?: string; /** Default: the Select's own rule (a search box above seven options). */ searchable?: boolean; /** A warn chip shown under the choice while it holds this value (a state of the choice, not a refusal). */ flag?: { value: string; text: string } };
+  | { kind: "select"; name: string; value: string; options: { value: string; label: string }[]; label: string; action: (data: FormData) => Promise<{ refused?: string } | void>; fields: Record<string, string>; disabledWhy?: string; /** Default: the Select's own rule (a search box above seven options). */ searchable?: boolean; /** A warn chip shown under the choice while it holds this value (a state of the choice, not a refusal). */ flag?: { value: string; text: string }; /** Picking `when` asks this question first and posts only on the confirming answer (a pick that cannot be taken back). */ confirm?: { when: string; question: string; words?: string; confirmLabel: string; cancelLabel: string } };
 
 export interface Column {
   key: string;

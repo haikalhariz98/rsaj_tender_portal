@@ -88,6 +88,7 @@ export const COMPONENT_WORDS = {
   activityNothingYet: w("Nothing yet"),
   activityShow: w("Show"),
   sendComment: w("Comment"),
+  whoSees: w("Who sees this"),
   writeSomethingFirst: w("Write something first."),
   discardComment: w("Discard this comment?"),
   discardCommentWords: w("What you wrote has not been sent."),

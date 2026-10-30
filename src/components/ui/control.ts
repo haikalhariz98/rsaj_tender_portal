@@ -9,6 +9,9 @@ export const CONTROL =
   "disabled:cursor-not-allowed disabled:bg-sunken disabled:text-ink-3 " +
   "aria-invalid:border-rose-400 aria-invalid:focus:ring-rose-500/15";
 
+/// The same box in the internal-note tint (amber). Made by swapping the base colours rather than adding classes beside them, so the hover, focus and invalid states still win.
+export const CONTROL_INTERNAL = CONTROL.replace("border-line-2 bg-surface", "border-amber-300 bg-amber-50");
+
 /// 16px below the `sm` breakpoint: a text field under 16px makes iOS zoom the page in when it takes focus.
 export const HEIGHT = { sm: "h-9 px-3 text-[16px] sm:text-[13px]", md: "h-10 px-3.5 text-[16px] sm:text-[14px]" } as const;
 

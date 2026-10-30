@@ -37,7 +37,7 @@ export function DrawerHeader({
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <h2
             className="min-w-0 text-[18px] leading-snug font-bold tracking-tight break-words text-ink"
             title={typeof title === "string" ? title : undefined}
