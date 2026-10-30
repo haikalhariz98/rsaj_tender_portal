@@ -1164,3 +1164,79 @@ describe("the contractor's work acts: the contract's lock, the item, then the do
     expect((storeSrc.match(/lockDocument\(/g) ?? []).length).toBe(1);
   });
 });
+
+// ------------------------------------------------------------------ workspace 3b-ii, plan step 10: the defect link
+//
+// Changed for 3b-ii step 10 (stricter: a new block): a Defect item may stand for a defect line, so an act on the pair takes the contract, then the WorkItem row, then the DefectItem row,
+// whichever door it comes through: close-out's acts (`closeout-actions.ts`, through `closeout/defect-acts.ts`), the contractor's "Mark as fixed" (`portal/projects/defect-store.ts`), and
+// the work cores (`work/store.ts`, which hold the item already and call the defect core). The item's lock is `lockLinkedItem` (by the line) or `lockedItem` (by the item); nothing locks
+// the line first.
+
+describe("the defect link: the contract, then the WorkItem, then the DefectItem", () => {
+  const LINE_LOCK = 'FROM "DefectItem" WHERE id = ${';
+  const at = (src: string, t: string, from = 0) => src.indexOf(t, from);
+  const core = read("src/lib/closeout/defect-acts.ts");
+  const fn = (src: string, name: string) => {
+    const from = src.search(new RegExp(`^(?:export )?async function ${name}[(]`, "m"));
+    expect(from, name).toBeGreaterThan(-1);
+    return src.slice(from, src.indexOf("\n}\n", from));
+  };
+
+  it("the close-out core locks the linked item, then the line, then reads the line, and writes the item through after the event", () => {
+    const act = fn(core, "recordDefectAct");
+    expect(at(act, "lockLinkedItem(")).toBeGreaterThan(-1);
+    expect(at(act, "lockLinkedItem(")).toBeLessThan(at(act, LINE_LOCK));
+    expect(at(act, LINE_LOCK)).toBeLessThan(at(act, "loadCloseout("));
+    expect(at(act, "writeThrough(")).toBeGreaterThan(at(act, "defectEvent.create("));
+    // The DEFECTS row of the table is asked in the core, since the work store does not arrive through close-out's inContract.
+    expect(at(act, "gate(c)")).toBeLessThan(at(act, "lockLinkedItem("));
+    const pick = fn(core, "addLinesFromItems");
+    expect(at(pick, 'FROM "WorkItem" WHERE id')).toBeGreaterThan(-1);
+    expect(at(pick, "defectItem.create(")).toBeGreaterThan(at(pick, 'FROM "WorkItem" WHERE id'));
+    expect(at(pick, ".sort()")).toBeLessThan(at(pick, 'FROM "WorkItem" WHERE id'));
+    expect(at(pick, "linkItem(")).toBeGreaterThan(at(pick, "defectItem.create("));
+    expect(lex(core)).not.toMatch(/\$transaction|withLockedContract|FROM "Contract"/);
+  });
+
+  it("removing a line from the CPC's list locks its item first and clears the link before the delete (the key restricts)", () => {
+    const remove = actions(read(CLOSEOUT)).get("removeCpcDefect")!;
+    expect(at(remove, "lockLinkedItem(")).toBeLessThan(at(remove, LINE_LOCK));
+    expect(at(remove, "unlinkItem(")).toBeGreaterThan(at(remove, LINE_LOCK));
+    expect(at(remove, "defectItem.deleteMany(")).toBeGreaterThan(at(remove, "unlinkItem("));
+  });
+
+  it("the contractor's report locks the item, then the line, then writes the item through", () => {
+    const portal = read("src/lib/portal/projects/defect-store.ts");
+    const within = fn(portal, "rectifyWithin");
+    expect(at(within, "lockLinkedItem(")).toBeLessThan(at(within, LINE_LOCK));
+    expect(at(within, "writeThrough(")).toBeGreaterThan(at(within, "defectEvent.create("));
+    expect(at(within, "actStatusFault(\"DEFECTS\"")).toBeLessThan(at(within, "lockLinkedItem("));
+  });
+
+  it("the work store never locks a line: a linked move locks the item (lockedItem), then the defect core takes the line", () => {
+    const store = read(WORK_STORE);
+    expect(lex(store)).not.toMatch(/"DefectItem"/);
+    const move = actions(store).get("moveItem")!;
+    expect(at(move, "linkedMove(")).toBeGreaterThan(at(move, "lockedItem("));
+    expect(at(move, "linkedMove(")).toBeLessThan(at(move, "moveFaults("));
+    const linked = fn(store, "linkedMove");
+    expect(at(linked, "recordDefectAct(")).toBeGreaterThan(-1);
+    expect(linked).not.toMatch(/workItem\.update/); // the act writes the status through; the store writes none of its own
+    // A Defect item raised past practical completion makes its line first, then the item (nothing else can see either).
+    const create = actions(store).get("createItem")!;
+    expect(at(create, "reportDefectLine(")).toBeLessThan(at(create, "workItem.create("));
+    expect(at(create, "reportDefectLine(")).toBeGreaterThan(at(create, "newItemFaults("));
+  });
+
+  it("the contractor's work store marks a linked item fixed through the portal's core, after the item is locked and judged, and writes no status of its own there", () => {
+    const portal = read(PORTAL_WORK_STORE);
+    const move = fn(portal.replace(/\nexport function /g, "\nexport async function "), "moveAsContractor");
+    expect(at(move, "markFixed(")).toBeGreaterThan(at(move, "moveFaults("));
+    expect(at(move, "markFixed(")).toBeLessThan(at(move, ".workItem.updateMany("));
+  });
+
+  it("every write of a linked item's status is the link's own, or a work core's guarded update", () => {
+    const writers = SCANNED.filter((s) => /workItem\.updateMany\(/.test(lex(s.src)) && !s.file.endsWith(".test.ts")).map((s) => s.file).sort();
+    expect(writers).toEqual(["src/lib/work/defect-link-store.ts", "src/lib/work/portal-store.ts", "src/lib/work/store.ts"]);
+  });
+});

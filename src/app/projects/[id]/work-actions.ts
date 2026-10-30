@@ -13,6 +13,8 @@ import { withLockedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf } from "@/lib/dates";
 import { parseFieldEdit, parseNewItem } from "@/lib/work/fields";
+import { defectActOf } from "@/lib/work/defect-link";
+import { isLinkedItem } from "@/lib/work/load";
 import { actionOf } from "@/lib/work/move";
 import { attachFiles, comment, createItem, editField, link, moveItem, removeFile, shareItem, unlink, WorkRefused, type WorkCtx } from "@/lib/work/store";
 import type { Audience, WorkStatus } from "@/lib/work/types";
@@ -31,7 +33,8 @@ import type { Audience, WorkStatus } from "@/lib/work/types";
  *
  * Form fields (all acts take `contractId`; every act on an item takes `itemId`):
  *   createWorkItem       `type`, `title`, `description`, `priority`, `dueOn`, `location`, `assigneePersonId` (a person id, or "contractor"), `answer`, `impact`, `inspectionResult`, `severity`, `happenedAt`, `fromDocumentId`;
- *                        `share` ("on" shares it; the quick-add row posts none, so it never shares).
+ *                        `share` ("on" shares it; the quick-add row posts none, so it never shares). A Defect past practical completion is raised with its defect line (WB-12) and also needs
+ *                        `observedOn` (the day it was seen) and `dueOn`; the line's own rules refuse a missing or out-of-period day in their words.
  *   editWorkField        `field` (a column of `fields.ts`), `value`. The select cell posts its pick as `value`; "contractor" as an assignee shares the item (one-way).
  *   moveWorkItem         `from` (the status the reader saw), `to`; `reason` for Cancel; `comment` for Send back. The Board posts the card's `fields` with `from` and `to`.
  *   commentOnWorkItem    `body`; `expectedShared` ("yes" or "no": the share state the page was drawn with; required); `audience` ("REPLY" or "INTERNAL"; absent is internal on the server, WSEC-1).
@@ -146,7 +149,7 @@ export async function editWorkField(data: FormData): Promise<WorkResult> {
   });
 }
 
-/// Move an item to a status, from the status the reader saw. Send back writes its comment in the same act, so it alone begins an attribution (the comment's).
+/// Move an item to a status, from the status the reader saw. Send back writes its comment in the same act, so it begins an attribution (the comment's); on a linked item the defect act's event is the attribution instead.
 export async function moveWorkItem(data: FormData): Promise<WorkResult> {
   const guard = await staffForAct("TRANSACTION");
   if (!guard.ok) return { refused: stateWords(guard.state) };
@@ -158,13 +161,15 @@ export async function moveWorkItem(data: FormData): Promise<WorkResult> {
   const to = statusOf(data, "to");
   if (!contractId || !itemId || !from || !to) return UNREADABLE;
   let act: PreparedAct | null = null;
-  if (actionOf(from, to) === "SEND_BACK") {
-    const begun = await beginAct(actor, data, "WorkItemComment.person", { personField: "personId", onBehalf: false });
+  // B-18: a move on an item that stands for a defect line is a defect act, attributed as the line's event; the core refuses a page and a row that disagree.
+  const viaDefectAct = defectActOf(actionOf(from, to), "STAFF") !== null && (await isLinkedItem(actor.organisationId, contractId, itemId));
+  if (viaDefectAct || actionOf(from, to) === "SEND_BACK") {
+    const begun = await beginAct(actor, data, viaDefectAct ? "DefectEvent.person" : "WorkItemComment.person", { personField: "personId", onBehalf: false });
     if (!begun.ok) return { refused: stateWords(begun.state) };
     act = begun.act;
   }
   return inContract(actor, contractId, now, async (c) => {
-    await moveItem(c, actor, { itemId, expectedFrom: from, to, reason: text(data, "reason"), comment: text(data, "comment") }, act);
+    await moveItem(c, actor, { itemId, expectedFrom: from, to, reason: text(data, "reason"), comment: text(data, "comment"), viaDefectAct }, act);
     return {};
   });
 }

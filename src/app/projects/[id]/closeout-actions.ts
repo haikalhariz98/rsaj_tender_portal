@@ -6,13 +6,15 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
 import { cpcLineFaults, cpcRaiseFaults, dlpOf } from "@/lib/closeout/completion";
-import { defectActFaults, defectState, onDraftCpc, reportDefectFaults, type DefectAct } from "@/lib/closeout/defects";
+import { addLinesFromItems, recordDefectAct, reportDefectLine } from "@/lib/closeout/defect-acts";
+import type { DefectAct } from "@/lib/closeout/defects";
 import { closeoutRefusal, SECURITY_FORM_WORDS, SECURITY_KIND_WORDS } from "@/lib/closeout/labels";
-import { cmgdIssuedOn, defectFactsOf, dlpOfRow, finalPaidOf, liveLadWindows, loadCloseout, openLineCount, releaseEventsOf } from "@/lib/closeout/load";
+import { cmgdIssuedOn, dlpOfRow, finalPaidOf, liveLadWindows, loadCloseout, openLineCount, releaseEventsOf } from "@/lib/closeout/load";
 import { cmgdRaiseFaults } from "@/lib/closeout/making-good";
 import { beforeCertificateFault, returnTriggerOf, securityReturnFaults, type SecurityReturnInput } from "@/lib/closeout/release";
 import { scheduleRaiseFaults } from "@/lib/closeout/schedule";
 import { advanceRecoupedOf, cmgdFiguresNow } from "@/lib/closeout/view";
+import { lockLinkedItem, unlinkItem } from "@/lib/work/defect-link-store";
 import type { Finding } from "@/lib/closeout/types";
 import { refusalText } from "@/lib/certificate/fault-text";
 import { noFormFault } from "@/lib/certificate/form-needs";
@@ -168,6 +170,29 @@ export async function addCpcDefect(_prev: FormState, data: FormData): Promise<Fo
   });
 }
 
+/// FR-CMP-007 with the work list (B-18): the open Defect items the officer picked become lines on the draft CPC and are linked to them. `dueOn` is for the items that have none.
+export async function addCpcDefectsFromItems(_prev: FormState, data: FormData): Promise<FormState> {
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const dueOn = r.date("dueOn", "Made good by");
+  const itemIds = data.getAll("itemIds").flatMap((v) => String(v).split("\n")).map((v) => v.trim()).filter(Boolean);
+  if (itemIds.length === 0) r.errors.itemIds = "Choose at least one item.";
+  if (r.failed || itemIds.length > 50) return { ok: false, errors: itemIds.length > 50 ? { itemIds: "Choose at most 50 items at a time." } : r.errors };
+  const begun = await beginAct(actor, data, "DefectItem.reportedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  return inContract(actor, toAuditActor(actor), idOf(data), now, "COMPLETION", async (c) => {
+    const who = await recordedFor(c, act, { act: "OBSERVATION" }, c.today);
+    const pc = await lockCpc(c);
+    if (!pc) throw new ActRefusal({ ok: false, message: "Not added: raise the practical completion certificate first." });
+    await addLinesFromItems(c, act, { id: pc.id, completionDate: pc.completionDate, certificateStatus: pc.certificate.status }, { personId: who.person.id, personName: who.person.name, roleCode: who.soRoleCode }, itemIds, dueOn);
+    return { ok: true };
+  });
+}
+
 /// A line taken off the CPC's list while it is a draft (the trigger refuses it after).
 export async function removeCpcDefect(_prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
@@ -178,12 +203,16 @@ export async function removeCpcDefect(_prev: FormState, data: FormData): Promise
   return inContract(actor, toAuditActor(actor), idOf(data), now, "COMPLETION", async (c) => {
     const pc = await lockCpc(c);
     if (!pc) throw new ActRefusal({ ok: false, message: "That defect is not on the certificate." });
+    // The item that stands for the line is locked before the line (contract, WorkItem, DefectItem).
+    const item = await lockLinkedItem(c.tx, { organisationId: c.l.org.id, contractId: c.l.contract.id }, defectId);
     await c.tx.$queryRaw`SELECT id FROM "DefectItem" WHERE id = ${defectId} AND "contractId" = ${c.l.contract.id} FOR UPDATE`;
     const d = await c.tx.defectItem.findFirst({ where: { id: defectId, practicalCompletionId: pc.id, organisationId: c.l.org.id } });
     if (!d) throw new ActRefusal({ ok: false, message: "That defect is not on the certificate." });
     if (pc.certificate.status !== "DRAFT") refuse("Not removed:", [{ code: "CPC_NOT_DRAFT", level: "block" }]);
     // F6: a line with anything recorded against it is kept (its events would otherwise be lost to a foreign-key error).
     if (await c.tx.defectEvent.count({ where: { defectId: d.id } })) refuse("Not removed:", [{ code: "LINE_HAS_EVENTS", level: "block" }]);
+    // The key restricts: the link is cleared first, and the item stays a snag.
+    if (item) await unlinkItem(c.tx, c.actor, { organisationId: c.l.org.id, contractId: c.l.contract.id, contractNumber: c.l.contract.number }, item, { id: d.id, description: d.description });
     await c.tx.defectItem.deleteMany({ where: { id: d.id, organisationId: c.l.org.id } });
     await audit(c, "DefectItem", d.id, `${c.label} · defect`, "DELETE", diffFields({ defect: d.description, where: d.location || null, madeGoodBy: storedDay(d.dueOn) }, { defect: null, where: null, madeGoodBy: null }));
     return { ok: true };
@@ -207,19 +236,10 @@ export async function reportDefect(_prev: FormState, data: FormData): Promise<Fo
   if (!begun.ok) return begun.state;
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "DEFECTS", async (c) => {
-    const who = await recordedFor(c, act, { act: "OBSERVATION" }, c.today);
-    const rows = await loadCloseout(c.l.contract.id, c.tx);
-    const fs = reportDefectFaults({ cpcIssued: rows.cpc?.certificate.status === "ISSUED", dlpApplies: !!rows.cpc?.dlpStart, scheduleIssued: rows.schedule?.certificate.status === "ISSUED", description, dueOn: storedDay(dueOn), observedOn: storedDay(observedOn), completionDate: rows.cpc ? storedDay(rows.cpc.completionDate) : null, dlpEndExclusive: rows.cpc?.dlpEnd ? storedDay(rows.cpc.dlpEnd) : null, today: c.today });
-    if (fs.length) refuse("Not recorded:", fs);
-    const row = await c.tx.defectItem.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, source: "LIABILITY_PERIOD", description: description.trim(), location: location.trim(), dueOn, observedOn, reportedByPersonId: who.person.id, recordedAt: c.now } });
-    await audit(c, "DefectItem", row.id, `${c.label} · defect`, "CREATE", diffFields(null, { defect: description.trim(), where: location.trim() || null, madeGoodBy: storedDay(dueOn), observedOn: storedDay(observedOn), reported: "during the defects liability period", recordedFor: who.person.name }));
-    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
+    await reportDefectLine(c, act, { description, location, dueOn, observedOn });
     return { ok: true };
   });
 }
-
-const EVENT_OF: Readonly<Record<DefectAct, "REPORTED_RECTIFIED" | "MADE_GOOD" | "RETURNED" | "WITHDRAWN">> = { REPORT_RECTIFIED: "REPORTED_RECTIFIED", ACCEPT: "MADE_GOOD", RETURN: "RETURNED", WITHDRAW: "WITHDRAWN" };
-const EVENT_WORDS: Readonly<Record<DefectAct, string>> = { REPORT_RECTIFIED: "reported rectified", ACCEPT: "made good", RETURN: "returned: not made good", WITHDRAW: "withdrawn" };
 
 /// One act on a line, by an officer: an event appended, never the line changed (ADR 0047 D1). Its family is DEFECTS.
 async function onDefect(actor: Extract<Awaited<ReturnType<typeof staffForAct>>, { ok: true }>["actor"], data: FormData, which: DefectAct): Promise<FormState> {
@@ -234,18 +254,7 @@ async function onDefect(actor: Extract<Awaited<ReturnType<typeof staffForAct>>, 
   if (!begun.ok) return begun.state;
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "DEFECTS", async (c) => {
-    const who = await recordedFor(c, act, { act: "OBSERVATION" }, storedDay(on));
-    await c.tx.$queryRaw`SELECT id FROM "DefectItem" WHERE id = ${defectId} AND "contractId" = ${c.l.contract.id} FOR UPDATE`;
-    const rows = await loadCloseout(c.l.contract.id, c.tx);
-    const d = defectFactsOf(rows).find((x) => x.id === defectId);
-    if (!d) throw new ActRefusal({ ok: false, message: "That defect is not on this contract." });
-    const fs = defectActFaults(which, defectState(d.events).state, { note, on: storedDay(on), today: c.today, onDraftCpc: onDraftCpc(rows.lines.find((x) => x.id === d.id)!, rows.cpc?.certificate.status ?? null) });
-    if (fs.length) refuse("Not recorded:", fs);
-    const evidence = evidenceId ? await c.tx.projectDocument.findFirst({ where: { id: evidenceId, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true, title: true } }) : null;
-    if (evidenceId && !evidence) fieldError("evidenceDocumentId", "That document is not on this contract.");
-    const row = await c.tx.defectEvent.create({ data: { organisationId: c.l.org.id, defectId: d.id, kind: EVENT_OF[which], on, note: note.trim(), evidenceDocumentId: evidence?.id ?? null, personId: who.person.id, recordedAt: c.now } });
-    await audit(c, "DefectEvent", row.id, `${c.label} · defect: ${d.description.slice(0, 80)}`, "CREATE", diffFields(null, { defect: EVENT_WORDS[which], on: storedDay(on), note: note.trim() || null, evidence: evidence?.title ?? null, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }));
-    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
+    await recordDefectAct(c, act, which, { defectId, on, note, evidenceDocumentId: evidenceId });
     return { ok: true };
   });
 }

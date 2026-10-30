@@ -233,8 +233,6 @@ export function fieldFaultText(f: FieldFault): string {
       return "Reopen it first.";
     case "ASSIGNEE_NOT_ELIGIBLE":
       return "Pick someone active who can see this contract.";
-    case "DEFECT_AFTER_COMPLETION":
-      return "List defects in Close-out › Defects.";
     case "OTHER_CONTRACT":
       return "That is on another contract.";
     case "NOT_SHARED":

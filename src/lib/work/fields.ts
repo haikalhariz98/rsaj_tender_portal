@@ -8,13 +8,15 @@
  *   safety incident; "From" on an action item).
  * - Editing: a Done or Cancelled item is closed until reopened; only its raiser, its assignee or the lead edit it (W-3).
  * - Who may edit is `mayEdit`. `FieldFacts.activeIds` is the active people of the item's organisation who may READ the case; an assignee outside it is refused.
- * - Raising a Defect on a contract past practical completion is refused (OQ-4): the defect belongs in Close-out › Defects until 3b links the two.
+ * - 3b-ii (WB-12): a Defect on a contract past practical completion is raised WITH its defect line, in one act, under `reportDefect`'s own checks (`closeout/defect-acts.ts`); it is not
+ *   refused here. `typeOfferable` only hides it where the DEFECTS row of the act x status table is shut.
  * - 3b: the assignee dropdown's "{contractor}" posts `CONTRACTOR_ASSIGNEE` and parses to `assignedToContractor` (the company, WS-9), never a person id.
  * - 3b B-10: the contractor edits one field, the Answer of an RFI it holds while open (WB-6); anything else is CONTRACTOR_MAY_NOT_EDIT. It raises only an
  *   RFI or a safety incident (`contractorRaiseFaults`, B-15).
  */
 
 import { COMPLETED_CONTRACT_STATUSES } from "@/lib/contract/case-stage";
+import { actStatusFault } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { instantAt, isDay } from "@/lib/dates";
 
@@ -206,6 +208,8 @@ export interface NewItem {
   severity: IncidentSeverity | null;
   happenedAt: Date | null;
   fromDocumentId: string | null;
+  /// A Defect raised during the defects liability period (WB-12): the day it was observed, as `reportDefect` asks it. Absent on every other raise.
+  observedOn?: Day | null;
 }
 
 /// The New item form, or null when its type or any picked value is not one the form offers. Priority defaults to Normal; an inspection's result to Not yet.
@@ -217,6 +221,8 @@ export function parseNewItem(form: FormLike, timeZone: string | null): NewItem |
   const result = oneOf(text(form, "inspectionResult"), RESULTS);
   const severity = oneOf(text(form, "severity"), SEVERITIES);
   const happenedAt = instantOrNull(text(form, "happenedAt"), timeZone);
+  const observedOn = dayOrNull(text(form, "observedOn"));
+  if (observedOn === BAD) return null;
   if (type === BAD || type === null || priority === BAD || dueOn === BAD || impact === BAD || result === BAD || severity === BAD || happenedAt === BAD) return null;
   const toContractor = text(form, "assigneePersonId").trim() === CONTRACTOR_ASSIGNEE;
   return {
@@ -235,18 +241,18 @@ export function parseNewItem(form: FormLike, timeZone: string | null): NewItem |
     severity,
     happenedAt,
     fromDocumentId: idOrNull(text(form, "fromDocumentId")),
+    ...(observedOn === null ? {} : { observedOn }),
   };
 }
 
-/// Whether a type can be raised on a contract in this status (a Defect cannot after completion, OQ-4); the screens offer only these.
+/// Whether a type can be raised on a contract in this status; the screens offer only these. A Defect past practical completion needs its line (WB-12), which the DEFECTS row of the table must allow.
 export function typeOfferable(type: string, contractStatus: ContractStatus): boolean {
-  return !(type === "DEFECT" && COMPLETED_CONTRACT_STATUSES.includes(contractStatus));
+  return !(type === "DEFECT" && COMPLETED_CONTRACT_STATUSES.includes(contractStatus) && actStatusFault("DEFECTS", contractStatus) !== null);
 }
 
-/// Every fault of a new item: the contract's stage for a Defect (OQ-4), then each field, its own type's fields always and another type's only when given.
-export function newItemFaults(n: NewItem, facts: FieldFacts & { contractStatus: ContractStatus }): FieldFault[] {
+/// Every fault of a new item: each field, its own type's fields always and another type's only when given.
+export function newItemFaults(n: NewItem, facts: FieldFacts): FieldFault[] {
   const out: FieldFault[] = [];
-  if (!typeOfferable(n.type, facts.contractStatus)) out.push({ code: "DEFECT_AFTER_COMPLETION" });
   const edits: FieldEdit[] = [
     { field: "title", value: n.title },
     { field: "description", value: n.description },

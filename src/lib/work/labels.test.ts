@@ -123,7 +123,6 @@ describe("every refusal is worded, with no code", () => {
     { code: "NOT_EDITABLE", whoCan: { en: "Only Hafiz, who raised it, can edit this." } },
     { code: "CLOSED_ITEM" },
     { code: "ASSIGNEE_NOT_ELIGIBLE" },
-    { code: "DEFECT_AFTER_COMPLETION" },
     { code: "OTHER_CONTRACT" },
   ];
 
@@ -147,7 +146,6 @@ describe("every refusal is worded, with no code", () => {
     }
     expect(fieldFaultText({ code: "TOO_LONG", field: "description", max: 10_000 })).toBe("Description is over 10,000 characters.");
     expect(fieldFaultText({ code: "NOT_THIS_TYPE", field: "inspectionResult" })).toBe("This type has no result.");
-    expect(fieldFaultText({ code: "DEFECT_AFTER_COMPLETION" })).toBe("List defects in Close-out › Defects.");
   });
 });
 

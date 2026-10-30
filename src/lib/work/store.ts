@@ -10,6 +10,10 @@
  *   4. the guarded write;  5. `writeAudit` with before and after;  6. `writeNotices`;  7. `act.write` for the act's slot (raising, commenting and linking have one).
  * A refusal throws `WorkRefused` before the first write, or rolls the transaction back after it, so nothing is left. Words are the pure rules' (`labels.ts`); no code reaches a screen.
  *
+ * 3b-ii (B-18, WB-12): a Defect item may stand for a defect line (`defectItemId`). A move on such an item is a defect act (`closeout/defect-acts.ts`), refused in its words, and the
+ * defect act writes the item's status through; a Defect item raised past practical completion is created WITH its line in the same act. Lock order: the contract, the WorkItem row,
+ * then the line.
+ *
  * Never changed by any core: an item's `type`, `contractId` or `number` (OQ-3; no trigger holds them), and `assigneeSupplierAccountId` (WS-9: never written).
  * A comment's audience is chosen when it is written and stored (`commentAudience`, ADR 0048 D4, 3b B-2). Sharing is one-way and audited (`sharedAt`, ADR 0049 D1): the
  * share core, an assignment to the contractor and a create with the toggle on write it; nothing clears it. Notices are keyed by the audit row's id (or the comment's), so a
@@ -18,6 +22,9 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields } from "@/lib/audit/diff";
+import { recordDefectAct, reportDefectLine } from "@/lib/closeout/defect-acts";
+import { COMPLETED_CONTRACT_STATUSES } from "@/lib/contract/case-stage";
+import { actCtx, ActRefusal } from "@/lib/matter/act";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import type { PreparedAct } from "@/lib/auth/act-begin";
 import { auditActorOfStaff } from "@/lib/auth/audit-actor";
@@ -39,6 +46,7 @@ import { stagedFileFaults, type StagedFault, type StagedFile } from "@/lib/proje
 import { contractorMayDownload } from "@/lib/project-docs/visibility";
 
 import { FILES_PER_ACT } from "./bounds";
+import { defectActOf, defectLineText, linkedMoveWords } from "./defect-link";
 import { commentFaults, fieldFaults, mayEdit, newItemFaults, type EditableField, type FieldEdit, type NewItem } from "./fields";
 import { audienceFaults, commentAudience, removeFileFaults } from "./audience";
 import { fieldFaultText, moveFaultText, removeFileWords, whoCanWords } from "./labels";
@@ -85,6 +93,17 @@ function gate(c: WorkCtx): void {
   if (shut) refuse(actStatusText(shut));
 }
 
+/// A defect core's refusal (an `ActRefusal`, in close-out's words) as this store refuses: the same words, the same rollback.
+async function viaDefectCore<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof ActRefusal) return refuse(e.state.message ?? (Object.values(e.state.errors ?? {}).join(" ") || "Not recorded."));
+    throw e;
+  }
+}
+const defectCtx = (c: WorkCtx, who: StaffActor) => actCtx(c.tx, c.l, c.now, auditActorOfStaff(who)) ?? refuse("Time zone not set. Set it under Configuration › Organisation.");
+
 const audit = (c: WorkCtx, who: StaffActor, row: Labelled, entity: string, entityId: string, what: string, action: "CREATE" | "UPDATE" | "DELETE", changes: ReturnType<typeof diffFields>, reason = "") =>
   writeAudit(c.tx, { actor: auditActorOfStaff(who), organisationId: c.l.org.id, entity, entityId, entityLabel: workAuditPrefix(c.l.contract.number, row.type, row.number) + what, reason }, action, changes);
 
@@ -116,6 +135,7 @@ const ITEM_SELECT = {
   happenedAt: true,
   fromDocumentId: true,
   cancelReason: true,
+  defectItemId: true,
 } as const;
 export type ItemRow = Prisma.WorkItemGetPayload<{ select: typeof ITEM_SELECT }>;
 
@@ -170,8 +190,13 @@ export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: P
   const org = c.l.org.id;
   const activeIds = await activeAmong(c.tx, org, [n.assigneePersonId, who.personId]);
   const fromOk = n.fromDocumentId === null || (await c.tx.projectDocument.findFirst({ where: { id: n.fromDocumentId, contractId: c.l.contract.id, organisationId: org }, select: { id: true } })) !== null;
-  const faults = newItemFaults(n, { now: c.now, activeIds, timeZone: c.l.org.timeZone, fromDocumentOnContract: fromOk, contractStatus: c.l.contract.status as ContractStatus });
+  const faults = newItemFaults(n, { now: c.now, activeIds, timeZone: c.l.org.timeZone, fromDocumentOnContract: fromOk });
   if (faults.length) refuse(faultsText(faults));
+  // WB-12: past practical completion a Defect is raised WITH its line in this one act, under `reportDefect`'s own checks and the observer's capacity; its refusals are that act's.
+  const line =
+    n.type === "DEFECT" && COMPLETED_CONTRACT_STATUSES.includes(c.l.contract.status as ContractStatus)
+      ? await viaDefectCore(() => reportDefectLine(defectCtx(c, who), act, { description: defectLineText(n.title, n.description), location: n.location, dueOn: n.dueOn === null ? null : dayToDate(n.dueOn), observedOn: n.observedOn ? dayToDate(n.observedOn) : null, alsoSlot: "DefectItem.reportedBy" }))
+      : null;
 
   const max = (await c.tx.workItem.aggregate({ where: { contractId: c.l.contract.id, organisationId: org, type: n.type }, _max: { number: true } }))._max.number;
   const number = nextNumber(max);
@@ -197,11 +222,13 @@ export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: P
       severity: n.severity,
       happenedAt: n.happenedAt,
       fromDocumentId: n.fromDocumentId,
+      // An open line reads as In progress (`defectItemStatus`).
+      ...(line ? { defectItemId: line.id, status: "IN_PROGRESS" as const } : {}),
       recordedAt: c.now,
     },
     select: ITEM_SELECT,
   });
-  const auditId = await audit(c, who, row, "WorkItem", row.id, row.title, "CREATE", diffFields(null, { type: row.type, number: itemRef(row.type, number), title: row.title, description: row.description || null, priority: row.priority, dueOn: dayOrNull(row.dueOn), location: row.location || null, assigneePersonId: partyView(assigneeOf(row)), sharedAt: row.sharedAt?.toISOString() ?? null, answer: row.answer || null, impact: row.impact, inspectionResult: row.inspectionResult, severity: row.severity, happenedAt: row.happenedAt?.toISOString() ?? null, fromDocumentId: row.fromDocumentId }));
+  const auditId = await audit(c, who, row, "WorkItem", row.id, row.title, "CREATE", diffFields(null, { type: row.type, number: itemRef(row.type, number), title: row.title, description: row.description || null, priority: row.priority, dueOn: dayOrNull(row.dueOn), location: row.location || null, assigneePersonId: partyView(assigneeOf(row)), sharedAt: row.sharedAt?.toISOString() ?? null, answer: row.answer || null, impact: row.impact, inspectionResult: row.inspectionResult, severity: row.severity, happenedAt: row.happenedAt?.toISOString() ?? null, fromDocumentId: row.fromDocumentId, ...(line ? { defectItemId: line.description.slice(0, 120) } : {}) }));
   if (row.assigneePersonId) await tell(c, who, row, "WORK_ITEM_ASSIGNED", auditId);
   await act.write(c.tx, row.id);
   return { id: row.id, ref: itemRef(row.type, number) };
@@ -273,14 +300,32 @@ async function lastMove(c: WorkCtx, itemId: string): Promise<{ by: string | null
   return { by: e ? actorDisplayName(e) : null, at: e?.at.toISOString() ?? "" };
 }
 
+/// A move on a linked item: the item's own who-may and shape rules do not apply, the defect act decides them. Mark done is `acceptDefect`, Send back is `returnDefect` (the comment is its
+/// note), Cancel is `withdrawDefect` (the reason is its note), Send for checking is `reportDefectRectified`; Reopen and Start have no act. The item's status is written by the act.
+async function linkedMove(c: WorkCtx, who: StaffActor, row: ItemRow, i: { expectedFrom: WorkStatus; to: WorkStatus; reason?: string; comment?: string; viaDefectAct?: boolean }, act: PreparedAct | null): Promise<void> {
+  // The page and the row disagree about the link: the attribution begun for this act is not the defect event's.
+  const stale = () => refuse("This defect was linked or unlinked a moment ago. Reload and try again.", 409);
+  if (row.defectItemId === null) return stale();
+  if (row.status !== i.expectedFrom) return refuse("Someone changed this a moment ago.", 409);
+  const action = actionOf(row.status, i.to);
+  const which = defectActOf(action, "STAFF");
+  if (!which) return refuse(linkedMoveWords(action));
+  if (!i.viaDefectAct || !act) return stale();
+  const ctx = defectCtx(c, who);
+  const note = which === "RETURN" ? (i.comment ?? "") : which === "WITHDRAW" ? (i.reason ?? "") : "";
+  await viaDefectCore(() => recordDefectAct(ctx, act, which, { defectId: row.defectItemId!, on: dayToDate(ctx.today), note, evidenceDocumentId: null }));
+}
+
 /**
  * A status change (§3.3's table, the pure `moveFaults`): the act carries the status the reader saw (`expectedFrom`), and a row that is no longer there is MOVED_ALREADY,
  * naming who moved it. The status and `closedAt` change in one UPDATE (the table's CHECK), and Cancel writes its reason in that write. Send back writes its comment in the
  * same act (`act` is then the comment's attribution; the other moves have none). Review tells the raiser; send back tells the assignee.
  */
-export async function moveItem(c: WorkCtx, who: StaffActor, i: { itemId: string; expectedFrom: WorkStatus; to: WorkStatus; reason?: string; comment?: string }, act: PreparedAct | null): Promise<void> {
+export async function moveItem(c: WorkCtx, who: StaffActor, i: { itemId: string; expectedFrom: WorkStatus; to: WorkStatus; reason?: string; comment?: string; viaDefectAct?: boolean }, act: PreparedAct | null): Promise<void> {
   gate(c);
   const row = await lockedItem(c, i.itemId);
+  // B-18: an item that stands for a defect line moves only through the defect acts (and the edge begins their attribution, not a comment's, for it).
+  if (row.defectItemId !== null || i.viaDefectAct) return linkedMove(c, who, row, i, act);
   const shut = actStatusFault("WORK_ITEM", c.l.contract.status as ContractStatus);
   const lead = await leadOf(c.l, c.today, c.tx);
   const names = await whoNamesIn(c, row, lead);

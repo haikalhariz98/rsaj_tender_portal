@@ -93,7 +93,6 @@ export type FieldFault =
   | { code: "CLOSED_ITEM" } // Done or Cancelled: reopen first
   | { code: "ASSIGNEE_NOT_ELIGIBLE" } // not in `activeIds`: inactive, another organisation's, or unable to read the case
   | { code: "COMMENT_EMPTY" }
-  | { code: "DEFECT_AFTER_COMPLETION" } // OQ-4 default
   | { code: "OTHER_CONTRACT" } // a link or "From" document on another contract
   | { code: "NOT_SHARED" } // a Reply on an item not shared when it is written (3b B-2; PA056)
   | { code: "SHARE_IS_ONE_WAY" } // unsharing (ADR 0049 D1)

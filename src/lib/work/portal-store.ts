@@ -31,7 +31,10 @@ import { STAGED_FOR_WORK_ITEM } from "@/lib/documents/staged-for";
 import { writeNotices } from "@/lib/inbox/store";
 import { stagedFileFaults, type StagedFault, type StagedFile } from "@/lib/project-docs/bounds";
 import { contractorMayDownload } from "@/lib/project-docs/visibility";
+import { rectifyWithin } from "@/lib/portal/projects/defect-store";
 import { inHeldContract, supplierAuditActor } from "@/lib/portal/projects/submission-store";
+import { ProjectRefused } from "@/lib/portal/projects/types";
+import { projectFaultText } from "@/lib/portal/projects/words";
 import type { AnswerBody, AttachBody, MoveBody, RaiseBody, ReplyBody } from "@/lib/portal/projects/work-api";
 
 import { audienceFaults } from "./audience";
@@ -325,6 +328,8 @@ export function moveAsContractor(actor: SupplierActor, i: MoveBody): Promise<voi
     if (faults.length) return refuse(portalMoveFaultText(faults[0]), faults[0].code === "MOVED_ALREADY" ? 409 : 422);
     const action = actionOf(row.status, target);
     if (action !== i.action) return refuse(portalMoveFaultText({ code: "NOT_A_MOVE", from: row.status, to: target }));
+    // B-18: "Mark as fixed" on an item that stands for a defect line is the line's own act (the item is locked, so the line's lock comes after it); the status is written through there.
+    if (row.defectItemId !== null) return markFixed(c, actor, row.defectItemId, i);
     if (action === "SEND_BACK") {
       // Ask again writes a Reply, so it is judged as one (PA056), as the reply path is.
       if (audienceFaults(row.sharedAt?.toISOString() ?? null, "REPLY", c.now).length) return refuse("This is not ready for replies yet. Try again in a moment.");
@@ -344,6 +349,16 @@ export function moveAsContractor(actor: SupplierActor, i: MoveBody): Promise<voi
     if (action === "SEND_FOR_REVIEW") await tell(c, row, "WORK_ITEM_TO_CHECK", auditId);
     if (action === "SEND_BACK") await tell(c, row, "WORK_ITEM_RETURNED", auditId);
   });
+}
+
+/// The contractor reports a linked defect rectified: `rectifyWithin`'s rules and words (the portal's Defects tab asks the same core), refused here as this store refuses.
+async function markFixed(c: WorkCtx, actor: SupplierActor, defectId: string, i: MoveBody): Promise<void> {
+  try {
+    await rectifyWithin(c.tx, c.l, c.today ?? refuse("The day is not known. Tell the procurement office."), actor, { contractId: i.contractId, defectId, note: "", evidenceDocumentId: null }, c.now);
+  } catch (e) {
+    if (e instanceof ProjectRefused) return refuse(e.faults.map((f) => projectFaultText(f).en).join(" "), e.status === 404 ? 404 : e.status === 409 ? 409 : 422);
+    throw e;
+  }
 }
 
 // ------------------------------------------------------------------ answer

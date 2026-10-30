@@ -138,11 +138,11 @@ describe("newItemFaults: what each type requires", () => {
     expect(newItemFaults(base("ACTION", { fromDocumentId: "doc1" }), { ...ACTIVE, fromDocumentOnContract: false })).toEqual([{ code: "OTHER_CONTRACT" }]);
     expect(newItemFaults(base("ACTION", { fromDocumentId: "doc1" }), ACTIVE)).toEqual([]);
   });
-  it("a Defect on a contract past practical completion is refused (OQ-4); before it, a Defect is a snag", () => {
-    for (const s of COMPLETED_CONTRACT_STATUSES) expect(newItemFaults(base("DEFECT"), { ...FACTS, contractStatus: s }), s).toEqual([{ code: "DEFECT_AFTER_COMPLETION" }]);
+  // Changed for 3b-ii step 10 (faithful to WB-12, which lifts OQ-4's refusal): a Defect past practical completion is no longer a field fault; the store raises it with its line.
+  it("a Defect is judged by its fields on any stage (WB-12): the line, not this rule, is what the stage asks of it", () => {
+    for (const s of COMPLETED_CONTRACT_STATUSES) expect(newItemFaults(base("DEFECT"), FACTS), s).toEqual([]);
     expect(COMPLETED_CONTRACT_STATUSES).toEqual(["PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED"]);
     expect(newItemFaults(base("DEFECT"), ACTIVE)).toEqual([]);
-    expect(newItemFaults(base("TASK"), { ...FACTS, contractStatus: "PRACTICALLY_COMPLETE" })).toEqual([]);
   });
 });
 
@@ -243,12 +243,13 @@ describe("fieldFaults: who edits, and when (W-3)", () => {
 });
 
 describe("typeOfferable", () => {
-  it("agrees with newItemFaults: a Defect is not offered once the works are complete", () => {
+  // Changed for 3b-ii step 10 (faithful to WB-12): a Defect is offered past practical completion wherever the DEFECTS row is open (practical completion), not after it.
+  it("a Defect is offered while defects can be recorded (the DEFECTS row), and not once they cannot", () => {
     expect(typeOfferable("DEFECT", "ACTIVE")).toBe(true);
-    for (const s of COMPLETED_CONTRACT_STATUSES) {
-      expect(typeOfferable("DEFECT", s), s).toBe(false);
-      expect(typeOfferable("TASK", s), s).toBe(true);
-    }
+    expect(typeOfferable("DEFECT", "PRACTICALLY_COMPLETE")).toBe(true);
+    expect(typeOfferable("DEFECT", "MAKING_GOOD_COMPLETE")).toBe(false);
+    expect(typeOfferable("DEFECT", "FINAL_CERTIFICATE_ISSUED")).toBe(false);
+    for (const s of COMPLETED_CONTRACT_STATUSES) expect(typeOfferable("TASK", s), s).toBe(true);
   });
 });
 
@@ -291,7 +292,7 @@ describe("3b: the contractor as a party in the fields (B-10, B-11, B-15; WB-6)",
   it("New item: '{contractor}' as the assignee sets the flag and no person", () => {
     const n = parseNewItem(form({ type: "TASK", title: "Clear the site", assigneePersonId: CONTRACTOR_ASSIGNEE }), KL)!;
     expect([n.assigneePersonId, n.assignedToContractor]).toEqual([null, true]);
-    expect(newItemFaults(n, { ...FACTS, contractStatus: "ACTIVE" })).toEqual([]);
+    expect(newItemFaults(n, FACTS)).toEqual([]);
   });
 });
 

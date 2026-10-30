@@ -40,6 +40,13 @@ import { WORK_ORDER_BY, workWhere, type WorkFilters } from "./views";
 /// stays out of the case History (OQ-6). The trailing " · " ends the contract's number: "Contract 1 · " is not a prefix of "Contract 10 · ".
 export const workAuditPrefix = (contractNumber: string, type: BoardItem["type"], number: number): string => `Work item ${itemRef(type, number)} · Contract ${contractNumber} · `;
 
+/// Whether an item stands for a defect line (B-18). Read before the contract's lock only to choose which attribution the edge begins; the core reads the locked row and refuses
+/// a page and a row that disagree (409), so this is a hint, never the authority.
+export async function isLinkedItem(organisationId: string, contractId: string, itemId: string): Promise<boolean> {
+  const row = await db.workItem.findFirst({ where: { id: itemId, contractId, organisationId }, select: { defectItemId: true } });
+  return row?.defectItemId != null;
+}
+
 /// Names of people of the organisation, by id.
 export async function namesOf(client: Tx, organisationId: string, ids: readonly string[]): Promise<Map<string, string>> {
   const want = [...new Set(ids)];

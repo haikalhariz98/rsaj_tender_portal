@@ -21,6 +21,8 @@ type Model = (typeof MODELS)[number];
 
 const ACTS = "src/app/projects/[id]/closeout-actions.ts";
 const AT_ISSUE = "src/lib/closeout/at-issue.ts";
+// 3b-ii step 10 (faithful: the same writes, moved): the defect acts run in cores that the close-out screen and the work store both call.
+const CORE = "src/lib/closeout/defect-acts.ts";
 const PORTAL = "src/lib/portal/projects/defect-store.ts";
 const CONFIG = "src/app/configuration/performance/core.ts";
 const PERF = "src/app/projects/[id]/performance-actions.ts";
@@ -28,8 +30,8 @@ const DEMO = "prisma/demo-closeout.ts";
 const FINAL = "src/app/projects/[id]/final-actions.ts";
 const WRITERS: Readonly<Record<Model, readonly string[]>> = {
   PracticalCompletion: [`${ACTS}#raisePracticalCompletion`, `${AT_ISSUE}#cpcAtIssue`],
-  DefectItem: [`${ACTS}#addCpcDefect`, `${ACTS}#removeCpcDefect`, `${ACTS}#reportDefect`],
-  DefectEvent: [`${ACTS}#onDefect`, `${PORTAL}#reportRectifiedAsContractor`],
+  DefectItem: [`${ACTS}#addCpcDefect`, `${ACTS}#removeCpcDefect`, `${CORE}#reportDefectLine`, `${CORE}#addLinesFromItems`],
+  DefectEvent: [`${CORE}#recordDefectAct`, `${PORTAL}#rectifyWithin`],
   DefectSchedule: [`${ACTS}#raiseDefectSchedule`, `${AT_ISSUE}#scheduleAtIssue`],
   MakingGood: [`${ACTS}#raiseMakingGood`, `${AT_ISSUE}#cmgdAtIssue`],
   SecurityRelease: [`${ACTS}#returnSecurity`],

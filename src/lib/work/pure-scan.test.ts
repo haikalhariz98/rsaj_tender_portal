@@ -10,7 +10,8 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = path.resolve(__dirname, "../../..");
 const HERE = __dirname;
-const ALLOWED = new Set(["store.ts", "load.ts", "team-store.ts", "portal-store.ts", "portal-read.ts"]);
+// 3b-ii step 10 (flagged): `defect-link-store.ts` writes the defect link in the caller's transaction.
+const ALLOWED = new Set(["store.ts", "load.ts", "team-store.ts", "portal-store.ts", "portal-read.ts", "defect-link-store.ts"]);
 const FORBIDDEN_FILES = [path.join(ROOT, "src/lib/db.ts")];
 const FORBIDDEN_PACKAGES = /^(next(\/|$)|@prisma\/|server-only$|react$)/;
 
