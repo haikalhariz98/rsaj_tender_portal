@@ -156,11 +156,12 @@ export function primaryActions(item: WorkItemFacts, reader: WorkActor, ctx: { co
   return { primary, menu, disabled: refusedByPerson ? { action: refusedByPerson.action, whoCan: whoCanWords(refusedByPerson.action, ctx.who) } : null };
 }
 
-/// The faults the contractor clears itself: an RFI's answer (it writes it on an RFI it holds, WB-6) and Ask again's reply. It never sets a result (B-10).
-const CONTRACTOR_INPUT_FAULTS: readonly MoveFault["code"][] = ["ANSWER_NEEDED", "COMMENT_NEEDED"];
+/// The faults the contractor clears itself: Ask again's reply, and an RFI's answer only where it holds the RFI (it writes it there, WB-6). It never sets a
+/// result (B-10), and never writes the answer of an RFI it raised, so that one blocks Accept answer until staff answer again.
+const contractorClears = (f: MoveFault, item: WorkItemFacts): boolean => f.code === "COMMENT_NEEDED" || (f.code === "ANSWER_NEEDED" && isContractor(item.assignee));
 
 /// The moves the contractor may make on an item now (3b B-9): Send for checking as assignee, Accept answer (Mark done) and Ask again (Send back) as raiser.
 export function contractorActions(item: WorkItemFacts, actor: WorkActor): WorkAction[] {
   if (actor.side !== "CONTRACTOR") return [];
-  return CANDIDATES[item.status].filter((action) => moveFaults(item, actor, TARGET[action], item.status, { contractOpen: true }).every((f) => CONTRACTOR_INPUT_FAULTS.includes(f.code)));
+  return CANDIDATES[item.status].filter((action) => moveFaults(item, actor, TARGET[action], item.status, { contractOpen: true }).every((f) => contractorClears(f, item)));
 }

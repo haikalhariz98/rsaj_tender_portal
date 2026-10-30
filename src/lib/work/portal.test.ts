@@ -39,6 +39,10 @@ describe("the one button, by type", () => {
     for (const r of ["NOT_YET", "FAILED", "PASSED"] as const) expect(portalAction(held("IN_PROGRESS", { type: "INSPECTION", inspectionResult: r })), r).toBe("REPLY");
     expect(portalGroup(held("IN_PROGRESS", { type: "INSPECTION", inspectionResult: "FAILED" }))).toBe("WAITING_FOR_YOU");
   });
+  it("an RFI it raised whose answer staff blanked: Reply, never an Accept that is always refused", () => {
+    expect(portalAction(raised("IN_REVIEW", { answer: " " }))).toBe("REPLY");
+    expect(portalGroup(raised("IN_REVIEW", { answer: " " }))).toBe("WAITING_FOR_YOU");
+  });
   it("an incident it raised, In review: Accept", () => {
     expect(portalAction(raised("IN_REVIEW", { type: "SAFETY_INCIDENT", answer: "" }))).toBe("ACCEPT_ANSWER");
   });

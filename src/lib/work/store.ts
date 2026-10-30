@@ -141,6 +141,9 @@ async function tell(c: WorkCtx, who: StaffActor, r: Pick<ItemRow, "id" | "type" 
 
 // ------------------------------------------------------------------ raise an item
 
+/// Until step 3 audits a share (B-1), nothing a staff form posts may share an item.
+const NOT_YET_SHARED = "Sharing with the contractor isn't available yet.";
+
 /// Raise an item (W-5: the next number of its type, under the contract's lock). Any staff member who may read the contract may raise one.
 export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: PreparedAct): Promise<{ id: string; ref: string }> {
   gate(c);
@@ -149,6 +152,8 @@ export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: P
   const fromOk = n.fromDocumentId === null || (await c.tx.projectDocument.findFirst({ where: { id: n.fromDocumentId, contractId: c.l.contract.id, organisationId: org }, select: { id: true } })) !== null;
   const faults = newItemFaults(n, { now: c.now, activeIds, timeZone: c.l.org.timeZone, fromDocumentOnContract: fromOk, contractStatus: c.l.contract.status as ContractStatus });
   if (faults.length) refuse(faultsText(faults));
+  // Sharing is audited and one-way (ADR 0049 D1): refused until step 3 writes its audit line and lifts this guard.
+  if (n.share || n.assignedToContractor) refuse(NOT_YET_SHARED);
 
   const max = (await c.tx.workItem.aggregate({ where: { contractId: c.l.contract.id, organisationId: org, type: n.type }, _max: { number: true } }))._max.number;
   const number = nextNumber(max);
@@ -198,6 +203,7 @@ const editedView = (e: FieldEdit): unknown => (e.field === "happenedAt" ? (e.val
 /// One field of an item (W-3: its raiser, its assignee or the lead; a closed item is read only until reopened). Setting an assignee tells them.
 export async function editField(c: WorkCtx, who: StaffActor, i: { itemId: string; edit: FieldEdit }): Promise<void> {
   gate(c);
+  if (i.edit.field === "assignedToContractor") refuse(NOT_YET_SHARED); // step 3 lifts it with the audited share
   const row = await lockedItem(c, i.itemId);
   const lead = await leadOf(c.l, c.today, c.tx);
   const activeIds = await activeAmong(c.tx, c.l.org.id, [i.edit.field === "assigneePersonId" ? i.edit.value : null, who.personId]);

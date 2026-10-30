@@ -171,6 +171,17 @@ describe("editing, commenting and who is told", () => {
     for (const id of [gone, stranger]) expect(refused(await as(p.raiser, () => editWorkField(form({ contractId: k.contractId, itemId: t.id, field: "assigneePersonId", value: id }))))).toBe("Pick someone active who can see this contract.");
   });
 
+  it("3b step 2: no staff form shares an item before step 3 audits the share; nothing is written", async () => {
+    const t = await task(p.raiser, k.contractId);
+    const words = "Sharing with the contractor isn't available yet.";
+    expect(refused(await as(p.raiser, () => editWorkField(form({ contractId: k.contractId, itemId: t.id, field: "assigneePersonId", value: "contractor" }))))).toBe(words);
+    const before = await db.workItem.count({ where: { contractId: k.contractId } });
+    expect(refused(await raise(p.raiser, k.contractId, { share: "on" }))).toBe(words);
+    expect(refused(await raise(p.raiser, k.contractId, { assigneePersonId: "contractor" }))).toBe(words);
+    expect(await db.workItem.count({ where: { contractId: k.contractId } })).toBe(before);
+    expect(await db.workItem.findUniqueOrThrow({ where: { id: t.id }, select: { sharedAt: true, assignedToContractor: true } })).toEqual({ sharedAt: null, assignedToContractor: false });
+  });
+
   it("a comment tells the raiser and the assignee but not the writer, once each; it is internal and attributed", async () => {
     const t = await task(p.raiser, k.contractId, { assigneePersonId: p.assignee });
     ok(await as(p.bystander, () => commentOnWorkItem(form({ contractId: k.contractId, itemId: t.id, body: "Is this still needed?" }))));
