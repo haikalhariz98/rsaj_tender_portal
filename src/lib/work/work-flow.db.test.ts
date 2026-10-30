@@ -7,7 +7,7 @@ import type { StaffActor } from "@/lib/auth/types";
 import { dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { activeContract, contractOrg, form, type TestContract, type TestOrg } from "@/lib/test-db/contract.fixture";
-import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
+import { makePerson, makeSupplierAccount, randomId } from "@/lib/test-db/auth-fixtures";
 import type { WrittenAttribution } from "@/lib/test-support/staff";
 
 /**
@@ -36,9 +36,10 @@ vi.mock("@/app/_auth/act", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
-import { attachWorkFiles, commentOnWorkItem, createWorkItem, editWorkField, linkWorkItem, moveWorkItem, unlinkWorkItem, type WorkResult } from "@/app/projects/[id]/work-actions";
+import { attachWorkFiles, commentOnWorkItem, createWorkItem, editWorkField, linkWorkItem, moveWorkItem, removeWorkFile, shareWorkItem, unlinkWorkItem, type WorkResult } from "@/app/projects/[id]/work-actions";
+import { addTeamMemberAction, changeProjectManagerAction, removeTeamMemberAction, type TeamResult } from "@/app/projects/[id]/team-actions";
 
-import { FIXTURE_ITEMS, FIXTURE_READER, FIXTURE_TODAY } from "./items.fixture";
+import { FIXTURE_CONTRACTOR_ITEMS, FIXTURE_ITEMS, FIXTURE_READER, FIXTURE_TODAY } from "./items.fixture";
 import { itemRef } from "./number";
 import { assigneeOptions, linkOptions, loadActivity, loadBoard, loadItem, loadWorkContext, loadWorkList } from "./load";
 import { inView, parseWorkFilters, workWhere, type WorkFilters, type WorkRow } from "./views";
@@ -171,14 +172,11 @@ describe("editing, commenting and who is told", () => {
     for (const id of [gone, stranger]) expect(refused(await as(p.raiser, () => editWorkField(form({ contractId: k.contractId, itemId: t.id, field: "assigneePersonId", value: id }))))).toBe("Pick someone active who can see this contract.");
   });
 
-  it("3b step 2: no staff form shares an item before step 3 audits the share; nothing is written", async () => {
+  // Replaced for 3b step 3 (not a weakening): step 2 held that NO staff form could share, until the audited share existed. It exists now, so the positive tests below
+  // (the describe "3b step 3: sharing") hold what the share does, and the bound that mattered stays: quick add and a plain create never share.
+  it("a plain create, and the quick-add row, never share an item", async () => {
     const t = await task(p.raiser, k.contractId);
-    const words = "Sharing with the contractor isn't available yet.";
-    expect(refused(await as(p.raiser, () => editWorkField(form({ contractId: k.contractId, itemId: t.id, field: "assigneePersonId", value: "contractor" }))))).toBe(words);
-    const before = await db.workItem.count({ where: { contractId: k.contractId } });
-    expect(refused(await raise(p.raiser, k.contractId, { share: "on" }))).toBe(words);
-    expect(refused(await raise(p.raiser, k.contractId, { assigneePersonId: "contractor" }))).toBe(words);
-    expect(await db.workItem.count({ where: { contractId: k.contractId } })).toBe(before);
+    expect(t.sharedAt).toBeNull();
     expect(await db.workItem.findUniqueOrThrow({ where: { id: t.id }, select: { sharedAt: true, assignedToContractor: true } })).toEqual({ sharedAt: null, assignedToContractor: false });
   });
 
@@ -192,6 +190,159 @@ describe("editing, commenting and who is told", () => {
     expect(told.length).toBe(3);
     expect((await db.workItemComment.findMany({ where: { workItemId: t.id } })).every((c) => c.internal)).toBe(true);
     expect(refused(await as(p.raiser, () => commentOnWorkItem(form({ contractId: k.contractId, itemId: t.id, body: "  " }))))).toBe("Write a comment first.");
+  });
+});
+
+const edit = (who: string, itemId: string, field: string, value: string) => as(who, () => editWorkField(form({ contractId: k.contractId, itemId, field, value })));
+const shareAs = (who: string, itemId: string, share = "on") => as(who, () => shareWorkItem(form({ contractId: k.contractId, itemId, share })));
+const say = (who: string, itemId: string, body: string, audience?: string) => as(who, () => commentOnWorkItem(form({ contractId: k.contractId, itemId, body, ...(audience ? { audience } : {}) })));
+const itemRow = (id: string) => db.workItem.findUniqueOrThrow({ where: { id } });
+
+describe("3b step 3: sharing", () => {
+  it("the share is one-way and audited as sharedAt: none to the instant; sharing a shared item writes nothing; asking to unshare says it can't be undone", async () => {
+    const t = await task(p.raiser, k.contractId, { assigneePersonId: p.assignee });
+    expect(refused(await shareAs(p.bystander, t.id))).toMatch(/can edit/);
+    expect((await itemRow(t.id)).sharedAt).toBeNull();
+    expect(refused(await shareAs(p.raiser, t.id, "maybe"))).toMatch(/didn't go through/);
+    // "Not shared" asked of an unshared item asks nothing and writes nothing.
+    const before = (await auditOf(t.id)).length;
+    ok(await shareAs(p.raiser, t.id, "off"));
+    expect((await auditOf(t.id)).length).toBe(before);
+
+    ok(await shareAs(p.raiser, t.id));
+    const shared = (await itemRow(t.id)).sharedAt!;
+    expect(shared).not.toBeNull();
+    const trail = await auditOf(t.id);
+    expect(trail.at(-1)!.changes).toEqual([{ field: "sharedAt", before: null, after: shared.toISOString() }]);
+    // Again: the same instant, no new row.
+    ok(await shareAs(p.assignee, t.id));
+    expect((await itemRow(t.id)).sharedAt).toEqual(shared);
+    expect((await auditOf(t.id)).length).toBe(trail.length);
+    expect(refused(await shareAs(p.raiser, t.id, "off"))).toBe("Sharing can't be undone.");
+    expect((await itemRow(t.id)).sharedAt).toEqual(shared);
+    // The database holds it too: nothing clears it.
+    await expect(db.workItem.update({ where: { id: t.id }, data: { sharedAt: null } })).rejects.toThrow();
+  });
+
+  it("two people sharing at once share it once: one instant, one audit row (the item's row lock)", async () => {
+    const t = await task(p.raiser, k.contractId, { assigneePersonId: p.assignee });
+    const [a, b] = await Promise.all([shareAs(p.raiser, t.id), shareAs(p.assignee, t.id)]);
+    ok(a);
+    ok(b);
+    expect((await auditOf(t.id)).filter((e) => (e.changes as { field: string }[]).some((c) => c.field === "sharedAt")).length).toBe(1);
+  });
+
+  it("a share is refused on a closed item, and on another contract's item as not found", async () => {
+    const t = await task(p.raiser, k.contractId);
+    ok(await move(p.raiser, k.contractId, t.id, "TO_DO", "CANCELLED", { reason: "No longer needed" }));
+    expect(refused(await shareAs(p.raiser, t.id))).toBe("Reopen it first.");
+    const other = await activeContract(org);
+    const foreign = await task(p.raiser, other.contractId);
+    expect(refused(await shareAs(p.raiser, foreign.id))).toBe("That item no longer exists.");
+    expect((await itemRow(foreign.id)).sharedAt).toBeNull();
+  });
+
+  it("creating with the toggle on, or assigned to the contractor, shares at creation and says so in the create row", async () => {
+    const a = await task(p.raiser, k.contractId, { share: "on" });
+    expect([a.sharedAt !== null, a.assignedToContractor]).toEqual([true, false]);
+    const b = await task(p.raiser, k.contractId, { assigneePersonId: "contractor" });
+    expect([b.sharedAt !== null, b.assignedToContractor, b.assigneePersonId]).toEqual([true, true, null]);
+    const create = (await auditOf(b.id)).find((e) => e.action === "CREATE")!;
+    const changes = create.changes as { field: string; after: string | null }[];
+    expect(changes.find((c) => c.field === "assigneePersonId")?.after).toBe("contractor");
+    expect(changes.find((c) => c.field === "sharedAt")?.after).toBe(b.sharedAt!.toISOString());
+    // The contractor is told nothing (PW-13): no notice for it, and no person to tell.
+    expect(await noticesOf(b.id)).toEqual([]);
+  });
+
+  it("assigning to the contractor shares in the same write, as ONE Assignee line beside the share; back to a person is one line and keeps it shared; the same again writes nothing", async () => {
+    const t = await task(p.raiser, k.contractId, { assigneePersonId: p.assignee });
+    expect(t.sharedAt).toBeNull();
+    const told = (await noticesOf(t.id)).length;
+    ok(await edit(p.raiser, t.id, "assigneePersonId", "contractor"));
+    const row = await itemRow(t.id);
+    expect([row.assignedToContractor, row.assigneePersonId, row.sharedAt !== null]).toEqual([true, null, true]);
+    const trail = await auditOf(t.id);
+    expect(trail.at(-1)!.changes).toEqual([
+      { field: "assigneePersonId", before: p.assignee, after: "contractor" },
+      { field: "sharedAt", before: null, after: row.sharedAt!.toISOString() },
+    ]);
+    expect((await noticesOf(t.id)).length).toBe(told);
+    // Contractor to contractor: no write, no row.
+    ok(await edit(p.raiser, t.id, "assigneePersonId", "contractor"));
+    expect((await auditOf(t.id)).length).toBe(trail.length);
+    // Back to a person: the company out and the person in, one line, still shared at the same instant.
+    ok(await edit(p.raiser, t.id, "assigneePersonId", p.assignee));
+    const back = await itemRow(t.id);
+    expect([back.assignedToContractor, back.assigneePersonId, back.sharedAt]).toEqual([false, p.assignee, row.sharedAt]);
+    expect((await auditOf(t.id)).at(-1)!.changes).toEqual([{ field: "assigneePersonId", before: "contractor", after: p.assignee }]);
+    // Contractor to nobody writes (unassigning a contractor-held item is not a no-change edit).
+    ok(await edit(p.raiser, t.id, "assigneePersonId", "contractor"));
+    ok(await edit(p.raiser, t.id, "assigneePersonId", ""));
+    const none = await itemRow(t.id);
+    expect([none.assignedToContractor, none.assigneePersonId, none.sharedAt]).toEqual([false, null, row.sharedAt]);
+    expect((await auditOf(t.id)).at(-1)!.changes).toEqual([{ field: "assigneePersonId", before: "contractor", after: null }]);
+  });
+
+  it("Activity reads the company by the awardee's name in the one line, never the token or a column key", async () => {
+    const t = await task(p.raiser, k.contractId, { assigneePersonId: p.assignee });
+    ok(await edit(p.raiser, t.id, "assigneePersonId", "contractor"));
+    const contract = await db.contract.findUniqueOrThrow({ where: { id: k.contractId }, include: { award: true } });
+    const feed = await loadActivity({ organisationId: org.organisationId, contractId: k.contractId, contractNumber: contract.number, item: t, timeZone: "Asia/Kuala_Lumpur" });
+    const line = feed.find((l) => l.kind === "CHANGE" && l.text.startsWith("Assignee:"))!;
+    expect(line.kind === "CHANGE" && line.text).toBe(`Assignee: ${names.assignee} → ${contract.award.awardeeName}; Shared: none → ${(line.kind === "CHANGE" ? line.text : "").split("Shared: none → ")[1]}`);
+    expect(line.kind === "CHANGE" && line.text).not.toMatch(/contractor →|sharedAt|assignedToContractor/);
+    // The cards read the company, not a person, for the assignee.
+    const list = await loadWorkList({ organisationId: org.organisationId, contractId: k.contractId, viewerId: p.raiser, view: "contractor", filters: {}, today: null, timeZone: null, page: 0, size: 100 });
+    expect(list.rows.find((r) => r.id === t.id)?.assigneeName).toBe(contract.award.awardeeName);
+  });
+
+  it("the assignee picker lists the team first, then the contractor, then everyone else", async () => {
+    const tk = await activeContract(org);
+    ok(await as(org.so, () => addTeamMemberAction(form({ contractId: tk.contractId, role: "SITE_ENGINEER", personId: p.bystander }))));
+    const options = await assigneeOptions({ organisationId: org.organisationId, contractId: tk.contractId });
+    expect([...new Set(options.map((o) => o.group))]).toEqual(["TEAM", "CONTRACTOR", "EVERYONE"]);
+    expect(options[0]).toMatchObject({ value: p.bystander, group: "TEAM" });
+    expect(options[1]).toMatchObject({ value: "contractor", group: "CONTRACTOR" });
+  });
+});
+
+describe("3b step 3: a comment's audience", () => {
+  it("on an unshared item every comment is internal and a Reply is refused, never quietly kept internal; a tampered audience is refused whole", async () => {
+    const t = await task(p.raiser, k.contractId);
+    expect(refused(await say(p.raiser, t.id, "Hello", "REPLY"))).toBe("Share it first, or write an internal note.");
+    expect(await db.workItemComment.count({ where: { workItemId: t.id } })).toBe(0);
+    ok(await say(p.raiser, t.id, "Note", "INTERNAL"));
+    ok(await say(p.raiser, t.id, "Plain"));
+    expect(refused(await say(p.raiser, t.id, "Loud", "ANNOUNCE"))).toMatch(/didn't go through/);
+    expect((await db.workItemComment.findMany({ where: { workItemId: t.id } })).map((c) => c.internal)).toEqual([true, true]);
+  });
+
+  it("on a shared item the choice is stored: Reply is the default, Internal note is kept internal; an earlier comment is never re-classified by the share", async () => {
+    const t = await task(p.raiser, k.contractId);
+    ok(await say(p.raiser, t.id, "Before the share"));
+    ok(await shareAs(p.raiser, t.id));
+    ok(await say(p.raiser, t.id, "Default"));
+    ok(await say(p.raiser, t.id, "Chosen reply", "REPLY"));
+    ok(await say(p.raiser, t.id, "Chosen note", "INTERNAL"));
+    const rows = await db.workItemComment.findMany({ where: { workItemId: t.id }, orderBy: [{ recordedAt: "asc" }, { id: "asc" }] });
+    expect(Object.fromEntries(rows.map((c) => [c.body, c.internal]))).toEqual({ "Before the share": true, Default: false, "Chosen reply": false, "Chosen note": true });
+    // The audit row says which.
+    const written = await db.auditEntry.findMany({ where: { entity: "WorkItemComment", entityId: { in: rows.map((c) => c.id) } } });
+    expect(written.flatMap((e) => (e.changes as { field: string; after: string }[]).filter((c) => c.field === "audience").map((c) => c.after)).sort()).toEqual(["Internal note", "Internal note", "Reply", "Reply"]);
+  });
+
+  it("Send back to a contractor assignee writes a Reply; on any other item it stays internal, shared or not", async () => {
+    const held = await task(p.raiser, k.contractId, { assigneePersonId: "contractor" });
+    const mine = await task(p.raiser, k.contractId, { assigneePersonId: p.assignee, share: "on" });
+    const plain = await task(p.raiser, k.contractId, { assigneePersonId: p.assignee });
+    // No staff path puts a contractor-held item In review (the contractor sends it for checking, step 4): seeded here.
+    for (const t of [held, mine, plain]) await db.workItem.update({ where: { id: t.id }, data: { status: "IN_REVIEW" } });
+    for (const t of [held, mine, plain]) ok(await move(p.raiser, k.contractId, t.id, "IN_REVIEW", "IN_PROGRESS", { comment: "Photograph the joint" }));
+    const internalOf = async (id: string) => (await db.workItemComment.findMany({ where: { workItemId: id } })).map((c) => c.internal);
+    expect([await internalOf(held.id), await internalOf(mine.id), await internalOf(plain.id)]).toEqual([[false], [true], [true]]);
+    // The contractor is not told (PW-13): no person to tell on the held item.
+    expect((await noticesOf(held.id)).filter((n) => n.kind === "WORK_ITEM_RETURNED")).toEqual([]);
   });
 });
 
@@ -303,6 +454,204 @@ describe("files", () => {
   });
 });
 
+describe("3b step 3: removing a file", () => {
+  const prepare = async () => {
+    const klass = await db.documentClass.create({ data: { organisationId: org.organisationId, code: `wfr_${randomId()}`, nameEn: "Project files", classification: "INTERNAL" } });
+    await db.documentStorePolicy.upsert({ where: { organisationId: org.organisationId }, update: { projectDocumentClassId: klass.id }, create: { organisationId: org.organisationId, allowedMediaTypes: ["application/pdf"], maxBytes: BigInt(10_000_000), projectDocumentClassId: klass.id } });
+    return klass.id;
+  };
+  const stageFile = async (classId: string, by: string) => {
+    const bytes = new TextEncoder().encode(`%PDF-1.4 remove ${randomId()} ${++counter}`);
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    await db.blobContent.createMany({ data: [{ organisationId: org.organisationId, sha256: sha, byteSize: BigInt(bytes.length), bytes, storedAt: new Date() }], skipDuplicates: true });
+    const name = `plan-${counter}.pdf`;
+    const doc = await db.document.create({ data: { organisationId: org.organisationId, title: name, documentClassId: classId, classificationSnapshot: "INTERNAL", retentionSnapshot: {}, stagedFor: "work-item" } });
+    return (await db.documentVersion.create({ data: { organisationId: org.organisationId, documentId: doc.id, versionNo: 1, sha256: sha, byteSize: BigInt(bytes.length), mediaType: "application/pdf", originalFilename: name, recordedByPersonId: by, storedAt: new Date() } })).id;
+  };
+  const attach = async (contractId: string, itemId: string, by: string, classId: string) => {
+    ok(await as(by, async () => attachWorkFiles(form({ contractId, itemId, stagedVersionId: await stageFile(classId, by) }))));
+    return db.documentAttachment.findFirstOrThrow({ where: { workItemId: itemId, detachedAt: null }, orderBy: { attachedAt: "desc" } });
+  };
+  const remove = (who: string, contractId: string, itemId: string, attachmentId: string, reason: string) => as(who, () => removeWorkFile(form({ contractId, itemId, attachmentId, reason })));
+
+  it("the person who attached it removes it from an unshared item with a reason, audited; anyone else is told who can; a reason is needed", async () => {
+    const classId = await prepare();
+    const t = await task(p.raiser, k.contractId);
+    const pin = await attach(k.contractId, t.id, p.assignee, classId);
+    // The raiser did not attach it and is not the lead; a bystander neither.
+    expect(refused(await remove(p.raiser, k.contractId, t.id, pin.id, "Wrong sheet"))).toBe(`Only ${names.assignee}, who attached it or the ${org.soLabel} (${(await db.person.findUniqueOrThrow({ where: { id: org.so } })).name}) can remove this file.`);
+    expect(refused(await remove(p.bystander, k.contractId, t.id, pin.id, "Wrong sheet"))).toMatch(/can remove this file/);
+    expect(refused(await remove(p.assignee, k.contractId, t.id, pin.id, "  "))).toBe("Give a reason.");
+    expect((await db.documentAttachment.findUniqueOrThrow({ where: { id: pin.id } })).detachedAt).toBeNull();
+
+    ok(await remove(p.assignee, k.contractId, t.id, pin.id, "Wrong sheet"));
+    const gone = await db.documentAttachment.findUniqueOrThrow({ where: { id: pin.id } });
+    expect([gone.detachedAt !== null, gone.detachReason]).toEqual([true, "Wrong sheet"]);
+    const row = (await db.auditEntry.findMany({ where: { entity: "DocumentAttachment", entityId: pin.id, action: "UPDATE" } }))[0];
+    expect(row.reason).toBe("Wrong sheet");
+    expect(row.entityLabel.startsWith("Work item ")).toBe(true);
+    expect(JSON.stringify(row.changes)).toContain("detachedBecause");
+    // Gone from the item's files, and Activity says so; a second removal finds nothing.
+    const detail = (await loadItem({ organisationId: org.organisationId, contractId: k.contractId, ref: itemRef("TASK", t.number), timeZone: null }))!;
+    expect(detail.files).toEqual([]);
+    const contract = await db.contract.findUniqueOrThrow({ where: { id: k.contractId } });
+    expect((await loadActivity({ organisationId: org.organisationId, contractId: k.contractId, contractNumber: contract.number, item: t, timeZone: null })).some((l) => l.kind === "CHANGE" && l.text === "removed a file")).toBe(true);
+    expect(refused(await remove(p.assignee, k.contractId, t.id, pin.id, "Again"))).toBe("That file no longer exists.");
+  });
+
+  it("on a shared item a file is never removed, not even by who attached it; the file's audience is read from when it was attached", async () => {
+    const classId = await prepare();
+    const t = await task(p.raiser, k.contractId);
+    const before = await attach(k.contractId, t.id, p.raiser, classId);
+    ok(await shareAs(p.raiser, t.id));
+    // Acts are cut to the second, and a share is pushed past a file attached in its own second (the safe side): so a file meant to be seen is attached a second on.
+    await new Promise((r) => setTimeout(r, 2100));
+    const after = await attach(k.contractId, t.id, p.raiser, classId);
+    expect(refused(await remove(p.raiser, k.contractId, t.id, before.id, "Wrong sheet"))).toBe("Shared files stay. Add a corrected file and reply.");
+    expect(refused(await remove(p.raiser, k.contractId, t.id, after.id, "Wrong sheet"))).toBe("Shared files stay. Add a corrected file and reply.");
+    expect(await db.documentAttachment.count({ where: { workItemId: t.id, detachedAt: null } })).toBe(2);
+    // Seen by the contractor: only the one attached at or after the share.
+    const detail = (await loadItem({ organisationId: org.organisationId, contractId: k.contractId, ref: itemRef("TASK", t.number), timeZone: null }))!;
+    expect(detail.files.map((f) => [f.attachmentId, f.seenByContractor, f.attachedByPersonId])).toEqual([
+      [before.id, false, p.raiser],
+      [after.id, true, p.raiser],
+    ]);
+  });
+
+  it("the lead removes a file someone else attached; an attachment of another item, contract or purpose reads as not found", async () => {
+    const classId = await prepare();
+    const tk = await activeContract(org);
+    ok(await as(org.so, () => addTeamMemberAction(form({ contractId: tk.contractId, role: "PROJECT_MANAGER", personId: p.bystander }))));
+    const t = await task(p.raiser, tk.contractId);
+    const other = await task(p.raiser, tk.contractId);
+    const pin = await attach(tk.contractId, t.id, p.assignee, classId);
+    expect(refused(await remove(p.raiser, tk.contractId, t.id, pin.id, "x"))).toMatch(/Only .*who attached it or the Project manager/);
+    expect(refused(await remove(p.bystander, tk.contractId, other.id, pin.id, "x"))).toBe("That file no longer exists.");
+    expect(refused(await remove(p.bystander, k.contractId, t.id, pin.id, "x"))).toBe("That item no longer exists.");
+    ok(await remove(p.bystander, tk.contractId, t.id, pin.id, "Superseded by the new drawing"));
+    expect((await db.documentAttachment.findUniqueOrThrow({ where: { id: pin.id } })).detachReason).toBe("Superseded by the new drawing");
+  });
+});
+
+describe("3b step 3: the Project team and the lead", () => {
+  const team = (tk: TestContract) => db.projectTeamMember.findMany({ where: { contractId: tk.contractId }, orderBy: [{ role: "asc" }, { recordedAt: "asc" }] });
+  const add = (who: string, tk: TestContract, role: string, personId: string) => as(who, () => addTeamMemberAction(form({ contractId: tk.contractId, role, personId })));
+  const drop = (who: string, tk: TestContract, role: string, personId: string, reason: string) => as(who, () => removeTeamMemberAction(form({ contractId: tk.contractId, role, personId, reason })));
+  const change = (who: string, tk: TestContract, personId: string) => as(who, () => changeProjectManagerAction(form({ contractId: tk.contractId, personId })));
+  const said = (r: TeamResult): string => {
+    expect(r.refused, "expected a refusal").toBeTruthy();
+    return r.refused!;
+  };
+  const lead = async (tk: TestContract) => (await loadWorkContext({ organisationId: org.organisationId, contractId: tk.contractId, now: new Date() }))!.context.lead;
+
+  /// A contract with no S.O. in force and no manager has no lead (WB-7): the S.O. assignment is taken off the fixture's contract.
+  const leaderless = async () => {
+    const tk = await activeContract(org);
+    await db.contractSoAssignment.deleteMany({ where: { contractId: tk.contractId } });
+    return tk;
+  };
+
+  it("until a manager is named the S.O. is the lead and changes the team; naming the manager hands the lead to the manager; a second manager is refused", async () => {
+    const tk = await activeContract(org);
+    expect(await lead(tk)).toMatchObject({ ids: [org.so], roleLabel: org.soLabel });
+    const soName = (await db.person.findUniqueOrThrow({ where: { id: org.so } })).name;
+    expect(said(await add(p.raiser, tk, "PROJECT_MANAGER", p.assignee))).toBe(`Only the ${org.soLabel} (${soName}) can change the team.`);
+    ok(await add(org.so, tk, "PROJECT_MANAGER", p.assignee));
+    expect(await lead(tk)).toEqual({ ids: [p.assignee], roleLabel: "Project manager" });
+    // The S.O. no longer changes the team: the manager is the lead.
+    expect(said(await add(org.so, tk, "SITE_ENGINEER", p.raiser))).toBe(`Only the Project manager (${names.assignee}) can change the team.`);
+    expect(said(await add(p.assignee, tk, "PROJECT_MANAGER", p.bystander))).toBe("There is a Project manager already. Change the manager instead.");
+    ok(await add(p.assignee, tk, "SITE_ENGINEER", p.raiser));
+    expect(said(await add(p.assignee, tk, "SITE_ENGINEER", p.raiser))).toBe("They already hold that role.");
+    // The same person in two roles is allowed.
+    ok(await add(p.assignee, tk, "CONTRACT_ADMINISTRATOR", p.assignee));
+    // Rows come back in the roles' declared order.
+    expect((await team(tk)).map((m) => [m.role, m.personId, m.addedByPersonId])).toEqual([
+      ["PROJECT_MANAGER", p.assignee, org.so],
+      ["SITE_ENGINEER", p.raiser, p.assignee],
+      ["CONTRACT_ADMINISTRATOR", p.assignee, p.assignee],
+    ]);
+    // The slot is written for every added row.
+    expect(h.written.filter((w) => w.entity === "ProjectTeamMember" && w.slot === "addedBy").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("with no S.O. and no manager there is no lead, so anyone who may read the case names the first manager", async () => {
+    const tk = await leaderless();
+    expect(await lead(tk)).toEqual({ ids: [], roleLabel: null });
+    ok(await add(p.raiser, tk, "PROJECT_MANAGER", p.assignee));
+    expect(await lead(tk)).toEqual({ ids: [p.assignee], roleLabel: "Project manager" });
+    expect(said(await add(p.raiser, tk, "SITE_ENGINEER", p.raiser))).toBe(`Only the Project manager (${names.assignee}) can change the team.`);
+  });
+
+  it("an inactive person, or one of another organisation, cannot be named", async () => {
+    const tk = await activeContract(org);
+    const gone = (await makePerson(org.organisationId, `Gone ${randomId()}`)).id;
+    await db.person.update({ where: { id: gone }, data: { isActive: false } });
+    const stranger = (await makePerson((await db.organisation.create({ data: { code: `WFT_${randomId()}`, name: "Another" } })).id)).id;
+    for (const id of [gone, stranger]) expect(said(await add(org.so, tk, "CONSULTANT", id))).toBe("Pick someone active who can see this contract.");
+    expect(await team(tk)).toEqual([]);
+  });
+
+  it("two people naming a manager at once: one is named, the other is refused (the contract's lock); nothing half-done", async () => {
+    const tk = await leaderless();
+    const [a, b] = await Promise.all([add(p.raiser, tk, "PROJECT_MANAGER", p.raiser), add(p.bystander, tk, "PROJECT_MANAGER", p.bystander)]);
+    expect([a.refused, b.refused].filter(Boolean)).toHaveLength(1);
+    expect((await team(tk)).filter((m) => m.role === "PROJECT_MANAGER")).toHaveLength(1);
+    expect((await db.auditEntry.findMany({ where: { entity: "ProjectTeamMember", entityId: { in: (await team(tk)).map((m) => m.id) } } })).length).toBe(1);
+  });
+
+  it("changing the manager is a remove and an add in one act, audited both ways, with names and no ids; removal asks a reason and audits it", async () => {
+    const tk = await activeContract(org);
+    ok(await add(org.so, tk, "PROJECT_MANAGER", p.assignee));
+    ok(await add(p.assignee, tk, "SITE_ENGINEER", p.raiser));
+    expect(said(await change(p.assignee, tk, p.assignee))).toBe("They already hold that role.");
+    ok(await change(p.assignee, tk, p.bystander));
+    expect((await team(tk)).filter((m) => m.role === "PROJECT_MANAGER").map((m) => m.personId)).toEqual([p.bystander]);
+    const trail = await db.auditEntry.findMany({ where: { entity: "ProjectTeamMember", organisationId: org.organisationId, entityLabel: { startsWith: "Contract " } }, orderBy: { at: "asc" } });
+    const mine = trail.filter((e) => JSON.stringify(e.changes).includes(names.bystander) || JSON.stringify(e.changes).includes(names.assignee));
+    expect(mine.map((e) => e.action)).toEqual(expect.arrayContaining(["CREATE", "DELETE"]));
+    const replaced = trail.find((e) => e.action === "DELETE" && e.reason === "Replaced by another Project manager.")!;
+    expect(replaced.changes).toEqual([{ field: "role", before: "Project manager", after: null }, { field: "person", before: names.assignee, after: null }]);
+    for (const e of trail) expect(JSON.stringify(e.changes)).not.toMatch(new RegExp(`${p.assignee}|${p.bystander}|${p.raiser}`));
+
+    // The lead is now the new manager: the old one no longer changes the team.
+    expect(said(await drop(p.assignee, tk, "SITE_ENGINEER", p.raiser, "Moved off site"))).toBe(`Only the Project manager (${names.bystander}) can change the team.`);
+    expect(said(await drop(p.bystander, tk, "SITE_ENGINEER", p.raiser, " "))).toBe("Give a reason.");
+    expect(said(await drop(p.bystander, tk, "CONSULTANT", p.raiser, "Not there"))).toBe("They are not on the team any more.");
+    ok(await drop(p.bystander, tk, "SITE_ENGINEER", p.raiser, "Moved off site"));
+    const del = (await db.auditEntry.findMany({ where: { entity: "ProjectTeamMember", action: "DELETE", reason: "Moved off site" } }))[0];
+    expect(del.changes).toEqual([{ field: "role", before: "Site engineer", after: null }, { field: "person", before: names.raiser, after: null }]);
+  });
+
+  it("the lead is the Project manager: she edits an item she did not raise; a manager who is no longer active is not the lead, so the card can never be locked shut", async () => {
+    const tk = await activeContract(org);
+    const manager = (await makePerson(org.organisationId, `Manager ${randomId()}`)).id;
+    ok(await add(org.so, tk, "PROJECT_MANAGER", manager));
+    const t = await task(p.raiser, tk.contractId);
+    ok(await as(manager, () => editWorkField(form({ contractId: tk.contractId, itemId: t.id, field: "priority", value: "HIGH" }))));
+    expect(refused(await as(p.bystander, () => editWorkField(form({ contractId: tk.contractId, itemId: t.id, field: "priority", value: "LOW" })))).length).toBeGreaterThan(0);
+    await db.person.update({ where: { id: manager }, data: { isActive: false } });
+    expect((await lead(tk)).ids).toEqual([org.so]);
+    expect(said(await add(p.bystander, tk, "SITE_ENGINEER", p.bystander))).toMatch(/can change the team\.$/);
+    ok(await add(org.so, tk, "SITE_ENGINEER", p.bystander));
+  });
+
+  it("a terminated contract refuses every team act and changes nothing", async () => {
+    const tk = await activeContract(org);
+    ok(await add(org.so, tk, "PROJECT_MANAGER", p.assignee));
+    await db.contract.update({ where: { id: tk.contractId }, data: { status: "TERMINATED" } });
+    for (const r of [await add(p.assignee, tk, "SITE_ENGINEER", p.raiser), await drop(p.assignee, tk, "PROJECT_MANAGER", p.assignee, "x"), await change(p.assignee, tk, p.raiser)]) expect(r.refused).toBeTruthy();
+    expect((await team(tk)).map((m) => m.personId)).toEqual([p.assignee]);
+  });
+
+  it("a form that names a role nobody offers, or no person, is refused whole", async () => {
+    const tk = await activeContract(org);
+    expect(said(await add(p.raiser, tk, "OWNER", p.assignee))).toMatch(/didn't go through/);
+    expect(said(await add(p.raiser, tk, "CONSULTANT", ""))).toMatch(/didn't go through/);
+    expect(await team(tk)).toEqual([]);
+  });
+});
+
 describe("the audit trail and the readers", () => {
   it("every audit row of an item has its before and after, and none starts with the case History's prefix", async () => {
     const rows = await db.auditEntry.findMany({ where: { organisationId: org.organisationId, entityLabel: { startsWith: "Work item " } } });
@@ -389,6 +738,64 @@ describe("the views: workWhere against the database agrees with inView", () => {
       }
     }
     expect(compared).toBeGreaterThan(100);
+  });
+
+  // 3b step 3 (the step 2 handoff): the contractor rows, on a contract of their own so 3a's counts stand. The view "Waiting on {contractor}", the Shared filter and the
+  // contractor-assignee filter are judged by `inView` and by the database over the same rows, each of which keeps the 3b CHECKs.
+  it("the contractor view and the shared and contractor-assignee filters agree between inView and the database on the contractor rows", async () => {
+    const own = await activeContract(org);
+    const account = (await makeSupplierAccount(org.organisationId)).account!;
+    const byId = new Map<string, string>();
+    for (const i of FIXTURE_CONTRACTOR_ITEMS) {
+      const closed = i.status === "DONE" || i.status === "CANCELLED";
+      const row = await db.workItem.create({
+        data: {
+          organisationId: org.organisationId,
+          contractId: own.contractId,
+          type: i.type,
+          number: i.number,
+          title: i.title,
+          status: i.status,
+          priority: i.priority,
+          dueOn: i.dueOn ? dayToDate(i.dueOn) : null,
+          raisedByPersonId: i.raisedBy.kind === "PERSON" ? person[i.raisedBy.id] : null,
+          raisedBySupplierAccountId: i.raisedBy.kind === "CONTRACTOR" ? account.id : null,
+          assigneePersonId: i.assignee?.kind === "PERSON" ? person[i.assignee.id] : null,
+          assignedToContractor: i.assignee?.kind === "CONTRACTOR",
+          sharedAt: i.sharedAt ? new Date(i.sharedAt) : null,
+          answer: i.answer,
+          inspectionResult: i.inspectionResult,
+          severity: i.type === "SAFETY_INCIDENT" ? "NEAR_MISS" : null,
+          happenedAt: i.type === "SAFETY_INCIDENT" ? new Date() : null,
+          cancelReason: i.status === "CANCELLED" ? "Withdrawn" : "",
+          closedAt: closed ? new Date() : null,
+          recordedAt: new Date(),
+        },
+      });
+      byId.set(row.id, i.id);
+    }
+    const reader = { personId: person[FIXTURE_READER] };
+    const rowOf = (i: (typeof FIXTURE_CONTRACTOR_ITEMS)[number]): WorkRow => ({
+      ...i,
+      raisedBy: i.raisedBy.kind === "PERSON" ? { kind: "PERSON", id: person[i.raisedBy.id] } : i.raisedBy,
+      assignee: i.assignee?.kind === "PERSON" ? { kind: "PERSON", id: person[i.assignee.id] } : i.assignee,
+    });
+    let compared = 0;
+    for (const view of [...VIEWS, "contractor" as WorkView]) {
+      for (const f of [{}, { shared: true }, { shared: false }, { assignee: "contractor" }, { assignee: person.aisyah }, { type: "RFI" as const }] as WorkFilters[]) {
+        const where = { organisationId: org.organisationId, contractId: own.contractId, ...workWhere(view, f, reader, FIXTURE_TODAY) } as Prisma.WorkItemWhereInput;
+        const inDb = (await db.workItem.findMany({ where, select: { id: true } })).map((r) => byId.get(r.id)!).sort();
+        const inMemory = FIXTURE_CONTRACTOR_ITEMS.filter((i) => inView(rowOf(i), view, reader, FIXTURE_TODAY, f)).map((i) => i.id).sort();
+        expect(inDb, `${view} ${JSON.stringify(f)}`).toEqual(inMemory);
+        compared += inMemory.length;
+      }
+    }
+    expect(compared).toBeGreaterThan(30);
+    // "Waiting on {contractor}": the four rows the rule names, and the loaders read the company, never the account's contact, for the contractor-raised rows.
+    const waiting = await loadWorkList({ organisationId: org.organisationId, contractId: own.contractId, viewerId: person.aisyah, view: "contractor", filters: {}, today: FIXTURE_TODAY, timeZone: "Asia/Kuala_Lumpur", page: 0, size: 100 });
+    expect(waiting.total).toBe(FIXTURE_CONTRACTOR_ITEMS.filter((i) => inView(rowOf(i), "contractor", reader, FIXTURE_TODAY)).length);
+    const contract = await db.contract.findUniqueOrThrow({ where: { id: own.contractId }, include: { award: true } });
+    for (const r of waiting.rows.filter((x) => x.raisedBy.kind === "CONTRACTOR")) expect(r.raisedByName).toBe(contract.award.awardeeName);
   });
 
   it("Late with no time zone matches nothing", async () => {

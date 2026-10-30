@@ -209,3 +209,24 @@ describe("the export names a work item's people and documents", () => {
     expect(file).not.toContain("IN_REVIEW");
   });
 });
+
+describe("3b step 3: a person to the contractor is one Assignee line in the export and in History", () => {
+  it("reads the company token as the company, never as 'someone no longer listed', and looks it up as nobody", async () => {
+    const r = row("w", "2026-09-30T01:00:00Z", {
+      entity: "WorkItem",
+      changes: [
+        { field: "assigneePersonId", before: "p1", after: "contractor" },
+        { field: "sharedAt", before: null, after: "2026-09-30T01:00:00.000Z" },
+      ],
+    });
+    expect(workIdsIn([r])).toEqual(["p1"]);
+    const file = auditCsv([r], "Asia/Kuala_Lumpur", new Map([["p1", "Aisyah"]]));
+    expect(file).toContain("Aisyah");
+    expect(file).toContain("The contractor");
+    expect(file).toContain("Shared");
+    expect(file).not.toContain("someone no longer listed");
+    expect(file).not.toMatch(/sharedAt|assignedToContractor/);
+    const { historyValueWords } = await import("./entity-labels");
+    expect(historyValueWords("WorkItem", "assigneePersonId", "contractor")).toBe("The contractor");
+  });
+});

@@ -79,6 +79,9 @@ const NAMED_FIELDS: Record<string, string> = {
   effectiveTo: END_DAY_LABEL,
   // The work module's assignee column ("Assignee person" otherwise).
   assigneePersonId: "Assignee",
+  // 3b: sharing with the contractor is an instant; the assignee change to the company is one "Assignee" line (the token is read as the company).
+  sharedAt: "Shared",
+  assignedToContractor: "Assigned to the contractor",
   endsOn: END_DAY_LABEL,
   uiLanguage: "Display language",
   tabledByPersonId: "Tabled by",

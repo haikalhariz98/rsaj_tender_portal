@@ -103,7 +103,7 @@ function on(organisationId: string, contractId: string) {
     },
     async comment(when: string, key: string, by: string, body: string) {
       const { comment } = await import("../src/lib/work/store");
-      await run(organisationId, contractId, when, `${key} comment`, by, "WorkItemComment.person", (c, who, a) => comment(c, who, { itemId: id(key), body }, a!));
+      await run(organisationId, contractId, when, `${key} comment`, by, "WorkItemComment.person", (c, who, a) => comment(c, who, { itemId: id(key), body, audience: null }, a!));
     },
     async link(when: string, key: string, by: string, to: { item?: string; documentId?: string }) {
       const { link } = await import("../src/lib/work/store");

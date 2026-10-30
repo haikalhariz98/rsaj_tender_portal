@@ -23,11 +23,13 @@ import { loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
 import { activityFeed, type ActivityLine } from "./activity";
 import { BOARD_COLUMN_CAP, BOARD_DONE_DAYS, boardColumns, type BoardColumnOf, type BoardItem } from "./board";
+import { portalSeesFile } from "./audience";
+import { CONTRACTOR_ASSIGNEE } from "./fields";
 import { leadIds } from "./lead";
 import { assigneeOf, raiserOf } from "./party";
-import { itemRefText, type WhoNames } from "./labels";
+import { contractorActorWords, itemRefText, TEAM_ROLE_WORDS, type WhoNames } from "./labels";
 import { itemRef, parseItemRef } from "./number";
-import type { BoardColumn, Day, WorkStatus, WorkView } from "./types";
+import type { BoardColumn, Day, TeamMember, TeamRole, WorkStatus, WorkView } from "./types";
 import { WORK_ORDER_BY, workWhere, type WorkFilters } from "./views";
 
 // ------------------------------------------------------------------ shared reads (the store uses them inside its transaction)
@@ -52,22 +54,44 @@ export async function activeAmong(client: Tx, organisationId: string, ids: reado
   return new Set((await client.person.findMany({ where: { organisationId, isActive: true, id: { in: want } }, select: { id: true } })).map((r) => r.id));
 }
 
-/// The people a who-can sentence names (`primaryActions`, `cardMoves` and the faults' words), resolved by name. `lead` is `leadOf`'s.
-export async function whoNamesOf(client: Tx, organisationId: string, r: { raisedByPersonId: string | null; assigneePersonId: string | null }, lead: { ids: string[]; roleLabel: string | null }): Promise<WhoNames> {
+/// The company on a staff surface, by the awardee's name (B-4): never a contact's. If WS-10 changes, `contractorActorWords` is the one place.
+export const contractorNameOf = (l: LoadedContract): string => contractorActorWords(l.award.awardeeName).en;
+
+/// The people a who-can sentence names (`primaryActions`, `cardMoves` and the faults' words), resolved by name. `lead` is `leadOf`'s. The contractor, as raiser (no
+/// person) or as the assignee, reads as `contractorName`.
+export async function whoNamesOf(
+  client: Tx,
+  organisationId: string,
+  r: { raisedByPersonId: string | null; assigneePersonId: string | null; assignedToContractor?: boolean },
+  lead: { ids: string[]; roleLabel: string | null },
+  contractorName = "The contractor",
+): Promise<WhoNames> {
   const names = await namesOf(client, organisationId, [r.raisedByPersonId ?? "", r.assigneePersonId ?? "", ...lead.ids]);
   return {
-    raiser: names.get(r.raisedByPersonId ?? "") ?? "Someone",
-    assignee: r.assigneePersonId ? (names.get(r.assigneePersonId) ?? "Someone") : null,
+    raiser: r.raisedByPersonId === null ? contractorName : (names.get(r.raisedByPersonId) ?? "Someone"),
+    assignee: r.assignedToContractor ? contractorName : r.assigneePersonId ? (names.get(r.assigneePersonId) ?? "Someone") : null,
     lead: lead.roleLabel ? { roleLabel: lead.roleLabel, names: lead.ids.map((id) => names.get(id) ?? "Someone") } : null,
   };
 }
 
-/// W-4: the lead on the organisation's day: every holder and acting holder of the contract's S.O. office, and the office's label for the words.
+/// `whoNamesOf` for an act's context: the contractor reads as the awardee.
+export const whoNamesIn = (c: { tx: Tx; l: LoadedContract }, r: Parameters<typeof whoNamesOf>[2], lead: Parameters<typeof whoNamesOf>[3]): Promise<WhoNames> => whoNamesOf(c.tx, c.l.org.id, r, lead, contractorNameOf(c.l));
+
+/// The Project team of a contract (B-12). Only the lead and the team card read it.
+export async function loadTeamMembers(client: Tx, organisationId: string, contractId: string): Promise<TeamMember[]> {
+  const rows = await client.projectTeamMember.findMany({ where: { organisationId, contractId }, select: { role: true, personId: true }, orderBy: [{ role: "asc" }, { recordedAt: "asc" }, { id: "asc" }] });
+  return rows.map((r) => ({ role: r.role as TeamRole, personId: r.personId }));
+}
+
+/// W-4, B-13: the lead on the organisation's day. The Project manager when named and active (no time zone needed), else every holder and acting holder of the
+/// contract's S.O. office (which needs the day). `roleLabel` is the office's label for the words.
 export async function leadOf(l: LoadedContract, today: Day | null, client: Tx = db): Promise<{ ids: string[]; roleLabel: string | null }> {
-  if (today === null) return { ids: [], roleLabel: null };
-  const so = await soOfficeOn(l, await loadSupervision(l.contract.id, client), today, client);
-  // Step 3 reads the team here (the Project manager first, 3b B-13); until then the S.O. alone, as in 3a.
-  return { ids: leadIds([], so?.office ?? null, today, new Set()), roleLabel: so?.office.roleLabel ?? null };
+  const team = await loadTeamMembers(client, l.org.id, l.contract.id);
+  const activeIds = await activeAmong(client, l.org.id, team.map((m) => m.personId));
+  const so = today === null ? null : await soOfficeOn(l, await loadSupervision(l.contract.id, client), today, client);
+  const ids = leadIds(team, so?.office ?? null, today, activeIds);
+  const pm = team.some((m) => m.role === "PROJECT_MANAGER" && activeIds.has(m.personId));
+  return { ids, roleLabel: pm ? TEAM_ROLE_WORDS.PROJECT_MANAGER.en : (so?.office.roleLabel ?? null) };
 }
 
 // ------------------------------------------------------------------ the context of the tab
@@ -130,7 +154,7 @@ const CARD_SELECT = {
 } as const;
 type CardRow = Prisma.WorkItemGetPayload<{ select: typeof CARD_SELECT }>;
 
-const cardOf = (r: CardRow, timeZone: string | null): WorkCardRow => ({
+const cardOf = (r: CardRow, timeZone: string | null, contractor: string): WorkCardRow => ({
   id: r.id,
   ref: itemRef(r.type, r.number),
   type: r.type,
@@ -145,12 +169,19 @@ const cardOf = (r: CardRow, timeZone: string | null): WorkCardRow => ({
   raisedBy: raiserOf(r),
   assignee: assigneeOf(r),
   sharedAt: r.sharedAt?.toISOString() ?? null,
-  raisedByName: r.raisedBy?.name ?? "Someone",
-  assigneeName: r.assignee?.name ?? null,
+  // A contractor raiser or assignee reads as the company on staff surfaces (B-4): no account or contact is joined.
+  raisedByName: r.raisedByPersonId === null ? contractor : (r.raisedBy?.name ?? "Someone"),
+  assigneeName: r.assignedToContractor ? contractor : (r.assignee?.name ?? null),
   closedOn: r.closedAt ? dayOf(r.closedAt, timeZone) : null,
 });
 
 const scope = (i: { organisationId: string; contractId: string }) => ({ organisationId: i.organisationId, contractId: i.contractId });
+
+/// The company's name for a contract's cards: the award's awardee, read once per load. A contract that is not there: "The contractor".
+async function contractorOf(i: { organisationId: string; contractId: string }): Promise<string> {
+  const c = await db.contract.findFirst({ where: { id: i.contractId, organisationId: i.organisationId }, select: { award: { select: { awardeeName: true } } } });
+  return contractorActorWords(c?.award.awardeeName ?? "The contractor").en;
+}
 const whereOf = (i: { organisationId: string; contractId: string; viewerId: string; today: Day | null }, view: WorkView, filters: WorkFilters) =>
   ({ ...scope(i), ...workWhere(view, filters, { personId: i.viewerId }, i.today) }) as Prisma.WorkItemWhereInput;
 
@@ -197,10 +228,11 @@ export interface WorkListInput {
 /// One page of the server-mode list, and the true total.
 export async function loadWorkList(i: WorkListInput): Promise<{ rows: WorkCardRow[]; total: number; page: number }> {
   const where = whereOf(i, i.view, i.filters);
+  const contractor = await contractorOf(i);
   const total = await db.workItem.count({ where });
   const page = Math.max(0, Math.min(i.page, Math.ceil(total / i.size) - 1));
   const rows = await db.workItem.findMany({ where, select: CARD_SELECT, orderBy: orderFor(i.sort ?? null, i.dir ?? "asc"), skip: page * i.size, take: i.size });
-  return { rows: rows.map((r) => cardOf(r, i.timeZone)), total, page };
+  return { rows: rows.map((r) => cardOf(r, i.timeZone, contractor)), total, page };
 }
 
 export interface BoardInput {
@@ -222,6 +254,7 @@ export async function loadBoard(i: BoardInput): Promise<BoardColumnOf<WorkCardRo
   const openView: WorkView = i.view === "done" ? "open" : i.view;
   const doneShown = i.view === "open" || i.view === "done";
   const windowStart = i.today === null ? null : instantAt(dayPlus(i.today, -(BOARD_DONE_DAYS - 1)), "00:00", i.timeZone);
+  const contractor = await contractorOf(i);
   const cols = await Promise.all(
     (["TO_DO", "IN_PROGRESS", "IN_REVIEW", "DONE"] as const satisfies readonly BoardColumn[]).map(async (column) => {
       if (column === "DONE" && !doneShown) return { column, items: [] as WorkCardRow[], total: 0, older: 0 };
@@ -233,7 +266,7 @@ export async function loadBoard(i: BoardInput): Promise<BoardColumnOf<WorkCardRo
         column === "DONE" ? db.workItem.count({ where: inColumn }) : Promise.resolve(0),
         db.workItem.findMany({ where: recent, select: CARD_SELECT, orderBy: [...WORK_ORDER_BY] as Prisma.WorkItemOrderByWithRelationInput[], take: BOARD_COLUMN_CAP }),
       ]);
-      return { column, items: rows.map((r) => cardOf(r, i.timeZone)), total, older: all - total };
+      return { column, items: rows.map((r) => cardOf(r, i.timeZone, contractor)), total, older: all - total };
     }),
   );
   // `boardColumns` puts each fetched card in its order; the counts are the database's.
@@ -263,6 +296,11 @@ export interface WorkFileView {
   attachedAt: Date;
   /// Set when the store withdrew the file: it is still listed, marked, and not offered as a download.
   withdrawnAt: Date | null;
+  /// Who attached it: the staff member whose staged file it was (null when the contractor uploaded it). `attachFiles` pins only the actor's own staged versions, so
+  /// the version's recorder is the person who attached it; "Remove" is theirs or the lead's (B-6).
+  attachedByPersonId: string | null;
+  /// Whether the portal lists it ("Seen by {contractor}", B-3): the contractor's own file, or attached at or after the share.
+  seenByContractor: boolean;
 }
 export interface WorkItemDetail {
   card: WorkCardRow;
@@ -299,12 +337,12 @@ export async function loadItem(i: { organisationId: string; contractId: string; 
   if (!r) return null;
   const files = await db.documentAttachment.findMany({
     where: { organisationId: i.organisationId, workItemId: r.id, detachedAt: null },
-    select: { id: true, versionId: true, attachedAt: true, version: { select: { originalFilename: true, withdrawnAt: true, document: { select: { title: true } } } } },
+    select: { id: true, versionId: true, attachedAt: true, version: { select: { originalFilename: true, withdrawnAt: true, recordedByPersonId: true, recordedBySupplierAccountId: true, document: { select: { title: true } } } } },
     orderBy: [{ attachedAt: "asc" }, { id: "asc" }],
   });
   const item = (x: { type: BoardItem["type"]; number: number; title: string; status: WorkStatus }) => ({ kind: "ITEM" as const, ref: itemRef(x.type, x.number), title: x.title, status: x.status });
   return {
-    card: cardOf(r, i.timeZone),
+    card: cardOf(r, i.timeZone, await contractorOf(i)),
     description: r.description,
     impact: r.impact,
     severity: r.severity,
@@ -316,23 +354,34 @@ export async function loadItem(i: { organisationId: string; contractId: string; 
       ...r.linksFrom.map((l): WorkLinkView => ({ id: l.id, direction: "TO", target: l.toWorkItem ? item(l.toWorkItem) : { kind: "DOCUMENT", id: l.projectDocument!.id, title: l.projectDocument!.title } })),
       ...r.linksTo.map((l): WorkLinkView => ({ id: l.id, direction: "FROM", target: item(l.workItem) })),
     ],
-    files: files.map((f) => ({ attachmentId: f.id, versionId: f.versionId, filename: f.version.originalFilename, title: f.version.document.title, attachedAt: f.attachedAt, withdrawnAt: f.version.withdrawnAt })),
+    files: files.map((f) => ({
+      attachmentId: f.id,
+      versionId: f.versionId,
+      filename: f.version.originalFilename,
+      title: f.version.document.title,
+      attachedAt: f.attachedAt,
+      withdrawnAt: f.version.withdrawnAt,
+      attachedByPersonId: f.version.recordedByPersonId,
+      seenByContractor: portalSeesFile({ attachedAt: f.attachedAt, byContractor: f.version.recordedBySupplierAccountId !== null }, r.sharedAt),
+    })),
   };
 }
 
 /// An item's Activity: its comments and the audit rows of its acts (fields, moves, links, files), oldest first (WS-18, W-11). The names a change line shows (an assignee, a
 /// "From" document) are read here, so the pure feed prints a name and never an id.
 export async function loadActivity(i: { organisationId: string; contractId: string; contractNumber: string; item: { id: string; type: BoardItem["type"]; number: number }; timeZone: string | null }): Promise<ActivityLine[]> {
-  const [comments, entries] = await Promise.all([
-    db.workItemComment.findMany({ where: { organisationId: i.organisationId, workItemId: i.item.id }, select: { id: true, body: true, recordedAt: true, person: { select: { name: true } } }, orderBy: [{ recordedAt: "desc" }, { id: "desc" }], take: ACTIVITY_CAP }),
+  const [comments, entries, contractor] = await Promise.all([
+    db.workItemComment.findMany({ where: { organisationId: i.organisationId, workItemId: i.item.id }, select: { id: true, body: true, recordedAt: true, internal: true, supplierAccountId: true, person: { select: { name: true } } }, orderBy: [{ recordedAt: "desc" }, { id: "desc" }], take: ACTIVITY_CAP }),
     db.auditEntry.findMany({
       where: { organisationId: i.organisationId, entity: { in: ["WorkItem", "WorkItemLink", "DocumentAttachment"] }, entityLabel: { startsWith: likeLiteral(workAuditPrefix(i.contractNumber, i.item.type, i.item.number)) } },
       orderBy: [{ at: "desc" }, { id: "desc" }],
       take: ACTIVITY_CAP,
       include: { actorPerson: { select: { name: true } } },
     }),
+    contractorOf(i),
   ]);
-  const rows = entries.map((e) => ({ id: e.id, entity: e.entity, action: e.action as "CREATE" | "UPDATE" | "DELETE", changes: (e.changes ?? []) as unknown as FieldChange[], actorName: actorDisplayName(e), at: e.at }));
+  // A contractor's act (a SUPPLIER row, a comment with an account) is the company on staff surfaces, never the contact (B-4, WS-9).
+  const rows = entries.map((e) => ({ id: e.id, entity: e.entity, action: e.action as "CREATE" | "UPDATE" | "DELETE", changes: (e.changes ?? []) as unknown as FieldChange[], actorName: e.actorKind === "SUPPLIER" ? contractor : actorDisplayName(e), at: e.at }));
   const ids = new Set<string>();
   for (const r of rows) for (const c of r.changes) if ((c.field === "assigneePersonId" || c.field === "fromDocumentId") && c.before) ids.add(c.before);
   for (const r of rows) for (const c of r.changes) if ((c.field === "assigneePersonId" || c.field === "fromDocumentId") && c.after) ids.add(c.after);
@@ -340,9 +389,9 @@ export async function loadActivity(i: { organisationId: string; contractId: stri
     namesOf(db, i.organisationId, [...ids]),
     ids.size ? db.projectDocument.findMany({ where: { organisationId: i.organisationId, contractId: i.contractId, id: { in: [...ids] } }, select: { id: true, title: true } }) : Promise.resolve([]),
   ]);
-  const names = new Map([...people, ...documents.map((d): [string, string] => [d.id, d.title])]);
+  const names = new Map([...people, ...documents.map((d): [string, string] => [d.id, d.title]), [CONTRACTOR_ASSIGNEE, contractor]]);
   return activityFeed(
-    comments.map((c) => ({ id: c.id, body: c.body, personName: c.person?.name ?? null, at: c.recordedAt })),
+    comments.map((c) => ({ id: c.id, body: c.body, personName: c.supplierAccountId !== null ? contractor : (c.person?.name ?? null), at: c.recordedAt, internal: c.internal })),
     rows.map((r) => ({ id: r.id, entity: r.entity, action: r.action, changes: r.changes, actorName: r.actorName, at: r.at })),
     i.timeZone,
     names,
@@ -351,10 +400,29 @@ export async function loadActivity(i: { organisationId: string; contractId: stri
 
 // ------------------------------------------------------------------ the pickers
 
-/// The assignee dropdown: the organisation's active people, by name. "Me" first is the screen's. Capped (a dropdown, not a register).
-export async function assigneeOptions(i: { organisationId: string }): Promise<{ value: string; label: string }[]> {
+/// The assignee dropdown (0008 §4.3, B-7): the contract's team first, then "{contractor}", then everyone else; the organisation's active people, by name. "Me" first is
+/// the screen's. Capped (a dropdown, not a register). `value` for the company is `CONTRACTOR_ASSIGNEE`, never a person id.
+export type AssigneeOption = { value: string; label: string; group: "TEAM" | "CONTRACTOR" | "EVERYONE" };
+export async function assigneeOptions(i: { organisationId: string; contractId?: string }): Promise<AssigneeOption[]> {
   const rows = await db.person.findMany({ where: { organisationId: i.organisationId, isActive: true }, select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 500 });
-  return rows.map((p) => ({ value: p.id, label: p.name }));
+  if (!i.contractId) return rows.map((p) => ({ value: p.id, label: p.name, group: "EVERYONE" as const }));
+  const [team, contractor] = await Promise.all([loadTeamMembers(db, i.organisationId, i.contractId), contractorOf({ organisationId: i.organisationId, contractId: i.contractId })]);
+  const onTeam = new Set(team.map((m) => m.personId));
+  const people = (inTeam: boolean) => rows.filter((p) => onTeam.has(p.id) === inTeam).map((p) => ({ value: p.id, label: p.name, group: inTeam ? ("TEAM" as const) : ("EVERYONE" as const) }));
+  return [...people(true), { value: CONTRACTOR_ASSIGNEE, label: contractor, group: "CONTRACTOR" as const }, ...people(false)];
+}
+
+export interface TeamCardMember {
+  role: TeamRole;
+  roleLabel: string;
+  personId: string;
+  name: string;
+}
+/// The Project team card's rows (B-12), in role order, each with a name.
+export async function loadTeamCard(i: { organisationId: string; contractId: string }): Promise<TeamCardMember[]> {
+  const team = await loadTeamMembers(db, i.organisationId, i.contractId);
+  const names = await namesOf(db, i.organisationId, team.map((m) => m.personId));
+  return team.map((m) => ({ role: m.role, roleLabel: TEAM_ROLE_WORDS[m.role].en, personId: m.personId, name: names.get(m.personId) ?? "Someone" }));
 }
 
 /// The link dropdowns: the contract's other items (open first, then newest) and its project documents, each capped.

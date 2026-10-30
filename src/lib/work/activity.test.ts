@@ -89,3 +89,30 @@ describe("a link line says what was linked", () => {
     expect(activityFeed([], [link("DELETE", [{ field: "linkedTo", before: "RFI 12 · Slab", after: null }])], KL)[0]).toMatchObject({ text: "removed a link to RFI 12 · Slab" });
   });
 });
+
+describe("3b step 3: sharing, the company as assignee, a removed file, a comment's audience", () => {
+  const withContractor = new Map([["p-hafiz", "Hafiz"], ["contractor", "Acme Builders Sdn Bhd"]]);
+  const row = (id: string, entity: string, action: ActivityAuditRow["action"], changes: ActivityAuditRow["changes"]): ActivityAuditRow => ({ id, entity, action, changes, actorName: "Aisyah", at: at(1) });
+
+  it("a person to the contractor is ONE Assignee line naming the company, with the share beside it; never a column key", () => {
+    const lines = activityFeed([], [row("a1", "WorkItem", "UPDATE", [{ field: "assigneePersonId", before: "p-hafiz", after: "contractor" }, { field: "sharedAt", before: null, after: "2026-11-05T02:01:00.000Z" }])], KL, withContractor);
+    expect(lines).toHaveLength(1);
+    const text = lines[0].kind === "CHANGE" ? lines[0].text : "";
+    expect(text).toBe("Assignee: Hafiz → Acme Builders Sdn Bhd; Shared: none → 05 Nov 2026 · 10:01");
+    expect(text).not.toMatch(/assignee[A-Z]|sharedAt|assignedToContractor|contractor →/);
+  });
+
+  it("the company back to a person is one line too", () => {
+    const lines = activityFeed([], [row("a1", "WorkItem", "UPDATE", [{ field: "assigneePersonId", before: "contractor", after: "p-hafiz" }])], KL, withContractor);
+    expect(lines.map((l) => (l.kind === "CHANGE" ? l.text : ""))).toEqual(["Assignee: Acme Builders Sdn Bhd → Hafiz"]);
+  });
+
+  it("a removed file reads as a line; a comment carries its audience (absent reads as internal, the safe side)", () => {
+    const lines = activityFeed(
+      [{ id: "c1", body: "Reply", personName: "Acme Builders Sdn Bhd", at: at(2), internal: false }, { id: "c2", body: "Note", personName: "Aisyah", at: at(3) }],
+      [row("a1", "DocumentAttachment", "UPDATE", [{ field: "attached", before: "yes", after: "no" }])],
+      KL,
+    );
+    expect(lines.map((l) => [l.id, l.kind === "COMMENT" ? l.internal : l.text])).toEqual([["a1", "removed a file"], ["c1", false], ["c2", true]]);
+  });
+});

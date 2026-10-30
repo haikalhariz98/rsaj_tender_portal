@@ -14,11 +14,11 @@ import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf } from "@/lib/dates";
 import { parseFieldEdit, parseNewItem } from "@/lib/work/fields";
 import { actionOf } from "@/lib/work/move";
-import { attachFiles, comment, createItem, editField, link, moveItem, unlink, WorkRefused, type WorkCtx } from "@/lib/work/store";
-import type { WorkStatus } from "@/lib/work/types";
+import { attachFiles, comment, createItem, editField, link, moveItem, removeFile, shareItem, unlink, WorkRefused, type WorkCtx } from "@/lib/work/store";
+import type { Audience, WorkStatus } from "@/lib/work/types";
 
 /**
- * The Work tab's staff acts (workspace 3a step 3; plan §5): raise an item, edit a field, move it, comment, link, unlink, attach files. This file owns only the edge: who is
+ * The Work tab's staff acts (workspace 3a step 3; plan §5): raise an item, edit a field, move it, comment, link, unlink, attach files; 3b step 3: share an item, remove a file. This file owns only the edge: who is
  * asking (`staffForAct`: an administrator account is refused, NFR-SEC-004), the form read by hand once per act (`fields.ts`; nothing the client sends is trusted, the item's
  * type and status included), the contract's lock and its `WORK_ITEM` row, and the words of a refusal. It restates no rule: the faults and the permissions are `src/lib/work`'s.
  *
@@ -30,10 +30,12 @@ import type { WorkStatus } from "@/lib/work/types";
  * those ids (`stagedVersionId`, repeated). A Server Action body is capped at 1 MB (ADR 0011 D5).
  *
  * Form fields (all acts take `contractId`; every act on an item takes `itemId`):
- *   createWorkItem       `type`, `title`, `description`, `priority`, `dueOn`, `location`, `assigneePersonId`, `answer`, `impact`, `inspectionResult`, `severity`, `happenedAt`, `fromDocumentId`.
- *   editWorkField        `field` (a column of `fields.ts`), `value`. The select cell posts its pick as `value`.
+ *   createWorkItem       `type`, `title`, `description`, `priority`, `dueOn`, `location`, `assigneePersonId` (a person id, or "contractor"), `answer`, `impact`, `inspectionResult`, `severity`, `happenedAt`, `fromDocumentId`;
+ *                        `share` ("on" shares it; the quick-add row posts none, so it never shares).
+ *   editWorkField        `field` (a column of `fields.ts`), `value`. The select cell posts its pick as `value`; "contractor" as an assignee shares the item (one-way).
  *   moveWorkItem         `from` (the status the reader saw), `to`; `reason` for Cancel; `comment` for Send back. The Board posts the card's `fields` with `from` and `to`.
- *   commentOnWorkItem    `body`.
+ *   commentOnWorkItem    `body`; `audience` ("REPLY" or "INTERNAL"; absent takes the default, which an unshared item makes internal).
+ *   shareWorkItem        `share` ("on"; "off" is refused: sharing can't be undone).   removeWorkFile   `attachmentId`, `reason`.
  *   linkWorkItem         `toItemId` or `documentId`.   unlinkWorkItem   `linkId`.   attachWorkFiles   `stagedVersionId` (repeated).
  */
 
@@ -90,6 +92,12 @@ const idsOf = (data: FormData, name: string): string[] => data.getAll(name).flat
 const statusOf = (data: FormData, name: string): WorkStatus | null => {
   const v = text(data, name);
   return (STATUSES as readonly string[]).includes(v) ? (v as WorkStatus) : null;
+};
+
+/// The composer's audience: absent is null; anything but REPLY or INTERNAL is false (a tampered request, refused whole).
+const audienceOf = (data: FormData): Audience | null | false => {
+  const v = text(data, "audience");
+  return v === "" ? null : v === "REPLY" || v === "INTERNAL" ? v : false;
 };
 
 // ------------------------------------------------------------------ the acts
@@ -153,7 +161,7 @@ export async function moveWorkItem(data: FormData): Promise<WorkResult> {
   });
 }
 
-/// Comment on an item (internal, every one in 3a).
+/// Comment on an item. The audience is the composer's choice, absent or REPLY or INTERNAL; the core decides what the item allows (B-2).
 export async function commentOnWorkItem(data: FormData): Promise<WorkResult> {
   const guard = await staffForAct("TRANSACTION");
   if (!guard.ok) return { refused: stateWords(guard.state) };
@@ -162,12 +170,13 @@ export async function commentOnWorkItem(data: FormData): Promise<WorkResult> {
   const contractId = idOf(data, "contractId");
   const itemId = idOf(data, "itemId");
   const body = text(data, "body");
-  if (!contractId || !itemId) return UNREADABLE;
+  const audience = audienceOf(data);
+  if (!contractId || !itemId || audience === false) return UNREADABLE;
   const begun = await beginAct(actor, data, "WorkItemComment.person", { personField: "personId", onBehalf: false });
   if (!begun.ok) return { refused: stateWords(begun.state) };
   const act = begun.act;
   return inContract(actor, contractId, now, async (c) => {
-    await comment(c, actor, { itemId, body }, act);
+    await comment(c, actor, { itemId, body, audience }, act);
     return {};
   });
 }
@@ -220,6 +229,39 @@ export async function attachWorkFiles(data: FormData): Promise<WorkResult> {
   const stagedVersionIds = idsOf(data, "stagedVersionId");
   return inContract(actor, contractId, now, async (c) => {
     await attachFiles(c, actor, { itemId, stagedVersionIds });
+    return {};
+  });
+}
+
+/// Share an item with the contractor. One-way and audited; "off" is asked only by a tampered form and is refused in words. The screen asks its confirm first.
+export async function shareWorkItem(data: FormData): Promise<WorkResult> {
+  const guard = await staffForAct("TRANSACTION");
+  if (!guard.ok) return { refused: stateWords(guard.state) };
+  const actor = guard.actor;
+  const now = toSecond(new Date());
+  const contractId = idOf(data, "contractId");
+  const itemId = idOf(data, "itemId");
+  const share = text(data, "share");
+  if (!contractId || !itemId || (share !== "on" && share !== "off")) return UNREADABLE;
+  return inContract(actor, contractId, now, async (c) => {
+    await shareItem(c, actor, { itemId, share: share === "on" });
+    return {};
+  });
+}
+
+/// Remove a file from an unshared item, with a reason. A detach, audited; no attribution slot.
+export async function removeWorkFile(data: FormData): Promise<WorkResult> {
+  const guard = await staffForAct("TRANSACTION");
+  if (!guard.ok) return { refused: stateWords(guard.state) };
+  const actor = guard.actor;
+  const now = toSecond(new Date());
+  const contractId = idOf(data, "contractId");
+  const itemId = idOf(data, "itemId");
+  const attachmentId = idOf(data, "attachmentId");
+  if (!contractId || !itemId || !attachmentId) return UNREADABLE;
+  const reason = text(data, "reason");
+  return inContract(actor, contractId, now, async (c) => {
+    await removeFile(c, actor, { itemId, attachmentId, reason });
     return {};
   });
 }

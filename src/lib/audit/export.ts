@@ -24,6 +24,8 @@ import { createHash } from "node:crypto";
 import { csvCell } from "@/lib/csv-cell";
 import { dayIn } from "@/lib/dates";
 import { sulitFieldOf } from "@/lib/sulit-trail";
+import { CONTRACTOR_ASSIGNEE } from "@/lib/work/fields";
+import { CONTRACTOR_AUDIT_WORDS } from "@/lib/work/labels";
 
 import { CORE_ROUTING_ENTITY_NAME } from "./core-routing-trail";
 import { rowFieldLabel } from "./diff";
@@ -68,7 +70,7 @@ export function workIdsIn(rows: readonly Pick<ExportRow, "entity" | "changes">[]
     if (r.entity !== "WorkItem" || !Array.isArray(r.changes)) continue;
     for (const c of r.changes as { field?: unknown; before?: unknown; after?: unknown }[]) {
       if (typeof c?.field !== "string" || !isWorkIdField("WorkItem", c.field)) continue;
-      for (const v of [c.before, c.after]) if (typeof v === "string" && v) ids.add(v);
+      for (const v of [c.before, c.after]) if (typeof v === "string" && v && v !== CONTRACTOR_ASSIGNEE) ids.add(v);
     }
   }
   return [...ids];
@@ -84,7 +86,7 @@ function labelledChanges(changes: unknown, entity = "", names: ReadonlyMap<strin
   if (!Array.isArray(changes)) return changes ?? [];
   const fields = changes.map((c) => (c && typeof c === "object" && "field" in c ? String((c as { field: unknown }).field) : ""));
   // 612-C2: a value an older writer built from a code reads through the label map, as History reads it.
-  const words = (raw: string, v: unknown) => (typeof v !== "string" ? v : isWorkIdField(entity, raw) ? (names.get(v) ?? "someone no longer listed") : historyValueWords(entity, raw, v));
+  const words = (raw: string, v: unknown) => (typeof v !== "string" ? v : isWorkIdField(entity, raw) ? (v === CONTRACTOR_ASSIGNEE ? CONTRACTOR_AUDIT_WORDS : (names.get(v) ?? "someone no longer listed")) : historyValueWords(entity, raw, v));
   return changes.map((c) => {
     if (!c || typeof c !== "object" || !("field" in c)) return c;
     const raw = String((c as { field: unknown }).field);

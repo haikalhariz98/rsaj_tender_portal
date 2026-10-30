@@ -45,18 +45,49 @@ describe("nothing writes a contractor as the assignee (WS-9: the column exists, 
   });
 });
 
-describe("every comment is internal in 3a (ADR 0048 D4)", () => {
-  it("each workItemComment.create passes internal: true", () => {
+describe("a comment's audience is always commentAudience's (ADR 0048 D4; 3b B-2)", () => {
+  // Changed for 3b step 3 (stricter): 3a's scan held `internal: true` on every insert; 3b replaces it. No staff insert carries a literal `internal` (neither true nor
+  // false), and the function that writes it asks `commentAudience(` before the write. The contractor's inserts (step 4) are held by the portal scan.
+  it("each workItemComment.create in the staff store passes internal from the audience, never a literal, after commentAudience", () => {
     let seen = 0;
     for (const f of product) {
       const src = read(f);
       for (const m of src.matchAll(/workItemComment\.(?:create|createMany|upsert)\(/g)) {
         seen++;
         const call = src.slice(m.index!, src.indexOf("select:", m.index!) > -1 ? src.indexOf("select:", m.index!) : m.index! + 400);
-        expect(call, `${f}: a comment written without internal: true`).toMatch(/\binternal: true\b/);
+        expect(call, `${f}: a comment written with a literal internal`).not.toMatch(/\binternal: (?:true|false)\b/);
+        expect(call, `${f}: a comment written without an audience`).toMatch(/\binternal: audience === "INTERNAL"/);
+        const fnAt = src.lastIndexOf("\nexport async function ", m.index!);
+        expect(src.slice(fnAt, m.index!), `${f}: commentAudience not asked before the write`).toContain("commentAudience(");
       }
     }
     expect(seen).toBeGreaterThanOrEqual(2); // a comment, and send back's
+  });
+});
+
+describe("the team and the lead (3b B-12, B-13)", () => {
+  it("no staff work surface or loader imports the contract team's reader (team-read.ts) or sulitGate (B-4)", () => {
+    const surfaces = product.filter((f) => f.startsWith("src/lib/work/") || /^src\/app\/projects\/\[id\]\/(?:work-|team-)/.test(f));
+    expect(surfaces.length).toBeGreaterThan(8);
+    for (const f of surfaces) expect(lex(read(f)), f).not.toMatch(/team-read|sulitGate/);
+  });
+
+  it("ProjectTeamMember is read by nothing in approval, certificate, project-docs, delegation or authority: roles route, they never carry authority (ADR 0049 D4)", () => {
+    const authority = product.filter((f) => /^src\/lib\/(?:approval|approvals|certificate|project-docs|delegation|authority)\//.test(f));
+    expect(authority.length).toBeGreaterThan(5);
+    for (const f of authority) expect(lex(read(f)), f).not.toMatch(/projectTeamMember|ProjectTeamMember/);
+  });
+
+  it("only team-store.ts writes the team, and each of its acts asks the PROJECT_TEAM row first", () => {
+    const writers = product.filter((f) => /projectTeamMember\.(?:create|update|delete|upsert)/.test(lex(read(f))));
+    expect(writers).toEqual(["src/lib/work/team-store.ts"]);
+    const team = read("src/lib/work/team-store.ts");
+    expect(team).toContain('actStatusFault("PROJECT_TEAM"');
+    for (const name of ["addTeamMember", "removeTeamMember", "changeProjectManager"]) {
+      const body = fn(team, name);
+      expect(body.indexOf("gate(c)"), name).toBeGreaterThan(-1);
+      expect(body.indexOf("gate(c)"), name).toBeLessThan(body.search(/\.create\(|deleteMany\(|\badd\(/));
+    }
   });
 });
 
@@ -65,11 +96,13 @@ describe("the acts call the rules; the edge parses by hand and restates nothing"
     expect(fn(store, "createItem")).toMatch(/newItemFaults\([\s\S]*\bif \(faults\.length\) refuse\(/);
     expect(fn(store, "editField")).toMatch(/fieldFaults\([\s\S]*\bif \(faults\.length\) refuse\(/);
     expect(fn(store, "moveItem")).toMatch(/moveFaults\([\s\S]*\bif \(faults\.length\) refuse\(/);
-    expect(fn(store, "comment")).toMatch(/commentFaults\(i\.body\);\s+if \(faults\.length\) refuse\(/);
+    expect(fn(store, "comment")).toMatch(/commentFaults\(i\.body\)[\s\S]*if \(faults\.length\) refuse\(/);
+    expect(fn(store, "shareItem")).toMatch(/shareFaults\([\s\S]*\bif \(faults\.length\) refuse\(/);
+    expect(fn(store, "removeFile")).toMatch(/removeFileFaults\([\s\S]*\bif \(faults\.length\) refuse\(/);
   });
 
   it("every core asks WORK_ITEM first, and the edge's lock helper asks it under the contract's lock", () => {
-    for (const name of ["createItem", "editField", "comment", "link", "unlink", "attachFiles"]) {
+    for (const name of ["createItem", "editField", "comment", "link", "unlink", "attachFiles", "shareItem", "removeFile"]) {
       const body = fn(store, name);
       expect(body.indexOf("gate(c)"), name).toBeGreaterThan(-1);
       expect(body.indexOf("gate(c)"), `${name}: gate after the lock or the write`).toBeLessThan(Math.min(...["lockedItem(", ".create(", ".updateMany("].map((s) => (body.indexOf(s) < 0 ? Infinity : body.indexOf(s)))));
@@ -97,7 +130,7 @@ describe("the acts call the rules; the edge parses by hand and restates nothing"
 
   it("the actions read the clock once each, begin an attribution before the lock, parse the form by hand and import no rule's arithmetic", () => {
     const names = [...actions.matchAll(/^export async function (\w+)\(/gm)].map((m) => m[1]);
-    expect(names.sort()).toEqual(["attachWorkFiles", "commentOnWorkItem", "createWorkItem", "editWorkField", "linkWorkItem", "moveWorkItem", "unlinkWorkItem"]);
+    expect(names.sort()).toEqual(["attachWorkFiles", "commentOnWorkItem", "createWorkItem", "editWorkField", "linkWorkItem", "moveWorkItem", "removeWorkFile", "shareWorkItem", "unlinkWorkItem"]);
     for (const name of names) {
       const body = fn(actions, name);
       const entry = body.indexOf("return inContract(");

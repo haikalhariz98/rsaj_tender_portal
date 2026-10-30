@@ -51,7 +51,7 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
   // The pickers come from the tab (it loaded them for the list); the item itself is not offered to link to.
   const links = { ...linkOpts, items: linkOpts.items.filter((o) => o.value !== c.id) };
   const [who, activity] = await Promise.all([
-    whoNamesOf(db, org, { raisedByPersonId: personIdOf(c.raisedBy), assigneePersonId: personIdOf(c.assignee) }, ctx.lead),
+    whoNamesOf(db, org, { raisedByPersonId: personIdOf(c.raisedBy), assigneePersonId: personIdOf(c.assignee), assignedToContractor: c.assignee?.kind === "CONTRACTOR" }, ctx.lead),
     loadActivity({ organisationId: org, contractId, contractNumber: ctx.contractNumber, item: { id: c.id, type: c.type, number: c.number }, timeZone: ctx.timeZone }),
   ]);
   const itemLabel = itemRefText(c.type, c.number);

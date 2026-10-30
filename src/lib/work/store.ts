@@ -10,8 +10,10 @@
  *   4. the guarded write;  5. `writeAudit` with before and after;  6. `writeNotices`;  7. `act.write` for the act's slot (raising, commenting and linking have one).
  * A refusal throws `WorkRefused` before the first write, or rolls the transaction back after it, so nothing is left. Words are the pure rules' (`labels.ts`); no code reaches a screen.
  *
- * Never changed by any core: an item's `type`, `contractId` or `number` (OQ-3; no trigger holds them), and `assigneeSupplierAccountId` (WS-9: no writer until 3b).
- * Every comment is internal in 3a (`internal: true`, ADR 0048 D4). Notices are keyed by the audit row's id (or the comment's), so a retried act tells nobody twice.
+ * Never changed by any core: an item's `type`, `contractId` or `number` (OQ-3; no trigger holds them), and `assigneeSupplierAccountId` (WS-9: never written).
+ * A comment's audience is chosen when it is written and stored (`commentAudience`, ADR 0048 D4, 3b B-2). Sharing is one-way and audited (`sharedAt`, ADR 0049 D1): the
+ * share core, an assignment to the contractor and a create with the toggle on write it; nothing clears it. Notices are keyed by the audit row's id (or the comment's), so a
+ * retried act tells nobody twice.
  */
 
 import type { Prisma } from "@/generated/prisma/client";
@@ -26,7 +28,7 @@ import type { LoadedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOrNull, dayToDate } from "@/lib/dates";
 import { attachFault } from "@/lib/documents/attach";
-import { attached, filed } from "@/lib/documents/audit-view";
+import { attached, detached, filed } from "@/lib/documents/audit-view";
 import { documentFaultText } from "@/lib/documents/labels";
 import { lockDocument } from "@/lib/documents/lock";
 import { workItemFacts, workItemLabel } from "@/lib/documents/owner-facts";
@@ -38,14 +40,16 @@ import { contractorMayDownload } from "@/lib/project-docs/visibility";
 
 import { FILES_PER_ACT } from "./bounds";
 import { commentFaults, fieldFaults, mayEdit, newItemFaults, type EditableField, type FieldEdit, type NewItem } from "./fields";
-import { fieldFaultText, moveFaultText, whoCanWords } from "./labels";
-import { activeAmong, leadOf, whoNamesOf, workAuditPrefix } from "./load";
+import { audienceFaults, commentAudience, removeFileFaults } from "./audience";
+import { fieldFaultText, moveFaultText, removeFileWords, whoCanWords } from "./labels";
+import { activeAmong, leadOf, whoNamesIn, workAuditPrefix } from "./load";
 import { actionOf, isOpen, moveFaults, TARGET } from "./move";
 import { itemRef, nextNumber } from "./number";
 import { workNoticeDrafts, type NoticeItem } from "./notices";
-import { assigneeOf, person, raiserOf } from "./party";
-import { assigneePatch, sharedOnCreate } from "./sharing";
-import type { Day, FieldFault, WorkActor, WorkItemFacts, WorkNoticeKind, WorkStatus } from "./types";
+import { CONTRACTOR_ASSIGNEE } from "./fields";
+import { assigneeOf, person, raiserOf, sameParty } from "./party";
+import { assigneePatch, sharedOnCreate, sharePatch, shareFaults } from "./sharing";
+import type { Audience, Day, FieldFault, Party, WorkActor, WorkItemFacts, WorkNoticeKind, WorkStatus } from "./types";
 
 // ------------------------------------------------------------------ context and refusals
 
@@ -130,19 +134,32 @@ const actorOf = (who: StaffActor, lead: { ids: string[] }): WorkActor => ({ side
 /// The audit view of an item's columns: a day as its day, an instant as an ISO string (`renderValue` would cut a `Date` to its UTC day).
 const columnView = (r: ItemRow, field: EditableField | "status" | "cancelReason"): unknown => (field === "dueOn" ? dayOrNull(r.dueOn) : field === "happenedAt" ? (r.happenedAt?.toISOString() ?? null) : r[field]);
 
-/// Step 6: the notices of an act, one kind to the people the pure rule names (never the actor, never someone inactive).
-async function tell(c: WorkCtx, who: StaffActor, r: Pick<ItemRow, "id" | "type" | "number" | "title" | "raisedByPersonId">, assignee: string | null, kind: WorkNoticeKind, occurrence: string): Promise<void> {
-  // Step 3 passes the assignee as a party and the lead (told on every kind on an item the contractor raised, WS-17); 3a's items are all staff-raised.
-  const activeIds = await activeAmong(c.tx, c.l.org.id, [r.raisedByPersonId, assignee, who.personId]);
+/**
+ * The instant a share is written at (B-3, WB-3). A file's audience is read from when it was attached: the portal lists it only if `attachedAt >= sharedAt`. The act's `now` is
+ * cut to the second, as is `attachedAt` (`attachFiles` writes `c.now`), so a file attached earlier in the SAME second as the share would read as attached after it and leak.
+ * The share is therefore pushed one second past the item's latest live file when that file is not strictly earlier: the safe side (a file attached in the share's own second
+ * may read as before it and stay staff-only, to be attached again; none that was attached before is ever shown).
+ */
+async function shareInstant(c: WorkCtx, itemId: string): Promise<Date> {
+  const latest = (await c.tx.documentAttachment.aggregate({ where: { organisationId: c.l.org.id, workItemId: itemId, detachedAt: null }, _max: { attachedAt: true } }))._max.attachedAt;
+  return latest && latest.getTime() >= c.now.getTime() ? new Date(latest.getTime() + 1000) : c.now;
+}
+
+/// An assignee as the audit trail holds it, in the one Assignee line: a person's id, or the company's token (read as the awardee in Activity). Null: nobody.
+const partyView = (p: Party | null): string | null => (p === null ? null : p.kind === "CONTRACTOR" ? CONTRACTOR_ASSIGNEE : p.id);
+
+/// Step 6: the notices of an act, one kind to the people the pure rule names (never the actor, never someone inactive). The lead is told on every kind on an item the
+/// contractor raised (WS-17); the contractor itself is never told (PW-13), so a contractor party names nobody.
+async function tell(c: WorkCtx, who: StaffActor, r: Pick<ItemRow, "id" | "type" | "number" | "title" | "raisedByPersonId" | "assigneePersonId" | "assignedToContractor">, kind: WorkNoticeKind, occurrence: string, assigneeOverride?: Party | null): Promise<void> {
+  const assignee = assigneeOverride === undefined ? assigneeOf(r) : assigneeOverride;
+  const leadIds = r.raisedByPersonId === null ? (await leadOf(c.l, c.today, c.tx)).ids : [];
+  const activeIds = await activeAmong(c.tx, c.l.org.id, [r.raisedByPersonId, assignee?.kind === "PERSON" ? assignee.id : null, who.personId, ...leadIds]);
   const item: NoticeItem = { id: r.id, type: r.type, number: r.number, title: r.title, contractId: c.l.contract.id, contractNumber: c.l.contract.number };
-  const wrote = await writeNotices(c.tx, c.l.org.id, who.personId, workNoticeDrafts({ kind, actorId: who.personId, raisedBy: raiserOf(r), assignee: assignee === null ? null : person(assignee), leadIds: [], occurrence, activeIds }, item));
+  const wrote = await writeNotices(c.tx, c.l.org.id, who.personId, workNoticeDrafts({ kind, actorId: who.personId, raisedBy: raiserOf(r), assignee, leadIds, occurrence, activeIds }, item));
   if (c.told) c.told.count += wrote;
 }
 
 // ------------------------------------------------------------------ raise an item
-
-/// Until step 3 audits a share (B-1), nothing a staff form posts may share an item.
-const NOT_YET_SHARED = "Sharing with the contractor isn't available yet.";
 
 /// Raise an item (W-5: the next number of its type, under the contract's lock). Any staff member who may read the contract may raise one.
 export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: PreparedAct): Promise<{ id: string; ref: string }> {
@@ -152,8 +169,6 @@ export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: P
   const fromOk = n.fromDocumentId === null || (await c.tx.projectDocument.findFirst({ where: { id: n.fromDocumentId, contractId: c.l.contract.id, organisationId: org }, select: { id: true } })) !== null;
   const faults = newItemFaults(n, { now: c.now, activeIds, timeZone: c.l.org.timeZone, fromDocumentOnContract: fromOk, contractStatus: c.l.contract.status as ContractStatus });
   if (faults.length) refuse(faultsText(faults));
-  // Sharing is audited and one-way (ADR 0049 D1): refused until step 3 writes its audit line and lifts this guard.
-  if (n.share || n.assignedToContractor) refuse(NOT_YET_SHARED);
 
   const max = (await c.tx.workItem.aggregate({ where: { contractId: c.l.contract.id, organisationId: org, type: n.type }, _max: { number: true } }))._max.number;
   const number = nextNumber(max);
@@ -170,7 +185,7 @@ export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: P
       location: n.location,
       raisedByPersonId: who.personId,
       assigneePersonId: n.assigneePersonId,
-      // Step 3 audits these two; the screens offer neither until step 5.
+      // Assigning to the contractor shares in the same write (CHECK WorkItem_contractor_party_shared), and the audit row below says both.
       assignedToContractor: n.assignedToContractor,
       sharedAt: sharedOnCreate(n) ? c.now : null,
       answer: n.type === "RFI" ? n.answer : "",
@@ -183,8 +198,8 @@ export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: P
     },
     select: ITEM_SELECT,
   });
-  const auditId = await audit(c, who, row, "WorkItem", row.id, row.title, "CREATE", diffFields(null, { type: row.type, number: itemRef(row.type, number), title: row.title, description: row.description || null, priority: row.priority, dueOn: dayOrNull(row.dueOn), location: row.location || null, assigneePersonId: row.assigneePersonId, answer: row.answer || null, impact: row.impact, inspectionResult: row.inspectionResult, severity: row.severity, happenedAt: row.happenedAt?.toISOString() ?? null, fromDocumentId: row.fromDocumentId }));
-  if (row.assigneePersonId) await tell(c, who, row, row.assigneePersonId, "WORK_ITEM_ASSIGNED", auditId);
+  const auditId = await audit(c, who, row, "WorkItem", row.id, row.title, "CREATE", diffFields(null, { type: row.type, number: itemRef(row.type, number), title: row.title, description: row.description || null, priority: row.priority, dueOn: dayOrNull(row.dueOn), location: row.location || null, assigneePersonId: partyView(assigneeOf(row)), sharedAt: row.sharedAt?.toISOString() ?? null, answer: row.answer || null, impact: row.impact, inspectionResult: row.inspectionResult, severity: row.severity, happenedAt: row.happenedAt?.toISOString() ?? null, fromDocumentId: row.fromDocumentId }));
+  if (row.assigneePersonId) await tell(c, who, row, "WORK_ITEM_ASSIGNED", auditId);
   await act.write(c.tx, row.id);
   return { id: row.id, ref: itemRef(row.type, number) };
 }
@@ -203,20 +218,47 @@ const editedView = (e: FieldEdit): unknown => (e.field === "happenedAt" ? (e.val
 /// One field of an item (W-3: its raiser, its assignee or the lead; a closed item is read only until reopened). Setting an assignee tells them.
 export async function editField(c: WorkCtx, who: StaffActor, i: { itemId: string; edit: FieldEdit }): Promise<void> {
   gate(c);
-  if (i.edit.field === "assignedToContractor") refuse(NOT_YET_SHARED); // step 3 lifts it with the audited share
   const row = await lockedItem(c, i.itemId);
   const lead = await leadOf(c.l, c.today, c.tx);
   const activeIds = await activeAmong(c.tx, c.l.org.id, [i.edit.field === "assigneePersonId" ? i.edit.value : null, who.personId]);
   const fromOk = i.edit.field !== "fromDocumentId" || i.edit.value === null || (await c.tx.projectDocument.findFirst({ where: { id: i.edit.value, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { id: true } })) !== null;
-  const faults = fieldFaults(factsOf(row), actorOf(who, lead), i.edit, { now: c.now, activeIds, timeZone: c.l.org.timeZone, fromDocumentOnContract: fromOk, who: await whoNamesOf(c.tx, c.l.org.id, row, lead) });
+  const faults = fieldFaults(factsOf(row), actorOf(who, lead), i.edit, { now: c.now, activeIds, timeZone: c.l.org.timeZone, fromDocumentOnContract: fromOk, who: await whoNamesIn(c, row, lead) });
   if (faults.length) refuse(faultsText(faults));
 
-  const changes = diffFields({ [i.edit.field]: columnView(row, i.edit.field) }, { [i.edit.field]: editedView(i.edit) });
-  if (changes.length === 0) return; // nothing moved: no write, no audit row
-  const done = await c.tx.workItem.updateMany({ where: { id: row.id, contractId: c.l.contract.id, organisationId: c.l.org.id, status: row.status }, data: columnData(i.edit, row, c.now) });
+  // An assignee change is ONE logical line whichever way it goes (person to the company and back, B-7): the Assignee field, compared as parties, never two columns.
+  const data = columnData(i.edit, row, i.edit.field === "assignedToContractor" && row.sharedAt === null ? await shareInstant(c, row.id) : c.now);
+  const toParty: Party | null | undefined = i.edit.field === "assigneePersonId" ? (i.edit.value === null ? null : person(i.edit.value)) : i.edit.field === "assignedToContractor" ? { kind: "CONTRACTOR" } : undefined;
+  if (toParty !== undefined && sameParty(assigneeOf(row), toParty)) return; // nothing moved: no write, no audit row
+  const changes =
+    toParty === undefined
+      ? diffFields({ [i.edit.field]: columnView(row, i.edit.field) }, { [i.edit.field]: editedView(i.edit) })
+      : [...diffFields({ assigneePersonId: partyView(assigneeOf(row)) }, { assigneePersonId: partyView(toParty) }), ...(data.sharedAt instanceof Date ? diffFields({ sharedAt: null }, { sharedAt: data.sharedAt.toISOString() }) : [])];
+  if (changes.length === 0) return;
+  const done = await c.tx.workItem.updateMany({ where: { id: row.id, contractId: c.l.contract.id, organisationId: c.l.org.id, status: row.status }, data });
   if (done.count !== 1) refuse("Someone changed this a moment ago.", 409);
   const auditId = await audit(c, who, row, "WorkItem", row.id, row.title, "UPDATE", changes);
-  if (i.edit.field === "assigneePersonId" && i.edit.value !== null) await tell(c, who, row, i.edit.value, "WORK_ITEM_ASSIGNED", auditId);
+  if (i.edit.field === "assigneePersonId" && i.edit.value !== null) await tell(c, who, row, "WORK_ITEM_ASSIGNED", auditId, person(i.edit.value));
+}
+
+// ------------------------------------------------------------------ share an item
+
+/**
+ * Share an item with the contractor (B-1, WB-2; ADR 0049 D1): `sharedAt` is the instant, audited as `sharedAt: none -> instant`, and nothing clears it. The screen asks the
+ * "This can't be undone" confirm first; the store takes no confirmation from the client, since the rule is that the act is one-way, not that it was asked. W-3 on an open
+ * item (the raiser, the assignee or the lead). Sharing a shared item is a no-op (no new instant, no audit row); a request to unshare is SHARE_IS_ONE_WAY. The contractor is told
+ * nothing (PW-13): it finds the item on its list.
+ */
+export async function shareItem(c: WorkCtx, who: StaffActor, i: { itemId: string; share: boolean }): Promise<void> {
+  gate(c);
+  const row = await lockedItem(c, i.itemId);
+  const lead = await leadOf(c.l, c.today, c.tx);
+  const faults = shareFaults(factsOf(row), actorOf(who, lead), i.share, await whoNamesIn(c, row, lead));
+  if (faults.length) refuse(faultsText(faults));
+  const patch = i.share && row.sharedAt === null ? sharePatch(null, await shareInstant(c, row.id)) : null;
+  if (!patch) return; // already shared, or "not shared" asked of an unshared item: nothing to write
+  const done = await c.tx.workItem.updateMany({ where: { id: row.id, contractId: c.l.contract.id, organisationId: c.l.org.id, sharedAt: null }, data: patch });
+  if (done.count !== 1) refuse("Someone changed this a moment ago.", 409);
+  await audit(c, who, row, "WorkItem", row.id, row.title, "UPDATE", diffFields({ sharedAt: null }, { sharedAt: patch.sharedAt.toISOString() }));
 }
 
 // ------------------------------------------------------------------ move an item
@@ -238,7 +280,7 @@ export async function moveItem(c: WorkCtx, who: StaffActor, i: { itemId: string;
   const row = await lockedItem(c, i.itemId);
   const shut = actStatusFault("WORK_ITEM", c.l.contract.status as ContractStatus);
   const lead = await leadOf(c.l, c.today, c.tx);
-  const names = await whoNamesOf(c.tx, c.l.org.id, row, lead);
+  const names = await whoNamesIn(c, row, lead);
   const action = actionOf(row.status, i.to);
   const faults = moveFaults(factsOf(row), actorOf(who, lead), i.to, i.expectedFrom, { contractOpen: shut === null, reason: i.reason, comment: i.comment, lastMove: row.status === i.expectedFrom ? null : await lastMove(c, row.id) });
   if (faults.length) refuse(moveFaultText(faults[0], action, names), faults[0].code === "MOVED_ALREADY" ? 409 : 422);
@@ -255,25 +297,36 @@ export async function moveItem(c: WorkCtx, who: StaffActor, i: { itemId: string;
 
   if (action === "SEND_BACK") {
     if (!act) throw new Error("Sending back writes a comment, which needs its attribution (beginAct).");
-    const written = await c.tx.workItemComment.create({ data: { organisationId: c.l.org.id, workItemId: row.id, body: i.comment!.trim(), internal: true, personId: who.personId, recordedAt: c.now }, select: { id: true } });
-    await audit(c, who, row, "WorkItemComment", written.id, "comment", "CREATE", diffFields(null, { comment: i.comment!.trim() }));
+    // B-2: on an item the contractor holds, the comment is a Reply (it must see why the item came back); on any other it stays internal.
+    const audience = commentAudience(factsOf(row), "STAFF", null, "SEND_BACK");
+    const unshared = audienceFaults(factsOf(row).sharedAt, audience, c.now);
+    if (unshared.length) refuse(faultsText(unshared));
+    const written = await c.tx.workItemComment.create({ data: { organisationId: c.l.org.id, workItemId: row.id, body: i.comment!.trim(), internal: audience === "INTERNAL", personId: who.personId, recordedAt: c.now }, select: { id: true } });
+    await audit(c, who, row, "WorkItemComment", written.id, "comment", "CREATE", diffFields(null, { comment: i.comment!.trim(), audience: AUDIENCE_WORDS[audience] }));
     await act.write(c.tx, written.id);
   }
-  if (action === "SEND_FOR_REVIEW") await tell(c, who, row, row.assigneePersonId, "WORK_ITEM_TO_CHECK", auditId);
-  if (action === "SEND_BACK") await tell(c, who, row, row.assigneePersonId, "WORK_ITEM_RETURNED", auditId);
+  if (action === "SEND_FOR_REVIEW") await tell(c, who, row, "WORK_ITEM_TO_CHECK", auditId);
+  if (action === "SEND_BACK") await tell(c, who, row, "WORK_ITEM_RETURNED", auditId);
 }
 
 // ------------------------------------------------------------------ comment
 
-/// A comment (any staff member who may read the contract; every one internal in 3a). The raiser and the assignee, but for the writer, are told once each.
-export async function comment(c: WorkCtx, who: StaffActor, i: { itemId: string; body: string }, act: PreparedAct): Promise<{ id: string }> {
+/// How an audience reads in the audit row of a comment.
+const AUDIENCE_WORDS: Readonly<Record<Audience, string>> = { REPLY: "Reply", INTERNAL: "Internal note" };
+
+/// A comment (any staff member who may read the contract). Its audience is chosen now and stored (B-2): on an unshared item it is internal, and a Reply asked for there is
+/// refused (never quietly kept internal); on a shared item the composer's choice, else the default. The raiser and the assignee, but for the writer, are told once each.
+export async function comment(c: WorkCtx, who: StaffActor, i: { itemId: string; body: string; audience: Audience | null }, act: PreparedAct): Promise<{ id: string }> {
   gate(c);
   const row = await lockedItem(c, i.itemId);
-  const faults = commentFaults(i.body);
+  const sharedAt = row.sharedAt?.toISOString() ?? null;
+  const audience = commentAudience(factsOf(row), "STAFF", i.audience, "COMMENT");
+  // The choice is judged as asked (a Reply on an unshared item is refused, not kept internal), and the audience it becomes is judged against the share's instant (PA056).
+  const faults = [...commentFaults(i.body), ...(i.audience === null ? [] : audienceFaults(sharedAt, i.audience, c.now)), ...audienceFaults(sharedAt, audience, c.now)];
   if (faults.length) refuse(faultsText(faults));
-  const written = await c.tx.workItemComment.create({ data: { organisationId: c.l.org.id, workItemId: row.id, body: i.body.trim(), internal: true, personId: who.personId, recordedAt: c.now }, select: { id: true } });
-  await audit(c, who, row, "WorkItemComment", written.id, "comment", "CREATE", diffFields(null, { comment: i.body.trim() }));
-  await tell(c, who, row, row.assigneePersonId, "WORK_ITEM_COMMENT", written.id);
+  const written = await c.tx.workItemComment.create({ data: { organisationId: c.l.org.id, workItemId: row.id, body: i.body.trim(), internal: audience === "INTERNAL", personId: who.personId, recordedAt: c.now }, select: { id: true } });
+  await audit(c, who, row, "WorkItemComment", written.id, "comment", "CREATE", diffFields(null, { comment: i.body.trim(), audience: AUDIENCE_WORDS[audience] }));
+  await tell(c, who, row, "WORK_ITEM_COMMENT", written.id);
   await act.write(c.tx, written.id);
   return { id: written.id };
 }
@@ -284,7 +337,7 @@ export async function comment(c: WorkCtx, who: StaffActor, i: { itemId: string; 
 async function mayLink(c: WorkCtx, who: StaffActor, row: ItemRow): Promise<void> {
   if (!isOpen(row.status)) return refuse(fieldFaultText({ code: "CLOSED_ITEM" }));
   const lead = await leadOf(c.l, c.today, c.tx);
-  if (!mayEdit({ raisedBy: raiserOf(row), assignee: assigneeOf(row) }, actorOf(who, lead))) refuse(whoCanWords("EDIT", await whoNamesOf(c.tx, c.l.org.id, row, lead)).en);
+  if (!mayEdit({ raisedBy: raiserOf(row), assignee: assigneeOf(row) }, actorOf(who, lead))) refuse(whoCanWords("EDIT", await whoNamesIn(c, row, lead)).en);
 }
 
 /// Link the item to another item or to a project document of the same contract. The panel reads links both ways, so B to A is refused where A to B exists.
@@ -402,7 +455,7 @@ export async function attachFiles(c: WorkCtx, who: StaffActor, i: { itemId: stri
   const label = workItemLabel(facts);
   for (const id of ids) {
     const r = byId.get(id)!;
-    const pinned = await c.tx.documentAttachment.create({ data: { organisationId: c.l.org.id, purpose: "WORK_ITEM_FILE", versionId: r.id, workItemId: row.id }, select: { id: true } });
+    const pinned = await c.tx.documentAttachment.create({ data: { organisationId: c.l.org.id, purpose: "WORK_ITEM_FILE", versionId: r.id, workItemId: row.id, attachedAt: c.now }, select: { id: true } });
     await audit(c, who, row, "DocumentAttachment", pinned.id, r.originalFilename, "CREATE", attached({ purpose: "WORK_ITEM_FILE", title: r.document.title, versionNo: r.versionNo, sha256: r.sha256, owner: label }));
     if (r.document.status === "STAGED") {
       await c.tx.document.update({ where: { id: r.document.id, organisationId: c.l.org.id }, data: { status: "FILED", filedAt: c.now } });
@@ -410,4 +463,28 @@ export async function attachFiles(c: WorkCtx, who: StaffActor, i: { itemId: stri
     }
   }
   return { count: ids.length };
+}
+
+/**
+ * Remove a file from an item (B-6, WB-4): a detach with a reason, audited, on an UNSHARED open item only; on a shared one a file is never removed (the contractor may hold
+ * it; a correction is a new file and a reply). Only the staff member who attached it, or the lead. The attacher is the version's recorder: `attachFiles` pins only the
+ * actor's own staged versions, so the two are the same person by construction. A detached pin holds nothing, so the store may then withdraw the version (PA047).
+ */
+export async function removeFile(c: WorkCtx, who: StaffActor, i: { itemId: string; attachmentId: string; reason: string }): Promise<void> {
+  gate(c);
+  const row = await lockedItem(c, i.itemId);
+  const pin = await c.tx.documentAttachment.findFirst({
+    where: { id: i.attachmentId, organisationId: c.l.org.id, workItemId: row.id, purpose: "WORK_ITEM_FILE", detachedAt: null },
+    select: { id: true, version: { select: { versionNo: true, originalFilename: true, recordedByPersonId: true, document: { select: { title: true } } } } },
+  });
+  if (!pin) return refuse("That file no longer exists.", 404);
+  const lead = await leadOf(c.l, c.today, c.tx);
+  const attacher = pin.version.recordedByPersonId;
+  const named = await whoNamesIn(c, { raisedByPersonId: attacher, assigneePersonId: null }, lead);
+  const faults = removeFileFaults(factsOf(row), actorOf(who, lead), attacher, i.reason, removeFileWords(attacher ? named.raiser : null, named.lead));
+  if (faults.length) refuse(faultsText(faults));
+  const reason = i.reason.trim();
+  const done = await c.tx.documentAttachment.updateMany({ where: { id: pin.id, organisationId: c.l.org.id, workItemId: row.id, detachedAt: null }, data: { detachedAt: c.now, detachReason: reason } });
+  if (done.count !== 1) refuse("That file no longer exists.", 404);
+  await audit(c, who, row, "DocumentAttachment", pin.id, pin.version.originalFilename, "UPDATE", detached({ purpose: "WORK_ITEM_FILE", title: pin.version.document.title, versionNo: pin.version.versionNo, reason }), reason);
 }

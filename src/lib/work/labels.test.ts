@@ -5,6 +5,7 @@ import {
   contractorActorWords,
   enumValueWords,
   fieldFaultText,
+  FIELD_WORDS,
   IMPACT_WORDS,
   itemRefText,
   moveFaultText,
@@ -13,11 +14,13 @@ import {
   PORTAL_EMPTY_WORDS,
   PORTAL_YOU_WORDS,
   portalGroupWords,
+  removeFileWords,
   PRIORITY_WORDS,
   RESULT_WORDS,
   SEVERITY_WORDS,
   STATUS_WORDS,
   TEAM_ROLE_WORDS,
+  teamFaultText,
   TYPE_SHORT,
   TYPE_WORDS,
   VIEW_EMPTY_WORDS,
@@ -26,6 +29,7 @@ import {
   whoCanWords,
   type WhoNames,
 } from "./labels";
+import type { TeamFault } from "./team";
 import { WORK_ITEM_TYPES, type FieldFault, type MoveFault } from "./types";
 
 /** Work items' words: every value has words, none is a code (AGENTS.md rule 5), and every refusal is one sentence that names who can. */
@@ -175,5 +179,33 @@ describe("3b words", () => {
   it("the portal's groups name the organisation; no code", () => {
     expect((["WAITING_FOR_YOU", "WITH_ORG", "CLOSED"] as const).map((g) => portalGroupWords(g, "JKR").en)).toEqual(["Waiting for you", "With JKR", "Closed"]);
     for (const x of [PORTAL_EMPTY_WORDS, PORTAL_YOU_WORDS]) expect(x.en).not.toMatch(CODE);
+  });
+});
+
+describe("3b step 3: the team's and the removed file's words", () => {
+  const lead = { roleLabel: "Project manager", names: ["Aisyah"] };
+  const FAULTS: TeamFault[] = [{ code: "NOT_LEAD" }, { code: "MANAGER_NAMED" }, { code: "ALREADY_IN_ROLE" }, { code: "PERSON_NOT_ELIGIBLE" }, { code: "NOT_ON_TEAM" }, { code: "REASON_NEEDED" }];
+
+  it("every team fault has one sentence, and none shows a code", () => {
+    for (const f of FAULTS) {
+      const t = teamFaultText(f, lead);
+      expect(t, f.code).toMatch(/^[A-Z].*\.$/);
+      expect(t, f.code).not.toMatch(/[A-Z]_[A-Z]|PROJECT_MANAGER/);
+    }
+  });
+
+  it("NOT_LEAD names the lead's office and people; with no lead it still says who", () => {
+    expect(teamFaultText({ code: "NOT_LEAD" }, lead)).toBe("Only the Project manager (Aisyah) can change the team.");
+    expect(teamFaultText({ code: "NOT_LEAD" }, null)).toBe("Only the lead can change the team.");
+  });
+
+  it("who may remove a file names the person who attached it and the lead", () => {
+    expect(removeFileWords("Hafiz", lead).en).toBe("Only Hafiz, who attached it or the Project manager (Aisyah) can remove this file.");
+    expect(removeFileWords(null, null).en).toBe("Nobody can remove this file now.");
+  });
+
+  it("the new audit columns have words", () => {
+    expect(FIELD_WORDS.sharedAt.en).toBe("Shared");
+    expect(FIELD_WORDS.assignedToContractor.en).toBe("Assigned to the contractor");
   });
 });

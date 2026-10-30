@@ -16,6 +16,8 @@ export interface ActivityComment {
   body: string;
   personName: string | null;
   at: Date;
+  /// The audience the comment was written with (ADR 0048 D4): true is an internal note. Absent reads as internal, the safe side.
+  internal?: boolean;
 }
 
 /// An audit row as `loadAudit` returns it (`AuditRow`), the fields Activity reads.
@@ -28,7 +30,7 @@ export interface ActivityAuditRow {
   at: Date;
 }
 
-export type ActivityLine = { kind: "COMMENT"; id: string; who: string; at: Date; body: string } | { kind: "CHANGE"; id: string; who: string; at: Date; text: string };
+export type ActivityLine = { kind: "COMMENT"; id: string; who: string; at: Date; body: string; internal: boolean } | { kind: "CHANGE"; id: string; who: string; at: Date; text: string };
 
 /// A row that is not a field edit, by what it records.
 const ACT_WORDS: Readonly<Record<string, string>> = {
@@ -36,10 +38,11 @@ const ACT_WORDS: Readonly<Record<string, string>> = {
   "WorkItemLink:CREATE": "added a link",
   "WorkItemLink:DELETE": "removed a link",
   "DocumentAttachment:CREATE": "added a file",
+  "DocumentAttachment:UPDATE": "removed a file",
 };
 const LONG_TEXT = new Set(["description", "answer"]);
 const DAY_FIELDS = new Set(["dueOn"]);
-const INSTANT_FIELDS = new Set(["happenedAt"]);
+const INSTANT_FIELDS = new Set(["happenedAt", "sharedAt"]);
 const ID_FIELDS = new Set(["assigneePersonId", "fromDocumentId"]);
 const SOMEONE = "Someone";
 
@@ -51,6 +54,7 @@ function valueText(field: string, v: string | null, names: ReadonlyMap<string, s
     const at = new Date(v);
     return Number.isNaN(at.getTime()) ? v : formatOrgDateTime(at, timeZone);
   }
+  // The contractor as an assignee is written as the one token (3b B-7: one logical line, never a second column); the caller maps it to the awardee's name.
   if (ID_FIELDS.has(field)) return names.get(v) ?? "someone no longer listed";
   return enumValueWords(field, v) ?? v;
 }
@@ -73,7 +77,7 @@ function auditLine(r: ActivityAuditRow, names: ReadonlyMap<string, string>, time
 }
 
 export function activityFeed(comments: readonly ActivityComment[], auditRows: readonly ActivityAuditRow[], timeZone: string | null, names: ReadonlyMap<string, string> = new Map()): ActivityLine[] {
-  const lines: ActivityLine[] = comments.map((c) => ({ kind: "COMMENT", id: c.id, who: c.personName ?? SOMEONE, at: c.at, body: c.body }));
+  const lines: ActivityLine[] = comments.map((c) => ({ kind: "COMMENT", id: c.id, who: c.personName ?? SOMEONE, at: c.at, body: c.body, internal: c.internal ?? true }));
   for (const r of auditRows) {
     const line = auditLine(r, names, timeZone);
     if (line) lines.push(line);

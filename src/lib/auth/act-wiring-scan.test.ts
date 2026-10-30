@@ -33,8 +33,7 @@ const NOT_BUILT: Readonly<Record<string, { why: string; writer: RegExp }>> = {
   // `src/lib/award/online-return-store.ts`; the verify act also writes `AwardReturn.receivedBy` from the same attribution, by `writeAlso`), so they left this list. Step V6 wired
   // the last, Finance's payment of a supply claim (`src/app/projects/[id]/supply-actions.ts`, `src/lib/payment/supply-write.ts`), so it left this list too.
   // Workspace 3a (step 3): the schema's three slots (a work item raised, a comment, a link) are wired (`src/app/projects/[id]/work-actions.ts`, `src/lib/work/store.ts`), so they left this list.
-  // Workspace 3b (step 1): the Project team's slot is registered; step 3 builds the team acts (`team-store.ts`, `team-actions.ts`) and takes it off this list.
-  "ProjectTeamMember.addedBy": { why: "Workspace 3b step 3 builds the team acts; step 1 only registered the slot with the schema.", writer: /projectTeamMember\.(?:create|createMany|upsert)/ },
+  // Workspace 3b (step 3): the Project team's slot is wired (`src/app/projects/[id]/team-actions.ts`, `src/lib/work/team-store.ts`), so it left this list.
 };
 
 function walk(dir: string, out: string[] = []): string[] {

@@ -1015,8 +1015,9 @@ describe("the work acts: the contract's lock at the edge, then the item's row in
     expect(lex(actionsSrc)).not.toMatch(/FOR SHARE|FOR NO KEY UPDATE|FOR UPDATE|\$transaction/);
   });
 
-  it("the store has the seven cores and opens no transaction or savepoint of its own", () => {
-    expect([...cores.keys()].sort()).toEqual(["attachFiles", "comment", "createItem", "editField", "link", "moveItem", "unlink"]);
+  it("the store has the nine cores and opens no transaction or savepoint of its own", () => {
+    // Changed for 3b step 3 (stricter: each new core is held by the scans below): shareItem and removeFile join the seven.
+    expect([...cores.keys()].sort()).toEqual(["attachFiles", "comment", "createItem", "editField", "link", "moveItem", "removeFile", "shareItem", "unlink"]);
     expect(lex(storeSrc)).not.toMatch(/\$transaction|auditedCreate|auditedUpdate/);
     expect(lex(storeSrc, { only: "comments" })).not.toMatch(/SAVEPOINT/i);
   });
@@ -1026,7 +1027,7 @@ describe("the work acts: the contract's lock at the edge, then the item's row in
     const locker = storeSrc.slice(lockerAt, storeSrc.indexOf("\n}\n", lockerAt));
     expect(locker.indexOf("FOR UPDATE")).toBeGreaterThan(-1);
     expect(locker.indexOf("FOR UPDATE")).toBeLessThan(locker.indexOf("workItem.findFirst("));
-    for (const name of ["editField", "moveItem", "comment", "link", "unlink", "attachFiles"]) {
+    for (const name of ["editField", "moveItem", "comment", "link", "unlink", "attachFiles", "shareItem", "removeFile"]) {
       const body = cores.get(name)!;
       const locked = body.indexOf("lockedItem(c, i.itemId)");
       expect(locked, name).toBeGreaterThan(-1);
@@ -1041,6 +1042,8 @@ describe("the work acts: the contract's lock at the edge, then the item's row in
       ["editField", "fieldFaults(", ".workItem.updateMany("],
       ["moveItem", "moveFaults(", ".workItem.updateMany("],
       ["comment", "commentFaults(", ".workItemComment.create("],
+      ["shareItem", "shareFaults(", ".workItem.updateMany("],
+      ["removeFile", "removeFileFaults(", ".documentAttachment.updateMany("],
     ] as const) {
       const body = cores.get(name)!;
       const locked = body.indexOf("lockedItem(");
@@ -1071,5 +1074,42 @@ describe("the work acts: the contract's lock at the edge, then the item's row in
     expect(raise.indexOf("act.write(c.tx")).toBeGreaterThan(raise.indexOf("workItem.create("));
     const talk = cores.get("comment")!;
     expect(talk.indexOf("act.write(c.tx")).toBeGreaterThan(talk.indexOf("workItemComment.create("));
+  });
+});
+
+// ------------------------------------------------------------------ workspace 3b, plan step 3: the Project team's acts
+//
+// The same split as the work acts: the edge (`team-actions.ts`) owns the contract's lock and the cores (`work/team-store.ts`) write under it. The team acts take the contract
+// ONLY: no WorkItem row, no document, no other lock. The partial unique index (one Project manager) is the backstop; the contract's lock is what serialises two people
+// naming a manager at once.
+
+const TEAM_ACTIONS = "src/app/projects/[id]/team-actions.ts";
+const TEAM_STORE = "src/lib/work/team-store.ts";
+
+describe("the Project team acts: the contract's lock at the edge and nothing else", () => {
+  const actionsSrc = read(TEAM_ACTIONS);
+  const storeSrc = read(TEAM_STORE);
+  const cores = actions(storeSrc);
+
+  it("the edge's helper asks PROJECT_TEAM's row under the contract's lock, reads the day after it, and runs the act after the day; it takes no other lock", () => {
+    const at = actionsSrc.indexOf("async function inContract(");
+    const helper = actionsSrc.slice(at, actionsSrc.indexOf("\n}\n", at));
+    expect(helper.indexOf('actStatusFault("PROJECT_TEAM"')).toBeGreaterThan(helper.indexOf("withLockedContract("));
+    expect(helper.indexOf("dayOf(now, l.org.timeZone)")).toBeGreaterThan(helper.indexOf("actStatusFault("));
+    expect(helper.indexOf("fn({ tx, l, now, today")).toBeGreaterThan(helper.indexOf("dayOf("));
+    expect(lex(actionsSrc)).not.toMatch(/FOR SHARE|FOR NO KEY UPDATE|FOR UPDATE|\$transaction/);
+  });
+
+  it("the store has the three cores, locks nothing and opens no transaction; each asks the row before its first write, and an attribution goes on the act's own tx", () => {
+    expect([...cores.keys()].sort()).toEqual(["addTeamMember", "changeProjectManager", "removeTeamMember"]);
+    expect(lex(storeSrc)).not.toMatch(/FOR SHARE|FOR NO KEY UPDATE|FOR UPDATE|\$transaction|lockDocument|lockedItem|withLockedContract|\bdb\./);
+    for (const [name, body] of cores) {
+      expect(body.indexOf("gate(c)"), name).toBeGreaterThan(-1);
+      for (const w of [".create(", ".deleteMany(", "add("]) if (body.includes(w)) expect(body.indexOf(w), `${name}: ${w} before the gate`).toBeGreaterThan(body.indexOf("gate(c)"));
+    }
+    for (const name of ["addTeamMember", "changeProjectManager"]) {
+      const body = cores.get(name)!;
+      expect(body.indexOf("act.write(c.tx"), name).toBeGreaterThan(body.indexOf("add("));
+    }
   });
 });

@@ -5,6 +5,7 @@
 
 import { w, type Words } from "@/lib/contract/labels";
 
+import type { TeamFault } from "./team";
 import type { FieldFault, IncidentSeverity, InspectionResult, Lateness, MoveFault, PortalAction, PortalGroup, TeamRole, WorkAction, WorkImpact, WorkItemType, WorkNoticeKind, WorkPriority, WorkStatus, WorkView } from "./types";
 
 export const TYPE_WORDS: Readonly<Record<WorkItemType, Words>> = {
@@ -87,6 +88,9 @@ export const VIEW_WORDS: Readonly<Record<Exclude<WorkView, "contractor">, Words>
 /// one function that changes.
 export const contractorActorWords = (awardeeName: string): Words => w(awardeeName);
 
+/// The company where a surface that knows no contract reads it (the org-wide audit trail and its export): Activity, which does, names the awardee.
+export const CONTRACTOR_AUDIT_WORDS = "The contractor";
+
 /// A view's chip, "Waiting on {contractor}" by the awardee's name.
 export const viewWords = (view: WorkView, awardeeName: string): Words => (view === "contractor" ? w(`Waiting on ${contractorActorWords(awardeeName).en}`) : VIEW_WORDS[view]);
 
@@ -115,6 +119,9 @@ export const FIELD_WORDS: Readonly<Record<string, Words>> = {
   dueOn: w("Due"),
   location: w("Location"),
   assigneePersonId: w("Assignee"),
+  sharedAt: w("Shared"),
+  assignedToContractor: w("Assigned to the contractor"),
+  defectItemId: w("Defect line"),
   answer: w("Answer"),
   impact: w("Impact"),
   inspectionResult: w("Result"),
@@ -274,3 +281,27 @@ export const PORTAL_ACTION_WORDS: Readonly<Record<PortalAction, Words>> = {
 /// The contractor itself, where the portal names who holds an item.
 export const PORTAL_YOU_WORDS = w("You");
 export const PORTAL_EMPTY_WORDS = w("Nothing waiting for you.");
+
+/// Who may remove a file from an unshared item (B-6): the staff member who attached it, or the lead. `attacher` is the name of who attached it.
+export function removeFileWords(attacher: string | null, lead: { roleLabel: string; names: readonly string[] } | null): Words {
+  const parts = [attacher ? `${attacher}, who attached it` : null, lead && lead.names.length > 0 ? `the ${lead.roleLabel} (${lead.names.join(", ")})` : null].filter((x) => x !== null);
+  return parts.length === 0 ? w("Nobody can remove this file now.") : w(`Only ${parts.join(" or ")} can remove this file.`);
+}
+
+/// A refused team change in one sentence (B-12, WB-7). `lead` names who may change the team.
+export function teamFaultText(f: TeamFault, lead: { roleLabel: string; names: readonly string[] } | null): string {
+  switch (f.code) {
+    case "NOT_LEAD":
+      return lead && lead.names.length > 0 ? `Only the ${lead.roleLabel} (${lead.names.join(", ")}) can change the team.` : "Only the lead can change the team.";
+    case "MANAGER_NAMED":
+      return "There is a Project manager already. Change the manager instead.";
+    case "ALREADY_IN_ROLE":
+      return "They already hold that role.";
+    case "PERSON_NOT_ELIGIBLE":
+      return "Pick someone active who can see this contract.";
+    case "NOT_ON_TEAM":
+      return "They are not on the team any more.";
+    case "REASON_NEEDED":
+      return "Give a reason.";
+  }
+}
