@@ -401,6 +401,6 @@ describe("3b: the supplier's data export reads its own accounts' items and repli
       ["Raised by an officer", false, ["Own reply on theirs"]],
     ]);
     // The reader selects the IN columns only: no officer, no status, no answer.
-    for (const r of read) expect(Object.keys(r.row).sort()).toEqual(["description", "dueOn", "happenedAt", "location", "number", "recordedAt", "severity", "title", "type"]);
+    for (const r of read) expect(Object.keys(r.row).sort()).toEqual(["answer", "description", "dueOn", "happenedAt", "location", "number", "recordedAt", "severity", "title", "type"]);
   });
 });

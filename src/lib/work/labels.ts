@@ -303,6 +303,14 @@ export function portalMoveFaultText(f: MoveFault): string {
 export const PORTAL_YOU_WORDS = w("You");
 export const PORTAL_EMPTY_WORDS = w("Nothing waiting for you.");
 
+/// Where an item stands, in the contractor's words (3b step 6): never a status name. `heldBy` is `PortalRow.heldBy` ("You", a named staff member or the organisation).
+export function portalStatusWords(r: { group: PortalGroup; status: WorkStatus; raisedByYou: boolean; heldBy: string }, orgName: string): string {
+  if (r.group === "CLOSED") return "Closed";
+  if (r.group === "WAITING_FOR_YOU") return r.raisedByYou && r.status === "IN_REVIEW" ? "Sent back to you: see the reply" : "Waiting for you";
+  return r.status === "IN_REVIEW" ? `Sent to ${orgName} for checking` : `With ${r.heldBy}`;
+}
+
+
 /// Who may remove a file from an unshared item (B-6): the staff member who attached it, or the lead. `attacher` is the name of who attached it.
 export function removeFileWords(attacher: string | null, lead: { roleLabel: string; names: readonly string[] } | null): Words {
   const parts = [attacher ? `${attacher}, who attached it` : null, lead && lead.names.length > 0 ? `the ${lead.roleLabel} (${lead.names.join(", ")})` : null].filter((x) => x !== null);

@@ -450,7 +450,8 @@ export const EXPORT_COLUMNS = {
     assigneeSupplierAccountId: KEY,
     assignedToContractor: out("NOT_SHOWN_TODAY"),
     sharedAt: TECH,
-    answer: out("NOT_SHOWN_TODAY"),
+    // WB-6: the contractor writes the Answer of an RFI it holds, and reads it.
+    answer: IN,
     impact: out("NOT_SHOWN_TODAY"),
     inspectionResult: out("NOT_SHOWN_TODAY"),
     severity: IN,

@@ -7,7 +7,7 @@ import type { Finding } from "@/lib/window/types";
  */
 
 /// Phase 2 close-out stage B: "defects", shown once the practical completion certificate is issued.
-export const PROJECT_TABS = ["overview", "programme", "diary", "payments", "certificates", "submissions", "defects"] as const;
+export const PROJECT_TABS = ["overview", "work", "programme", "diary", "payments", "certificates", "submissions", "defects"] as const;
 export type ProjectTab = (typeof PROJECT_TABS)[number];
 export const isProjectTab = (s: string | undefined): s is ProjectTab => (PROJECT_TABS as readonly string[]).includes(s ?? "");
 

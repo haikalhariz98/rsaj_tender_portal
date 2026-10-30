@@ -20,7 +20,7 @@ import { shareFaults } from "@/lib/work/sharing";
 import { workHref, type WorkQuery } from "@/lib/work/href";
 import { ACTION_WORDS, itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, removeFileWords, STATUS_WORDS, TYPE_WORDS, whoCanWords } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
-import { contractorNameOf, loadActivity, loadItem, namesOf, whoNamesOf, type WorkContext } from "@/lib/work/load";
+import { contractorHasActiveAccount, contractorNameOf, loadActivity, loadItem, namesOf, whoNamesOf, type WorkContext } from "@/lib/work/load";
 import { isOpen, primaryActions, TARGET } from "@/lib/work/move";
 import { personIdOf } from "@/lib/work/party";
 import type { WorkAction, WorkActor } from "@/lib/work/types";
@@ -60,6 +60,7 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
   // The pickers come from the tab (it loaded them for the list); the item itself is not offered to link to.
   const links = { ...linkOpts, items: linkOpts.items.filter((o) => o.value !== c.id) };
   const contractor = contractorNameOf(l);
+  const noAccount = !(await contractorHasActiveAccount(db, l));
   const shared = c.sharedAt !== null;
   const [who, activity, attachers] = await Promise.all([
     whoNamesOf(db, org, { raisedByPersonId: personIdOf(c.raisedBy), assigneePersonId: personIdOf(c.assignee), assignedToContractor: c.assignee?.kind === "CONTRACTOR" }, ctx.lead),
@@ -164,7 +165,7 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
             <div className="mb-1 flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-3">
               Assignee {c.assignee?.kind === "CONTRACTOR" && <BuildingIcon size={13} />}
             </div>
-            <AssigneeSelect {...base} value={c.assignee?.kind === "CONTRACTOR" ? CONTRACTOR_ASSIGNEE : (personIdOf(c.assignee) ?? "")} options={peopleOptions} contractor={contractor} disabledWhy={why} />
+            <AssigneeSelect {...base} value={c.assignee?.kind === "CONTRACTOR" ? CONTRACTOR_ASSIGNEE : (personIdOf(c.assignee) ?? "")} options={peopleOptions} contractor={contractor} noAccount={noAccount} disabledWhy={why} />
           </div>
           {select("priority", "Priority", c.priority, PRIORITY_OPTIONS)}
           <FieldEdit label="Due" field="dueOn" kind="date" value={c.dueOn ?? ""} display={c.dueOn ? formatDate(dayToDate(c.dueOn)) : ""} {...base} disabledWhy={why} />

@@ -8,6 +8,7 @@ import { attachWorkFiles, editWorkField, linkWorkItem, removeWorkFile, unlinkWor
 import { ShareConfirm } from "@/app/projects/[id]/work-editors";
 import { useActGate } from "@/components/act-gate";
 import { RecordEditor } from "@/components/record-editor";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DrawerHeader } from "@/components/ui/drawer";
 import { Field, FileInput, Input, Select, Textarea } from "@/components/ui/field";
@@ -265,7 +266,7 @@ export function AttachFiles({ contractId, itemId }: { contractId: string; itemId
 // ------------------------------------------------------------------ the assignee
 
 /// The assignee dropdown. Picking "{contractor}" asks the Share confirm first (WB-2): it posts only on Share, and the pick goes back if the officer keeps it internal.
-export function AssigneeSelect({ contractId, itemId, value, options, contractor, disabledWhy: askedWhy }: { contractId: string; itemId: string; value: string; options: { value: string; label: string }[]; contractor: string; disabledWhy?: string }) {
+export function AssigneeSelect({ contractId, itemId, value, options, contractor, noAccount = false, disabledWhy: askedWhy }: { contractId: string; itemId: string; value: string; options: { value: string; label: string }[]; contractor: string; /** The contractor has no active portal account: it would be told nothing and could not reply. */ noAccount?: boolean; disabledWhy?: string }) {
   const disabledWhy = useActGate() ?? askedWhy;
   const [picked, setPicked] = useState(value);
   const [seen, setSeen] = useState(value);
@@ -328,6 +329,11 @@ export function AssigneeSelect({ contractId, itemId, value, options, contractor,
           </option>
         ))}
       </Select>
+      {noAccount && (picked === CONTRACTOR_ASSIGNEE || asking) && (
+        <Badge tone="warn" className="mt-1">
+          No active portal account
+        </Badge>
+      )}
       <p id={msg} role="status" className="mt-1 text-[12.5px] font-medium text-rose-700 empty:hidden">
         {message}
       </p>

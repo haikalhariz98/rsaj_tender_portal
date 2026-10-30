@@ -25,13 +25,13 @@ import { createBody, kindOffered, passwordShown, PURPOSE_CHOICES, purposesComple
  * with the act, kept in no state past the answer and never echoed back (`autocomplete="current-password"`). What the server refuses is shown in its own words; a code is never printed.
  */
 
-type Errors = Record<string, string>;
-type Staged = Map<string, string>;
+export type Errors = Record<string, string>;
+export type Staged = Map<string, string>;
 const keyOf = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
-const KEPT = "Your files are kept. Press again to retry.";
+export const KEPT = "Your files are kept. Press again to retry.";
 
 /// Stage each file, one request each (the route takes one), reusing what an earlier press already stored. A refusal names the file and says it in the server's words.
-async function stageFiles(files: readonly File[], contractId: string, token: string | null, staged: Staged): Promise<{ ok: true; ids: string[] } | { ok: false; message: string }> {
+export async function stageFiles(files: readonly File[], contractId: string, token: string | null, staged: Staged, route: string = SUPPLIER_PROJECT_DOCUMENTS_POSTS.upload): Promise<{ ok: true; ids: string[] } | { ok: false; message: string }> {
   const ids: string[] = [];
   for (const file of files) {
     const known = staged.get(keyOf(file));
@@ -41,7 +41,7 @@ async function stageFiles(files: readonly File[], contractId: string, token: str
     }
     const form = new FormData();
     form.append("file", file);
-    const res = await postForm(`${SUPPLIER_PROJECT_DOCUMENTS_POSTS.upload}?contractId=${encodeURIComponent(contractId)}`, token, form);
+    const res = await postForm(`${route}?contractId=${encodeURIComponent(contractId)}`, token, form);
     if (res.status === 201 && res.body?.ok && typeof res.body.versionId === "string") {
       staged.set(keyOf(file), res.body.versionId);
       ids.push(res.body.versionId);
@@ -90,7 +90,7 @@ export function Frame({ title, heading, error, busy, onClose, onSend, canSend, s
 }
 
 /// What a refusal of an act says: the message, and the field-level words beside their fields.
-function refusal(res: { status: number; body: { message?: string; errors?: Errors } | null }): { message: string; errors: Errors } {
+export function refusal(res: { status: number; body: { message?: string; errors?: Errors } | null }): { message: string; errors: Errors } {
   return { message: answerWords(res.status, res.body), errors: res.body?.errors ?? {} };
 }
 
