@@ -101,6 +101,8 @@ export const RECORD_TYPE_WORDS: Readonly<Record<string, Words>> = {
   WorkItem: w("Work item"),
   WorkItemComment: w("Work item comment"),
   WorkItemLink: w("Work item link"),
+  // Workspace 3b (B-12): the Project team card.
+  ProjectTeamMember: w("Project team member"),
 };
 
 /// The record types 6.13's supervision writes to the contract's trail (each registered above).

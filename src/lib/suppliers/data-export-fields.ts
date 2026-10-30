@@ -428,6 +428,51 @@ export const EXPORT_COLUMNS = {
     supplierAccountId: KEY,
     name: out("NOT_YET_EXPORTED"),
   },
+  // Workspace 3b (ADR 0049 D2, plan section 3.1): the work items the supplier's own accounts raised from the portal, and the replies they wrote. The reader is scoped by
+  // those account columns, never by the contract. What the supplier wrote is IN; the organisation's working on the item (its status, priority, assessment, answer,
+  // who holds it) is not shown to the supplier on the portal today.
+  WorkItem: {
+    id: KEY,
+    organisationId: KEY,
+    contractId: KEY,
+    type: IN,
+    number: IN,
+    title: IN,
+    description: IN,
+    status: out("NOT_SHOWN_TODAY"),
+    priority: out("NOT_SHOWN_TODAY"),
+    dueOn: IN,
+    location: IN,
+    raisedByPersonId: STAFF,
+    raisedBySupplierAccountId: KEY,
+    assigneePersonId: STAFF,
+    // WS-9: unwritten, and never read for the supplier.
+    assigneeSupplierAccountId: KEY,
+    assignedToContractor: out("NOT_SHOWN_TODAY"),
+    sharedAt: TECH,
+    answer: out("NOT_SHOWN_TODAY"),
+    impact: out("NOT_SHOWN_TODAY"),
+    inspectionResult: out("NOT_SHOWN_TODAY"),
+    severity: IN,
+    happenedAt: IN,
+    fromDocumentId: KEY,
+    cancelReason: out("NOT_SHOWN_TODAY"),
+    defectItemId: KEY,
+    recordedAt: IN,
+    updatedAt: TECH,
+    closedAt: out("NOT_SHOWN_TODAY"),
+  },
+  // Only the supplier's own accounts' comments are read, and those are never internal (CHECK): an officer's comment, a Reply or an internal note, is never in the read.
+  WorkItemComment: {
+    id: KEY,
+    organisationId: KEY,
+    workItemId: KEY,
+    body: IN,
+    internal: TECH,
+    personId: STAFF,
+    supplierAccountId: KEY,
+    recordedAt: IN,
+  },
 } as const satisfies Readonly<Record<string, Columns>>;
 
 export type ExportModel = keyof typeof EXPORT_COLUMNS;
@@ -468,8 +513,7 @@ export const OUT_MODELS: Readonly<Record<string, OutReason>> = {
   DefectEvent: "NOT_YET_EXPORTED",
   // Phase 2 close-out stage D (ADR 0047 D6, plan §9): the contractor performance report. The contractor never sees its score, so the export does not either.
   PerformanceReport: "NOT_SHOWN_TODAY",
-  // Workspace 3a (WS-9): a work item may name a contractor's account as its assignee. 3a writes none and the portal shows none; 3b moves it once the column is written.
-  WorkItem: "NOT_YET_EXPORTED",
+  // Workspace 3b: WorkItem and WorkItemComment are classified above (EXPORT_COLUMNS), since a contractor's account raises items and writes replies.
   // ADR 0042 D10 (plan step 7): the kick-off meeting and who attended it are classified above (EXPORT_COLUMNS), read and exported since the act step.
 };
 

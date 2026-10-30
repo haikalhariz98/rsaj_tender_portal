@@ -24,6 +24,9 @@ import { kindWords, outcomeWords, versionLabel } from "@/lib/project-docs/labels
 import type { DocKind, DocumentFacts, Outcome } from "@/lib/project-docs/types";
 import { contractorSeesRemarks } from "@/lib/project-docs/visibility";
 
+import { itemRefText, SEVERITY_WORDS } from "@/lib/work/labels";
+import { WORK_ITEM_TYPES, type WorkItemType } from "@/lib/work/types";
+
 import { pickIn, type ExportModel } from "./data-export-fields";
 import {
   ACCOUNT_STATUS_WORDS,
@@ -92,6 +95,16 @@ export interface KickOffMeetingSource {
   attendance: readonly { row: SourceRow; ownAccountName: string | null }[];
 }
 
+/// A work item one of the supplier's own accounts raised or replied on (workspace 3b, ADR 0049 D2), as the reader read it: the item (WorkItem), whether one of the
+/// supplier's own accounts raised it, and only the replies its own accounts wrote (WorkItemComment). The reader is scoped by those account columns, never by the contract.
+export interface WorkItemSource {
+  row: SourceRow;
+  /// The contract's number and title, as the contractor knows it.
+  contractLabel: string;
+  raisedByOwnAccount: boolean;
+  replies: readonly SourceRow[];
+}
+
 export interface SupplierExportSource {
   organisationName: string;
   /// The reader's own account: the only one whose sign-in details are exported (decisions log 2026-10-19).
@@ -123,6 +136,8 @@ export interface SupplierExportSource {
   projectDocuments: readonly ProjectDocumentSource[];
   /// The kick-off meeting of each contract the supplier holds that has one.
   kickOffMeetings: readonly KickOffMeetingSource[];
+  /// The work items the supplier's own accounts raised or replied on.
+  workItems: readonly WorkItemSource[];
 }
 
 /// How a value that is not plain text is to be shown.
@@ -562,7 +577,27 @@ function kickOffMeetings(src: SupplierExportSource): ExportRow[] {
   });
 }
 
-const BUILD: Readonly<Record<ExportSectionKey, (src: SupplierExportSource) => ExportRow[]>> = { company, contacts, accounts, declarations, bank, documents, standing, standingChanges, applications, purchases, bidReceipts, projectDocuments, kickOffMeetings };
+/**
+ * The work items (workspace 3b): an item the supplier raised with what it wrote when it raised it, and on any item, only the replies its own accounts wrote. An item someone
+ * else raised shows its title and those replies alone. The type is in the reference ("RFI 3"), never as its code.
+ */
+function workItems(src: SupplierExportSource): ExportRow[] {
+  return src.workItems.map((wi) => {
+    const r = pick("WorkItem", wi.row);
+    const type = WORK_ITEM_TYPES.find((x) => x === r.type) as WorkItemType | undefined;
+    const ref = type && typeof r.number === "number" ? itemRefText(type, r.number) : null;
+    const own = wi.raisedByOwnAccount
+      ? [row("wiDetails", text(r.description)), row("wiLocation", text(r.location)), row("wiNeededBy", day(r.dueOn)), row("wiSeverity", enumWords(SEVERITY_WORDS, r.severity)), row("wiHappenedAt", instant(r.happenedAt)), row("wiRaisedAt", instant(r.recordedAt))]
+      : [];
+    const replies = wi.replies.map((c) => {
+      const x = pick("WorkItemComment", c);
+      return row("wiReply", text(x.body), { rows: details([row("wiReplyAt", instant(x.recordedAt))]) });
+    });
+    return row("workItem", text([wi.contractLabel, ref].filter(Boolean).join(" · ")), { rows: details([row("wiTitle", text(r.title)), ...own, ...replies]) });
+  });
+}
+
+const BUILD: Readonly<Record<ExportSectionKey, (src: SupplierExportSource) => ExportRow[]>> = { company, contacts, accounts, declarations, bank, documents, standing, standingChanges, applications, purchases, bidReceipts, projectDocuments, kickOffMeetings, workItems };
 
 /// The supplier's export, from what the reader read.
 export function buildSupplierExport(src: SupplierExportSource, ctx: ExportContext): SupplierExport {

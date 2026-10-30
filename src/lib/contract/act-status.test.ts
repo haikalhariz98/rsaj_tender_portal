@@ -50,19 +50,22 @@ describe("the table is exhaustive: every act, every status", () => {
   // Changed for ADR 0042 D11 (PW-22): the Project workspace's row joins after the certificate's, before Part B's; and for ADR 0046, the funding row after it.
   // Changed for Phase 2 close-out stage D (ADR 0047 D4, ruling 12): PERFORMANCE_REPORT joins Part B's rows, before the final account's.
   // Changed for workspace 3a (plan section 3.1): the work item row joins after the funding row, before Part B's.
-  it("39 families: 13 built before Part B (R2's originals included), the Project workspace's, the funding row, the work item row, then Part B's 23 (R5's design guarantee claim and the performance report included)", () => {
-    expect(CONTRACT_ACTS.length).toBe(39);
+  // Changed for workspace 3b (B-12; stricter): the Project team row joins after the work item row, before Part B's, so EOT moves from 16 to 17.
+  it("40 families: 13 built before Part B (R2's originals included), the Project workspace's, the funding row, the work item row, the Project team row, then Part B's 23 (R5's design guarantee claim and the performance report included)", () => {
+    expect(CONTRACT_ACTS.length).toBe(40);
     expect(CONTRACT_ACTS.indexOf("PROJECT_WORKSPACE")).toBe(CONTRACT_ACTS.indexOf("CERTIFICATE") + 1);
     expect(CONTRACT_ACTS.indexOf("FUNDING")).toBe(CONTRACT_ACTS.indexOf("PROJECT_WORKSPACE") + 1);
     expect(CONTRACT_ACTS.indexOf("WORK_ITEM")).toBe(CONTRACT_ACTS.indexOf("FUNDING") + 1);
-    expect(CONTRACT_ACTS.indexOf("EOT")).toBe(16);
+    expect(CONTRACT_ACTS.indexOf("PROJECT_TEAM")).toBe(CONTRACT_ACTS.indexOf("WORK_ITEM") + 1);
+    expect(CONTRACT_ACTS.indexOf("EOT")).toBe(17);
     expect(CONTRACT_ACTS.slice(0, 13)).toContain("ORIGINALS");
     expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("PROJECT_WORKSPACE");
     expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("FUNDING");
     expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("WORK_ITEM");
-    expect(CONTRACT_ACTS.slice(16)).toContain("DESIGN_GUARANTEE_CLAIM");
-    expect(CONTRACT_ACTS.slice(16)).toContain("PERFORMANCE_REPORT");
-    expect(CONTRACT_ACTS.slice(16)).toHaveLength(23);
+    expect(CONTRACT_ACTS.slice(0, 13)).not.toContain("PROJECT_TEAM");
+    expect(CONTRACT_ACTS.slice(17)).toContain("DESIGN_GUARANTEE_CLAIM");
+    expect(CONTRACT_ACTS.slice(17)).toContain("PERFORMANCE_REPORT");
+    expect(CONTRACT_ACTS.slice(17)).toHaveLength(23);
   });
   it("CANCELLED refuses every act, first", () => {
     for (const a of CONTRACT_ACTS) expect(actStatusFault(a, "CANCELLED")?.code, a).toBe("CONTRACT_CANCELLED");
@@ -290,5 +293,13 @@ describe("WORK_ITEM", () => {
     expect(actStatusFault("WORK_ITEM", "TERMINATED")?.code).toBe("CONTRACT_TERMINATED");
     expect(actStatusFault("WORK_ITEM", "CLOSED")?.code).toBe("CONTRACT_CLOSED");
     expect(actStatusFault("WORK_ITEM", "CANCELLED")?.code).toBe("CONTRACT_CANCELLED");
+  });
+});
+
+// Workspace 3b (B-12, ADR 0049 D4): the Project team card has its own row, with WORK_ITEM's answers.
+describe("PROJECT_TEAM", () => {
+  it("is allowed from EXECUTED through FINAL_CERTIFICATE_ISSUED only, as WORK_ITEM", () => {
+    expect(CONTRACT_STATUSES.filter((s) => ACT_STATUS.PROJECT_TEAM[s] === "ALLOWED").sort()).toEqual(["ACTIVE", "EXECUTED", "FINAL_CERTIFICATE_ISSUED", "MAKING_GOOD_COMPLETE", "PRACTICALLY_COMPLETE", "STAMPED"]);
+    for (const s of CONTRACT_STATUSES) expect(actStatusFault("PROJECT_TEAM", s)?.code, s).toBe(actStatusFault("WORK_ITEM", s)?.code);
   });
 });

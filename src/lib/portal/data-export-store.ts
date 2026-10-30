@@ -16,7 +16,7 @@ import { standingView } from "@/lib/portal/company/standing-view";
 import { loadRegistrationSettings } from "@/lib/portal/registration/context-store";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { CONTACT_FIELDS } from "@/lib/suppliers/contact-fields";
-import { buildSupplierExport, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportLists, type KickOffMeetingSource, type ProjectDocumentSource, type SupplierExport, type SupplierExportSource } from "@/lib/suppliers/data-export";
+import { buildSupplierExport, exportAuditChanges, exportFileName, exportJson, exportSectionCounts, type ExportLists, type KickOffMeetingSource, type ProjectDocumentSource, type SupplierExport, type SupplierExportSource, type WorkItemSource } from "@/lib/suppliers/data-export";
 import { inColumns } from "@/lib/suppliers/data-export-fields";
 import { standingOf } from "@/lib/suppliers/standing-repo";
 import { inOrder } from "@/lib/series";
@@ -81,6 +81,31 @@ export async function readKickOffMeetings(tx: Tx, actor: Pick<SupplierActor, "su
     row,
     contractLabel: `${contract.number} · ${contract.award.exercise.title}`,
     attendance: attendance.map(({ supplierAccount, ...a }) => ({ row: a, ownAccountName: supplierAccount && supplierAccount.supplierId === actor.supplierId ? supplierAccount.contact.name : null })),
+  }));
+}
+
+/**
+ * The work items the supplier's own accounts raised from the portal, and the replies they wrote (workspace 3b, ADR 0049 D2). Scoped by those account columns, never by the
+ * contract: an item is read only if one of the supplier's accounts raised it or replied on it, and of its comments only those replies (a contractor's comment is never internal,
+ * by CHECK; `internal: false` is said again here). Shared items only: an item the contractor raised or wrote on is shared by CHECK and trigger, so this narrows nothing real.
+ */
+export async function readWorkItems(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">): Promise<WorkItemSource[]> {
+  const own = { supplierId: actor.supplierId };
+  const items = await tx.workItem.findMany({
+    where: { organisationId: actor.organisationId, sharedAt: { not: null }, OR: [{ raisedBySupplierAccount: own }, { comments: { some: { supplierAccount: own, internal: false } } }] },
+    orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
+    select: {
+      ...inColumns("WorkItem"),
+      raisedBySupplierAccount: { select: { supplierId: true } },
+      contract: { select: { number: true, award: { select: { exercise: { select: { title: true } } } } } },
+      comments: { where: { supplierAccount: own, internal: false }, orderBy: [{ recordedAt: "asc" }, { id: "asc" }], select: inColumns("WorkItemComment") },
+    },
+  });
+  return items.map(({ contract, raisedBySupplierAccount, comments, ...row }) => ({
+    row,
+    contractLabel: `${contract.number} · ${contract.award.exercise.title}`,
+    raisedByOwnAccount: raisedBySupplierAccount?.supplierId === actor.supplierId,
+    replies: comments,
   }));
 }
 
@@ -222,6 +247,7 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
 
     const projectDocuments = await readProjectDocuments(tx, actor, settings.org.name);
     const kickOffMeetings = await readKickOffMeetings(tx, actor);
+    const workItems = await readWorkItems(tx, actor);
 
     const src: SupplierExportSource = {
       organisationName: settings.org.name,
@@ -238,6 +264,7 @@ export async function exportSupplierData(actor: SupplierActor, form: "FILE" | "P
       purchases: purchaseSource,
       projectDocuments,
       kickOffMeetings,
+      workItems,
       bidReceipts: receipts.flatMap((r) => (seen.has(r.exerciseId) ? [{ row: r.row, exerciseName: seen.get(r.exerciseId)!, receivedAt: r.receivedAt, late: r.late, keyFingerprint: r.keyFingerprint }] : [])),
     };
 

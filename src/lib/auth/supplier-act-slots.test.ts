@@ -58,6 +58,9 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "SupplierDataExport.account": "Which account took an export of the supplier's own data (N2): the column is the record, written with its audit row in the read's transaction. Reading one's own data is not an act and signs nothing.",
   // Workspace 3a (WS-9): no writer in 3a.
   "WorkItem.assigneeSupplierAccount": "Which contractor account a work item is on (WS-9), not who acted. The act is the assignment, audited with the signed-in person; 3a writes none.",
+  // Workspace 3b (B-8, ADR 0049 D2): the contractor raises an RFI or an incident and replies from the portal.
+  "WorkItem.raisedBySupplierAccount": "Who raised a work item from the portal (ADR 0049 D2): the column is the record, with exactly one raiser by CHECK, audited with the account; it signs nothing.",
+  "WorkItemComment.supplierAccount": "Who wrote a reply on a work item from the portal (ADR 0049 D2): the column is the record, with exactly one writer by CHECK, append-only, audited with the account; it signs nothing.",
   // ADR 0042 D1 (plan step 1): the Project workspace's three contractor columns. An upload, a request and the document they make sign nothing; each is the record, audited with the account.
   // Plan step 6 moved `ProjectDocumentVersion.uploadedBySupplierAccount` from this list to `SUPPLIER_ACT_SLOTS`: the statutory declaration moved in, and its every version is signed
   // with the password (it keeps the step-up of `ContractorSubmission.submittedBy`, PW-10). An ordinary version still signs nothing; no attribution is written for it.

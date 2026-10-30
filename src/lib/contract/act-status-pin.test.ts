@@ -43,8 +43,8 @@ describe("today's answers, pinned (before the act × status table)", () => {
 // Part B's do: refused before execution and when cancelled, allowed once executed. Its own acts (from step 4) are never added to TODAY_ACTS.
 describe("a family after the pin: the Project workspace", () => {
   it("is not recorded before execution or when cancelled, and is recorded once executed, for every status that existed at the pin", () => {
-    // Changed for workspace 3a: WORK_ITEM joins the families after the pin (its own test below).
-    expect([...AFTER_PIN_FAMILIES]).toEqual(["PROJECT_WORKSPACE", "FUNDING", "WORK_ITEM"]);
+    // Changed for workspace 3a: WORK_ITEM joins the families after the pin (its own test below). Changed for workspace 3b (stricter): PROJECT_TEAM joins too.
+    expect([...AFTER_PIN_FAMILIES]).toEqual(["PROJECT_WORKSPACE", "FUNDING", "WORK_ITEM", "PROJECT_TEAM"]);
     for (const s of TODAY_STATUSES) expect(ACT_STATUS.PROJECT_WORKSPACE[s], `PROJECT_WORKSPACE ${s}`).toBe(isExecuted(s) ? "ALLOWED" : "REFUSED");
     expect(Object.keys(TODAY_ACTS)).toHaveLength(5);
   });
@@ -55,6 +55,10 @@ describe("a family after the pin: the Project workspace", () => {
   // Workspace 3a: the work item row, for the statuses that existed at the pin, reads as the Project workspace's: refused before execution and when cancelled.
   it("the work item row is not recorded before execution or when cancelled, and is recorded once executed, for every status that existed at the pin", () => {
     for (const s of TODAY_STATUSES) expect(ACT_STATUS.WORK_ITEM[s], `WORK_ITEM ${s}`).toBe(isExecuted(s) ? "ALLOWED" : "REFUSED");
+  });
+  // Workspace 3b (B-12): the Project team row reads as the work item row.
+  it("the Project team row is not recorded before execution or when cancelled, and is recorded once executed, for every status that existed at the pin", () => {
+    for (const s of TODAY_STATUSES) expect(ACT_STATUS.PROJECT_TEAM[s], `PROJECT_TEAM ${s}`).toBe(isExecuted(s) ? "ALLOWED" : "REFUSED");
   });
 });
 

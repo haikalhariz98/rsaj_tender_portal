@@ -35,8 +35,13 @@ const product = walk("src").filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.
 
 describe("nothing writes a contractor as the assignee (WS-9: the column exists, 3b writes it)", () => {
   it("no product file names assigneeSupplierAccountId but the generated client (and the schema's own rules)", () => {
-    const naming = product.filter((f) => /assigneeSupplierAccount/.test(lex(read(f))));
+    // Changed for 3b step 1 (faithful): the supplier export's allow-list must classify every column of an exported model (data-export.test.ts), so it names the
+    // column once, as a key the export never reads. That one line, and no other mention in that file, is allowed.
+    const classified = "src/lib/suppliers/data-export-fields.ts";
+    const naming = product.filter((f) => f !== classified && /assigneeSupplierAccount/.test(lex(read(f))));
     expect(naming).toEqual([]);
+    expect(lex(read(classified)).match(/assigneeSupplierAccount\w*/g)).toEqual(["assigneeSupplierAccountId"]);
+    expect(read(classified)).toMatch(/^ {4}assigneeSupplierAccountId: KEY,$/m);
   });
 });
 

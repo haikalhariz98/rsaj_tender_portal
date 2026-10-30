@@ -6,10 +6,10 @@
 
 import type { AccountStatus, DeclarationKind, OnlineBidKind, OnlineBidStatus, PaymentChannel, PaymentOutcome, PurchaseDownloadKind, PurchaseState } from "@/generated/prisma/client";
 
-export type ExportSectionKey = "company" | "contacts" | "accounts" | "declarations" | "bank" | "documents" | "standing" | "standingChanges" | "applications" | "purchases" | "bidReceipts" | "projectDocuments" | "kickOffMeetings";
+export type ExportSectionKey = "company" | "contacts" | "accounts" | "declarations" | "bank" | "documents" | "standing" | "standingChanges" | "applications" | "purchases" | "bidReceipts" | "projectDocuments" | "kickOffMeetings" | "workItems";
 
 /// The sections, in the order the export carries them.
-export const EXPORT_SECTION_ORDER: readonly ExportSectionKey[] = ["company", "contacts", "accounts", "declarations", "bank", "documents", "standing", "standingChanges", "applications", "purchases", "bidReceipts", "projectDocuments", "kickOffMeetings"];
+export const EXPORT_SECTION_ORDER: readonly ExportSectionKey[] = ["company", "contacts", "accounts", "declarations", "bank", "documents", "standing", "standingChanges", "applications", "purchases", "bidReceipts", "projectDocuments", "kickOffMeetings", "workItems"];
 
 export const EXPORT_SECTION_TITLE: Readonly<Record<ExportSectionKey, string>> = {
   company: "Company",
@@ -26,6 +26,7 @@ export const EXPORT_SECTION_TITLE: Readonly<Record<ExportSectionKey, string>> = 
   bidReceipts: "Online bid receipts",
   projectDocuments: "Project documents",
   kickOffMeetings: "Kick-off meetings",
+  workItems: "Work items",
 };
 
 /// Every label a row of the export carries.
@@ -192,6 +193,17 @@ export const EXPORT_LABEL = {
   komAgenda: "Agenda",
   komHeldOn: "Held on",
   komAttended: "Attended for you",
+  // Work items (workspace 3b). The value of an item's row is its contract and reference ("RFI 3").
+  workItem: "Work item",
+  wiTitle: "Title",
+  wiDetails: "Details",
+  wiLocation: "Location",
+  wiNeededBy: "Answer needed by",
+  wiSeverity: "Severity",
+  wiHappenedAt: "Happened at",
+  wiRaisedAt: "Raised at",
+  wiReply: "Your reply",
+  wiReplyAt: "Sent at",
 } as const satisfies Readonly<Record<string, string>>;
 
 export type ExportLabelKey = keyof typeof EXPORT_LABEL;

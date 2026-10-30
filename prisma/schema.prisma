@@ -539,6 +539,8 @@ model Organisation {
   workItems                 WorkItem[]
   workItemComments          WorkItemComment[]
   workItemLinks             WorkItemLink[]
+  /// Workspace 3b: the Project team cards.
+  projectTeamMembers        ProjectTeamMember[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -816,6 +818,9 @@ model Person {
   workItemsAssigned            WorkItem[]            @relation("WorkItemAssignee")
   workItemComments             WorkItemComment[]     @relation("WorkItemCommentBy")
   workItemLinks                WorkItemLink[]        @relation("WorkItemLinkBy")
+  // Workspace 3b: the Project team roles this person holds, and the team rows they added.
+  projectTeamRoles             ProjectTeamMember[]   @relation("ProjectTeamMemberPerson")
+  projectTeamAdded             ProjectTeamMember[]   @relation("ProjectTeamMemberAddedBy")
 }
 
 /// Who holds an authority office, and when.
@@ -4332,6 +4337,8 @@ model Contract {
   impacts                ProjectImpact[]
   /// Workspace 3a: its work items.
   workItems              WorkItem[]
+  /// Workspace 3b: its Project team.
+  teamMembers            ProjectTeamMember[]
 
   @@unique([organisationId, number])
 }
@@ -12486,6 +12493,8 @@ model DefectItem {
   recordedAt            DateTime
 
   events DefectEvent[]
+  /// Workspace 3b-ii (B-18): the Defect work item this line stands for, if any.
+  workItem WorkItem?
 
   @@index([contractId])
   @@index([practicalCompletionId])
@@ -13359,6 +13368,9 @@ model SupplierAccount {
   dataExportsMade          SupplierDataExport[]      @relation("SupplierDataExportedBy")
   /// Workspace 3a (WS-9): the work items on this account. No writer in 3a.
   workItemsAssigned        WorkItem[]                @relation("WorkItemAssigneeAccount")
+  /// Workspace 3b (ADR 0049 D2): the RFIs and incidents this account raised from the portal, and the replies it wrote. Records, not signatures.
+  workItemsRaised          WorkItem[]                @relation("WorkItemRaisedByAccount")
+  workItemComments         WorkItemComment[]         @relation("WorkItemCommentByAccount")
 
   @@index([organisationId])
   @@index([supplierId])
@@ -14368,15 +14380,22 @@ model WorkItem {
   dueOn       DateTime?        @db.Date
   location    String           @default("")
 
-  /// Nullable so 3b can add a supplier-account raiser without reshaping; CHECK NOT NULL in 3a.
+  /// Exactly one raiser (CHECK): a person, or the contractor's account that raised it from the portal (3b; an RFI or a safety incident only, CHECK).
   raisedByPersonId          String?
   raisedBy                  Person?          @relation("WorkItemRaisedBy", fields: [raisedByPersonId], references: [id], onDelete: Restrict)
-  /// Who the item is on, not who acted. At most one of the two (CHECK).
+  raisedBySupplierAccountId String?
+  raisedBySupplierAccount   SupplierAccount? @relation("WorkItemRaisedByAccount", fields: [raisedBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// Who the item is on, not who acted. At most one of a person, the contractor (the company) and the account column (CHECK).
   assigneePersonId          String?
   assignee                  Person?          @relation("WorkItemAssignee", fields: [assigneePersonId], references: [id], onDelete: Restrict)
   /// WS-9: the contractor's account the item is on. No writer in 3a.
   assigneeSupplierAccountId String?
   assigneeSupplierAccount   SupplierAccount? @relation("WorkItemAssigneeAccount", fields: [assigneeSupplierAccountId], references: [id], onDelete: Restrict)
+  /// 3b (WS-9, ADR 0049 D2): the item is on the contractor, the company. The awardee is fixed per contract, so no supplier key.
+  assignedToContractor      Boolean          @default(false)
+  /// 3b (ADR 0049 D1): when the item was shared with the contractor. One-way by trigger (PA055); never backfilled. CHECK: set when the contractor
+  /// raised or holds the item.
+  sharedAt                  DateTime?
 
   /// An RFI's answer; "" on every other type (CHECK).
   answer           String            @default("")
@@ -14392,6 +14411,9 @@ model WorkItem {
   fromDocument     ProjectDocument?  @relation("WorkItemFromDocument", fields: [fromDocumentId], references: [id], onDelete: Restrict)
   /// CHECK: said when cancelled.
   cancelReason     String            @default("")
+  /// 3b-ii (B-18): the defect line this Defect item stands for (CHECK: DEFECT only). One line has at most one item.
+  defectItemId     String?           @unique
+  defectItem       DefectItem?       @relation(fields: [defectItemId], references: [id], onDelete: Restrict)
 
   recordedAt DateTime
   updatedAt  DateTime  @updatedAt
@@ -14407,6 +14429,7 @@ model WorkItem {
   @@index([contractId, status])
   @@index([assigneePersonId, status])
   @@index([organisationId])
+  @@index([contractId, sharedAt])
 }
 
 /// A comment on a work item. Append-only (a trigger). Every comment is internal in 3a.
@@ -14419,9 +14442,12 @@ model WorkItemComment {
 
   body     String
   internal Boolean @default(true)
-  /// CHECK NOT NULL in 3a (3b: exactly one of a person or an account).
-  personId String?
-  person   Person? @relation("WorkItemCommentBy", fields: [personId], references: [id], onDelete: Restrict)
+  /// Exactly one writer (CHECK): a person, or the contractor's account (3b). A contractor's comment is never internal (CHECK); a Reply needs the item
+  /// shared at or before it (trigger PA056).
+  personId          String?
+  person            Person?          @relation("WorkItemCommentBy", fields: [personId], references: [id], onDelete: Restrict)
+  supplierAccountId String?
+  supplierAccount   SupplierAccount? @relation("WorkItemCommentByAccount", fields: [supplierAccountId], references: [id], onDelete: Restrict)
 
   recordedAt DateTime
 
@@ -14449,4 +14475,34 @@ model WorkItemLink {
   @@unique([workItemId, projectDocumentId])
   @@index([toWorkItemId])
   @@index([projectDocumentId])
+}
+
+/// The four roles of a Project team (workspace 3b, B-12). Fixed product defaults, like the work item types.
+enum ProjectTeamRole {
+  PROJECT_MANAGER
+  SITE_ENGINEER
+  CONTRACT_ADMINISTRATOR
+  CONSULTANT
+}
+
+/// Who holds a role on a contract's Project team (ADR 0049 D4). Roles route work and notices and never carry authority: no approval, certificate or
+/// document act reads this table. At most one Project manager per contract (partial unique index "ProjectTeamMember_one_manager", by hand). Removal is
+/// an audited delete with a reason.
+model ProjectTeamMember {
+  id              String          @id @default(cuid())
+  organisationId  String
+  organisation    Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  contractId      String
+  contract        Contract        @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  role            ProjectTeamRole
+  /// Who holds the role, not who acted.
+  personId        String
+  person          Person          @relation("ProjectTeamMemberPerson", fields: [personId], references: [id], onDelete: Restrict)
+  /// Who added the row: the signed-in person's own act.
+  addedByPersonId String
+  addedBy         Person          @relation("ProjectTeamMemberAddedBy", fields: [addedByPersonId], references: [id], onDelete: Restrict)
+  recordedAt      DateTime
+
+  @@unique([contractId, role, personId])
+  @@index([personId])
 }

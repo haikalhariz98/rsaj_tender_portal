@@ -50,6 +50,8 @@ export const CONTRACT_ACTS = [
   "FUNDING",
   // Workspace 3a (plan section 3.1): a contract's work items, from execution to the final certificate.
   "WORK_ITEM",
+  // Workspace 3b (B-12, ADR 0049 D4): a contract's Project team card. Its own row, not WORK_ITEM's reused.
+  "PROJECT_TEAM",
   // 6.13 Part B.
   "EOT",
   "PERIOD_EXTENSION",
@@ -126,6 +128,8 @@ export const ACT_STATUS = {
   // Workspace 3a (plan section 3.1): work items are raised and moved from execution through practical completion and making good to the final
   // certificate; never before execution, when cancelled, terminated or closed. Reading is never refused by this row.
   WORK_ITEM: executed(PC, MGC, FCI),
+  // Workspace 3b (B-12): the team is named and changed while work items move, from execution to the final certificate. Reading is never refused by this row.
+  PROJECT_TEAM: executed(PC, MGC, FCI),
   EOT: executed(PC),
   // R4 (BD-613-119): a supplementary agreement extends a running term, never one already practically complete.
   PERIOD_EXTENSION: executed(),

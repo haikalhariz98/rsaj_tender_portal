@@ -66,8 +66,9 @@ describe("the closed list of kinds", () => {
     // Changed for ADR 0042 D6 (PW-13): replaced whole again by the Project workspace's migration, which adds the three PROJECT_DOCUMENT_ kinds.
     // Changed for ADR 0045 D4 (wave V step V1): replaced whole again by the wave V migration, which adds AWARD_RETURN_LODGED and AWARD_QUERY_RAISED.
     // Changed for Phase 2 close-out stage B: replaced whole again by 20261210000100, which adds DLP_ENDING and DEFECT_RECTIFIED.
-    // Changed for workspace 3a: replaced whole again by 20261210000900, which adds the four WORK_ITEM_ kinds.
-    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261210000900_work_items/migration.sql"), "utf8");
+    // Changed for workspace 3a: replaced whole again by 20261210000900, which adds the four WORK_ITEM_ kinds. Changed for workspace 3b (faithful): replaced whole
+    // again by 20261210001100, which adds WORK_ITEM_FROM_CONTRACTOR.
+    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261210001100_work_items_shared/migration.sql"), "utf8");
     const check = /StaffNotice_kind_known" CHECK \(\("kind" IN \(([^)]*)\)\)/.exec(sql);
     expect(check, "the CHECK is in the migration").toBeTruthy();
     const named = [...check![1]!.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);

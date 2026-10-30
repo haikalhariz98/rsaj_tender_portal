@@ -12,5 +12,17 @@ export const LOCATION_MAX = 120;
 /// The most files one act pins to an item: the project-document bound (`PROJECT_FILES_PER_VERSION`); more is a script.
 export const FILES_PER_ACT = 20;
 
+/// 3b (B-14): the most items one contractor account raises in a window. A site raises a handful of RFIs and incidents a day; past this is a script
+/// or a stuck button, and every row is kept for good.
+export const CONTRACTOR_RAISES_PER_WINDOW = 20;
+/// 3b (B-14): the most replies one contractor account writes in a window: a busy conversation, not a flood.
+export const CONTRACTOR_REPLIES_PER_WINDOW = 100;
+/// 3b (B-14): the window both are counted over, in minutes (the `windowRows` precedent).
+export const CONTRACTOR_WINDOW_MINUTES = 60;
+/// 3b (section 3.1): the most rows one group of the portal's Work list draws before "More".
+export const PORTAL_ROWS_PER_GROUP = 100;
+/// 3b-ii (section 3.1): the most linked cards pinned above the List.
+export const LINKED_CARDS_PINNED = 20;
+
 /// The length a bound is judged on: code points, so an emoji is one, as the database counts it.
 export const textLength = (s: string): number => [...s].length;

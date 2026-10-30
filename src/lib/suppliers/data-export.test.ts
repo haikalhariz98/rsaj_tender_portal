@@ -120,6 +120,7 @@ function source(over: Partial<SupplierExportSource> = {}): SupplierExportSource 
     ],
     projectDocuments: projectDocuments(),
     kickOffMeetings: kickOffMeetings(),
+    workItems: [],
     bidReceipts: [{ row: fixture("OnlineBid", { kind: "BID", status: "SUBMITTED", statusAt: null, receiptDigest: "ab12cd34" }), exerciseName: "Supply of office furniture", receivedAt: t("2026-09-20T01:00:00Z"), late: false, keyFingerprint: "KF-1234" }],
     ...over,
   };
@@ -502,9 +503,10 @@ describe("a worked example a finance person can check by hand", () => {
     // its current standing; two changes to it; one application; one exercise bought from at RM 50.00; one online bid; and two project documents (a third, the organisation's own working that the
     // contractor did not ask for and may not see, is left out whole).
     const e = build();
-    expect(exportSectionCounts(e)).toEqual({ company: 1, contacts: 2, accounts: 2, declarations: 1, bank: 2, documents: 3, standing: 1, standingChanges: 2, applications: 1, purchases: 1, bidReceipts: 1, projectDocuments: 2, kickOffMeetings: 1 });
+    // Changed for workspace 3b (faithful): the export gains its Work items section, empty in this example (its own tests below).
+    expect(exportSectionCounts(e)).toEqual({ company: 1, contacts: 2, accounts: 2, declarations: 1, bank: 2, documents: 3, standing: 1, standingChanges: 2, applications: 1, purchases: 1, bidReceipts: 1, projectDocuments: 2, kickOffMeetings: 1, workItems: 0 });
     expect(exportAuditChanges(e, "PAGE", null)[1].after).toBe(
-      "Company: 1 · Contacts: 2 · Portal accounts: 2 · Declarations and agreements: 1 · Bank details: 2 · Documents: 3 · Current standing: 1 · Changes to your standing: 2 · Applications and outcomes: 1 · Tender document purchases: 1 · Online bid receipts: 1 · Project documents: 2 · Kick-off meetings: 1",
+      "Company: 1 · Contacts: 2 · Portal accounts: 2 · Declarations and agreements: 1 · Bank details: 2 · Documents: 3 · Current standing: 1 · Changes to your standing: 2 · Applications and outcomes: 1 · Tender document purchases: 1 · Online bid receipts: 1 · Project documents: 2 · Kick-off meetings: 1 · Work items: 0",
     );
     const app = section(e, "applications").rows[0];
     expect(app.value).toBe("First registration");
@@ -630,5 +632,45 @@ describe("kick-off meetings (ADR 0042 D10, PW-19)", () => {
 
   it("no meeting, no row", () => {
     expect(section(build({ kickOffMeetings: [] }), "kickOffMeetings").rows).toEqual([]);
+  });
+});
+
+describe("work items (workspace 3b, ADR 0049 D2)", () => {
+  const item = (values: Record<string, unknown>) => fixture("WorkItem", { type: "RFI", number: 3, title: "Rebar spacing at grid C4", description: "", dueOn: null, location: "", severity: null, happenedAt: null, recordedAt: t("2026-11-03T02:00:00Z"), ...values });
+  const reply = (body: string, at: string) => fixture("WorkItemComment", { body, recordedAt: t(at) });
+  const items = () =>
+    section(
+      build({
+        workItems: [
+          { row: item({ description: "Drawing S-12 and S-14 disagree.", location: "Grid C4, level 2", dueOn: d("2026-11-10") }), contractLabel: "WK/2026/7 · Drainage works", raisedByOwnAccount: true, replies: [reply("Photos attached.", "2026-11-03T03:00:00Z")] },
+          { row: item({ type: "SITE_INSTRUCTION", number: 2, title: "Move the manhole", description: "Organisation's own words" }), contractLabel: "WK/2026/7 · Drainage works", raisedByOwnAccount: false, replies: [reply("Noted, done.", "2026-11-04T01:00:00Z")] },
+        ],
+      }),
+      "workItems",
+    ).rows;
+
+  it("an item the supplier raised: its contract and reference, what it wrote, and its own replies, each with when it was sent", () => {
+    const [raised] = items();
+    expect(raised).toMatchObject({ label: "Work item", value: "WK/2026/7 · Drainage works · RFI 3" });
+    expect(raised!.rows!.map((r) => r.label)).toEqual(["Title", "Details", "Location", "Answer needed by", "Raised at", "Your reply"]);
+    expect(find(raised!.rows!, "Answer needed by")).toMatchObject({ value: "2026-11-10", kind: "day" });
+    expect(find(raised!.rows!, "Your reply")).toMatchObject({ value: "Photos attached.", rows: [{ label: "Sent at", value: "2026-11-03T03:00:00.000Z", kind: "instant" }] });
+  });
+
+  it("an item someone else raised: its title and the supplier's own replies only, never the organisation's words or working", () => {
+    const [, other] = items();
+    expect(other!.value).toBe("WK/2026/7 · Drainage works · SI 2");
+    expect(other!.rows!.map((r) => [r.label, r.value])).toEqual([["Title", "Move the manhole"], ["Your reply", "Noted, done."]]);
+    const json = JSON.stringify(items());
+    expect(json).not.toContain(SENTINEL);
+    expect(json).not.toContain("Organisation's own words");
+  });
+
+  it("an incident the supplier reported carries its severity in words and when it happened", () => {
+    const e = build({ workItems: [{ row: item({ type: "SAFETY_INCIDENT", number: 1, severity: "NEAR_MISS", happenedAt: t("2026-11-02T08:15:00Z") }), contractLabel: "WK/2026/7 · Drainage works", raisedByOwnAccount: true, replies: [] }] });
+    const r = section(e, "workItems").rows[0]!;
+    expect(find(r.rows!, "Severity")?.value).not.toBe("NEAR_MISS");
+    expect(find(r.rows!, "Severity")?.value).toBeTruthy();
+    expect(find(r.rows!, "Happened at")).toMatchObject({ value: "2026-11-02T08:15:00.000Z", kind: "instant" });
   });
 });

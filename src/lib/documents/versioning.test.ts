@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { documentFaultText } from "./labels";
 import { receivedOnFault } from "./received";
-import { currentVersion, heldByProjectFile, nextVersionFault, nextVersionNo, withdrawFault } from "./versioning";
+import { currentVersion, heldByProjectFile, nextVersionFault, nextVersionNo, withdrawFault, workItemFileHold } from "./versioning";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -58,6 +58,23 @@ describe("versions are immutable: a correction is a new version", () => {
     expect(heldByProjectFile([{ purpose: "DECLARATION", detachedAt: null, awardOnlineReturnId: "ret_1" }])).toBe(true);
     expect(heldByProjectFile([{ purpose: "DECLARATION", detachedAt: when, awardOnlineReturnId: "ret_1" }])).toBe(true);
     expect(heldByProjectFile([{ purpose: "DECLARATION", detachedAt: null, awardOnlineReturnId: null }])).toBe(false);
+  });
+  // Workspace 3b (B-6, WB-4): every live work item file is kept, shared or not; a detached one holds nothing. The words say whether Remove frees it.
+  it("a live work item file is kept, shared or not; detached, it holds nothing; the words say whether to remove it from the item first", () => {
+    const pin = (detachedAt: Date | null, sharedAt: Date | null) => ({ purpose: "WORK_ITEM_FILE", detachedAt, awardOnlineReturnId: null, workItem: { sharedAt } });
+    expect(heldByProjectFile([pin(null, null)])).toBe(true);
+    expect(heldByProjectFile([pin(null, when)])).toBe(true);
+    expect(heldByProjectFile([pin(when, null)])).toBe(false);
+    expect(workItemFileHold([pin(null, null)])).toBe("UNSHARED");
+    expect(workItemFileHold([pin(null, null), pin(null, when)])).toBe("SHARED");
+    expect(workItemFileHold([pin(when, when)])).toBeNull();
+    expect(workItemFileHold([])).toBeNull();
+    // Also a project file: removing it from the item would not free it, so the project file's words come first.
+    expect(workItemFileHold([pin(null, null), { purpose: "PROJECT_DOCUMENT_FILE", detachedAt: null, awardOnlineReturnId: null, workItem: null }])).toBeNull();
+    const fault = (hold: "SHARED" | "UNSHARED") => withdrawFault({ withdrawnAt: null }, "Wrong file", { heldByProjectFile: true, workItemFile: hold })!;
+    expect(documentFaultText(fault("UNSHARED"))).toBe("Kept: it is a work item's file. Remove it from the item first.");
+    expect(documentFaultText(fault("SHARED"))).toBe("Kept: it is a work item's file.");
+    expect(withdrawFault({ withdrawnAt: when }, "x", { heldByProjectFile: true, workItemFile: "UNSHARED" })?.code).toBe("ALREADY_WITHDRAWN");
   });
 });
 

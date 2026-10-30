@@ -1,17 +1,25 @@
+import { createHash, randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
 import { ATTACHMENT_PURPOSES, OWNER_COLUMN, OWNER_KINDS, purposeOwners } from "@/lib/documents/types";
 import { STAFF_NOTICE_KINDS } from "@/lib/inbox/kinds";
+import { readWorkItems } from "@/lib/portal/data-export-store";
 import { makePerson, makeSupplierAccount, randomId, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
 import { LOCATION_MAX, TEXT_MAX, TITLE_MAX } from "./bounds";
-import { WORK_ITEM_TYPES, type WorkItemType } from "./types";
+import { TEAM_ROLES, WORK_ITEM_TYPES, type WorkItemType } from "./types";
 
 /**
  * What the database itself holds of work items (workspace 3a plan section 3.1, step 1), against migrations 20261210000800 and 20261210000900. The acts
  * (step 3) judge first; these are the backstops, for every login. Each refusal is told apart by its SQLSTATE and, for a CHECK, by the constraint's name, so
  * a row refused by another CHECK than the one under test fails the test: 23514 a CHECK, 23505 a unique key, PA001 the trail's append-only refusal.
+ *
+ * Workspace 3b (plan workspace-3b-build-plan.md section 3.1, step 1), against migrations 20261210001100 and 20261210001200: sharing (PA055 one-way), the contractor as
+ * raiser, assignee and writer, a Reply only on a shared item (PA056), a work item file kept from withdrawal (PA047, widened), the new notice kind and the Project team.
  */
 
 let organisationId: string;
@@ -19,7 +27,9 @@ let contractId: string;
 let raiser: string;
 let other: string;
 let account: string;
+let supplierId: string;
 let projectDocumentId: string;
+let documentClassId: string;
 
 /// "23514 WorkItem_title_present", "23505", "PA001": the SQLSTATE, and the constraint's name where the database gave one.
 function refusalOf(error: unknown): string {
@@ -27,7 +37,7 @@ function refusalOf(error: unknown): string {
   const cause = e.meta?.driverAdapterError?.cause;
   const code = cause?.originalCode ?? (e.code === "P2002" ? "23505" : (cause?.code ?? cause?.kind ?? `not a database refusal: ${String(error).slice(0, 300)}`));
   if (code !== "23514") return code;
-  const name = /"?((?:WorkItem|WorkItemComment|WorkItemLink|DocumentAttachment|StaffNotice)_[a-z_]+)"?/.exec(`${JSON.stringify(cause)} ${e.message ?? ""}`)?.[1];
+  const name = /"?((?:WorkItem|WorkItemComment|WorkItemLink|DocumentAttachment|StaffNotice|ProjectTeamMember)_[a-z_]+)"?/.exec(`${JSON.stringify(cause)} ${e.message ?? ""}`)?.[1];
   return name ? `${code} ${name}` : code;
 }
 
@@ -66,6 +76,7 @@ beforeAll(async () => {
   other = (await makePerson(organisationId, `Other ${randomId()}`)).id;
   const contractor = await makeSupplierAccount(organisationId);
   account = contractor.account!.id;
+  supplierId = contractor.supplier.id;
   const run = randomId();
   const requisition = await db.requisition.create({
     data: { organisationId, reference: `WIS/RQ/${run}`, requestingUnitCode: "WIS_DEPT", requestingPersonId: raiser, title: "Work items requisition", justification: "Tests.", needStatement: "None.", costCentreCode: "WIS_CC", accountCode: "WIS_AC", placeOfDelivery: "Nowhere", dateRequired: DAY, estimatedValue: "100000.00", raisedOn: DAY },
@@ -74,6 +85,7 @@ beforeAll(async () => {
   const award = await db.award.create({ data: { organisationId, reference: `WIS/AW/${run}`, exerciseId: exercise.id, instrumentKind: "WORK_INDENT", awardeeName: "A Contractor", awardedValue: "100000.00", completionPeriod: 90, completionUnit: "DAYS", status: "ISSUED", vendorId: contractor.supplier.id } });
   contractId = (await db.contract.create({ data: { organisationId, number: `WIS/CON/${run}`, numberSource: "SERIES", numberedOn: DAY, awardId: award.id, contractSum: "100000.00", status: "ACTIVE" } })).id;
   projectDocumentId = (await db.projectDocument.create({ data: { organisationId, contractId, title: "Drainage layout", side: "ORGANISATION", createdByPersonId: raiser, createdAt: now() } })).id;
+  documentClassId = (await db.documentClass.create({ data: { organisationId, code: `wis_${run}`, nameEn: "Work item class", classification: "INTERNAL" } })).id;
 });
 
 describe("a work item: each type's valid row inserts, and each CHECK refuses its own bad row", () => {
@@ -86,7 +98,8 @@ describe("a work item: each type's valid row inserts, and each CHECK refuses its
   it("number, title and the raiser", async () => {
     expect(await refusal(item("TASK", { number: 0 }))).toBe("23514 WorkItem_number_positive");
     expect(await refusal(item("TASK", { title: "   " }))).toBe("23514 WorkItem_title_present");
-    expect(await refusal(item("TASK", { raisedByPersonId: null }))).toBe("23514 WorkItem_raised_by_person");
+    // Changed for 3b (faithful): 3a's NOT NULL CHECK is replaced by "exactly one raiser" (WorkItem_one_raiser).
+    expect(await refusal(item("TASK", { raisedByPersonId: null }))).toBe("23514 WorkItem_one_raiser");
   });
 
   it("the bounds, in code points as bounds.ts counts them: the bound itself inserts, one more is refused", async () => {
@@ -100,10 +113,16 @@ describe("a work item: each type's valid row inserts, and each CHECK refuses its
     expect(await refusal(item("TASK", { location: "x".repeat(LOCATION_MAX), description: "x".repeat(TEXT_MAX) }))).toBeNull();
   });
 
-  it("at most one assignee: a person or the contractor's account, never both", async () => {
-    expect(await refusal(item("TASK", { assigneePersonId: other, assigneeSupplierAccountId: account }))).toBe("23514 WorkItem_one_assignee");
+  // Changed for 3b (stricter): the account column on its own now needs the item shared (WorkItem_contractor_party_shared), and the contractor (the company) is a
+  // third assignee form.
+  it("at most one assignee: a person, the contractor or the contractor's account, never two", async () => {
+    const shared = { sharedAt: now() };
+    expect(await refusal(item("TASK", { assigneePersonId: other, assigneeSupplierAccountId: account, ...shared }))).toBe("23514 WorkItem_one_assignee");
+    expect(await refusal(item("TASK", { assigneePersonId: other, assignedToContractor: true, ...shared }))).toBe("23514 WorkItem_one_assignee");
+    expect(await refusal(item("TASK", { assignedToContractor: true, assigneeSupplierAccountId: account, ...shared }))).toBe("23514 WorkItem_one_assignee");
     expect(await refusal(item("TASK", { assigneePersonId: other }))).toBeNull();
-    expect(await refusal(item("TASK", { assigneeSupplierAccountId: account }))).toBeNull();
+    expect(await refusal(item("TASK", { assigneeSupplierAccountId: account, ...shared }))).toBeNull();
+    expect(await refusal(item("TASK", { assignedToContractor: true, ...shared }))).toBeNull();
   });
 
   it("each type's own columns, on that type only", async () => {
@@ -151,7 +170,8 @@ describe("a comment: present, bounded, by a person, and append-only", () => {
     const i = await item("TASK");
     expect(await refusal(comment(i.id, { body: "  " }))).toBe("23514 WorkItemComment_body");
     expect(await refusal(comment(i.id, { body: "x".repeat(TEXT_MAX + 1) }))).toBe("23514 WorkItemComment_body");
-    expect(await refusal(comment(i.id, { personId: null }))).toBe("23514 WorkItemComment_by_person");
+    // Changed for 3b (faithful): 3a's NOT NULL CHECK is replaced by "exactly one writer" (WorkItemComment_one_writer).
+    expect(await refusal(comment(i.id, { personId: null }))).toBe("23514 WorkItemComment_one_writer");
     expect(await refusal(comment(i.id))).toBeNull();
   });
 
@@ -225,10 +245,162 @@ describe("the attachment owners, replaced whole (owner-check.test.ts holds the l
 
 describe("the staff notice kinds, the CHECK and kinds.ts together", () => {
   it("a notice of each new kind inserts, and an unknown kind is refused (CHECK)", async () => {
-    for (const kind of ["WORK_ITEM_ASSIGNED", "WORK_ITEM_TO_CHECK", "WORK_ITEM_RETURNED", "WORK_ITEM_COMMENT"] as const) {
+    // Changed for 3b (stricter): WORK_ITEM_FROM_CONTRACTOR joins the kinds.
+    for (const kind of ["WORK_ITEM_ASSIGNED", "WORK_ITEM_TO_CHECK", "WORK_ITEM_RETURNED", "WORK_ITEM_COMMENT", "WORK_ITEM_FROM_CONTRACTOR"] as const) {
       expect(STAFF_NOTICE_KINDS).toContain(kind);
       expect(await refusal(db.staffNotice.create({ data: { organisationId, recipientPersonId: raiser, kind, subjectEntity: "WorkItem", subjectId: `wis_${randomId()}`, occurrence: `wis_${randomId()}`, title: "RFI 1", body: "RFI 1 · A title" } })), kind).toBeNull();
     }
     expect(await refusal(db.staffNotice.create({ data: { organisationId, recipientPersonId: raiser, kind: "WORK_ITEM_DUE_TOMORROW", subjectEntity: "WorkItem", subjectId: `wis_${randomId()}`, title: "x", body: "x" } }))).toBe("23514 StaffNotice_kind_known");
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ workspace 3b, step 1
+
+describe("3b: sharing is stored, never backfilled, and one-way (ADR 0049 D1)", () => {
+  it("a row written as 3a wrote it reads unshared, not on the contractor; and the migration writes no item (no backfill)", async () => {
+    const i = await item("RFI");
+    expect({ sharedAt: i.sharedAt, assignedToContractor: i.assignedToContractor, raisedBySupplierAccountId: i.raisedBySupplierAccountId, defectItemId: i.defectItemId }).toEqual({ sharedAt: null, assignedToContractor: false, raisedBySupplierAccountId: null, defectItemId: null });
+    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261210001100_work_items_shared/migration.sql"), "utf8").replace(/--[^\n]*/g, "");
+    expect(sql).not.toMatch(/UPDATE\s+"WorkItem"|INSERT\s+INTO\s+"WorkItem"/i);
+    expect(sql).toMatch(/ADD COLUMN\s+"sharedAt" TIMESTAMP\(3\);/);
+  });
+
+  it("an unshared item is shared once; then sharedAt never changes, never returns to null, and the row is never deleted (PA055)", async () => {
+    const i = await item("TASK");
+    const at = now();
+    expect(await refusal(db.workItem.update({ where: { id: i.id }, data: { sharedAt: at } }))).toBeNull();
+    expect(await refusal(db.workItem.update({ where: { id: i.id }, data: { sharedAt: null } }))).toBe("PA055");
+    expect(await refusal(db.workItem.update({ where: { id: i.id }, data: { sharedAt: new Date(at.getTime() + 1000) } }))).toBe("PA055");
+    expect(await refusal(db.workItem.update({ where: { id: i.id }, data: { sharedAt: at, title: "Same instant, new title" } }))).toBeNull();
+    expect(await refusal(db.workItem.delete({ where: { id: i.id } }))).toBe("PA055");
+    // Raw SQL is refused alike: the trigger is ENABLE ALWAYS.
+    expect(await refusal(db.$executeRawUnsafe(`UPDATE "WorkItem" SET "sharedAt" = NULL WHERE "id" = $1`, i.id))).toBe("PA055");
+    const loose = await item("TASK");
+    expect(await refusal(db.workItem.delete({ where: { id: loose.id } }))).toBeNull();
+  });
+
+  it("an item the contractor holds or raised is shared (CHECK)", async () => {
+    expect(await refusal(item("TASK", { assignedToContractor: true }))).toBe("23514 WorkItem_contractor_party_shared");
+    expect(await refusal(item("TASK", { assigneeSupplierAccountId: account }))).toBe("23514 WorkItem_contractor_party_shared");
+    expect(await refusal(item("RFI", { raisedByPersonId: null, raisedBySupplierAccountId: account }))).toBe("23514 WorkItem_contractor_party_shared");
+    const i = await item("TASK");
+    expect(await refusal(db.workItem.update({ where: { id: i.id }, data: { assignedToContractor: true } }))).toBe("23514 WorkItem_contractor_party_shared");
+    expect(await refusal(db.workItem.update({ where: { id: i.id }, data: { assignedToContractor: true, sharedAt: now() } }))).toBeNull();
+  });
+});
+
+describe("3b: the contractor as raiser (B-8)", () => {
+  const shared = () => ({ sharedAt: now() });
+  it("exactly one raiser: a person or a contractor's account (CHECK)", async () => {
+    expect(await refusal(item("RFI", { raisedBySupplierAccountId: account, ...shared() }))).toBe("23514 WorkItem_one_raiser");
+    expect(await refusal(item("RFI", { raisedByPersonId: null, raisedBySupplierAccountId: account, ...shared() }))).toBeNull();
+  });
+  it("the contractor raises an RFI or a safety incident only (CHECK)", async () => {
+    expect(await refusal(item("SAFETY_INCIDENT", { raisedByPersonId: null, raisedBySupplierAccountId: account, ...shared() }))).toBeNull();
+    for (const t of WORK_ITEM_TYPES.filter((x) => x !== "RFI" && x !== "SAFETY_INCIDENT")) expect(await refusal(item(t, { raisedByPersonId: null, raisedBySupplierAccountId: account, ...shared() })), t).toBe("23514 WorkItem_contractor_raises_type");
+  });
+  it("a defect line is linked to a Defect item only (CHECK; written in 3b-ii)", async () => {
+    // The CHECK is judged before the foreign key, so a made-up line id shows it.
+    expect(await refusal(item("TASK", { defectItemId: `wis_defect_${randomId()}` }))).toBe("23514 WorkItem_defect_of_type");
+  });
+});
+
+describe("3b: a comment's writer and audience (B-2, B-8)", () => {
+  const comment = (workItemId: string, o: Partial<Record<string, unknown>> = {}) =>
+    db.workItemComment.create({ data: { organisationId, workItemId, body: "Bar size confirmed.", personId: raiser, recordedAt: now(), ...o } as Parameters<typeof db.workItemComment.create>[0]["data"] });
+  const contractor = () => ({ personId: null, supplierAccountId: account, internal: false });
+
+  it("exactly one writer, and a contractor's comment is never internal (CHECK)", async () => {
+    const i = await item("RFI", { sharedAt: now() });
+    expect(await refusal(comment(i.id, { supplierAccountId: account, internal: false }))).toBe("23514 WorkItemComment_one_writer");
+    expect(await refusal(comment(i.id, { ...contractor(), internal: true }))).toBe("23514 WorkItemComment_contractor_replies");
+    expect(await refusal(comment(i.id, contractor()))).toBeNull();
+  });
+
+  it("a Reply needs an item shared at or before it; an internal note needs nothing (PA056, the plan's optional backstop)", async () => {
+    const unshared = await item("RFI");
+    expect(await refusal(comment(unshared.id, { internal: false }))).toBe("PA056");
+    expect(await refusal(comment(unshared.id, { internal: true }))).toBeNull();
+    const at = now();
+    const shared = await item("RFI", { sharedAt: at });
+    expect(await refusal(comment(shared.id, { internal: false, recordedAt: new Date(at.getTime() - 1000) }))).toBe("PA056");
+    expect(await refusal(comment(shared.id, { internal: false, recordedAt: at }))).toBeNull();
+    expect(await refusal(comment(shared.id, { internal: true, recordedAt: new Date(at.getTime() - 1000) }))).toBeNull();
+  });
+});
+
+describe("3b: a work item's file is kept from withdrawal while pinned (PA047, widened; B-6, WB-4)", () => {
+  async function storeVersion(): Promise<string> {
+    const bytes = randomBytes(24);
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    await db.blobContent.create({ data: { organisationId, sha256, byteSize: BigInt(bytes.length), bytes } });
+    const document = await db.document.create({ data: { organisationId, title: "Site photograph", documentClassId, retentionSnapshot: {} } });
+    return (await db.documentVersion.create({ data: { organisationId, documentId: document.id, versionNo: 1, sha256, byteSize: BigInt(bytes.length), mediaType: "image/png", originalFilename: "site.png", recordedByPersonId: raiser } })).id;
+  }
+  const withdraw = (id: string) => db.documentVersion.update({ where: { id }, data: { withdrawnAt: now(), withdrawnReason: "Uploaded to the wrong record" } });
+
+  it("on an unshared or a shared item, a pinned file is refused; once detached, it may be withdrawn", async () => {
+    for (const sharedAt of [null, now()]) {
+      const i = await item("TASK", { sharedAt });
+      const versionId = await storeVersion();
+      const pin = await db.documentAttachment.create({ data: { organisationId, purpose: "WORK_ITEM_FILE", versionId, workItemId: i.id } });
+      expect(await refusal(withdraw(versionId)), `shared ${sharedAt != null}`).toBe("PA047");
+      await db.documentAttachment.update({ where: { id: pin.id }, data: { detachedAt: now(), detachReason: "Attached to the wrong item" } });
+      expect(await refusal(withdraw(versionId)), `shared ${sharedAt != null}`).toBeNull();
+    }
+  });
+});
+
+describe("3b: the Project team (B-12, ADR 0049 D4)", () => {
+  const member = (role: string, personId: string) =>
+    db.projectTeamMember.create({ data: { organisationId, contractId, role, personId, addedByPersonId: raiser, recordedAt: now() } as Parameters<typeof db.projectTeamMember.create>[0]["data"] });
+
+  it("the enum is the four roles of types.ts", async () => {
+    const rows = await db.$queryRawUnsafe<{ v: string }[]>(`SELECT unnest(enum_range(NULL::"ProjectTeamRole"))::text AS v`);
+    expect(rows.map((r) => r.v)).toEqual([...TEAM_ROLES]);
+  });
+
+  it("one Project manager per contract (partial unique); the same person twice in one role is refused; other roles hold several", async () => {
+    const pm = (await makePerson(organisationId, `PM ${randomId()}`)).id;
+    const second = (await makePerson(organisationId, `PM2 ${randomId()}`)).id;
+    expect(await refusal(member("PROJECT_MANAGER", pm))).toBeNull();
+    expect(await refusal(member("PROJECT_MANAGER", second))).toBe("23505");
+    expect(await refusal(member("SITE_ENGINEER", pm))).toBeNull();
+    expect(await refusal(member("SITE_ENGINEER", pm))).toBe("23505");
+    expect(await refusal(member("CONTRACT_ADMINISTRATOR", second))).toBeNull();
+    expect(await refusal(member("CONTRACT_ADMINISTRATOR", other))).toBeNull();
+    // Removal is a delete (audited by the act): nothing refuses it, and then the next manager may be named.
+    await db.projectTeamMember.deleteMany({ where: { contractId, role: "PROJECT_MANAGER" } });
+    expect(await refusal(member("PROJECT_MANAGER", second))).toBeNull();
+  });
+});
+
+describe("3b: the supplier's data export reads its own accounts' items and replies only (plan section 3.1)", () => {
+  it("an item it raised and an item it replied on; never an officer's comment, another supplier's reply, or an item it did not raise or reply on", async () => {
+    const stranger = (await makeSupplierAccount(organisationId)).account!.id;
+    const at = now();
+    const say = (workItemId: string, o: Record<string, unknown>) =>
+      db.workItemComment.create({ data: { organisationId, workItemId, body: "x", recordedAt: now(), ...o } as Parameters<typeof db.workItemComment.create>[0]["data"] });
+    const raised = await item("RFI", { raisedByPersonId: null, raisedBySupplierAccountId: account, sharedAt: at, title: "Raised by the contractor" });
+    await say(raised.id, { supplierAccountId: account, internal: false, body: "Own reply" });
+    await say(raised.id, { personId: raiser, internal: true, body: "Officer's internal note" });
+    await say(raised.id, { personId: raiser, internal: false, body: "Officer's reply" });
+    const repliedOn = await item("SITE_INSTRUCTION", { sharedAt: at, title: "Raised by an officer" });
+    await say(repliedOn.id, { supplierAccountId: account, internal: false, body: "Own reply on theirs" });
+    const strangers = await item("RFI", { sharedAt: at, title: "Another supplier's conversation" });
+    await say(strangers.id, { supplierAccountId: stranger, internal: false, body: "Stranger's reply" });
+    await item("RFI", { title: "Never shared" });
+
+    const read = await readWorkItems(db, { supplierId, organisationId });
+    // Other tests of this file raise and reply as the same account, so only this test's titles are compared; the two that must never come are looked for in the whole read.
+    expect(read.map((r) => r.row.title)).not.toContain("Another supplier's conversation");
+    expect(read.map((r) => r.row.title)).not.toContain("Never shared");
+    const mine = read.filter((r) => r.row.title === "Raised by the contractor" || r.row.title === "Raised by an officer");
+    expect(mine.map((r) => [r.row.title, r.raisedByOwnAccount, r.replies.map((c) => c.body)])).toEqual([
+      ["Raised by the contractor", true, ["Own reply"]],
+      ["Raised by an officer", false, ["Own reply on theirs"]],
+    ]);
+    // The reader selects the IN columns only: no officer, no status, no answer.
+    for (const r of read) expect(Object.keys(r.row).sort()).toEqual(["description", "dueOn", "happenedAt", "location", "number", "recordedAt", "severity", "title", "type"]);
   });
 });
