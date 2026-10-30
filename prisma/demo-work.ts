@@ -17,7 +17,7 @@
  * fixed early in October 2026, after the contract was stamped (1 Oct), so they stay outside the Done window. The organisation's time zone is the demo's
  * (set by `demo:load` where none is set), without which nothing reads Late.
  *
- * demo_con15 (practically complete, Work still open) is NOT the contract WS-22 asks for (executed, not practically complete: only demo_con3 is); it holds the six types other than Defect (`loadSecond`; step 12 decides whether it gains the seventh).
+ * demo_con15 (practically complete, Work still open) is NOT the contract WS-22 asks for (executed, not practically complete: only demo_con3 is); it holds the six types other than Defect (`loadSecond`; step 12 left it at six: a Defect there needs an S.O. and an issued CPC, which it lacks).
  * Accepted by the orchestrator (decisions log, 2026-10-30): WS-22's "two executed, not-yet-PC contracts" is met by demo_con3 (all seven types) and demo_con15
  * (practically complete, so it holds six types: WB-12 lifted OQ-4's refusal); a second ACTIVE demo contract is not built. `npm run demo:work` adds whichever round a loaded database does not hold yet.
  *
