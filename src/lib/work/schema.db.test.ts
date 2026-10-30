@@ -339,15 +339,56 @@ describe("3b: a work item's file is kept from withdrawal while pinned (PA047, wi
   }
   const withdraw = (id: string) => db.documentVersion.update({ where: { id }, data: { withdrawnAt: now(), withdrawnReason: "Uploaded to the wrong record" } });
 
-  it("on an unshared or a shared item, a pinned file is refused; once detached, it may be withdrawn", async () => {
+  it("on an unshared or a shared item, a pinned file is refused; once detached (possible on an unshared item only), it may be withdrawn", async () => {
     for (const sharedAt of [null, now()]) {
       const i = await item("TASK", { sharedAt });
       const versionId = await storeVersion();
       const pin = await db.documentAttachment.create({ data: { organisationId, purpose: "WORK_ITEM_FILE", versionId, workItemId: i.id } });
       expect(await refusal(withdraw(versionId)), `shared ${sharedAt != null}`).toBe("PA047");
-      await db.documentAttachment.update({ where: { id: pin.id }, data: { detachedAt: now(), detachReason: "Attached to the wrong item" } });
-      expect(await refusal(withdraw(versionId)), `shared ${sharedAt != null}`).toBeNull();
+      const detach = db.documentAttachment.update({ where: { id: pin.id }, data: { detachedAt: now(), detachReason: "Attached to the wrong item" } });
+      // WSEC-10 L5: a shared item's pin cannot be detached any more (was: the database allowed it and only the act refused), so the file stays kept.
+      if (sharedAt !== null) {
+        expect(await refusal(detach)).toBe("PA057");
+        expect(await refusal(withdraw(versionId))).toBe("PA047");
+      } else {
+        expect(await refusal(detach)).toBeNull();
+        expect(await refusal(withdraw(versionId))).toBeNull();
+      }
     }
+  });
+});
+
+describe("3b security: the pin on a work item's file is held by the database (WSEC-10 L5; PA057)", () => {
+  async function pinned(sharedAt: Date | null) {
+    const bytes = randomBytes(24);
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    await db.blobContent.create({ data: { organisationId, sha256, byteSize: BigInt(bytes.length), bytes } });
+    const document = await db.document.create({ data: { organisationId, title: "Site photograph", documentClassId, retentionSnapshot: {} } });
+    const version = await db.documentVersion.create({ data: { organisationId, documentId: document.id, versionNo: 1, sha256, byteSize: BigInt(bytes.length), mediaType: "image/png", originalFilename: "site.png", recordedByPersonId: raiser } });
+    const i = await item("TASK", { sharedAt });
+    const pin = await db.documentAttachment.create({ data: { organisationId, purpose: "WORK_ITEM_FILE", versionId: version.id, workItemId: i.id, attachedAt: new Date(now().getTime() - 60_000) } });
+    return { i, pin };
+  }
+
+  it("attachedAt and workItemId never change, on a shared item or an unshared one", async () => {
+    for (const sharedAt of [null, now()]) {
+      const { i, pin } = await pinned(sharedAt);
+      const elsewhere = await item("TASK", { sharedAt });
+      const label = `shared ${sharedAt != null}`;
+      expect(await refusal(db.documentAttachment.update({ where: { id: pin.id }, data: { attachedAt: new Date() } })), label).toBe("PA057");
+      expect(await refusal(db.documentAttachment.update({ where: { id: pin.id }, data: { workItemId: elsewhere.id } })), label).toBe("PA057");
+      expect(await refusal(db.$executeRawUnsafe(`UPDATE "DocumentAttachment" SET "attachedAt" = now() WHERE "id" = $1`, pin.id)), label).toBe("PA057");
+      const kept = await db.documentAttachment.findUniqueOrThrow({ where: { id: pin.id } });
+      expect([kept.workItemId, kept.attachedAt.getTime()], label).toEqual([i.id, pin.attachedAt.getTime()]);
+    }
+  });
+
+  it("a pin on a shared item is never detached; on an unshared item it is, once, with its reason", async () => {
+    const shared = await pinned(now());
+    expect(await refusal(db.documentAttachment.update({ where: { id: shared.pin.id }, data: { detachedAt: now(), detachReason: "x" } }))).toBe("PA057");
+    expect((await db.documentAttachment.findUniqueOrThrow({ where: { id: shared.pin.id } })).detachedAt).toBeNull();
+    const open = await pinned(null);
+    expect(await refusal(db.documentAttachment.update({ where: { id: open.pin.id }, data: { detachedAt: now(), detachReason: "Attached to the wrong item" } }))).toBeNull();
   });
 });
 
@@ -401,6 +442,6 @@ describe("3b: the supplier's data export reads its own accounts' items and repli
       ["Raised by an officer", false, ["Own reply on theirs"]],
     ]);
     // The reader selects the IN columns only: no officer, no status, no answer.
-    for (const r of read) expect(Object.keys(r.row).sort()).toEqual(["answer", "description", "dueOn", "happenedAt", "location", "number", "recordedAt", "severity", "title", "type"]);
+    for (const r of read) expect(Object.keys(r.row).sort()).toEqual(["answer", "description", "dueOn", "happenedAt", "location", "number", "recordedAt", "severity", "sharedAt", "title", "type"]);
   });
 });
