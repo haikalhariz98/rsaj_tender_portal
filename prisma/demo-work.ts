@@ -23,7 +23,8 @@
  *
  * Ids: WorkItem demo_wki*, WorkItemComment demo_wkc*, WorkItemLink demo_wkl*, StaffNotice demo_wkn*, ProjectTeamMember demo_wtm*, DocumentAttachment demo_wka*, and the
  * staged files demo_wkd* (ACT_PREFIX; grepped free). Each round runs once: the 3a rounds where demo_con3 holds no work item, the 3b round (`loadSharing`, the contractor's
- * side) where it has no Project team and no shared item.
+ * side) where it has no Project team and no shared item. The 3b-ii defect link writes nothing on any demo contract and says why (`linkingSkipped`); its linked cards and My work
+ * are read back by `checkWorkDemo`.
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
@@ -152,7 +153,36 @@ export async function loadWorkDemo(db: Db, organisationId: string): Promise<{ no
 
   if (!(await db.contract.findUnique({ where: { id: CON }, select: { id: true } }))) return { notes: [`${CON} is not loaded: the work demo is skipped`] };
   const first = (await db.workItem.count({ where: { contractId: CON } })) > 0 ? [] : await loadFirst(db, organisationId, today, ago, dayAgo);
-  return { notes: [...first, ...(await loadSharing(db, organisationId, today, ago))] };
+  return { notes: [...first, ...(await loadSharing(db, organisationId, today, ago)), ...(await linkingSkipped(db, organisationId, today))] };
+}
+
+/**
+ * Workspace 3b-ii step 12 (B-18, WB-12): the defect link. Every act on a linked line is a defect act, recorded for the S.O. (or a representative whose letter covers site
+ * observation), and a line is acted on only once its CPC is issued; a Defect raised past practical completion makes its line under `reportDefect`'s rules (an issued CPC with a
+ * defects liability period). No demo contract meets them: demo_con15's practical completion is written as the status would leave it (no baseline, S.O., possession or CPC,
+ * and SUPERVISION is shut once practically complete, so none can be added through the acts), and demo_con3 must stay the one active contract (a CPC issued on it ends that).
+ * So this round writes nothing and says what each contract lacks, read from the cores' own readers, never from rows written by hand. Linked cards (step 9) and My work (step
+ * 8) need no new rows: `checkWorkDemo` reads them back from what the 3a and 3b-i rounds and the certificate and variation demos already wrote.
+ */
+async function linkingSkipped(db: Db, organisationId: string, today: string): Promise<string[]> {
+  const { loadContract } = await import("../src/lib/contract/repo");
+  const { loadSupervision, soOfficeOn } = await import("../src/lib/supervision/load");
+  const { loadCloseout } = await import("../src/lib/closeout/load");
+  const out: string[] = [];
+  for (const contractId of [CON2, CON]) {
+    const l = await loadContract(organisationId, contractId);
+    if (!l) {
+      out.push(`${contractId}: the defect link is not shown (the contract is not loaded on this database)`);
+      continue;
+    }
+    const lacks: string[] = [];
+    if (!(await soOfficeOn(l, await loadSupervision(contractId, db as never), today, db as never))) lacks.push("no S.O. in force");
+    const cpc = (await loadCloseout(contractId, db as never)).cpc;
+    if (!cpc) lacks.push("no certificate of practical completion");
+    else if (cpc.certificate.status !== "ISSUED" || !cpc.dlpStart) lacks.push("its certificate of practical completion is not issued with a defects liability period");
+    out.push(`${contractId}: the defect link is not shown (${lacks.length ? lacks.join(", ") : "the demo writes no defect line"})`);
+  }
+  return out;
 }
 
 /// The two 3a rounds on demo_con3 (and demo_con15's), once: only where demo_con3 holds no work item yet.
@@ -382,6 +412,20 @@ export async function checkWorkDemo(db: Db, opts: { sharing: boolean } = { shari
   const links = await db.workItemLink.findMany({ where: { workItemId: { in: rows.map((r) => r.id) } }, select: { projectDocumentId: true } });
   if (links.length < 3 || !links.some((x) => x.projectDocumentId)) fail("fewer than three links, or none to a document");
   if (opts.sharing) await checkSharing(db, fail);
+  await checkLinkedAndMine(db, today!, fail);
+}
+
+/// 3b-ii, read back through the screens' own readers: demo_con3's Work tab draws linked cards (its variation and certificates in progress), and My work holds a demo person's
+/// items across demo_con3 and demo_con15 (demo_con3 alone where demo_con15 is not loaded).
+async function checkLinkedAndMine(db: Db, today: string, fail: (what: string) => never) {
+  const { loadLinkedCards } = await import("../src/lib/work/linked/load");
+  const { loadMyWork } = await import("../src/lib/work/load");
+  const c = await db.contract.findUniqueOrThrow({ where: { id: CON }, select: { organisationId: true, organisation: { select: { timeZone: true } } } });
+  const cards = await loadLinkedCards({ organisationId: c.organisationId, contractId: CON, timeZone: c.organisation.timeZone, today });
+  if (cards.length === 0) fail(`${CON} draws no linked card`);
+  const want = (await db.contract.findUnique({ where: { id: CON2 }, select: { id: true } })) ? [CON, CON2] : [CON];
+  const mine = await Promise.all(Object.values(people).map(async (personId) => new Set((await loadMyWork({ organisationId: c.organisationId, personId, today })).rows.map((r) => r.contractId))));
+  if (!mine.some((s) => want.every((x) => s.has(x)))) fail(`no demo person's My work holds items on ${want.join(" and ")}`);
 }
 
 /// The 3b round, read back: the team, the shares, the contractor's acts, and what the portal's own reader shows of the shared instruction (the Reply, never the Internal note or the
