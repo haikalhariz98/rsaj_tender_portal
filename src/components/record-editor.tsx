@@ -10,6 +10,7 @@ import { COMPONENT_WORDS as WORDS } from "@/lib/i18n/catalogues/components";
 import { actPostedNames, ActAttributionFields } from "@/components/act-attribution-fields";
 import type { ActorFieldSpec } from "@/lib/auth/actor-field";
 import { PlusIcon, SaveIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { Callout } from "@/components/ui/feedback";
@@ -91,6 +92,8 @@ export type Field =
       optionsBy?: { name: string; options: Record<string, { value: string; label: string; disabled?: boolean }[]>; waiting: string };
       /// Other selects of the same form whose chosen value this one does not offer again (one claim paid on one line only).
       distinctFrom?: readonly string[];
+      /// A warn chip shown under the select while it holds this value (a state of the choice the officer should see before saving, not a refusal).
+      flag?: { value: string; text: string };
     }
   | { kind: "switch"; name: string; label: string; hint?: string }
   /// A file chosen from the officer's device, on the shared FileInput. It rides out in the
@@ -263,6 +266,7 @@ export function RecordEditor({
     ...fields.flatMap((f) => (f.kind === "select" && f.search?.by ? [f.search.by.name] : [])),
     ...fields.flatMap((f) => (f.kind === "text" && f.suggestBy ? [f.suggestBy.name] : [])),
     ...fields.flatMap((f) => (f.kind === "select" && f.distinctFrom ? f.distinctFrom : [])),
+    ...fields.flatMap((f) => (f.kind === "select" && f.flag ? [f.name] : [])),
   ]);
   // A select (or a set of boxes) whose options follow another select: its options for that select's current value.
   const resolved = <F extends Field>(field: F): F =>
@@ -481,6 +485,7 @@ export function RecordEditor({
                               value={field.kind === "select" && field.search?.by && current(field.search.by.name) !== String(values?.[field.search.by.name] ?? "") ? null : (values?.[field.name] ?? null)}
                               error={state.errors?.[field.name]}
                               errors={state.errors}
+                              flagged={field.kind === "select" && field.flag && current(field.name) === field.flag.value ? field.flag.text : undefined}
                             />
                           </fieldset>
                         ),
@@ -555,7 +560,10 @@ function FieldInput({
   value,
   error,
   errors,
+  flagged,
 }: {
+  /// The warn chip a select shows for the value it holds now (`flag`).
+  flagged?: string;
   field: Exclude<Field, { kind: "note" } | { kind: "hidden" }>;
   value: string | boolean | null;
   error?: string;
@@ -668,6 +676,11 @@ function FieldInput({
             </option>
           ))}
         </Select>
+        {flagged && (
+          <Badge tone="warn" className="mt-1.5">
+            {flagged}
+          </Badge>
+        )}
       </Field>
     );
   }

@@ -5,7 +5,9 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { dayToDate } from "@/lib/dates";
-import { formatDate } from "@/lib/format";
+import { SCAN_LABEL } from "@/lib/documents/labels";
+import { formatDate, formatOrgDateTime } from "@/lib/format";
+import { NOT_SCANNED_LABEL } from "@/lib/ui/upload-logic";
 import { latenessWords } from "@/lib/work/labels";
 import { PORTAL_ACTION_WORDS, portalGroupWords, portalStatusWords, SEVERITY_WORDS, TYPE_WORDS } from "@/lib/work/labels";
 import type { PortalGroupView, PortalItem, PortalRow, PortalWork } from "@/lib/work/portal-read";
@@ -19,10 +21,12 @@ export const WORK_NOT_NOW = "You can't add to this contract right now. Ask the p
 
 const dueText = (r: Pick<PortalRow, "dueOn">) => (r.dueOn ? `Due ${formatDate(dayToDate(r.dueOn))}` : null);
 
-function itemView(i: PortalItem): ItemView {
+/// `timeZone` is the organisation's (`PortalWork.timeZone`): a reply near midnight reads on the organisation's day, not the server's.
+function itemView(i: PortalItem, timeZone: string | null): ItemView {
   const r = i.row;
   return {
     ref: r.ref,
+    label: r.label,
     title: r.title,
     typeLabel: TYPE_WORDS[r.type].en,
     status: r.status,
@@ -32,14 +36,15 @@ function itemView(i: PortalItem): ItemView {
     description: i.description,
     location: i.location,
     severityLabel: i.severity ? SEVERITY_WORDS[i.severity].en : null,
-    happenedText: i.happenedAt ? formatDate(i.happenedAt) : null,
+    happenedText: i.happenedAt ? formatOrgDateTime(i.happenedAt, timeZone) : null,
     answer: i.answer,
     mayAnswer: i.mayAnswer,
+    mayPost: i.mayPost,
     action: r.action,
     actionLabel: PORTAL_ACTION_WORDS[r.action].en,
     moves: i.moves,
-    files: i.files.map((f) => ({ id: f.attachmentId, filename: f.filename, href: f.href, byYou: f.byYou, onText: formatDate(f.attachedAt) })),
-    comments: i.comments.map((c, n) => ({ id: String(n), by: c.by, byYou: c.byYou, body: c.body, atText: formatDate(c.at) })),
+    files: i.files.map((f) => ({ id: f.attachmentId, filename: f.filename, href: f.href, byYou: f.byYou, onText: formatOrgDateTime(f.attachedAt, timeZone), scanLabel: f.scanLabel, scanText: f.scanLabel === SCAN_LABEL.NOT_SCANNED ? NOT_SCANNED_LABEL : f.scanLabel })),
+    comments: i.comments.map((c, n) => ({ id: String(n), by: c.by, byYou: c.byYou, body: c.body, atText: formatOrgDateTime(c.at, timeZone) })),
   };
 }
 
@@ -64,9 +69,9 @@ function Group({ g, contractId, orgName, empty }: { g: PortalGroupView; contract
           const late = latenessWords(r.late);
           return {
             id: r.ref,
-            search: `${r.ref} ${r.title}`,
+            search: `${r.label} ${r.title}`,
             cells: {
-              ref: { kind: "text", text: r.ref },
+              ref: { kind: "text", text: r.label },
               title: { kind: "stack", title: r.title, sub: portalStatusWords(r, orgName) },
               due: late ? { kind: "chips", items: [{ text: late, tone: "err" as const }] } : r.dueOn ? { kind: "text", text: formatDate(dayToDate(r.dueOn)) } : { kind: "text", text: "No date", dim: true },
               action: { kind: "link", text: PORTAL_ACTION_WORDS[r.action].en, href: workHref(contractId, r.ref), scroll: false },
@@ -105,7 +110,7 @@ export function WorkPanel({ contractId, work, closed, wanted, item, token }: { c
             <ButtonLink href={`${workHref(contractId)}&closed=1`} size="sm" variant="ghost">{`Closed (${closedGroup.total}) ›`}</ButtonLink>
           </div>
         ))}
-      {item && <WorkItemDrawer key={item.row.ref} contractId={contractId} token={token} orgName={work.orgName} canAct={item.canAct} cannotWhy={token ? WORK_NOT_NOW : SENDING_CLOSED} item={itemView(item)} />}
+      {item && <WorkItemDrawer key={item.row.ref} contractId={contractId} token={token} orgName={work.orgName} canAct={item.canAct} cannotWhy={token ? WORK_NOT_NOW : SENDING_CLOSED} item={itemView(item, work.timeZone)} />}
     </div>
   );
 }

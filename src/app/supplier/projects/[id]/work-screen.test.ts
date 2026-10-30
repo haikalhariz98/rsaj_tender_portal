@@ -11,9 +11,10 @@ import { WorkItemDrawer, type ItemView } from "./work-drawers";
 import { WorkPanel } from "./work-panel";
 
 const ORG = "Jabatan Contoh";
-const row = (o: Partial<PortalRow> = {}): PortalRow => ({ ref: "RFI-1", type: "RFI", title: "Drain levels", status: "TO_DO", dueOn: "2026-11-20", late: { state: "DUE" }, group: "WAITING_FOR_YOU", action: "REPLY", heldBy: "You", raisedByYou: false, ...o });
+/// `label` is what a screen shows (WSEC-3): the address form's type word and number, never the hyphenated key.
+const row = (o: Partial<PortalRow> = {}): PortalRow => ({ ref: "RFI-1", label: (o.ref ?? "RFI-1").replace("-", " "), type: "RFI", title: "Drain levels", status: "TO_DO", dueOn: "2026-11-20", late: { state: "DUE" }, group: "WAITING_FOR_YOU", action: "REPLY", heldBy: "You", raisedByYou: false, ...o });
 const group = (g: PortalGroupView["group"], rows: PortalRow[]): PortalGroupView => ({ group: g, total: rows.length, rows, more: false });
-const work = (w: PortalRow[] = [], o: PortalRow[] = [], c: PortalRow[] = []): PortalWork => ({ orgName: ORG, today: "2026-11-01", canAct: true, groups: [group("WAITING_FOR_YOU", w), group("WITH_ORG", o), group("CLOSED", c)] });
+const work = (w: PortalRow[] = [], o: PortalRow[] = [], c: PortalRow[] = []): PortalWork => ({ orgName: ORG, timeZone: "Asia/Kuala_Lumpur", today: "2026-11-01", canAct: true, groups: [group("WAITING_FOR_YOU", w), group("WITH_ORG", o), group("CLOSED", c)] });
 const panel = (pw: PortalWork, o: Partial<Parameters<typeof WorkPanel>[0]> = {}) => renderToStaticMarkup(h(WorkPanel, { contractId: "c1", work: pw, closed: false, wanted: null, item: null, token: "tok", ...o }));
 
 describe("the contractor's Work tab", () => {
@@ -27,7 +28,9 @@ describe("the contractor's Work tab", () => {
     );
     expect(html).toContain("Waiting for you");
     expect(html).toContain(`With ${ORG}`);
-    expect(html).toContain("RFI-1");
+    expect(html).toContain(">RFI 1<");
+    // The key is for addresses only (WSEC-3): outside an href it is never printed.
+    expect(html.replace(/href="[^"]*"/g, "")).not.toMatch(/\b(RFI|Insp|Incident|SI|Act|Task|Defect)-\d/);
     expect(html).toContain("Drain levels");
     expect(html).toContain("20 Nov 2026");
     expect(html).toContain("2 days late");
@@ -37,7 +40,7 @@ describe("the contractor's Work tab", () => {
     expect(html).toContain("Sent back to you: see the reply");
     // Closed is a link with its count; its rows are not drawn until it is followed.
     expect(html).toContain("Closed (1)");
-    expect(html).not.toContain("RFI-9");
+    expect(html).not.toContain("RFI 9");
     // No status name and no code.
     expect(html).not.toMatch(/IN_REVIEW|TO_DO|IN_PROGRESS|WAITING_FOR_YOU|WITH_ORG|SEND_FOR_CHECKING|ACCEPT_ANSWER|\bIn review\b|\bTo do\b/);
   });
@@ -57,7 +60,7 @@ describe("the contractor's Work tab", () => {
 
   it("draws the closed list when asked for, and says when an item is not there", () => {
     const html = panel(work([], [], [row({ ref: "RFI-9", group: "CLOSED", status: "DONE", action: "OPEN" })]), { closed: true, wanted: "RFI-77" });
-    expect(html).toContain("RFI-9");
+    expect(html).toContain("RFI 9");
     expect(html).toContain("Hide closed");
     expect(html).toContain("That item is not available.");
   });
@@ -76,6 +79,7 @@ describe("the contractor's Work tab", () => {
 
 const view = (o: Partial<ItemView> = {}): ItemView => ({
   ref: "RFI-1",
+  label: "RFI 1",
   title: "Drain levels",
   typeLabel: "RFI",
   status: "TO_DO",
@@ -88,10 +92,11 @@ const view = (o: Partial<ItemView> = {}): ItemView => ({
   happenedText: null,
   answer: "",
   mayAnswer: false,
+  mayPost: true,
   action: "REPLY",
   actionLabel: "Reply",
   moves: [],
-  files: [{ id: "a1", filename: "plan.pdf", href: "/supplier/projects/work/file/a1", byYou: false, onText: "1 Nov 2026" }],
+  files: [{ id: "a1", filename: "plan.pdf", href: "/supplier/projects/work/file/a1", byYou: false, onText: "1 Nov 2026 · 09:00", scanLabel: "Not scanned for malware", scanText: "Not scanned" }],
   comments: [{ id: "0", by: ORG, byYou: false, body: "See attached", atText: "2 Nov 2026" }],
   ...o,
 });
@@ -136,5 +141,30 @@ describe("the contractor's item drawer", () => {
 
   it("a closed item shows its conversation and offers no button", () => {
     expect(drawer(view({ action: "OPEN", actionLabel: "Open" }))).not.toContain(">Open<");
+  });
+
+  it("a closed item draws no reply box, no file picker and no answer field, even for an RFI the contractor held (WSEC-5)", () => {
+    const html = drawer(view({ status: "DONE", action: "OPEN", actionLabel: "Open", mayPost: false, mayAnswer: false, answer: "Level 2.1" }));
+    expect(html).toContain("See attached");
+    expect(html).toContain("plan.pdf");
+    expect(html).toContain("Level 2.1");
+    for (const control of ["Your reply", ">Send<", "Add files", "Save answer"]) expect(html).not.toContain(control);
+    expect(html).not.toMatch(/<textarea|type="file"/);
+    // The same item, open, draws them.
+    const open = drawer(view());
+    for (const control of ["Your reply", ">Send<", "Add files"]) expect(open).toContain(control);
+  });
+
+  it("each file says it is not scanned, in the existing label (WSEC-6)", () => {
+    const html = drawer(view());
+    expect(html).toContain("Not scanned");
+    expect(html).not.toContain("Not scanned for malware</");
+  });
+
+  it("names the item by its type word and number, never its key (WSEC-3)", () => {
+    const html = drawer(view({ ref: "SAFETY-3", label: "Incident 3", title: "Fall from height" }));
+    expect(html).toContain("Incident 3");
+    expect(html.replace(/href="[^"]*"/g, "")).not.toContain("SAFETY-3");
+    expect(html).not.toMatch(/RFI RFI|Incident Incident/);
   });
 });

@@ -21,7 +21,7 @@ import { typeOfferable } from "@/lib/work/fields";
 import { filtersOf, parseWorkQuery, reset, workHref, workServerMode, type WorkQuery } from "@/lib/work/href";
 import { itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, NO_WORK_WORDS, STATUS_WORDS, VIEW_EMPTY_WORDS, viewWords, whoCanWords, type WhoNames } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
-import { assigneeOptions, contractorNameOf, linkOptions, loadBoard, loadWorkContext, loadWorkList, namesOf, WORK_SORT_KEYS, type WorkCardRow, type WorkSortKey } from "@/lib/work/load";
+import { assigneeOptions, contractorHasActiveAccount, contractorNameOf, linkOptions, loadBoard, loadWorkContext, loadWorkList, namesOf, WORK_SORT_KEYS, type WorkCardRow, type WorkSortKey } from "@/lib/work/load";
 import { CONTRACTOR_ASSIGNEE } from "@/lib/work/fields";
 import { personIdOf } from "@/lib/work/party";
 import type { WorkActor } from "@/lib/work/types";
@@ -58,6 +58,8 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
   const [people, linkOpts, leadNames] = await Promise.all([assigneeOptions({ organisationId: org, contractId }), linkOptions({ organisationId: org, contractId }), namesOf(db, org, ctx.lead.ids)]);
   const peopleOptions: Option[] = [...people.filter((p) => p.value === actor.personId).map((p) => ({ ...p, label: `${p.label} (me)` })), ...people.filter((p) => p.value !== actor.personId)];
   const contractor = contractorNameOf(l);
+  // Read once, for the New item drawer, the list's assignee picker and the item panel (the chip beside a contractor assignee).
+  const noAccount = !(await contractorHasActiveAccount(db, l));
   const who = (r: WorkCardRow): WhoNames => ({ raiser: r.raisedByName, assignee: r.assigneeName, lead: ctx.lead.roleLabel ? { roleLabel: ctx.lead.roleLabel, names: ctx.lead.ids.map((id) => leadNames.get(id) ?? "Someone") } : null });
   const at = (change: Partial<WorkQuery>) => workHref(contractId, q, change);
 
@@ -101,6 +103,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
       severities={SEVERITY_OPTIONS}
       people={[{ value: "", label: "Unassigned" }, ...peopleOptions]}
       documents={linkOpts.documents}
+      noAccount={noAccount}
     />
   ) : null;
 
@@ -167,7 +170,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
       const fields = { contractId, itemId: r.id };
       // Assigning to the contractor shares the item and asks a confirm (WB-2), which only the item panel can: the list's picker offers it only where it is the current value.
       const listPeople = peopleOptions.filter((o) => o.value !== CONTRACTOR_ASSIGNEE || r.assignee?.kind === "CONTRACTOR");
-      const edit = (field: string, value: string, options: Option[], label: string): Cell => ({ kind: "select", name: "value", value, options, label: `${label} of ${itemRefText(r.type, r.number)}`, action: editWorkField, fields: { ...fields, field }, disabledWhy: why });
+      const edit = (field: string, value: string, options: Option[], label: string): Cell => ({ kind: "select", name: "value", value, options, label: `${label} of ${itemRefText(r.type, r.number)}`, action: editWorkField, fields: { ...fields, field }, disabledWhy: why, ...(field === "assigneePersonId" && noAccount ? { flag: { value: CONTRACTOR_ASSIGNEE, text: "No active portal account" } } : {}) });
       return {
         id: r.id,
         search: `${itemRefText(r.type, r.number)} ${r.title}`,
@@ -251,7 +254,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
       </div>
       {q.item && (
         <Suspense key={q.item} fallback={<WorkItemSkeleton />}>
-          <WorkItemPanel l={l} ctx={ctx} q={q} personId={actor.personId} address={q.item} people={people} linkOpts={linkOpts} />
+          <WorkItemPanel l={l} ctx={ctx} q={q} personId={actor.personId} address={q.item} people={people} linkOpts={linkOpts} noAccount={noAccount} />
         </Suspense>
       )}
     </ActGate>

@@ -36,7 +36,7 @@ const itemHref = (base: string, ref: string) => `${base}${base.includes("?") ? "
 // ------------------------------------------------------------------ New item
 
 /// The New item drawer. `itemHrefBase` is the Work address without an item; the new item's panel opens on it once raised.
-export function NewItemDrawer({ contractId, contractor, itemHrefBase, types, priorities, impacts, severities, people, documents }: { contractId: string; contractor: string; itemHrefBase: string; types: Option[]; priorities: Option[]; impacts: Option[]; severities: Option[]; people: Option[]; documents: Option[] }) {
+export function NewItemDrawer({ contractId, contractor, itemHrefBase, types, priorities, impacts, severities, people, documents, noAccount = false }: { contractId: string; contractor: string; itemHrefBase: string; types: Option[]; priorities: Option[]; impacts: Option[]; severities: Option[]; people: Option[]; documents: Option[]; /** The contractor has no active portal account: choosing it as the assignee says so. */ noAccount?: boolean }) {
   const router = useRouter();
   // The share confirm (WB-2): the save waits here for the officer's answer; sharing cannot be taken back.
   const [asking, setAsking] = useState<((yes: boolean) => void) | null>(null);
@@ -76,7 +76,7 @@ export function NewItemDrawer({ contractId, contractor, itemHrefBase, types, pri
         { kind: "textarea", name: "description", label: "Description" },
         { kind: "select", name: "priority", label: "Priority", placeholder: "Normal", options: priorities },
         { kind: "date", name: "dueOn", label: "Due" },
-        { kind: "select", name: "assigneePersonId", label: "Assignee", placeholder: "Unassigned", options: people },
+        { kind: "select", name: "assigneePersonId", label: "Assignee", placeholder: "Unassigned", options: people, flag: noAccount ? { value: CONTRACTOR_ASSIGNEE, text: "No active portal account" } : undefined },
         { kind: "text", name: "location", label: "Location" },
         { kind: "textarea", name: "answer", label: "Answer" },
         { kind: "select", name: "impact", label: "Impact", placeholder: "Not set", options: impacts },
@@ -134,10 +134,12 @@ export interface ItemActionsProps {
   menu: { kind: "move" | "cancel" | "sendBack"; label: string; to: string }[];
   /// "Share with {contractor}" in the menu, when this reader may share this item now; null otherwise.
   share?: { contractor: string } | null;
+  /// The contractor's name where a Send back would be a Reply it reads (the contractor holds the item): the drawer says so (WSEC-4). Null: the comment stays internal.
+  sendBackSeenBy?: string | null;
 }
 
 /// The panel's one primary button and its "…" menu. A one-press move shows its refusal beside the button.
-export function ItemActions({ contractId, itemId, from, itemLabel, primary, disabled, menu, share }: ItemActionsProps) {
+export function ItemActions({ contractId, itemId, from, itemLabel, primary, disabled, menu, share, sendBackSeenBy = null }: ItemActionsProps) {
   const gate = useActGate();
   const [message, setMessage] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -213,7 +215,7 @@ export function ItemActions({ contractId, itemId, from, itemLabel, primary, disa
                 <RecordEditor
                   key={m.label}
                   title={`Send back ${itemLabel}`}
-                  fields={[hidden("contractId"), hidden("itemId"), hidden("from"), { kind: "textarea", name: "comment", label: "What should change?", required: true }]}
+                  fields={[hidden("contractId"), hidden("itemId"), hidden("from"), { kind: "textarea", name: "comment", label: "What should change?", required: true }, ...(sendBackSeenBy ? [{ kind: "note" as const, text: `${sendBackSeenBy} will see this.` }] : [])]}
                   values={base}
                   action={words(m.to)}
                   submitLabel="Send back"

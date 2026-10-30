@@ -49,7 +49,7 @@ export function WorkPanelShell({ label, closeHref, title, badge, subtitle, child
 type Kind = "text" | "textarea" | "date" | "datetime-local";
 
 /// A field that saves when asked: Enter (a line) or Save. A field the reader may not change shows its words, with who can in a popover. A refusal stays beside it and keeps what was typed.
-export function FieldEdit({ label, field, value, display, kind = "text", contractId, itemId, disabledWhy: askedWhy }: { label: string; field: string; value: string; display?: string; kind?: Kind; contractId: string; itemId: string; disabledWhy?: string }) {
+export function FieldEdit({ label, field, value, display, kind = "text", contractId, itemId, disabledWhy: askedWhy, badge }: { label: string; field: string; value: string; display?: string; kind?: Kind; contractId: string; itemId: string; disabledWhy?: string; /** A state of the value (Draft), with what it means in a popover. */ badge?: { text: string; why: string } }) {
   // The contract tab's gate (the WORK_ITEM row) states its words first.
   const disabledWhy = useActGate() ?? askedWhy;
   const id = useId();
@@ -80,10 +80,18 @@ export function FieldEdit({ label, field, value, display, kind = "text", contrac
       }
     });
   };
+  const flag = badge && (
+    <span className="mb-1 inline-flex items-center gap-1.5">
+      <Badge tone="warn">{badge.text}</Badge>
+      <MoreText text={badge.why} label={`About the ${label.toLowerCase()} ${badge.text.toLowerCase()}`} />
+    </span>
+  );
   if (disabledWhy) {
     return (
       <div className="min-w-0">
-        <div className="text-[12.5px] font-semibold text-ink-3">{label}</div>
+        <div className="flex items-center gap-2 text-[12.5px] font-semibold text-ink-3">
+          {label} {flag}
+        </div>
         <div className="flex items-start gap-1.5 text-[14px] break-words whitespace-pre-wrap text-ink">
           {(display ?? value) || <span className="text-ink-4">Not set</span>}
           <MoreText text={disabledWhy} label={`Who can change ${label.toLowerCase()}`} />
@@ -99,6 +107,7 @@ export function FieldEdit({ label, field, value, display, kind = "text", contrac
   };
   return (
     <div className="min-w-0">
+      {flag && <div>{flag}</div>}
       <Field label={label} htmlFor={id} error={message}>
         {kind === "textarea" ? (
           <Textarea {...common} rows={3} />
@@ -214,7 +223,7 @@ export function UnlinkButton({ contractId, itemId, linkId, what }: { contractId:
 // ------------------------------------------------------------------ files
 
 /// Stage the chosen files through the upload route (outside any lock), then pin them to the item. A refusal names the file; the staged ones are reused on a second press.
-export function AttachFiles({ contractId, itemId }: { contractId: string; itemId: string }) {
+export function AttachFiles({ contractId, itemId, shared }: { contractId: string; itemId: string; /** The share state the page was drawn with: the act refuses if the item was shared since (WSEC-1). */ shared: boolean }) {
   const gate = useActGate();
   const staged = useRef(new Map<string, string>());
   const [message, setMessage] = useState<string | null>(null);
@@ -239,6 +248,7 @@ export function AttachFiles({ contractId, itemId }: { contractId: string; itemId
           const next = withStaged(data, s.ids);
           next.set("contractId", contractId);
           next.set("itemId", itemId);
+          next.set("expectedShared", shared ? "yes" : "no");
           try {
             const r = await attachWorkFiles(next);
             if (r.refused) setMessage(`${r.refused} Your files are kept. Press again to retry.`);

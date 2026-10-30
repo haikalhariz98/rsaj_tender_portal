@@ -1184,6 +1184,11 @@ export function SelectCell({ cell }: { cell: Extract<Cell, { kind: "select" }> }
       </Select>
       {pending && <SpinnerIcon size={14} className="shrink-0 text-brand-700" />}
       </div>
+      {cell.flag && value === cell.flag.value && (
+        <Badge tone="warn" className="mt-1">
+          {cell.flag.text}
+        </Badge>
+      )}
       {refused && (
         <div id={refusedId} role="status" className="mt-1 break-words text-[12.5px] text-rose-700">
           {refused}

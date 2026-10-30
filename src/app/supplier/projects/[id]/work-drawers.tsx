@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useId, useRef, useState } from "react";
 
 import { PlusIcon, ShieldIcon } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Chip } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { Callout } from "@/components/ui/feedback";
@@ -133,7 +133,10 @@ export function RaiseDrawer({ contractId, token, kind, severities, primary = fal
 // ------------------------------------------------------------------ one item
 
 export interface ItemView {
+  /// The address form ("RFI-12"): for the post bodies only. The screen shows `label`.
   ref: string;
+  /// What the screen shows (WSEC-3): "RFI 12", "Incident 3".
+  label: string;
   title: string;
   typeLabel: string;
   status: string;
@@ -147,11 +150,13 @@ export interface ItemView {
   happenedText: string | null;
   answer: string;
   mayAnswer: boolean;
+  /// Whether the contractor may reply, attach or answer now (WSEC-5): false on a closed item, which shows none of those controls.
+  mayPost: boolean;
   /// The row's one button, and its words.
   action: PortalAction;
   actionLabel: string;
   moves: WorkAction[];
-  files: { id: string; filename: string; href: string; byYou: boolean; onText: string }[];
+  files: { id: string; filename: string; href: string; byYou: boolean; onText: string; scanLabel: string; scanText: string }[];
   comments: { id: string; by: string; byYou: boolean; body: string; atText: string }[];
 }
 
@@ -171,6 +176,8 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
   const close = () => router.replace(workHref(contractId), { scroll: false });
   useEscape(true, busy, close);
   const act = canAct && !!token;
+  // WSEC-5: a closed item takes no reply, no file and no answer, so those controls are not drawn at all (no control that is always refused).
+  const post = act && item.mayPost;
 
   /// One act: post, show what the server said in its own words, and on success read the item again. `then` clears what the act used.
   async function run(path: string, body: Record<string, unknown>, then?: () => void, kept?: boolean) {
@@ -207,8 +214,8 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
   return (
     <div className={DRAWER_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !busy && close()}>
       <aside role="dialog" aria-modal="true" aria-labelledby={heading} className={drawerPanelClass("md")}>
-        <span id={heading} className="sr-only">{`${item.typeLabel} ${item.ref}: ${item.title}`}</span>
-        <DrawerHeader title={item.title} subtitle={`${item.typeLabel} ${item.ref}`} badge={item.lateText ? <Badge tone="err">{item.lateText}</Badge> : undefined} onClose={() => !busy && close()} />
+        <span id={heading} className="sr-only">{`${item.label}: ${item.title}`}</span>
+        <DrawerHeader title={item.title} subtitle={item.label} badge={item.lateText ? <Badge tone="err">{item.lateText}</Badge> : undefined} onClose={() => !busy && close()} />
         {act && item.action !== "OPEN" && (
           <div className="flex items-center justify-end gap-2 border-b border-line px-6 py-4">
             {askAgain && (
@@ -237,9 +244,9 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
                 {item.happenedText && <><dt className="text-ink-3">Happened</dt><dd>{item.happenedText}</dd></>}
               </dl>
             )}
-            {((item.mayAnswer && act) || item.answer) && (
+            {((item.mayAnswer && post) || item.answer) && (
               <Field label="Answer" htmlFor={`${f}-answer`} error={errors.answer}>
-                {item.mayAnswer && act ? (
+                {item.mayAnswer && post ? (
                   <div className="flex flex-col items-start gap-2">
                     <Textarea id={`${f}-answer`} value={answer} rows={4} onChange={(e) => setAnswer(e.target.value)} />
                     <Button size="sm" variant="secondary" disabled={busy || !answerChanged} onClick={() => run(SUPPLIER_PROJECT_WORK_POSTS.answer, answerBody(contractId, item.ref, answer))}>
@@ -261,11 +268,12 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
                     <li key={x.id} className="flex flex-wrap items-baseline gap-x-2 text-[13.5px]">
                       <a href={x.href} download className="font-medium text-brand-700 underline-offset-2 hover:underline">{x.filename}</a>
                       <span className="text-ink-3">{x.byYou ? "You" : orgName} · {x.onText}</span>
+                      <Chip title={x.scanLabel}>{x.scanText}</Chip>
                     </li>
                   ))}
                 </ul>
               )}
-              {act && (
+              {post && (
                 <div className="mt-3 flex flex-col items-start gap-2">
                   <Field label="Add files" htmlFor={`${f}-file`} error={errors.file ?? errors.stagedVersionIds} className="w-full">
                     <FileInput id={`${f}-file`} multiple disabled={busy} onChange={(e) => setFiles([...(e.currentTarget.files ?? [])])} />
@@ -288,7 +296,7 @@ export function WorkItemDrawer({ contractId, token, orgName, canAct, cannotWhy, 
                   ))}
                 </ol>
               )}
-              {act && (
+              {post && (
                 <div className="mt-3 flex flex-col items-start gap-2">
                   <Field label="Your reply" htmlFor={replyId} error={errors.body} className="w-full">
                     <Textarea id={replyId} value={reply} rows={3} onChange={(e) => setReply(e.target.value)} />

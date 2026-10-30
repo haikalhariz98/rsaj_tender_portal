@@ -3,7 +3,7 @@ import Link from "next/link";
 import { SelectCell } from "@/components/data-list";
 import { BuildingIcon, SwapIcon } from "@/components/icons";
 import { Activity, type ActivityEntry } from "@/components/ui/activity";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Chip } from "@/components/ui/badge";
 import { Composer, type ComposerAudience } from "@/components/ui/composer";
 import { Note } from "@/components/ui/feedback";
 import { MoreText } from "@/components/ui/more-text";
@@ -16,11 +16,15 @@ import { TEXT_MAX } from "@/lib/work/bounds";
 import { cardMoves } from "@/lib/work/board";
 import { removeFileFaults } from "@/lib/work/audience";
 import { CONTRACTOR_ASSIGNEE, typeHasField } from "@/lib/work/fields";
+import { commentAudience } from "@/lib/work/audience";
+import { answerIsDraft } from "@/lib/work/portal";
 import { shareFaults } from "@/lib/work/sharing";
+import { SCAN_LABEL } from "@/lib/documents/labels";
+import { NOT_SCANNED_LABEL } from "@/lib/ui/upload-logic";
 import { workHref, type WorkQuery } from "@/lib/work/href";
 import { ACTION_WORDS, itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, removeFileWords, STATUS_WORDS, TYPE_WORDS, whoCanWords } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
-import { contractorHasActiveAccount, contractorNameOf, loadActivity, loadItem, namesOf, whoNamesOf, type WorkContext } from "@/lib/work/load";
+import { contractorNameOf, loadActivity, loadItem, namesOf, whoNamesOf, type WorkContext } from "@/lib/work/load";
 import { isOpen, primaryActions, TARGET } from "@/lib/work/move";
 import { personIdOf } from "@/lib/work/party";
 import type { WorkAction, WorkActor } from "@/lib/work/types";
@@ -43,7 +47,7 @@ type Option = { value: string; label: string };
  * with the comment box. Whatever the reader may not do is drawn read only with who can in a popover; the same pure rules the acts use decide it here (`primaryActions`, `cardMoves`,
  * `mayEdit`). An address that names no item on this contract says so.
  */
-export async function WorkItemPanel({ l, ctx, q, personId, address, people, linkOpts }: { l: LoadedContract; ctx: WorkContext; q: WorkQuery; personId: string; address: string; people: Option[]; linkOpts: { items: Option[]; documents: Option[] } }) {
+export async function WorkItemPanel({ l, ctx, q, personId, address, people, linkOpts, noAccount }: { l: LoadedContract; ctx: WorkContext; q: WorkQuery; personId: string; address: string; people: Option[]; linkOpts: { items: Option[]; documents: Option[] }; /** The contractor has no active portal account (read once by the tab). */ noAccount: boolean }) {
   const org = l.org.id;
   const contractId = l.contract.id;
   const closeHref = workHref(contractId, q, { item: null });
@@ -60,7 +64,6 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
   // The pickers come from the tab (it loaded them for the list); the item itself is not offered to link to.
   const links = { ...linkOpts, items: linkOpts.items.filter((o) => o.value !== c.id) };
   const contractor = contractorNameOf(l);
-  const noAccount = !(await contractorHasActiveAccount(db, l));
   const shared = c.sharedAt !== null;
   const [who, activity, attachers] = await Promise.all([
     whoNamesOf(db, org, { raisedByPersonId: personIdOf(c.raisedBy), assigneePersonId: personIdOf(c.assignee), assignedToContractor: c.assignee?.kind === "CONTRACTOR" }, ctx.lead),
@@ -147,6 +150,7 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
             disabled={pa.disabled ? { label: wordsOf(pa.disabled.action), whoCan: pa.disabled.whoCan.en } : null}
             menu={menu}
             share={mayShare ? { contractor } : null}
+            sendBackSeenBy={commentAudience(c, "STAFF", null, "SEND_BACK") === "REPLY" ? contractor : null}
           />
         </div>
 
@@ -158,7 +162,9 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
 
         <FieldEdit label="Title" field="title" value={c.title} {...base} disabledWhy={why} />
         <FieldEdit label="Description" field="description" kind="textarea" value={detail.description} {...base} disabledWhy={why} />
-        {typeHasField(c.type, "answer") && <FieldEdit label="Answer" field="answer" kind="textarea" value={c.answer} {...base} disabledWhy={why} />}
+        {typeHasField(c.type, "answer") && (
+          <FieldEdit label="Answer" field="answer" kind="textarea" value={c.answer} {...base} disabledWhy={why} badge={answerIsDraft(c) ? { text: "Draft", why: `${contractor} has not yet sent it for checking.` } : undefined} />
+        )}
 
         <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
           <div className="min-w-0">
@@ -228,7 +234,8 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
                     {f.filename}
                   </a>
                 )}
-                {shared && !f.withdrawnAt && <Badge tone={f.seenByContractor ? "info" : "neutral"}>{f.seenByContractor ? `Seen by ${contractor}` : "Staff only"}</Badge>}
+                {shared && !f.withdrawnAt && <Badge tone={f.seenByContractor ? "info" : "neutral"}>{f.seenByContractor ? `Visible to ${contractor}` : "Staff only"}</Badge>}
+                {!f.withdrawnAt && <Chip title={f.scanLabel}>{f.scanLabel === SCAN_LABEL.NOT_SCANNED ? NOT_SCANNED_LABEL : f.scanLabel}</Chip>}
                 {ctx.open && !shared && !f.withdrawnAt && (
                   removeFileFaults(c, actor, f.attachedByPersonId, "x", removeFileWords(null, null)).length === 0 ? (
                     <RemoveFile {...base} attachmentId={f.attachmentId} filename={f.filename} />
@@ -239,13 +246,13 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
               </li>
             ))}
           </ul>
-          {ctx.open && (ctx.filesAllowed ? <AttachFiles {...base} /> : <Note>{documentFaultText({ code: "PROJECT_CLASS_NOT_SET", level: "block" })}</Note>)}
+          {ctx.open && (ctx.filesAllowed ? <AttachFiles {...base} shared={shared} /> : <Note>{documentFaultText({ code: "PROJECT_CLASS_NOT_SET", level: "block" })}</Note>)}
         </section>
 
         <section aria-label="Activity" className="flex flex-col gap-3">
           <h3 className={section}>Activity</h3>
           <Activity entries={feed} label={`Activity on ${itemLabel}`} />
-          {ctx.open && <Composer action={commentOnWorkItem} fields={base} label={`Comment on ${itemLabel}`} placeholder="Write a comment" max={TEXT_MAX} audiences={shared ? AUDIENCES : undefined} />}
+          {ctx.open && <Composer action={commentOnWorkItem} fields={{ ...base, expectedShared: shared ? "yes" : "no" }} label={`Comment on ${itemLabel}`} placeholder="Write a comment" max={TEXT_MAX} audiences={shared ? AUDIENCES : undefined} />}
         </section>
       </div>
     </WorkPanelShell>

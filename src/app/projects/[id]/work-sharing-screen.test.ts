@@ -55,16 +55,53 @@ describe("sharing with the contractor: the staff screens (workspace 3b step 5; W
     expect(panel).toMatch(/ctx\.open && !shared && !f\.withdrawnAt/);
     expect(panel).toContain("removeFileFaults(");
     expect(panel).toContain("removeFileWords(");
-    expect(panel).toContain("Seen by " + "$" + "{contractor}");
+    expect(panel).toContain("Visible to " + "$" + "{contractor}");
+    expect(panel).not.toContain("Seen by");
     expect(panel).toContain('"Staff only"');
   });
 
-  it("the Project team card says when there is no project manager, and names the lead where the reader may not change the team", () => {
+  it("the Project team card says when there is no project manager, names who may change the team where the reader may not, and locks with a popover when nobody may (WSEC-2, WSEC-8)", () => {
     const card = src("project-team-card.tsx");
-    expect(card).toContain('title="No project manager"');
-    expect(card).toContain("teamFaultText({ code: \"NOT_LEAD\" }, leadWords)");
+    expect(card).toContain('"No project manager"');
+    expect(card).toContain("TEAM_LOCKED_WORDS");
+    expect(card).toContain("teamFaultText({ code: \"NOT_LEAD\" }, changers.words)");
+    expect(card).toContain("teamChangeFaults(reader, changers.ids)");
+    expect(card).toContain("may see these names on shared items");
     expect(card).toContain("<Blocked");
     expect(card).toContain("m.roleLabel");
     expect(src("page.tsx")).toContain("<ProjectTeamCard");
   });
+
+  it("WSEC-1: the composer and the file attacher post the share state the page was drawn with", () => {
+    const panel = src("work-item-panel.tsx");
+    expect(panel).toContain('expectedShared: shared ? "yes" : "no"');
+    expect(panel).toContain("<AttachFiles {...base} shared={shared} />");
+    const controls = src("work-controls.tsx");
+    expect(controls).toContain('next.set("expectedShared", shared ? "yes" : "no")');
+    // The server reads it strictly: missing or anything but yes/no is unreadable.
+    const actions = src("work-actions.ts");
+    expect(actions).toContain('v === "yes" ? true : v === "no" ? false : null');
+    expect(actions.match(/expectedShared === null\) return UNREADABLE/g)).toHaveLength(2);
+  });
+
+  it("WSEC-4: a Send back that will be a Reply says the contractor will see it, in the drawer; one that stays internal says nothing", () => {
+    const panel = src("work-item-panel.tsx");
+    expect(panel).toContain('sendBackSeenBy={commentAudience(c, "STAFF", null, "SEND_BACK") === "REPLY" ? contractor : null}');
+    const editors = src("work-editors.tsx");
+    expect(editors).toContain("sendBackSeenBy ? [{ kind: \"note\" as const, text: `" + "$" + "{sendBackSeenBy} will see this.` }] : []");
+  });
+
+  it("WSEC-9: the Answer carries a Draft badge, with its popover, while the contractor holds the RFI and has not sent it", () => {
+    const panel = src("work-item-panel.tsx");
+    expect(panel).toContain("answerIsDraft(c)");
+    expect(panel).toContain("has not yet sent it for checking.");
+    expect(panel).toContain('text: "Draft"');
+  });
+
+  it("WSEC-6: every file on the item says what its scan says, in the existing label, whoever uploaded it", () => {
+    const panel = src("work-item-panel.tsx");
+    expect(panel).toContain("f.scanLabel === SCAN_LABEL.NOT_SCANNED ? NOT_SCANNED_LABEL : f.scanLabel");
+    expect(panel).not.toContain("Seen by");
+  });
 });
+
