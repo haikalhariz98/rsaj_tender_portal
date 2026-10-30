@@ -3,12 +3,13 @@ import { describe, expect, it } from "vitest";
 import { BOARD_COLUMN_CAP, BOARD_DONE_DAYS, boardColumns, cardMoves, closedRecently, type BoardItem } from "./board";
 import { FIXTURE_ITEMS, FIXTURE_TODAY } from "./items.fixture";
 import type { WhoNames } from "./labels";
+import { person } from "./party";
 import type { WorkActor } from "./types";
 import { compareItems } from "./views";
 
 /** The Board (0008 §5.3): four columns, no Cancelled, Done for 14 days, 50 a column, the list's order; each card's moves from `moveFaults`. */
 
-const card = (o: Partial<BoardItem> = {}): BoardItem => ({ id: "c", type: "TASK", number: 1, status: "TO_DO", raisedBy: "hafiz", assignee: "aisyah", dueOn: null, answer: "", inspectionResult: null, title: "T", priority: "NORMAL", closedOn: null, ...o });
+const card = (o: Partial<BoardItem> = {}): BoardItem => ({ id: "c", type: "TASK", number: 1, status: "TO_DO", raisedBy: person("hafiz"), assignee: person("aisyah"), sharedAt: null, dueOn: null, answer: "", inspectionResult: null, title: "T", priority: "NORMAL", closedOn: null, ...o });
 
 describe("boardColumns", () => {
   const cols = boardColumns(FIXTURE_ITEMS, FIXTURE_TODAY);
@@ -61,7 +62,7 @@ describe("boardColumns", () => {
 
 describe("cardMoves", () => {
   const who: WhoNames = { raiser: "Hafiz", assignee: "Aisyah", lead: { roleLabel: "S.O.", names: ["Nurul"] } };
-  const as = (personId: string): WorkActor => ({ personId, leadIds: ["nurul"], mayReadContract: true });
+  const as = (personId: string): WorkActor => ({ side: "STAFF", personId, leadIds: ["nurul"], mayReadContract: true });
   const ctx = { contractOpen: true, who };
 
   it("the assignee drags To do to In progress or In review; never to Done when someone else raised it", () => {

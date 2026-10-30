@@ -214,6 +214,7 @@ export async function checkWorkDemo(db: Db) {
   const { dayOf, dayPlus, dayOrNull } = await import("../src/lib/dates");
   const { BOARD_DONE_DAYS } = await import("../src/lib/work/board");
   const { WORK_ITEM_TYPES } = await import("../src/lib/work/types");
+  const { assigneeOf, raiserOf } = await import("../src/lib/work/party");
   const fail = (what: string) => {
     throw new Error(`demo check (work items): ${what}`);
   };
@@ -222,7 +223,7 @@ export async function checkWorkDemo(db: Db) {
   if (!today) fail("the organisation has no time zone");
   const rows = await db.workItem.findMany({ where: { contractId: CON } });
   for (const t of WORK_ITEM_TYPES) if (rows.filter((r) => r.type === t).length < 2) fail(`fewer than two of ${t}`);
-  const read = rows.map((r) => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: r.raisedByPersonId!, assignee: r.assigneePersonId, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult, title: r.title, priority: r.priority }));
+  const read = rows.map((r) => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), sharedAt: r.sharedAt?.toISOString() ?? null, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult, title: r.title, priority: r.priority }));
   const count = (v: Parameters<typeof inView>[1]) => read.filter((r) => inView(r, v, { personId: "" }, today)).length;
   if (count("late") < 2) fail(`${count("late")} late`);
   if (count("unassigned") < 2) fail(`${count("unassigned")} unassigned`);
@@ -233,7 +234,7 @@ export async function checkWorkDemo(db: Db) {
   const windowStart = dayPlus(today!, -(BOARD_DONE_DAYS - 1));
   const closedDays = rows.filter((r) => r.status === "DONE").map((r) => dayOf(r.closedAt!, org.timeZone)!);
   if (!closedDays.some((d) => d >= windowStart) || !closedDays.some((d) => d < windowStart)) fail("done items are not both inside and outside the Done window");
-  const second = (await db.workItem.findMany({ where: { contractId: CON2 } })).map((r) => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: r.raisedByPersonId!, assignee: r.assigneePersonId, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult, title: r.title, priority: r.priority }));
+  const second = (await db.workItem.findMany({ where: { contractId: CON2 } })).map((r) => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), sharedAt: r.sharedAt?.toISOString() ?? null, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult, title: r.title, priority: r.priority }));
   // A database loaded before demo_con15 existed has none: its round was skipped, as the loader says.
   if (await db.contract.findUnique({ where: { id: CON2 }, select: { id: true } })) {
     for (const t of WORK_ITEM_TYPES.filter((x) => x !== "DEFECT")) if (!second.some((r) => r.type === t)) fail(`${CON2} has no ${t}`);

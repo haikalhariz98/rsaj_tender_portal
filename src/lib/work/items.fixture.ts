@@ -6,6 +6,7 @@
  */
 
 import type { BoardItem } from "./board";
+import { CONTRACTOR, person } from "./party";
 import { WORK_ITEM_TYPES, type InspectionResult, type WorkPriority, type WorkStatus } from "./types";
 
 export const FIXTURE_TODAY = "2026-11-05";
@@ -27,8 +28,9 @@ export const FIXTURE_ITEMS: BoardItem[] = Array.from({ length: 40 }, (_, i) => {
     type,
     number: Math.floor(i / 7) + 1,
     status,
-    raisedBy: i % 3 === 0 ? "hafiz" : "nurul",
-    assignee: ASSIGNEES[i % 4],
+    raisedBy: person(i % 3 === 0 ? "hafiz" : "nurul"),
+    assignee: ASSIGNEES[i % 4] === null ? null : person(ASSIGNEES[i % 4]!),
+    sharedAt: null,
     dueOn: DUES[i % 6] ?? (type === "RFI" || type === "SITE_INSTRUCTION" ? "2026-11-20" : null),
     answer: type === "RFI" && i % 2 === 0 ? "150 c/c governs" : "",
     inspectionResult: type === "INSPECTION" ? RESULTS[i % 3] : null,
@@ -37,3 +39,37 @@ export const FIXTURE_ITEMS: BoardItem[] = Array.from({ length: 40 }, (_, i) => {
     closedOn: status === "DONE" || status === "CANCELLED" ? CLOSED_ON[i % 4] : null,
   };
 });
+
+/// 3b: items the contractor holds or raised, and shared items staff hold, on the same contract, so the "Waiting on {contractor}" view, the Shared filter
+/// and the contractor assignee filter are judged against rows they must and must not match. Kept apart from the forty so 3a's counts stand; step 3's store
+/// test seeds both. Each keeps the 3b CHECKs: a contractor party is shared, and the contractor raises only an RFI or a safety incident.
+const SHARED_AT = "2026-11-01T02:00:00.000Z";
+export const FIXTURE_CONTRACTOR_ITEMS: BoardItem[] = (
+  [
+    // [type, status, raised by the contractor, assignee: "C" the contractor, a person, or null]; every one shared
+    ["RFI", "TO_DO", false, "C"],
+    ["SITE_INSTRUCTION", "IN_PROGRESS", false, "C"],
+    ["INSPECTION", "IN_REVIEW", false, "C"],
+    ["TASK", "DONE", false, "C"],
+    ["RFI", "IN_REVIEW", true, "aisyah"],
+    ["RFI", "IN_PROGRESS", true, "aisyah"],
+    ["SAFETY_INCIDENT", "IN_REVIEW", true, null],
+    ["SAFETY_INCIDENT", "CANCELLED", true, "hafiz"],
+    ["ACTION", "TO_DO", false, "aisyah"],
+    ["DEFECT", "IN_PROGRESS", false, null],
+  ] as const
+).map(([type, status, byContractor, assignee], i) => ({
+  id: `shared-${String(i).padStart(2, "0")}`,
+  type,
+  number: 100 + i,
+  status,
+  raisedBy: byContractor ? CONTRACTOR : person("hafiz"),
+  assignee: assignee === "C" ? CONTRACTOR : assignee === null ? null : person(assignee),
+  sharedAt: SHARED_AT,
+  dueOn: type === "RFI" || type === "SITE_INSTRUCTION" ? DUES[(i % 5) + 1] : null,
+  answer: type === "RFI" && status === "IN_REVIEW" ? "Use detail 4" : "",
+  inspectionResult: type === "INSPECTION" ? "FAILED" : null,
+  title: `${TITLES[i % 5]} shared ${i}`,
+  priority: PRIORITIES[i % 4],
+  closedOn: status === "DONE" || status === "CANCELLED" ? CLOSED_ON[i % 4] : null,
+}));

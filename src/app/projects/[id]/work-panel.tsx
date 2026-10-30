@@ -19,9 +19,10 @@ import { formatDate } from "@/lib/format";
 import { cardMoves } from "@/lib/work/board";
 import { typeOfferable } from "@/lib/work/fields";
 import { filtersOf, parseWorkQuery, reset, workHref, workServerMode, type WorkQuery } from "@/lib/work/href";
-import { itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, NO_WORK_WORDS, STATUS_WORDS, VIEW_EMPTY_WORDS, VIEW_WORDS, whoCanWords, type WhoNames } from "@/lib/work/labels";
+import { itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WORD, NO_WORK_WORDS, STATUS_WORDS, VIEW_EMPTY_WORDS, viewWords, whoCanWords, type WhoNames } from "@/lib/work/labels";
 import { lateness } from "@/lib/work/late";
 import { assigneeOptions, linkOptions, loadBoard, loadWorkContext, loadWorkList, namesOf, WORK_SORT_KEYS, type WorkCardRow, type WorkSortKey } from "@/lib/work/load";
+import { personIdOf } from "@/lib/work/party";
 import type { WorkActor } from "@/lib/work/types";
 import { WORK_VIEWS } from "@/lib/work/views";
 
@@ -50,7 +51,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
   const { context: ctx } = loaded;
   // The act x status table's row for Work, stated once to every drawer and control beneath (ActGate); the acts ask it again under the lock.
   const shut = actStatusBlocker("WORK_ITEM", ctx.contractStatus);
-  const reader: WorkActor = { personId: actor.personId, leadIds: ctx.lead.ids, mayReadContract: true };
+  const reader: WorkActor = { side: "STAFF", personId: actor.personId, leadIds: ctx.lead.ids, mayReadContract: true };
   const base = { organisationId: org, contractId, viewerId: actor.personId, view: q.view, filters: filtersOf(q), today: ctx.today, timeZone: ctx.timeZone };
   const notJudged = q.view === "late" && ctx.today === null;
   const [people, linkOpts, leadNames] = await Promise.all([assigneeOptions({ organisationId: org }), linkOptions({ organisationId: org, contractId }), namesOf(db, org, ctx.lead.ids)]);
@@ -63,7 +64,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
     <Segmented as="nav" aria-label="Work views" className="flex-wrap">
       {WORK_VIEWS.map((v) => (
         <Segment key={v} on={q.view === v} href={at({ view: v, ...reset })} scroll={false}>
-          {VIEW_WORDS[v].en}
+          {viewWords(v, l.award.awardeeName).en}
         </Segment>
       ))}
     </Segmented>
@@ -177,7 +178,7 @@ export async function WorkPanel({ actor, l, sp }: { actor: StaffActor; l: Loaded
             fields: { ...fields, from: r.status },
             disabledWhy: moves.moves.length === 0 ? (moves.stuckWhy ?? (ctx.open ? whoCanWords("MARK_DONE", w).en : why)) : undefined,
           },
-          assignee: inline ? edit("assigneePersonId", r.assignee ?? "", [{ value: "", label: "Unassigned" }, ...peopleOptions], "Assignee") : r.assigneeName ? { kind: "person", name: r.assigneeName } : { kind: "text", text: "Unassigned", dim: true },
+          assignee: inline ? edit("assigneePersonId", personIdOf(r.assignee) ?? "", [{ value: "", label: "Unassigned" }, ...peopleOptions], "Assignee") : r.assigneeName ? { kind: "person", name: r.assigneeName } : { kind: "text", text: "Unassigned", dim: true },
           due: lateText ? { kind: "chip", text: `${dueText} · ${lateText}`, tone: "err" } : { kind: "text", text: dueText || "No due date", dim: !dueText },
           priority: edit("priority", r.priority, PRIORITY_OPTIONS, "Priority"),
         },

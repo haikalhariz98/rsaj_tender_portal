@@ -3,8 +3,24 @@ import { describe, expect, it } from "vitest";
 import { COMPLETED_CONTRACT_STATUSES } from "@/lib/contract/case-stage";
 
 import { LOCATION_MAX, TEXT_MAX, TITLE_MAX } from "./bounds";
-import { commentFaults, fieldFaults, mayEdit, newItemFaults, parseFieldEdit, parseNewItem, typeHasField, typeOfferable, type FieldFacts, type NewItem } from "./fields";
+import {
+  commentFaults,
+  CONTRACTOR_ASSIGNEE,
+  CONTRACTOR_RAISE_TYPES,
+  contractorRaiseFaults,
+  fieldFaults,
+  mayEdit,
+  newItemFaults,
+  parseFieldEdit,
+  parseNewItem,
+  typeHasField,
+  typeOfferable,
+  type ContractorRaise,
+  type FieldFacts,
+  type NewItem,
+} from "./fields";
 import type { WhoNames } from "./labels";
+import { CONTRACTOR, person } from "./party";
 import { WORK_ITEM_TYPES, type WorkActor, type WorkItemFacts, type WorkItemType } from "./types";
 
 /** The item's fields (plan §3.4; W-3; 0008 §4.1, §4.3): parsed by hand, required per type, bounded, and edited only by those on the item. */
@@ -24,6 +40,8 @@ describe("parseNewItem", () => {
       dueOn: "2026-11-10",
       location: "",
       assigneePersonId: "aisyah",
+      assignedToContractor: false,
+      share: false,
       answer: "",
       impact: null,
       inspectionResult: null,
@@ -68,6 +86,8 @@ const base = (type: WorkItemType, o: Partial<NewItem> = {}): NewItem => ({
   dueOn: null,
   location: "",
   assigneePersonId: null,
+  assignedToContractor: false,
+  share: false,
   answer: "",
   impact: null,
   inspectionResult: type === "INSPECTION" ? "NOT_YET" : null,
@@ -176,8 +196,8 @@ describe("commentFaults", () => {
 
 describe("fieldFaults: who edits, and when (W-3)", () => {
   const who: WhoNames = { raiser: "Hafiz", assignee: "Aisyah", lead: { roleLabel: "S.O.", names: ["Nurul"] } };
-  const item = (o: Partial<WorkItemFacts> = {}): WorkItemFacts => ({ id: "w1", type: "RFI", number: 12, status: "IN_PROGRESS", raisedBy: "hafiz", assignee: "aisyah", dueOn: "2026-11-10", answer: "", inspectionResult: null, ...o });
-  const as = (personId: string, mayReadContract = true): WorkActor => ({ personId, leadIds: ["nurul"], mayReadContract });
+  const item = (o: Partial<WorkItemFacts> = {}): WorkItemFacts => ({ id: "w1", type: "RFI", number: 12, status: "IN_PROGRESS", raisedBy: person("hafiz"), assignee: person("aisyah"), sharedAt: null, dueOn: "2026-11-10", answer: "", inspectionResult: null, ...o });
+  const as = (personId: string, mayReadContract = true): WorkActor => ({ side: "STAFF", personId, leadIds: ["nurul"], mayReadContract });
   const f = { ...FACTS, who };
 
   it("the raiser, the assignee and the lead edit; anyone else sees who can", () => {
@@ -229,5 +249,74 @@ describe("typeOfferable", () => {
       expect(typeOfferable("DEFECT", s), s).toBe(false);
       expect(typeOfferable("TASK", s), s).toBe(true);
     }
+  });
+});
+
+describe("3b: the contractor as a party in the fields (B-10, B-11, B-15; WB-6)", () => {
+  const SHARED = "2026-11-01T02:00:00.000Z";
+  const who: WhoNames = { raiser: "Binaan Jaya Sdn Bhd", assignee: "Aisyah", lead: { roleLabel: "S.O.", names: ["Nurul"] } };
+  const f = { ...FACTS, who };
+  const C: WorkActor = { side: "CONTRACTOR", personId: null, leadIds: [], mayReadContract: true };
+  const as = (personId: string): WorkActor => ({ side: "STAFF", personId, leadIds: ["nurul"], mayReadContract: true });
+  const rfi = (o: Partial<WorkItemFacts> = {}): WorkItemFacts => ({ id: "w1", type: "RFI", number: 12, status: "IN_PROGRESS", raisedBy: person("hafiz"), assignee: CONTRACTOR, sharedAt: SHARED, dueOn: "2026-11-10", answer: "", inspectionResult: null, ...o });
+
+  it("the contractor writes the Answer of a shared RFI it holds while open, judged like staff's", () => {
+    expect(fieldFaults(rfi(), C, { field: "answer", value: "Use detail 4" }, f)).toEqual([]);
+    expect(fieldFaults(rfi(), C, { field: "answer", value: "a".repeat(TEXT_MAX + 1) }, f)).toEqual([{ code: "TOO_LONG", field: "answer", max: TEXT_MAX }]);
+  });
+  it("any other field, any other type, an item it does not hold, or one not shared: refused, naming the field", () => {
+    expect(fieldFaults(rfi(), C, { field: "dueOn", value: "2026-12-01" }, f)).toEqual([{ code: "CONTRACTOR_MAY_NOT_EDIT", field: "dueOn" }]);
+    expect(fieldFaults(rfi(), C, { field: "title", value: "x" }, f)).toEqual([{ code: "CONTRACTOR_MAY_NOT_EDIT", field: "title" }]);
+    expect(fieldFaults(rfi({ type: "SITE_INSTRUCTION" }), C, { field: "answer", value: "x" }, f)).toEqual([{ code: "CONTRACTOR_MAY_NOT_EDIT", field: "answer" }]);
+    expect(fieldFaults(rfi({ assignee: person("aisyah") }), C, { field: "answer", value: "x" }, f)).toEqual([{ code: "CONTRACTOR_MAY_NOT_EDIT", field: "answer" }]);
+    expect(fieldFaults(rfi({ raisedBy: CONTRACTOR, assignee: person("aisyah") }), C, { field: "answer", value: "x" }, f)).toEqual([{ code: "CONTRACTOR_MAY_NOT_EDIT", field: "answer" }]);
+    expect(fieldFaults(rfi({ sharedAt: null }), C, { field: "answer", value: "x" }, f)).toEqual([{ code: "CONTRACTOR_MAY_NOT_EDIT", field: "answer" }]);
+    expect(fieldFaults(rfi(), { ...C, mayReadContract: false }, { field: "answer", value: "x" }, f)).toEqual([{ code: "CONTRACTOR_MAY_NOT_EDIT", field: "answer" }]);
+  });
+  it("a closed item is closed for the contractor too", () => {
+    expect(fieldFaults(rfi({ status: "DONE" }), C, { field: "answer", value: "x" }, f)).toEqual([{ code: "CLOSED_ITEM" }]);
+  });
+  it("on a contractor-raised item staff's editors are the assignee and the lead (no staff raiser)", () => {
+    const raised = rfi({ raisedBy: CONTRACTOR, assignee: person("aisyah") });
+    expect(["aisyah", "nurul", "hafiz"].map((p) => mayEdit(raised, as(p)))).toEqual([true, true, false]);
+    expect(mayEdit(rfi(), as("hafiz"))).toBe(true); // the staff raiser of a contractor-held item
+    expect(mayEdit(rfi(), C)).toBe(false);
+  });
+  it("'{contractor}' in the assignee dropdown parses to the company, never a person id; it needs no eligibility", () => {
+    expect(parseFieldEdit("assigneePersonId", CONTRACTOR_ASSIGNEE, KL)).toEqual({ field: "assignedToContractor", value: true });
+    expect(parseFieldEdit("assigneePersonId", " contractor ", KL)).toEqual({ field: "assignedToContractor", value: true });
+    expect(parseFieldEdit("assignedToContractor", "true", KL)).toBeNull(); // only through the assignee dropdown
+    expect(fieldFaults(rfi({ assignee: person("aisyah") }), as("hafiz"), { field: "assignedToContractor", value: true }, f)).toEqual([]);
+  });
+  it("New item: '{contractor}' as the assignee sets the flag and no person", () => {
+    const n = parseNewItem(form({ type: "TASK", title: "Clear the site", assigneePersonId: CONTRACTOR_ASSIGNEE }), KL)!;
+    expect([n.assigneePersonId, n.assignedToContractor]).toEqual([null, true]);
+    expect(newItemFaults(n, { ...FACTS, contractStatus: "ACTIVE" })).toEqual([]);
+  });
+});
+
+describe("contractorRaiseFaults (B-8, B-15)", () => {
+  const raise = (o: Partial<ContractorRaise>): ContractorRaise => ({ type: "RFI", title: "Lintel depth at grid 4", description: "", location: "", dueOn: "2026-11-12", severity: null, happenedAt: null, ...o });
+  const facts = { now: NOW, timeZone: KL };
+
+  it("a question (RFI) with its 'Answer needed by' date is fine; without it, the date is asked", () => {
+    expect(contractorRaiseFaults(raise({}), facts)).toEqual([]);
+    expect(contractorRaiseFaults(raise({ dueOn: null }), facts)).toEqual([{ code: "DUE_NEEDED" }]);
+  });
+  it("an incident needs its severity and a time that has come", () => {
+    const incident = raise({ type: "SAFETY_INCIDENT", dueOn: null, severity: "NEAR_MISS", happenedAt: new Date(NOW.getTime() - 60_000) });
+    expect(contractorRaiseFaults(incident, facts)).toEqual([]);
+    expect(contractorRaiseFaults({ ...incident, happenedAt: NOW }, facts)).toEqual([]); // now is not the future
+    expect(contractorRaiseFaults({ ...incident, happenedAt: new Date(NOW.getTime() + 1) }, facts)).toEqual([{ code: "HAPPENED_IN_FUTURE" }]);
+    expect(contractorRaiseFaults({ ...incident, severity: null, happenedAt: null }, facts)).toEqual([{ code: "SEVERITY_NEEDED" }, { code: "HAPPENED_AT_NEEDED" }]);
+    expect(contractorRaiseFaults({ ...incident, happenedAt: null }, { now: NOW, timeZone: null })).toEqual([{ code: "NEEDS_TIME_ZONE" }]);
+  });
+  it("any other type is refused alone", () => {
+    for (const t of WORK_ITEM_TYPES.filter((x) => !CONTRACTOR_RAISE_TYPES.includes(x))) expect(contractorRaiseFaults(raise({ type: t, title: "" }), facts), t).toEqual([{ code: "NOT_CONTRACTOR_TYPE" }]);
+    expect(CONTRACTOR_RAISE_TYPES).toEqual(["RFI", "SAFETY_INCIDENT"]);
+  });
+  it("a title is needed; a field of the other type is refused", () => {
+    expect(contractorRaiseFaults(raise({ title: "" }), facts)).toEqual([{ code: "TITLE_NEEDED" }]);
+    expect(contractorRaiseFaults(raise({ severity: "FIRST_AID" }), facts)).toEqual([{ code: "NOT_THIS_TYPE", field: "severity" }]);
   });
 });

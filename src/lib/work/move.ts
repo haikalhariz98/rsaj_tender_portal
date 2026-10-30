@@ -18,6 +18,7 @@
 
 import { TEXT_MAX, textLength } from "./bounds";
 import { whoCanWords, type WhoNames } from "./labels";
+import { isContractor, sameParty } from "./party";
 import type { MoveFault, PrimaryActions, WorkAction, WorkActor, WorkItemFacts, WorkStatus } from "./types";
 
 export const OPEN_STATUSES: readonly WorkStatus[] = ["TO_DO", "IN_PROGRESS", "IN_REVIEW"];
@@ -51,13 +52,25 @@ export function actionOf(from: WorkStatus, to: WorkStatus): WorkAction | null {
 /// The status an action takes an item to.
 export const TARGET: Readonly<Record<WorkAction, WorkStatus>> = { START: "IN_PROGRESS", SEND_FOR_REVIEW: "IN_REVIEW", MARK_DONE: "DONE", SEND_BACK: "IN_PROGRESS", CANCEL: "CANCELLED", REOPEN: "TO_DO" };
 
+/// Who the actor is on the item. The contractor is a party only as the company, only on a shared item, and is never the lead.
 function rolesOf(item: WorkItemFacts, actor: WorkActor) {
-  const on = actor.mayReadContract;
+  if (actor.side === "CONTRACTOR") {
+    const on = actor.mayReadContract && item.sharedAt !== null;
+    return { raiser: on && isContractor(item.raisedBy), assignee: on && isContractor(item.assignee), lead: false };
+  }
+  const on = actor.mayReadContract && actor.personId !== null;
+  const me = actor.personId;
   return {
-    raiser: on && actor.personId === item.raisedBy,
-    assignee: on && item.assignee === actor.personId,
-    lead: on && actor.leadIds.includes(actor.personId),
+    raiser: on && item.raisedBy.kind === "PERSON" && item.raisedBy.id === me,
+    assignee: on && item.assignee?.kind === "PERSON" && item.assignee.id === me,
+    lead: on && me !== null && actor.leadIds.includes(me),
   };
+}
+
+/// The moves the contractor never makes (0008 §4.2): Start, Cancel, Reopen and the shortcut. It sends for checking as assignee, and accepts or asks again
+/// as raiser (3b B-9).
+function contractorMayAttempt(action: WorkAction, from: WorkStatus): boolean {
+  return action === "SEND_FOR_REVIEW" || action === "SEND_BACK" || (action === "MARK_DONE" && from === "IN_REVIEW");
 }
 
 /// What closing needs on its type: an RFI's answer, an inspection's Passed.
@@ -78,7 +91,8 @@ export function moveFaults(item: WorkItemFacts, actor: WorkActor, to: WorkStatus
   const r = rolesOf(item, actor);
   const raiserOrLead = r.raiser || r.lead;
   // The shortcut's shape: nobody else holds the item, so there is nobody to review it for.
-  const selfHeld = item.assignee === null || item.assignee === item.raisedBy;
+  const selfHeld = item.assignee === null || sameParty(item.assignee, item.raisedBy);
+  if (actor.side === "CONTRACTOR" && !contractorMayAttempt(action, from)) return [{ code: "NOT_FOR_CONTRACTOR" }];
   const out: MoveFault[] = [];
   switch (action) {
     case "START":
@@ -140,4 +154,13 @@ export function primaryActions(item: WorkItemFacts, reader: WorkActor, ctx: { co
     ? undefined
     : judged.find((j) => PRIMARY_ELIGIBLE.includes(j.action) && j.faults.some((f) => f.code === "ONLY_ASSIGNEE" || f.code === "ONLY_RAISER_OR_LEAD" || f.code === "ONLY_ASSIGNEE_RAISER_OR_LEAD"));
   return { primary, menu, disabled: refusedByPerson ? { action: refusedByPerson.action, whoCan: whoCanWords(refusedByPerson.action, ctx.who) } : null };
+}
+
+/// The faults the contractor clears itself: an RFI's answer (it writes it on an RFI it holds, WB-6) and Ask again's reply. It never sets a result (B-10).
+const CONTRACTOR_INPUT_FAULTS: readonly MoveFault["code"][] = ["ANSWER_NEEDED", "COMMENT_NEEDED"];
+
+/// The moves the contractor may make on an item now (3b B-9): Send for checking as assignee, Accept answer (Mark done) and Ask again (Send back) as raiser.
+export function contractorActions(item: WorkItemFacts, actor: WorkActor): WorkAction[] {
+  if (actor.side !== "CONTRACTOR") return [];
+  return CANDIDATES[item.status].filter((action) => moveFaults(item, actor, TARGET[action], item.status, { contractOpen: true }).every((f) => CONTRACTOR_INPUT_FAULTS.includes(f.code)));
 }

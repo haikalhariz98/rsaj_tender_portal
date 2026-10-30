@@ -39,23 +39,26 @@ export type MyWorkGroup = "TO_CHECK" | "LATE" | "TODAY" | "THIS_WEEK" | "LATER" 
 /** The formal acts shown as linked cards (3b-ii). */
 export type LinkedKind = "VARIATION" | "EOT_CLAIM" | "CERTIFICATE";
 
-/** What the move and field rules judge: read from the locked row. 3b step 2 adds the plan's section 3.2 fields and fault codes, the "contractor" view and
- *  the new notice kind: each forces words in labels.ts, so they land with the rules that use them. */
+/** What the move and field rules judge: read from the locked row. */
 export interface WorkItemFacts {
   id: string;
   type: WorkItemType;
   number: number;
   status: WorkStatus;
-  raisedBy: string; // Person id
-  assignee: string | null; // Person id
+  raisedBy: Party;
+  assignee: Party | null;
+  /// ISO instant the item was shared with the contractor; null = not shared (ADR 0049 D1).
+  sharedAt: string | null;
   dueOn: Day | null;
   answer: string; // RFI only; "" elsewhere
   inspectionResult: InspectionResult | null;
 }
 
-/** Who is acting, as the rules need it. `leadIds` is W-4's set (3b: the team's). */
+/** Who is acting, as the rules need it. `leadIds` is W-4's set (3b: the team's). The contractor acts as the company: `personId` is null on its side,
+ *  and `mayReadContract` means it holds the contract (`inHeldContract`). */
 export interface WorkActor {
-  personId: string;
+  side: "STAFF" | "CONTRACTOR";
+  personId: string | null;
   leadIds: readonly string[];
   mayReadContract: boolean;
 }
@@ -73,7 +76,8 @@ export type MoveFault =
   | { code: "RESULT_NOT_PASSED" } // Inspection to In review or Done unless Passed
   | { code: "REASON_NEEDED" } // Cancel
   | { code: "COMMENT_NEEDED" } // Send back
-  | { code: "TOO_LONG"; field: "cancelReason" | "comment"; max: number }; // Cancel's reason, Send back's comment
+  | { code: "TOO_LONG"; field: "cancelReason" | "comment"; max: number } // Cancel's reason, Send back's comment
+  | { code: "NOT_FOR_CONTRACTOR" }; // Start, Cancel, Reopen or the shortcut by the contractor (3b B-9)
 
 export type FieldFault =
   | { code: "TITLE_NEEDED" }
@@ -89,7 +93,13 @@ export type FieldFault =
   | { code: "ASSIGNEE_NOT_ELIGIBLE" } // not in `activeIds`: inactive, another organisation's, or unable to read the case
   | { code: "COMMENT_EMPTY" }
   | { code: "DEFECT_AFTER_COMPLETION" } // OQ-4 default
-  | { code: "OTHER_CONTRACT" }; // a link or "From" document on another contract
+  | { code: "OTHER_CONTRACT" } // a link or "From" document on another contract
+  | { code: "NOT_SHARED" } // a Reply on an item not shared when it is written (3b B-2; PA056)
+  | { code: "SHARE_IS_ONE_WAY" } // unsharing (ADR 0049 D1)
+  | { code: "CONTRACTOR_MAY_NOT_EDIT"; field: string } // the contractor edits only an RFI's Answer it holds (3b B-10)
+  | { code: "NOT_CONTRACTOR_TYPE" } // the contractor raises only an RFI or a safety incident (3b B-8)
+  | { code: "FILE_ON_SHARED_ITEM" } // Remove on a shared item (3b B-6)
+  | { code: "REASON_NEEDED" }; // Remove's reason (3b B-6)
 
 export type Lateness = { state: "LATE"; days: number } | { state: "DUE" } | { state: "NO_DUE" } | { state: "NOT_JUDGED" };
 
@@ -99,16 +109,20 @@ export interface PrimaryActions {
   disabled: { action: WorkAction; whoCan: Words } | null;
 }
 
-export type WorkView = "open" | "mine" | "late" | "unassigned" | "ncr" | "done";
+export type WorkView = "open" | "mine" | "late" | "unassigned" | "contractor" | "ncr" | "done";
 export type BoardColumn = "TO_DO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
 
-// Step 2 adds "WORK_ITEM_FROM_CONTRACTOR" here (already a StaffNotice kind, src/lib/inbox/kinds.ts), with its words in labels.ts.
-export type WorkNoticeKind = "WORK_ITEM_ASSIGNED" | "WORK_ITEM_TO_CHECK" | "WORK_ITEM_RETURNED" | "WORK_ITEM_COMMENT";
+export type WorkNoticeKind = "WORK_ITEM_ASSIGNED" | "WORK_ITEM_TO_CHECK" | "WORK_ITEM_RETURNED" | "WORK_ITEM_COMMENT" | "WORK_ITEM_FROM_CONTRACTOR";
 export interface WorkNoticeEvent {
   kind: WorkNoticeKind;
-  actorId: string;
-  raisedBy: string;
-  assignee: string | null;
+  /// The person who acted; null when the contractor acted (the `defect-store.ts` precedent).
+  actorId: string | null;
+  raisedBy: Party;
+  assignee: Party | null;
+  /// The lead (W-4; 3b the team's): told on every kind on an item the contractor raised (WS-17), and when nobody else is.
+  leadIds: readonly string[];
+  /// A contractor raise with no single default assignee: the role's holders, told instead (3b B-16, WB-8). `defaultAssignee`'s `told`.
+  roleHolders?: readonly string[];
   /// The audit row's id (`writeAudit` returns it) or the comment's id.
   occurrence: string;
   /// Active people of the item's organisation who may READ the case (a notice must not link someone to a case they cannot open). The caller builds it.

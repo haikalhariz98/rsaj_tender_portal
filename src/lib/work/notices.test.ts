@@ -4,13 +4,14 @@ import { STAFF_NOTICE_KIND_LABEL, STAFF_NOTICE_KINDS } from "@/lib/inbox/kinds";
 
 import { NOTICE_TITLE_WORDS } from "./labels";
 import { workItemHref, workNoticeDrafts, type NoticeItem } from "./notices";
+import { CONTRACTOR, person } from "./party";
 import type { WorkNoticeEvent, WorkNoticeKind } from "./types";
 
 /** The four staff notices (WS-17, W-10; 0008 §4.8): to the people each kind names, never the actor, never the inactive; the body names the item only. */
 
 const item: NoticeItem = { id: "w12", type: "RFI", number: 12, title: "Rebar spacing at grid C4", contractId: "c-1", contractNumber: "C-2026-014" };
 const ACTIVE = new Set(["hafiz", "aisyah", "nurul"]);
-const ev = (kind: WorkNoticeKind, o: Partial<WorkNoticeEvent> = {}): WorkNoticeEvent => ({ kind, actorId: "nurul", raisedBy: "hafiz", assignee: "aisyah", occurrence: "audit-1", activeIds: ACTIVE, ...o });
+const ev = (kind: WorkNoticeKind, o: Partial<WorkNoticeEvent> = {}): WorkNoticeEvent => ({ kind, actorId: "nurul", raisedBy: person("hafiz"), assignee: person("aisyah"), leadIds: [], occurrence: "audit-1", activeIds: ACTIVE, ...o });
 const to = (e: WorkNoticeEvent) => workNoticeDrafts(e, item).map((d) => d.recipientPersonId);
 
 describe("who is told", () => {
@@ -25,7 +26,7 @@ describe("who is told", () => {
     expect(to(ev("WORK_ITEM_ASSIGNED", { actorId: "aisyah" }))).toEqual([]);
     expect(to(ev("WORK_ITEM_COMMENT", { actorId: "hafiz" }))).toEqual(["aisyah"]);
     expect(to(ev("WORK_ITEM_COMMENT", { actorId: "aisyah" }))).toEqual(["hafiz"]);
-    expect(to(ev("WORK_ITEM_TO_CHECK", { actorId: "hafiz", assignee: "hafiz" }))).toEqual([]);
+    expect(to(ev("WORK_ITEM_TO_CHECK", { actorId: "hafiz", assignee: person("hafiz") }))).toEqual([]);
   });
 
   it("never an inactive person", () => {
@@ -34,7 +35,7 @@ describe("who is told", () => {
   });
 
   it("one notice per recipient per comment, even when the raiser is the assignee", () => {
-    expect(to(ev("WORK_ITEM_COMMENT", { assignee: "hafiz" }))).toEqual(["hafiz"]);
+    expect(to(ev("WORK_ITEM_COMMENT", { assignee: person("hafiz") }))).toEqual(["hafiz"]);
     expect(to(ev("WORK_ITEM_COMMENT", { assignee: null }))).toEqual(["hafiz"]);
     expect(to(ev("WORK_ITEM_RETURNED", { assignee: null }))).toEqual([]);
   });
@@ -82,3 +83,48 @@ describe("the kinds are the inbox's own (step 1)", () => {
     }
   });
 });
+
+describe("3b: the contractor in notices (B-16, B-17; WS-17, PW-13)", () => {
+  const LEAD = ["nurul"];
+  const all = new Set(["hafiz", "aisyah", "nurul", "ca", "ca2"]);
+
+  it("the contractor is never told: a contractor assignee names nobody", () => {
+    expect(to(ev("WORK_ITEM_ASSIGNED", { assignee: CONTRACTOR }))).toEqual([]);
+    expect(to(ev("WORK_ITEM_RETURNED", { assignee: CONTRACTOR }))).toEqual([]);
+    expect(to(ev("WORK_ITEM_COMMENT", { assignee: CONTRACTOR }))).toEqual(["hafiz"]);
+  });
+
+  it("From the contractor on a reply: the staff raiser and the staff assignee; the actor is null", () => {
+    expect(to(ev("WORK_ITEM_FROM_CONTRACTOR", { actorId: null }))).toEqual(["aisyah", "hafiz"]);
+    expect(to(ev("WORK_ITEM_FROM_CONTRACTOR", { actorId: null, assignee: CONTRACTOR, leadIds: LEAD, activeIds: all }))).toEqual(["hafiz"]);
+  });
+
+  it("on an item the contractor raised, the lead is told on every kind (WS-17)", () => {
+    const raised = { raisedBy: CONTRACTOR, leadIds: LEAD, activeIds: all };
+    expect(to(ev("WORK_ITEM_FROM_CONTRACTOR", { ...raised, actorId: null }))).toEqual(["aisyah", "nurul"]);
+    expect(to(ev("WORK_ITEM_TO_CHECK", { ...raised, actorId: "aisyah" }))).toEqual(["nurul"]); // Send for checking goes to the lead
+    expect(to(ev("WORK_ITEM_COMMENT", { ...raised, actorId: "aisyah" }))).toEqual(["nurul"]);
+    expect(to(ev("WORK_ITEM_ASSIGNED", { ...raised, actorId: "nurul" }))).toEqual(["aisyah"]); // the lead acted: not told
+    expect(to(ev("WORK_ITEM_RETURNED", { ...raised, actorId: null }))).toEqual(["aisyah", "nurul"]); // Ask again
+  });
+
+  it("a raise with no single default assignee tells the role's holders, or the lead when the role is empty (WB-8)", () => {
+    const raise = { raisedBy: CONTRACTOR, assignee: null, actorId: null, activeIds: all };
+    expect(to(ev("WORK_ITEM_FROM_CONTRACTOR", { ...raise, roleHolders: ["ca", "ca2"], leadIds: [] }))).toEqual(["ca", "ca2"]);
+    expect(to(ev("WORK_ITEM_FROM_CONTRACTOR", { ...raise, roleHolders: [], leadIds: LEAD }))).toEqual(["nurul"]);
+    expect(to(ev("WORK_ITEM_FROM_CONTRACTOR", { ...raise, roleHolders: [], leadIds: [] }))).toEqual([]);
+    // One holder: assigned, and told as the assignee.
+    expect(to(ev("WORK_ITEM_FROM_CONTRACTOR", { ...raise, assignee: person("ca"), leadIds: [] }))).toEqual(["ca"]);
+  });
+
+  it("never someone inactive, even the lead", () => {
+    expect(to(ev("WORK_ITEM_FROM_CONTRACTOR", { raisedBy: CONTRACTOR, assignee: null, actorId: null, leadIds: ["gone"], activeIds: all }))).toEqual([]);
+  });
+
+  it("the body names the item and the contract only, never the contractor (B-5)", () => {
+    const [d] = workNoticeDrafts(ev("WORK_ITEM_FROM_CONTRACTOR", { actorId: null }), item);
+    expect(d.title).toBe("From the contractor: RFI 12");
+    expect(d.body).toBe("RFI 12 · Rebar spacing at grid C4 · Contract C-2026-014");
+  });
+});
+

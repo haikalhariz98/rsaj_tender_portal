@@ -2,20 +2,27 @@ import { describe, expect, it } from "vitest";
 
 import {
   ACTION_WORDS,
+  contractorActorWords,
   enumValueWords,
   fieldFaultText,
   IMPACT_WORDS,
   itemRefText,
   moveFaultText,
   NOTICE_TITLE_WORDS,
+  PORTAL_ACTION_WORDS,
+  PORTAL_EMPTY_WORDS,
+  PORTAL_YOU_WORDS,
+  portalGroupWords,
   PRIORITY_WORDS,
   RESULT_WORDS,
   SEVERITY_WORDS,
   STATUS_WORDS,
+  TEAM_ROLE_WORDS,
   TYPE_SHORT,
   TYPE_WORDS,
   VIEW_EMPTY_WORDS,
   VIEW_WORDS,
+  viewWords,
   whoCanWords,
   type WhoNames,
 } from "./labels";
@@ -36,8 +43,10 @@ describe("every enum value has words, and none is its key", () => {
     ["severity", SEVERITY_WORDS, ["NEAR_MISS", "FIRST_AID", "MEDICAL_TREATMENT", "LOST_TIME", "DANGEROUS_OCCURRENCE"]],
     ["action", ACTION_WORDS, ["START", "SEND_FOR_REVIEW", "MARK_DONE", "SEND_BACK", "CANCEL", "REOPEN"]],
     ["view", VIEW_WORDS, ["open", "mine", "late", "unassigned", "ncr", "done"]],
-    ["empty view", VIEW_EMPTY_WORDS, ["open", "mine", "late", "unassigned", "ncr", "done"]],
-    ["notice", NOTICE_TITLE_WORDS, ["WORK_ITEM_ASSIGNED", "WORK_ITEM_TO_CHECK", "WORK_ITEM_RETURNED", "WORK_ITEM_COMMENT"]],
+    ["empty view", VIEW_EMPTY_WORDS, ["open", "mine", "late", "unassigned", "contractor", "ncr", "done"]],
+    ["notice", NOTICE_TITLE_WORDS, ["WORK_ITEM_ASSIGNED", "WORK_ITEM_TO_CHECK", "WORK_ITEM_RETURNED", "WORK_ITEM_COMMENT", "WORK_ITEM_FROM_CONTRACTOR"]],
+    ["team role", TEAM_ROLE_WORDS, ["PROJECT_MANAGER", "SITE_ENGINEER", "CONTRACT_ADMINISTRATOR", "CONSULTANT"]],
+    ["portal action", PORTAL_ACTION_WORDS, ["REPLY", "SEND_FOR_CHECKING", "MARK_AS_FIXED", "ACCEPT_ANSWER", "ASK_AGAIN", "OPEN"]],
   ] as const)("%s", (_, map, keys) => {
     expect(Object.keys(map).sort()).toEqual([...keys].sort());
     for (const [k, v] of Object.entries(map)) {
@@ -134,5 +143,37 @@ describe("every refusal is worded, with no code", () => {
     expect(fieldFaultText({ code: "TOO_LONG", field: "description", max: 10_000 })).toBe("Description is over 10,000 characters.");
     expect(fieldFaultText({ code: "NOT_THIS_TYPE", field: "inspectionResult" })).toBe("This type has no result.");
     expect(fieldFaultText({ code: "DEFECT_AFTER_COMPLETION" })).toBe("List defects in Close-out › Defects.");
+  });
+});
+
+describe("3b words", () => {
+  it("every new refusal is one sentence with no code", () => {
+    const fields: FieldFault[] = [
+      { code: "NOT_SHARED" },
+      { code: "SHARE_IS_ONE_WAY" },
+      { code: "CONTRACTOR_MAY_NOT_EDIT", field: "dueOn" },
+      { code: "NOT_CONTRACTOR_TYPE" },
+      { code: "FILE_ON_SHARED_ITEM" },
+      { code: "REASON_NEEDED" },
+    ];
+    for (const f of fields) {
+      const t = fieldFaultText(f);
+      expect(t, f.code).not.toMatch(CODE);
+      expect(t, f.code).toMatch(/^[A-Z].*\.$/);
+    }
+    const t = moveFaultText({ code: "NOT_FOR_CONTRACTOR" }, "CANCEL", who);
+    expect(t).not.toMatch(CODE);
+    expect(t).toBe("Only the organisation can do this.");
+  });
+
+  it("the contractor is the company, by the awardee's name (B-4)", () => {
+    expect(contractorActorWords("Binaan Jaya Sdn Bhd").en).toBe("Binaan Jaya Sdn Bhd");
+    expect(viewWords("contractor", "Binaan Jaya Sdn Bhd").en).toBe("Waiting on Binaan Jaya Sdn Bhd");
+    expect(viewWords("late", "Binaan Jaya Sdn Bhd")).toBe(VIEW_WORDS.late);
+  });
+
+  it("the portal's groups name the organisation; no code", () => {
+    expect((["WAITING_FOR_YOU", "WITH_ORG", "CLOSED"] as const).map((g) => portalGroupWords(g, "JKR").en)).toEqual(["Waiting for you", "With JKR", "Closed"]);
+    for (const x of [PORTAL_EMPTY_WORDS, PORTAL_YOU_WORDS]) expect(x.en).not.toMatch(CODE);
   });
 });

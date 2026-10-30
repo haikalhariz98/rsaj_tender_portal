@@ -43,6 +43,8 @@ import { activeAmong, leadOf, whoNamesOf, workAuditPrefix } from "./load";
 import { actionOf, isOpen, moveFaults, TARGET } from "./move";
 import { itemRef, nextNumber } from "./number";
 import { workNoticeDrafts, type NoticeItem } from "./notices";
+import { assigneeOf, person, raiserOf } from "./party";
+import { assigneePatch, sharedOnCreate } from "./sharing";
 import type { Day, FieldFault, WorkActor, WorkItemFacts, WorkNoticeKind, WorkStatus } from "./types";
 
 // ------------------------------------------------------------------ context and refusals
@@ -101,6 +103,8 @@ const ITEM_SELECT = {
   location: true,
   raisedByPersonId: true,
   assigneePersonId: true,
+  assignedToContractor: true,
+  sharedAt: true,
   answer: true,
   impact: true,
   inspectionResult: true,
@@ -118,19 +122,20 @@ async function lockedItem(c: WorkCtx, itemId: string): Promise<ItemRow> {
   return row ?? refuse("That item no longer exists.", 404);
 }
 
-const factsOf = (r: ItemRow): WorkItemFacts => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: r.raisedByPersonId!, assignee: r.assigneePersonId, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult });
+const factsOf = (r: ItemRow): WorkItemFacts => ({ id: r.id, type: r.type, number: r.number, status: r.status, raisedBy: raiserOf(r), assignee: assigneeOf(r), sharedAt: r.sharedAt?.toISOString() ?? null, dueOn: dayOrNull(r.dueOn), answer: r.answer, inspectionResult: r.inspectionResult });
 
 /// Who is acting, as the rules read them. Every active person of the organisation reads a contract's Work (see `load.ts`).
-const actorOf = (who: StaffActor, lead: { ids: string[] }): WorkActor => ({ personId: who.personId, leadIds: lead.ids, mayReadContract: true });
+const actorOf = (who: StaffActor, lead: { ids: string[] }): WorkActor => ({ side: "STAFF", personId: who.personId, leadIds: lead.ids, mayReadContract: true });
 
 /// The audit view of an item's columns: a day as its day, an instant as an ISO string (`renderValue` would cut a `Date` to its UTC day).
 const columnView = (r: ItemRow, field: EditableField | "status" | "cancelReason"): unknown => (field === "dueOn" ? dayOrNull(r.dueOn) : field === "happenedAt" ? (r.happenedAt?.toISOString() ?? null) : r[field]);
 
 /// Step 6: the notices of an act, one kind to the people the pure rule names (never the actor, never someone inactive).
 async function tell(c: WorkCtx, who: StaffActor, r: Pick<ItemRow, "id" | "type" | "number" | "title" | "raisedByPersonId">, assignee: string | null, kind: WorkNoticeKind, occurrence: string): Promise<void> {
+  // Step 3 passes the assignee as a party and the lead (told on every kind on an item the contractor raised, WS-17); 3a's items are all staff-raised.
   const activeIds = await activeAmong(c.tx, c.l.org.id, [r.raisedByPersonId, assignee, who.personId]);
   const item: NoticeItem = { id: r.id, type: r.type, number: r.number, title: r.title, contractId: c.l.contract.id, contractNumber: c.l.contract.number };
-  const wrote = await writeNotices(c.tx, c.l.org.id, who.personId, workNoticeDrafts({ kind, actorId: who.personId, raisedBy: r.raisedByPersonId!, assignee, occurrence, activeIds }, item));
+  const wrote = await writeNotices(c.tx, c.l.org.id, who.personId, workNoticeDrafts({ kind, actorId: who.personId, raisedBy: raiserOf(r), assignee: assignee === null ? null : person(assignee), leadIds: [], occurrence, activeIds }, item));
   if (c.told) c.told.count += wrote;
 }
 
@@ -160,6 +165,9 @@ export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: P
       location: n.location,
       raisedByPersonId: who.personId,
       assigneePersonId: n.assigneePersonId,
+      // Step 3 audits these two; the screens offer neither until step 5.
+      assignedToContractor: n.assignedToContractor,
+      sharedAt: sharedOnCreate(n) ? c.now : null,
       answer: n.type === "RFI" ? n.answer : "",
       impact: n.impact,
       inspectionResult: n.inspectionResult,
@@ -178,7 +186,13 @@ export async function createItem(c: WorkCtx, who: StaffActor, n: NewItem, act: P
 
 // ------------------------------------------------------------------ edit a field
 
-const columnData = (e: FieldEdit): Prisma.WorkItemUncheckedUpdateManyInput => (e.field === "dueOn" ? { dueOn: e.value === null ? null : dayToDate(e.value) } : ({ [e.field]: e.value } as Prisma.WorkItemUncheckedUpdateManyInput));
+/// The UPDATE of one field. An assignee change writes `assigneePatch`'s one UPDATE (one assignee form; the contractor's shares the item; step 3 audits `sharedAt`).
+const columnData = (e: FieldEdit, r: ItemRow, now: Date): Prisma.WorkItemUncheckedUpdateManyInput =>
+  e.field === "dueOn"
+    ? { dueOn: e.value === null ? null : dayToDate(e.value) }
+    : e.field === "assigneePersonId" || e.field === "assignedToContractor"
+      ? assigneePatch(r.sharedAt?.toISOString() ?? null, e, now)
+      : ({ [e.field]: e.value } as Prisma.WorkItemUncheckedUpdateManyInput);
 const editedView = (e: FieldEdit): unknown => (e.field === "happenedAt" ? (e.value?.toISOString() ?? null) : e.value);
 
 /// One field of an item (W-3: its raiser, its assignee or the lead; a closed item is read only until reopened). Setting an assignee tells them.
@@ -193,7 +207,7 @@ export async function editField(c: WorkCtx, who: StaffActor, i: { itemId: string
 
   const changes = diffFields({ [i.edit.field]: columnView(row, i.edit.field) }, { [i.edit.field]: editedView(i.edit) });
   if (changes.length === 0) return; // nothing moved: no write, no audit row
-  const done = await c.tx.workItem.updateMany({ where: { id: row.id, contractId: c.l.contract.id, organisationId: c.l.org.id, status: row.status }, data: columnData(i.edit) });
+  const done = await c.tx.workItem.updateMany({ where: { id: row.id, contractId: c.l.contract.id, organisationId: c.l.org.id, status: row.status }, data: columnData(i.edit, row, c.now) });
   if (done.count !== 1) refuse("Someone changed this a moment ago.", 409);
   const auditId = await audit(c, who, row, "WorkItem", row.id, row.title, "UPDATE", changes);
   if (i.edit.field === "assigneePersonId" && i.edit.value !== null) await tell(c, who, row, i.edit.value, "WORK_ITEM_ASSIGNED", auditId);
@@ -264,7 +278,7 @@ export async function comment(c: WorkCtx, who: StaffActor, i: { itemId: string; 
 async function mayLink(c: WorkCtx, who: StaffActor, row: ItemRow): Promise<void> {
   if (!isOpen(row.status)) return refuse(fieldFaultText({ code: "CLOSED_ITEM" }));
   const lead = await leadOf(c.l, c.today, c.tx);
-  if (!mayEdit({ raisedBy: row.raisedByPersonId!, assignee: row.assigneePersonId }, actorOf(who, lead))) refuse(whoCanWords("EDIT", await whoNamesOf(c.tx, c.l.org.id, row, lead)).en);
+  if (!mayEdit({ raisedBy: raiserOf(row), assignee: assigneeOf(row) }, actorOf(who, lead))) refuse(whoCanWords("EDIT", await whoNamesOf(c.tx, c.l.org.id, row, lead)).en);
 }
 
 /// Link the item to another item or to a project document of the same contract. The panel reads links both ways, so B to A is refused where A to B exists.

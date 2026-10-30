@@ -9,6 +9,9 @@
  * - Editing: a Done or Cancelled item is closed until reopened; only its raiser, its assignee or the lead edit it (W-3).
  * - Who may edit is `mayEdit`. `FieldFacts.activeIds` is the active people of the item's organisation who may READ the case; an assignee outside it is refused.
  * - Raising a Defect on a contract past practical completion is refused (OQ-4): the defect belongs in Close-out › Defects until 3b links the two.
+ * - 3b: the assignee dropdown's "{contractor}" posts `CONTRACTOR_ASSIGNEE` and parses to `assignedToContractor` (the company, WS-9), never a person id.
+ * - 3b B-10: the contractor edits one field, the Answer of an RFI it holds while open (WB-6); anything else is CONTRACTOR_MAY_NOT_EDIT. It raises only an
+ *   RFI or a safety incident (`contractorRaiseFaults`, B-15).
  */
 
 import { COMPLETED_CONTRACT_STATUSES } from "@/lib/contract/case-stage";
@@ -18,6 +21,7 @@ import { instantAt, isDay } from "@/lib/dates";
 import { LOCATION_MAX, TEXT_MAX, TITLE_MAX, textLength } from "./bounds";
 import { whoCanWords, type WhoNames } from "./labels";
 import { isOpen } from "./move";
+import { isContractor } from "./party";
 import { WORK_ITEM_TYPES, type Day, type FieldFault, type IncidentSeverity, type InspectionResult, type WorkActor, type WorkImpact, type WorkItemFacts, type WorkItemType, type WorkPriority } from "./types";
 
 const PRIORITIES: readonly WorkPriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
@@ -25,9 +29,16 @@ const IMPACTS: readonly WorkImpact[] = ["NONE", "COST", "TIME", "COST_AND_TIME"]
 const RESULTS: readonly InspectionResult[] = ["NOT_YET", "PASSED", "FAILED"];
 const SEVERITIES: readonly IncidentSeverity[] = ["NEAR_MISS", "FIRST_AID", "MEDICAL_TREATMENT", "LOST_TIME", "DANGEROUS_OCCURRENCE"];
 
-/// W-3: only its raiser, its assignee or the lead edit an item, and only a reader of the contract.
-export const mayEdit = (item: Pick<WorkItemFacts, "raisedBy" | "assignee">, actor: WorkActor): boolean =>
-  actor.mayReadContract && (actor.personId === item.raisedBy || actor.personId === item.assignee || actor.leadIds.includes(actor.personId));
+/// W-3: only its raiser, its assignee or the lead edit an item, and only a staff reader of the contract. On an item the contractor raised there is no
+/// staff raiser, so it is the assignee or the lead (3b B-11). The contractor's one edit is `fieldFaults`'.
+export function mayEdit(item: Pick<WorkItemFacts, "raisedBy" | "assignee">, actor: WorkActor): boolean {
+  const me = actor.personId;
+  if (actor.side !== "STAFF" || !actor.mayReadContract || me === null) return false;
+  return (item.raisedBy.kind === "PERSON" && item.raisedBy.id === me) || (item.assignee?.kind === "PERSON" && item.assignee.id === me) || actor.leadIds.includes(me);
+}
+
+/// The assignee dropdown's value for "{contractor}". Not a person id (ids are cuids), so it never reaches `assigneePersonId`.
+export const CONTRACTOR_ASSIGNEE = "contractor";
 
 /// A comment's faults (empty, over the text bound): `Composer`'s action asks before it saves.
 export function commentFaults(body: string): FieldFault[] {
@@ -41,6 +52,7 @@ export type FieldEdit =
   | { field: "priority"; value: WorkPriority }
   | { field: "dueOn"; value: Day | null }
   | { field: "assigneePersonId"; value: string | null }
+  | { field: "assignedToContractor"; value: true } // "{contractor}" picked: `assigneePatch` (sharing.ts) writes the one UPDATE
   | { field: "impact"; value: WorkImpact | null }
   | { field: "inspectionResult"; value: InspectionResult }
   | { field: "severity"; value: IncidentSeverity | null }
@@ -126,6 +138,7 @@ export function parseFieldEdit(field: string, raw: string, timeZone: string | nu
       return v === BAD ? null : { field, value: v };
     }
     case "assigneePersonId":
+      return raw.trim() === CONTRACTOR_ASSIGNEE ? { field: "assignedToContractor", value: true } : { field, value: idOrNull(raw) };
     case "fromDocumentId":
       return { field, value: idOrNull(raw) };
     default:
@@ -162,9 +175,14 @@ function valueFaults(type: WorkItemType, e: FieldEdit, facts: FieldFacts): Field
 
 const judge = (type: WorkItemType, e: FieldEdit, facts: FieldFacts): FieldFault[] => (typeHasField(type, e.field) ? valueFaults(type, e, facts) : [{ code: "NOT_THIS_TYPE", field: e.field }]);
 
+/// The contractor's one edit (3b B-10, WB-6): the Answer of a shared RFI it holds.
+const contractorMayEdit = (item: WorkItemFacts, actor: WorkActor, edit: FieldEdit): boolean =>
+  actor.mayReadContract && item.sharedAt !== null && item.type === "RFI" && isContractor(item.assignee) && edit.field === "answer";
+
 /// One field's edit on an item (W-3): a closed item refuses alone, then a reader who is not its raiser, assignee or lead, then the value.
 export function fieldFaults(item: WorkItemFacts, actor: WorkActor, edit: FieldEdit, facts: FieldFacts & { who: WhoNames }): FieldFault[] {
   if (!isOpen(item.status)) return [{ code: "CLOSED_ITEM" }];
+  if (actor.side === "CONTRACTOR") return contractorMayEdit(item, actor, edit) ? judge(item.type, edit, facts) : [{ code: "CONTRACTOR_MAY_NOT_EDIT", field: edit.field }];
   if (!mayEdit(item, actor)) return [{ code: "NOT_EDITABLE", whoCan: whoCanWords("EDIT", facts.who) }];
   return judge(item.type, edit, facts);
 }
@@ -178,6 +196,10 @@ export interface NewItem {
   dueOn: Day | null;
   location: string;
   assigneePersonId: string | null;
+  /// "{contractor}" picked as the assignee (then `assigneePersonId` is null); it shares the item (B-1).
+  assignedToContractor: boolean;
+  /// The drawer's "Share with {contractor}" toggle, as posted (`shareDefault` presets it). The quick-add row posts none: false.
+  share: boolean;
   answer: string;
   impact: WorkImpact | null;
   inspectionResult: InspectionResult | null;
@@ -196,6 +218,7 @@ export function parseNewItem(form: FormLike, timeZone: string | null): NewItem |
   const severity = oneOf(text(form, "severity"), SEVERITIES);
   const happenedAt = instantOrNull(text(form, "happenedAt"), timeZone);
   if (type === BAD || type === null || priority === BAD || dueOn === BAD || impact === BAD || result === BAD || severity === BAD || happenedAt === BAD) return null;
+  const toContractor = text(form, "assigneePersonId").trim() === CONTRACTOR_ASSIGNEE;
   return {
     type,
     title: text(form, "title").trim(),
@@ -203,7 +226,9 @@ export function parseNewItem(form: FormLike, timeZone: string | null): NewItem |
     priority: priority ?? "NORMAL",
     dueOn,
     location: text(form, "location").trim(),
-    assigneePersonId: idOrNull(text(form, "assigneePersonId")),
+    assigneePersonId: toContractor ? null : idOrNull(text(form, "assigneePersonId")),
+    assignedToContractor: toContractor,
+    share: text(form, "share") === "on",
     answer: text(form, "answer").trim(),
     impact,
     inspectionResult: result ?? (type === "INSPECTION" ? "NOT_YET" : null),
@@ -241,4 +266,35 @@ export function newItemFaults(n: NewItem, facts: FieldFacts & { contractStatus: 
   for (const e of own) if (typeHasField(n.type, e.field) || (e.value !== null && e.value !== "")) edits.push(e);
   for (const e of edits) out.push(...judge(n.type, e, facts));
   return out;
+}
+
+/// The types the contractor raises from the portal (0008 §4.1; 3b B-8, B-15): fixed, like the types (CHECK `WorkItem_contractor_raises_type`).
+export const CONTRACTOR_RAISE_TYPES: readonly WorkItemType[] = ["RFI", "SAFETY_INCIDENT"];
+
+/// What the portal's "Ask a question" and "Report an incident" send (B-15): no priority, assignee, answer or "From"; the store sets those.
+export interface ContractorRaise {
+  type: WorkItemType;
+  title: string;
+  description: string;
+  location: string;
+  /// "Answer needed by" on an RFI (required: the RFI CHECK).
+  dueOn: Day | null;
+  severity: IncidentSeverity | null;
+  happenedAt: Date | null;
+}
+
+/// A contractor's raise: another type is refused alone (NOT_CONTRACTOR_TYPE); then each field as staff's are judged, so an RFI needs its date, an incident
+/// its severity and a time not in the future, and a field of the other type is NOT_THIS_TYPE.
+export function contractorRaiseFaults(r: ContractorRaise, facts: Pick<FieldFacts, "now" | "timeZone">): FieldFault[] {
+  if (!CONTRACTOR_RAISE_TYPES.includes(r.type)) return [{ code: "NOT_CONTRACTOR_TYPE" }];
+  // No assignee or "From" is judged here, so neither fact is read.
+  const f: FieldFacts = { ...facts, activeIds: new Set(), fromDocumentOnContract: true };
+  const edits: FieldEdit[] = [
+    { field: "title", value: r.title },
+    { field: "description", value: r.description },
+    { field: "location", value: r.location },
+    { field: "dueOn", value: r.dueOn },
+  ];
+  for (const e of [{ field: "severity", value: r.severity }, { field: "happenedAt", value: r.happenedAt }] as FieldEdit[]) if (typeHasField(r.type, e.field) || e.value !== null) edits.push(e);
+  return edits.flatMap((e) => judge(r.type, e, f));
 }

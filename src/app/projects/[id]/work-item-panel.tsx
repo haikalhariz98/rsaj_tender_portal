@@ -18,6 +18,7 @@ import { ACTION_WORDS, itemRefText, LATE_NOT_JUDGED_WORDS, latenessWords, NCR_WO
 import { lateness } from "@/lib/work/late";
 import { loadActivity, loadItem, whoNamesOf, type WorkContext } from "@/lib/work/load";
 import { isOpen, primaryActions, TARGET } from "@/lib/work/move";
+import { personIdOf } from "@/lib/work/party";
 import type { WorkAction, WorkActor } from "@/lib/work/types";
 
 import { commentOnWorkItem, editWorkField, moveWorkItem } from "./work-actions";
@@ -46,11 +47,11 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
     );
   }
   const c = detail.card;
-  const actor: WorkActor = { personId, leadIds: ctx.lead.ids, mayReadContract: true };
+  const actor: WorkActor = { side: "STAFF", personId, leadIds: ctx.lead.ids, mayReadContract: true };
   // The pickers come from the tab (it loaded them for the list); the item itself is not offered to link to.
   const links = { ...linkOpts, items: linkOpts.items.filter((o) => o.value !== c.id) };
   const [who, activity] = await Promise.all([
-    whoNamesOf(db, org, { raisedByPersonId: c.raisedBy, assigneePersonId: c.assignee }, ctx.lead),
+    whoNamesOf(db, org, { raisedByPersonId: personIdOf(c.raisedBy), assigneePersonId: personIdOf(c.assignee) }, ctx.lead),
     loadActivity({ organisationId: org, contractId, contractNumber: ctx.contractNumber, item: { id: c.id, type: c.type, number: c.number }, timeZone: ctx.timeZone }),
   ]);
   const itemLabel = itemRefText(c.type, c.number);
@@ -137,7 +138,7 @@ export async function WorkItemPanel({ l, ctx, q, personId, address, people, link
         {typeHasField(c.type, "answer") && <FieldEdit label="Answer" field="answer" kind="textarea" value={c.answer} {...base} disabledWhy={why} />}
 
         <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-          {select("assigneePersonId", "Assignee", c.assignee ?? "", peopleOptions)}
+          {select("assigneePersonId", "Assignee", personIdOf(c.assignee) ?? "", peopleOptions)}
           {select("priority", "Priority", c.priority, PRIORITY_OPTIONS)}
           <FieldEdit label="Due" field="dueOn" kind="date" value={c.dueOn ?? ""} display={c.dueOn ? formatDate(dayToDate(c.dueOn)) : ""} {...base} disabledWhy={why} />
           <FieldEdit label="Location" field="location" value={c.location} {...base} disabledWhy={why} />

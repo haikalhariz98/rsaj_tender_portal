@@ -7,6 +7,10 @@
  * | Waiting for you to check   | The raiser                           |
  * | Sent back to you           | The assignee                         |
  * | New comment                | The raiser and the assignee (OQ-10)  |
+ * | From the contractor (3b)   | The raiser and the assignee; on a raise with no single default assignee, the role's holders (B-16); nobody: the lead |
+ *
+ * Only people are told: the contractor gets no notice (PW-13), so a contractor raiser or assignee names nobody. On an item the contractor raised there is
+ * no staff raiser, so the lead is told on every kind (WS-17). The contractor acting is `actorId` null.
  *
  * A body holds the item's reference, its title and the contract's number only: never an amount and never a contact's or a supplier's name (WS-9), since a
  * stored notice is read without a gate. The occurrence is the audit row's or the comment's id, so a retried act tells nobody twice and each comment tells
@@ -19,6 +23,7 @@ import { caseHref } from "@/lib/contract/links";
 
 import { itemRefText, NOTICE_TITLE_WORDS } from "./labels";
 import { itemRef } from "./number";
+import { personIdOf } from "./party";
 import type { WorkItemType, WorkNoticeEvent } from "./types";
 
 /// The item a notice is about, as its body may name it.
@@ -37,7 +42,11 @@ export const workItemHref = (item: Pick<NoticeItem, "contractId" | "type" | "num
   `${caseHref({ awardId: "", contractId: item.contractId }, { tab: "work" })}&item=${encodeURIComponent(itemRef(item.type, item.number))}`;
 
 function recipients(e: WorkNoticeEvent): string[] {
-  const named = e.kind === "WORK_ITEM_TO_CHECK" ? [e.raisedBy] : e.kind === "WORK_ITEM_COMMENT" ? [e.raisedBy, e.assignee] : [e.assignee];
+  const raiser = personIdOf(e.raisedBy);
+  const assignee = personIdOf(e.assignee);
+  let named: (string | null)[] =
+    e.kind === "WORK_ITEM_TO_CHECK" ? [raiser] : e.kind === "WORK_ITEM_COMMENT" ? [raiser, assignee] : e.kind === "WORK_ITEM_FROM_CONTRACTOR" ? [raiser, assignee, ...(e.roleHolders ?? [])] : [assignee];
+  if (e.raisedBy.kind === "CONTRACTOR" || (e.kind === "WORK_ITEM_FROM_CONTRACTOR" && named.every((id) => id === null))) named = [...named, ...e.leadIds];
   return [...new Set(named)].filter((id): id is string => id !== null && id !== e.actorId && e.activeIds.has(id)).sort();
 }
 

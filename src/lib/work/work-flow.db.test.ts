@@ -42,7 +42,7 @@ import { FIXTURE_ITEMS, FIXTURE_READER, FIXTURE_TODAY } from "./items.fixture";
 import { itemRef } from "./number";
 import { assigneeOptions, linkOptions, loadActivity, loadBoard, loadItem, loadWorkContext, loadWorkList } from "./load";
 import { inView, parseWorkFilters, workWhere, type WorkFilters, type WorkRow } from "./views";
-import type { WorkView } from "./types";
+import type { Party, WorkView } from "./types";
 
 let org: TestOrg;
 let k: TestContract;
@@ -324,6 +324,8 @@ describe("the views: workWhere against the database agrees with inView", () => {
   const person: Record<string, string> = {};
   let fixtureContract: TestContract;
   const keyOf = new Map<string, string>(); // title -> fixture id
+  /// The forty are all staff: a fixture person's seeded id.
+  const idOf = (p: Party | null): string | null => (p?.kind === "PERSON" ? person[p.id] : null);
 
   beforeAll(async () => {
     for (const n of ["aisyah", "hafiz", "nurul"]) person[n] = (await makePerson(org.organisationId, `${n} ${randomId()}`)).id;
@@ -341,8 +343,8 @@ describe("the views: workWhere against the database agrees with inView", () => {
           status: i.status,
           priority: i.priority,
           dueOn: i.dueOn ? dayToDate(i.dueOn) : null,
-          raisedByPersonId: person[i.raisedBy],
-          assigneePersonId: i.assignee ? person[i.assignee] : null,
+          raisedByPersonId: idOf(i.raisedBy)!,
+          assigneePersonId: idOf(i.assignee),
           answer: i.answer,
           inspectionResult: i.inspectionResult,
           severity: i.type === "SAFETY_INCIDENT" ? "NEAR_MISS" : null,
@@ -359,7 +361,7 @@ describe("the views: workWhere against the database agrees with inView", () => {
     }
   });
 
-  const asRow = (i: (typeof FIXTURE_ITEMS)[number]): WorkRow => ({ ...i, raisedBy: person[i.raisedBy], assignee: i.assignee ? person[i.assignee] : null });
+  const asRow = (i: (typeof FIXTURE_ITEMS)[number]): WorkRow => ({ ...i, raisedBy: { kind: "PERSON", id: idOf(i.raisedBy)! }, assignee: i.assignee ? { kind: "PERSON", id: idOf(i.assignee)! } : null });
   const FILTERS: WorkFilters[] = [{}, { type: "RFI" }, { type: "TASK", priority: "HIGH" }, { assignee: "aisyah" }, { priority: "URGENT" }, { q: "cracked" }, { q: "block b", type: "DEFECT" }, { q: "rfi 1" }, { q: "SI-2" }, { q: "no such title" }];
   const VIEWS: WorkView[] = ["open", "mine", "late", "unassigned", "ncr", "done"];
 

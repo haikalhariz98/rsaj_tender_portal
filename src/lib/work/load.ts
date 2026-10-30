@@ -24,6 +24,7 @@ import { loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 import { activityFeed, type ActivityLine } from "./activity";
 import { BOARD_COLUMN_CAP, BOARD_DONE_DAYS, boardColumns, type BoardColumnOf, type BoardItem } from "./board";
 import { leadIds } from "./lead";
+import { assigneeOf, raiserOf } from "./party";
 import { itemRefText, type WhoNames } from "./labels";
 import { itemRef, parseItemRef } from "./number";
 import type { BoardColumn, Day, WorkStatus, WorkView } from "./types";
@@ -65,7 +66,8 @@ export async function whoNamesOf(client: Tx, organisationId: string, r: { raised
 export async function leadOf(l: LoadedContract, today: Day | null, client: Tx = db): Promise<{ ids: string[]; roleLabel: string | null }> {
   if (today === null) return { ids: [], roleLabel: null };
   const so = await soOfficeOn(l, await loadSupervision(l.contract.id, client), today, client);
-  return { ids: leadIds(so?.office ?? null, today), roleLabel: so?.office.roleLabel ?? null };
+  // Step 3 reads the team here (the Project manager first, 3b B-13); until then the S.O. alone, as in 3a.
+  return { ids: leadIds([], so?.office ?? null, today, new Set()), roleLabel: so?.office.roleLabel ?? null };
 }
 
 // ------------------------------------------------------------------ the context of the tab
@@ -121,6 +123,8 @@ const CARD_SELECT = {
   closedAt: true,
   raisedByPersonId: true,
   assigneePersonId: true,
+  assignedToContractor: true,
+  sharedAt: true,
   raisedBy: { select: { name: true } },
   assignee: { select: { name: true } },
 } as const;
@@ -138,8 +142,9 @@ const cardOf = (r: CardRow, timeZone: string | null): WorkCardRow => ({
   location: r.location,
   answer: r.answer,
   inspectionResult: r.inspectionResult,
-  raisedBy: r.raisedByPersonId!,
-  assignee: r.assigneePersonId,
+  raisedBy: raiserOf(r),
+  assignee: assigneeOf(r),
+  sharedAt: r.sharedAt?.toISOString() ?? null,
   raisedByName: r.raisedBy?.name ?? "Someone",
   assigneeName: r.assignee?.name ?? null,
   closedOn: r.closedAt ? dayOf(r.closedAt, timeZone) : null,

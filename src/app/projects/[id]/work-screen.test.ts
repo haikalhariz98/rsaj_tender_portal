@@ -11,9 +11,9 @@ import { closedWords, editWhy, QUICK_TYPES, TYPE_OPTIONS } from "./work-shared";
 const DIR = "src/app/projects/[id]";
 const src = (f: string) => readFileSync(join(process.cwd(), DIR, f), "utf8");
 
-const item: WorkItemFacts = { id: "i1", type: "TASK", number: 1, status: "TO_DO", raisedBy: "p-raiser", assignee: null, dueOn: null, answer: "", inspectionResult: null };
+const item: WorkItemFacts = { id: "i1", type: "TASK", number: 1, status: "TO_DO", raisedBy: { kind: "PERSON", id: "p-raiser" }, assignee: null, sharedAt: null, dueOn: null, answer: "", inspectionResult: null };
 const who: WhoNames = { raiser: "Hafiz", assignee: null, lead: { roleLabel: "S.O.", names: ["Nurul"] } };
-const as = (personId: string, leadIds: string[] = []): WorkActor => ({ personId, leadIds, mayReadContract: true });
+const as = (personId: string, leadIds: string[] = []): WorkActor => ({ side: "STAFF", personId, leadIds, mayReadContract: true });
 
 describe("the Work tab's states (WS-19, W-2, 0008 §5.8)", () => {
   it("a terminated or closed contract is read only, in the one set of words", () => {

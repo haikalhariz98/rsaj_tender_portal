@@ -5,7 +5,7 @@
 
 import { w, type Words } from "@/lib/contract/labels";
 
-import type { FieldFault, IncidentSeverity, InspectionResult, Lateness, MoveFault, WorkAction, WorkImpact, WorkItemType, WorkNoticeKind, WorkPriority, WorkStatus, WorkView } from "./types";
+import type { FieldFault, IncidentSeverity, InspectionResult, Lateness, MoveFault, PortalAction, PortalGroup, TeamRole, WorkAction, WorkImpact, WorkItemType, WorkNoticeKind, WorkPriority, WorkStatus, WorkView } from "./types";
 
 export const TYPE_WORDS: Readonly<Record<WorkItemType, Words>> = {
   RFI: w("RFI"),
@@ -73,7 +73,8 @@ const ACTION_VERB: Readonly<Record<WorkAction | "EDIT", string>> = {
   EDIT: "edit this",
 };
 
-export const VIEW_WORDS: Readonly<Record<WorkView, Words>> = {
+/// Every view's chip but "Waiting on {contractor}", which names the awardee: `viewWords`.
+export const VIEW_WORDS: Readonly<Record<Exclude<WorkView, "contractor">, Words>> = {
   open: w("Open"),
   mine: w("Mine"),
   late: w("Late"),
@@ -82,12 +83,20 @@ export const VIEW_WORDS: Readonly<Record<WorkView, Words>> = {
   done: w("Done"),
 };
 
+/// The contractor on a staff surface (3b B-4; WS-9, WS-10): the company, by the awardee's name, never a contact's. If WS-10 is answered yes, this is the
+/// one function that changes.
+export const contractorActorWords = (awardeeName: string): Words => w(awardeeName);
+
+/// A view's chip, "Waiting on {contractor}" by the awardee's name.
+export const viewWords = (view: WorkView, awardeeName: string): Words => (view === "contractor" ? w(`Waiting on ${contractorActorWords(awardeeName).en}`) : VIEW_WORDS[view]);
+
 /// A view filtered to nothing (0008 §5.8): the view's own title, three words at most.
 export const VIEW_EMPTY_WORDS: Readonly<Record<WorkView, Words>> = {
   open: w("Nothing open"),
   mine: w("Nothing on you"),
   late: w("Nothing late"),
   unassigned: w("Nothing unassigned"),
+  contractor: w("Nothing waiting"),
   ncr: w("No non-conformances"),
   done: w("Nothing done"),
 };
@@ -181,6 +190,8 @@ export function moveFaultText(f: MoveFault, action: WorkAction | null, who: WhoN
       return "Give a reason.";
     case "COMMENT_NEEDED":
       return "Say what to change.";
+    case "NOT_FOR_CONTRACTOR":
+      return "Only the organisation can do this.";
   }
 }
 
@@ -215,6 +226,18 @@ export function fieldFaultText(f: FieldFault): string {
       return "List defects in Close-out › Defects.";
     case "OTHER_CONTRACT":
       return "That is on another contract.";
+    case "NOT_SHARED":
+      return "Share it first, or write an internal note.";
+    case "SHARE_IS_ONE_WAY":
+      return "Sharing can't be undone.";
+    case "CONTRACTOR_MAY_NOT_EDIT":
+      return "Reply to ask for a change.";
+    case "NOT_CONTRACTOR_TYPE":
+      return "Ask a question or report an incident.";
+    case "FILE_ON_SHARED_ITEM":
+      return "Shared files stay. Add a corrected file and reply.";
+    case "REASON_NEEDED":
+      return "Give a reason.";
   }
 }
 
@@ -224,4 +247,30 @@ export const NOTICE_TITLE_WORDS: Readonly<Record<WorkNoticeKind, Words>> = {
   WORK_ITEM_TO_CHECK: w("Waiting for you to check"),
   WORK_ITEM_RETURNED: w("Sent back to you"),
   WORK_ITEM_COMMENT: w("New comment"),
+  WORK_ITEM_FROM_CONTRACTOR: w("From the contractor"),
 };
+
+/// The Project team's roles (3b B-12).
+export const TEAM_ROLE_WORDS: Readonly<Record<TeamRole, Words>> = {
+  PROJECT_MANAGER: w("Project manager"),
+  SITE_ENGINEER: w("Site engineer"),
+  CONTRACT_ADMINISTRATOR: w("Contract administrator"),
+  CONSULTANT: w("Consultant"),
+};
+
+/// The portal's Work groups (3b section 4): "With {org}" names the organisation.
+export const portalGroupWords = (g: PortalGroup, orgName: string): Words => (g === "WAITING_FOR_YOU" ? w("Waiting for you") : g === "WITH_ORG" ? w(`With ${orgName}`) : w("Closed"));
+
+/// Each portal row's one button (WS-13).
+export const PORTAL_ACTION_WORDS: Readonly<Record<PortalAction, Words>> = {
+  REPLY: w("Reply"),
+  SEND_FOR_CHECKING: w("Send for checking"),
+  MARK_AS_FIXED: w("Mark as fixed"),
+  ACCEPT_ANSWER: w("Accept answer"),
+  ASK_AGAIN: w("Ask again"),
+  OPEN: w("Open"),
+};
+
+/// The contractor itself, where the portal names who holds an item.
+export const PORTAL_YOU_WORDS = w("You");
+export const PORTAL_EMPTY_WORDS = w("Nothing waiting for you.");
