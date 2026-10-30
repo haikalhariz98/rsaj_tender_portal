@@ -12,10 +12,11 @@ export const LOCATION_MAX = 120;
 /// The most files one act pins to an item: the project-document bound (`PROJECT_FILES_PER_VERSION`); more is a script.
 export const FILES_PER_ACT = 20;
 
-/// 3b (B-14): the most items one contractor account raises in a window. A site raises a handful of RFIs and incidents a day; past this is a script
-/// or a stuck button, and every row is kept for good.
+/// 3b (B-14, WSEC-7): the most items the contractor raises on one contract in a window, across all of the awardee's accounts: the company is the party (ADR 0049 D2), not the
+/// account. A site raises a handful of RFIs and incidents a day; past this is a script or a stuck button, and every row is kept for good.
 export const CONTRACTOR_RAISES_PER_WINDOW = 20;
-/// 3b (B-14): the most replies one contractor account writes in a window: a busy conversation, not a flood.
+/// 3b (B-14, WSEC-7): the most replies the contractor writes on one contract in a window, across all of the awardee's accounts: a busy conversation, not a flood. An edit of an
+/// RFI's answer writes an audit row, so it counts here as a reply does.
 export const CONTRACTOR_REPLIES_PER_WINDOW = 100;
 /// 3b (B-14): the window both are counted over, in minutes (the `windowRows` precedent).
 export const CONTRACTOR_WINDOW_MINUTES = 60;

@@ -49,6 +49,10 @@ export function actionOf(from: WorkStatus, to: WorkStatus): WorkAction | null {
   return from === "TO_DO" && to === "IN_PROGRESS" ? "START" : null;
 }
 
+/// WSEC-9: closing an RFI accepts its answer as it stands, whoever wrote it. The text to record on the audit row, or null where the close accepts none. (A column that does not
+/// change writes no audit line, so the store records it as a line of its own: none -> the text.)
+export const answerAcceptedBy = (action: WorkAction | null, item: Pick<WorkItemFacts, "type" | "answer">): string | null => (action === "MARK_DONE" && item.type === "RFI" && item.answer.trim() !== "" ? item.answer : null);
+
 /// The status an action takes an item to.
 export const TARGET: Readonly<Record<WorkAction, WorkStatus>> = { START: "IN_PROGRESS", SEND_FOR_REVIEW: "IN_REVIEW", MARK_DONE: "DONE", SEND_BACK: "IN_PROGRESS", CANCEL: "CANCELLED", REOPEN: "TO_DO" };
 

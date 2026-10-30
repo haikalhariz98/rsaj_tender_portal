@@ -4,7 +4,8 @@
  *
  * - One Project manager per contract (partial unique); one row per role and person (unique); the person is active in the organisation and may read the case.
  * - Changing the manager is a remove and an add in one act. Removing asks a reason.
- * - Who changes the team: the lead; with no lead, any staff member who may read the case, so the first manager can be named (WB-7).
+ * - Who changes the team (WSEC-2, amending WB-7): the active Project manager, and the S.O. holders and acting holders in force (`teamChangerIds`, lead.ts). With neither,
+ *   nobody: the first manager is named by a role the data defines, never by whoever opened the case. `teamChangeFaults` is the one rule; the acts and the card both call it.
  * - A contractor raise's default assignee (B-16): an RFI goes to the Contract administrator, an incident to the lead. One holder is assigned; several or
  *   none leave it unassigned, and every holder is told (none: the lead) (WB-8).
  */
@@ -14,23 +15,27 @@ import type { TeamMember, TeamRole, WorkActor, WorkItemType } from "./types";
 export type TeamChange = { op: "ADD"; role: TeamRole; personId: string } | { op: "REMOVE"; role: TeamRole; personId: string; reason: string } | { op: "CHANGE_MANAGER"; personId: string };
 
 export type TeamFault =
-  | { code: "NOT_LEAD" } // the lead changes the team (WB-7); the words name the lead
+  | { code: "NOT_LEAD" } // only the Project manager or the S.O. changes the team (WSEC-2); the words name them, or say nobody can yet
   | { code: "MANAGER_NAMED" } // a second Project manager: change the manager instead
   | { code: "ALREADY_IN_ROLE" } // the same person twice in one role, or the manager changed to themselves
   | { code: "PERSON_NOT_ELIGIBLE" } // not in `activeIds`: inactive, another organisation's, or unable to read the case
   | { code: "NOT_ON_TEAM" } // removing a row that is not there
   | { code: "REASON_NEEDED" };
 
-/// WB-7: the lead, or with no lead any staff member who may read the case.
-export function mayChangeTeam(actor: WorkActor): boolean {
+/// WSEC-2: a staff reader of the case who is one of `changerIds` (`teamChangerIds`). An empty list is nobody.
+export function mayChangeTeam(actor: WorkActor, changerIds: readonly string[]): boolean {
   const me = actor.personId;
-  return actor.side === "STAFF" && actor.mayReadContract && me !== null && (actor.leadIds.length === 0 || actor.leadIds.includes(me));
+  return actor.side === "STAFF" && actor.mayReadContract && me !== null && changerIds.includes(me);
 }
 
+/// Who may change the team, as a fault list: the one rule the acts and the card share.
+export const teamChangeFaults = (actor: WorkActor, changerIds: readonly string[]): TeamFault[] => (mayChangeTeam(actor, changerIds) ? [] : [{ code: "NOT_LEAD" }]);
+
 /// A team change's faults: who first (alone), then the change against the team as it stands. `activeIds` are the organisation's active people who may
-/// read the case.
-export function teamFaults(team: readonly TeamMember[], change: TeamChange, actor: WorkActor, activeIds: ReadonlySet<string>): TeamFault[] {
-  if (!mayChangeTeam(actor)) return [{ code: "NOT_LEAD" }];
+/// read the case; `changerIds` are who may change the team.
+export function teamFaults(team: readonly TeamMember[], change: TeamChange, actor: WorkActor, activeIds: ReadonlySet<string>, changerIds: readonly string[]): TeamFault[] {
+  const who = teamChangeFaults(actor, changerIds);
+  if (who.length > 0) return who;
   const has = (role: TeamRole, personId: string) => team.some((m) => m.role === role && m.personId === personId);
   switch (change.op) {
     case "REMOVE": {

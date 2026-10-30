@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { WhoNames } from "./labels";
-import { actionOf, blockingFaults, contractorActions, moveFaults, primaryActions, TARGET, type MoveContext } from "./move";
+import { actionOf, answerAcceptedBy, blockingFaults, contractorActions, moveFaults, primaryActions, TARGET, type MoveContext } from "./move";
 import { CONTRACTOR, person } from "./party";
 import type { MoveFault, WorkActor, WorkItemFacts, WorkStatus } from "./types";
 
@@ -338,6 +338,24 @@ describe("staff on an item the contractor is party to", () => {
     expect(row(held("IN_PROGRESS"), "DONE")).toEqual(["X", "X", "X", "X"]);
     expect(row(held("IN_REVIEW"), "DONE")).toEqual(["ok", "RL", "ok", "RL"]);
     expect(row(held("TO_DO"), "IN_PROGRESS")).toEqual(["ok", "RL", "ok", "RL"]);
+  });
+});
+
+describe("WSEC-9: closing an RFI accepts its answer as it stands", () => {
+  const rfi = (answer: string) => ({ type: "RFI" as const, answer });
+  it("an RFI closed with an answer records the text; an empty answer, another type or another move records nothing", () => {
+    expect(answerAcceptedBy("MARK_DONE", rfi("Use 20 mm bars."))).toBe("Use 20 mm bars.");
+    expect(answerAcceptedBy("MARK_DONE", rfi("  "))).toBeNull();
+    expect(answerAcceptedBy("MARK_DONE", { type: "TASK", answer: "x" })).toBeNull();
+    for (const a of ["START", "SEND_FOR_REVIEW", "SEND_BACK", "CANCEL", "REOPEN"] as const) expect(answerAcceptedBy(a, rfi("Use 20 mm bars."))).toBeNull();
+    expect(answerAcceptedBy(null, rfi("x"))).toBeNull();
+  });
+  it("the Done shortcut is nobody's while the contractor holds the item (so the board and the panel offer none); the raiser closes it only after taking it back", () => {
+    const held: WorkItemFacts = { ...task("IN_PROGRESS"), type: "RFI", answer: "Draft", assignee: CONTRACTOR, sharedAt: "2026-11-01T02:00:00.000Z" };
+    for (const a of ACTORS) expect(moveFaults(held, a, "DONE", "IN_PROGRESS", FULL)).toEqual([{ code: "NOT_A_MOVE", from: "IN_PROGRESS", to: "DONE" }]);
+    expect(primaryActions(held, actor(R), { contractOpen: true, who: { raiser: "R", assignee: "Acme", lead: null } }).menu).not.toContain("MARK_DONE");
+    expect(primaryActions(held, actor(R), { contractOpen: true, who: { raiser: "R", assignee: "Acme", lead: null } }).primary).not.toBe("MARK_DONE");
+    expect(moveFaults({ ...held, assignee: person(R) }, actor(R), "DONE", "IN_PROGRESS", FULL)).toEqual([]);
   });
 });
 

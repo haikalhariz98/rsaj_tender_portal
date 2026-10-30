@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { CONTRACTOR, person } from "./party";
-import { portalAction, portalGroup, portalStaffLabel } from "./portal";
+import { answerIsDraft, contractorMayPost, PORTAL_ORDER_BY, portalAction, portalGroup, portalStaffLabel } from "./portal";
+import { WORK_ORDER_BY } from "./views";
 import type { PortalAction, PortalGroup, WorkItemFacts, WorkStatus } from "./types";
 
 /** The portal's Work list (3b section 4; WS-11, WS-13; WB-5): three groups, one button per row, and which staff names it may show. */
@@ -67,3 +68,32 @@ describe("portalStaffLabel (WS-11)", () => {
     expect(portalStaffLabel(CONTRACTOR, team, side, names, "JKR")).toBe("You");
   });
 });
+
+describe("WSEC-5: the contractor posts on an open item only", () => {
+  it("every open status may be replied to, attached to and answered; Done and Cancelled may not, whoever holds them", () => {
+    expect(S.map((s) => [s, contractorMayPost({ status: s })])).toEqual([["TO_DO", true], ["IN_PROGRESS", true], ["IN_REVIEW", true], ["DONE", false], ["CANCELLED", false]]);
+  });
+});
+
+describe("WSEC-9: the Answer is a draft until the contractor sends it for checking", () => {
+  const rfi = (status: WorkStatus, o: Partial<WorkItemFacts> = {}) => held(status, { type: "RFI", answer: "Use detail 4", ...o });
+  it("a written answer on an RFI the contractor holds, before it is sent, is a draft", () => {
+    expect(answerIsDraft(rfi("TO_DO"))).toBe(true);
+    expect(answerIsDraft(rfi("IN_PROGRESS"))).toBe(true);
+  });
+  it("not once sent for checking or closed; not with no answer; not when staff hold it; not on another type", () => {
+    for (const s of ["IN_REVIEW", "DONE", "CANCELLED"] as const) expect(answerIsDraft(rfi(s)), s).toBe(false);
+    expect(answerIsDraft(rfi("TO_DO", { answer: "  " }))).toBe(false);
+    expect(answerIsDraft(rfi("TO_DO", { assignee: person("aisyah") }))).toBe(false);
+    expect(answerIsDraft(held("TO_DO", { answer: "x" }))).toBe(false);
+  });
+});
+
+describe("WSEC-10 L3: the portal's order has no internal priority", () => {
+  it("due day, then type and number; the staff order keeps priority", () => {
+    expect(PORTAL_ORDER_BY).toEqual([{ dueOn: { sort: "asc", nulls: "last" } }, { type: "asc" }, { number: "asc" }, { id: "asc" }]);
+    expect(JSON.stringify(PORTAL_ORDER_BY)).not.toContain("priority");
+    expect(JSON.stringify(WORK_ORDER_BY)).toContain("priority");
+  });
+});
+

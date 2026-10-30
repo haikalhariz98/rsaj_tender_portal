@@ -18,11 +18,12 @@ describe("commentAudience", () => {
       expect(commentAudience({ sharedAt: null, assignee: null }, "STAFF", choice, "SEND_BACK")).toBe("INTERNAL");
     }
   });
-  it("shared: staff's choice, and Reply when none is made (0008 §4.5, WB-9)", () => {
+  it("shared: staff's choice; the composer presets Reply (0008 §4.5, WB-9) but a post with no choice is Internal on the server (WSEC-1)", () => {
     expect(DEFAULT_AUDIENCE).toBe("REPLY");
     expect(commentAudience(staffHeld, "STAFF", "INTERNAL", "COMMENT")).toBe("INTERNAL");
     expect(commentAudience(staffHeld, "STAFF", "REPLY", "COMMENT")).toBe("REPLY");
-    expect(commentAudience(staffHeld, "STAFF", null, "COMMENT")).toBe("REPLY");
+    expect(commentAudience(staffHeld, "STAFF", null, "COMMENT")).toBe("INTERNAL");
+    expect(commentAudience(contractorHeld, "STAFF", null, "COMMENT")).toBe("INTERNAL");
   });
   it("the contractor: always a Reply", () => {
     expect(commentAudience(contractorHeld, "CONTRACTOR", "INTERNAL", "COMMENT")).toBe("REPLY");

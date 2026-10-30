@@ -130,6 +130,8 @@ export const FIELD_WORDS: Readonly<Record<string, Words>> = {
   fromDocumentId: w("From"),
   cancelReason: w("Reason"),
   comment: w("Comment"),
+  /// Written when an RFI is closed with its answer as it stood (WSEC-9): closing accepts the answer text, and the trail says so.
+  answerAccepted: w("Answer accepted"),
 };
 
 /// The words of a stored enum value in a column, for Activity; null when the column holds no enum.
@@ -199,6 +201,8 @@ export function moveFaultText(f: MoveFault, action: WorkAction | null, who: WhoN
       return "Say what to change.";
     case "NOT_FOR_CONTRACTOR":
       return "Only the organisation can do this.";
+    case "ITEM_CLOSED":
+      return "Reopen it first.";
   }
 }
 
@@ -288,6 +292,8 @@ export function portalMoveFaultText(f: MoveFault): string {
       return "This is not yours to move.";
     case "NOT_A_MOVE":
       return "This can't be moved from here.";
+    case "ITEM_CLOSED":
+      return "This is closed. If something is still open, raise a new item.";
     case "MOVED_ALREADY":
       return "This changed a moment ago. Open it again to see where it is.";
     case "RESULT_NOT_PASSED":
@@ -317,11 +323,19 @@ export function removeFileWords(attacher: string | null, lead: { roleLabel: stri
   return parts.length === 0 ? w("Nobody can remove this file now.") : w(`Only ${parts.join(" or ")} can remove this file.`);
 }
 
-/// A refused team change in one sentence (B-12, WB-7). `lead` names who may change the team.
-export function teamFaultText(f: TeamFault, lead: { roleLabel: string; names: readonly string[] } | null): string {
+/// Who may change the team, for the words: one entry per office (the Project manager; the S.O.), each with the names in it today (WSEC-2).
+export type TeamChangers = readonly { roleLabel: string; names: readonly string[] }[];
+
+/// What to set when nobody may change the team yet (WSEC-2): the card's popover and the refusal say the same.
+export const TEAM_LOCKED_WORDS = w("Set the S.O. for this contract, or the organisation's time zone.");
+
+/// A refused team change in one sentence (B-12, WSEC-2). `changers` names who may change the team.
+export function teamFaultText(f: TeamFault, changers: TeamChangers): string {
   switch (f.code) {
-    case "NOT_LEAD":
-      return lead && lead.names.length > 0 ? `Only the ${lead.roleLabel} (${lead.names.join(", ")}) can change the team.` : "Only the lead can change the team.";
+    case "NOT_LEAD": {
+      const named = changers.filter((c) => c.names.length > 0).map((c) => `the ${c.roleLabel} (${c.names.join(", ")})`);
+      return named.length > 0 ? `Only ${named.join(" or ")} can change the team.` : `Nobody can change the team yet. ${TEAM_LOCKED_WORDS.en}`;
+    }
     case "MANAGER_NAMED":
       return "There is a Project manager already. Change the manager instead.";
     case "ALREADY_IN_ROLE":

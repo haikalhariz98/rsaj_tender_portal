@@ -25,6 +25,18 @@ export function portalGroup(item: WorkItemFacts): PortalGroup {
   return held || toAccept ? "WAITING_FOR_YOU" : "WITH_ORG";
 }
 
+/// WSEC-5: the contractor replies, attaches and answers on an OPEN item only. Files cannot be removed from a shared item (WB-4) and nobody watches a closed one, so a post there
+/// would be a permanent record nobody reads. The cores refuse it (the backstop for a stale page) and the drawer shows no such control.
+export const contractorMayPost = (item: Pick<WorkItemFacts, "status">): boolean => isOpen(item.status);
+
+/// WSEC-9: the Answer of an RFI the contractor holds, written but not yet sent for checking, is a draft (WB-6: one field, one row). Staff see it labelled until the contractor
+/// sends it; a staff member who takes the item back and closes it accepts the text as it stands (`answerAcceptedBy`, move.ts, audited).
+export const answerIsDraft = (item: Pick<WorkItemFacts, "type" | "status" | "assignee" | "answer">): boolean =>
+  item.type === "RFI" && isContractor(item.assignee) && (item.status === "TO_DO" || item.status === "IN_PROGRESS") && item.answer.trim() !== "";
+
+/// The portal's order inside a group (WSEC-10 L3): due day, then the reference. Internal priority is the organisation's and never decides what the contractor sees first.
+export const PORTAL_ORDER_BY = [{ dueOn: { sort: "asc", nulls: "last" } }, { type: "asc" }, { number: "asc" }, { id: "asc" }] as const;
+
 export function portalAction(item: WorkItemFacts): PortalAction {
   if (!isOpen(item.status)) return "OPEN";
   const may = contractorActions(item, CONTRACTOR_ACTOR);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { leadIds } from "./lead";
+import { leadIds, teamChangerIds } from "./lead";
 import type { TeamMember } from "./types";
 
 /** The lead (WS-3; 3b B-13, WB-7): the active Project manager, else the S.O. office's holders and acting holders today; nobody with neither. */
@@ -43,5 +43,31 @@ describe("leadIds: a named Project manager", () => {
     const gone = new Set(["nurul", "hafiz", "aisyah"]);
     expect(leadIds([pm], so, "2026-11-05", gone)).toEqual(["aisyah", "hafiz", "nurul"]);
     expect(leadIds([pm], so, null, gone)).toEqual([]);
+  });
+});
+
+describe("teamChangerIds (WSEC-2): the active Project manager and the S.O. in force, each once; otherwise nobody", () => {
+  it("the manager alone: no S.O. in force", () => {
+    expect(teamChangerIds([pm], null, "2026-11-05", ACTIVE)).toEqual(["pm"]);
+  });
+  it("the S.O. alone: no manager named", () => {
+    expect(teamChangerIds([], so, "2026-11-05", ACTIVE)).toEqual(["aisyah", "hafiz", "nurul"]);
+  });
+  it("both: the S.O. keeps the right once a manager is named (the lead is the manager alone, the changers are both)", () => {
+    expect(leadIds([pm], so, "2026-11-05", ACTIVE)).toEqual(["pm"]);
+    expect(teamChangerIds([pm], so, "2026-11-05", ACTIVE)).toEqual(["aisyah", "hafiz", "nurul", "pm"]);
+  });
+  it("neither: nobody", () => {
+    expect(teamChangerIds([], null, "2026-11-05", ACTIVE)).toEqual([]);
+    expect(teamChangerIds(others, { roleLabel: "S.O.", holderIds: [], actingIds: [] }, "2026-11-05", ACTIVE)).toEqual([]);
+  });
+  it("an inactive manager does not count, and the S.O. still does", () => {
+    const gone = new Set(["nurul", "hafiz", "aisyah"]);
+    expect(teamChangerIds([pm], null, "2026-11-05", gone)).toEqual([]);
+    expect(teamChangerIds([pm], so, "2026-11-05", gone)).toEqual(["aisyah", "hafiz", "nurul"]);
+  });
+  it("no time zone: the S.O. has no day, so only the manager counts", () => {
+    expect(teamChangerIds([pm], so, null, ACTIVE)).toEqual(["pm"]);
+    expect(teamChangerIds([], so, null, ACTIVE)).toEqual([]);
   });
 });

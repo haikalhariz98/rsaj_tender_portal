@@ -77,7 +77,8 @@ export type MoveFault =
   | { code: "REASON_NEEDED" } // Cancel
   | { code: "COMMENT_NEEDED" } // Send back
   | { code: "TOO_LONG"; field: "cancelReason" | "comment"; max: number } // Cancel's reason, Send back's comment
-  | { code: "NOT_FOR_CONTRACTOR" }; // Start, Cancel, Reopen or the shortcut by the contractor (3b B-9)
+  | { code: "NOT_FOR_CONTRACTOR" } // Start, Cancel, Reopen or the shortcut by the contractor (3b B-9)
+  | { code: "ITEM_CLOSED" }; // the contractor replies, attaches or answers on a Done or Cancelled item (WSEC-5)
 
 export type FieldFault =
   | { code: "TITLE_NEEDED" }

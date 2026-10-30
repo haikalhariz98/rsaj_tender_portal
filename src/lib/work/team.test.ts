@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defaultAssignee, mayChangeTeam, teamFaults } from "./team";
+import { defaultAssignee, mayChangeTeam, teamChangeFaults, teamFaults } from "./team";
 import type { TeamMember, WorkActor } from "./types";
 
 /** The Project team (3b B-12, B-16; WB-7, WB-8): one manager, one row per role and person, active people only; the lead changes it; default assignees. */
@@ -13,44 +13,52 @@ const team: TeamMember[] = [
   { role: "SITE_ENGINEER", personId: "se" },
 ];
 const lead = staff("pm", ["pm"]);
+/// WSEC-2: the active Project manager and the S.O. in force ("so") may change the team; `CHANGERS` is what `teamChangerIds` hands over.
+const CHANGERS = ["pm", "so"];
 
-describe("who changes the team (WB-7)", () => {
-  it("the lead; anyone else is refused", () => {
-    expect(mayChangeTeam(lead)).toBe(true);
-    expect(mayChangeTeam(staff("se", ["pm"]))).toBe(false);
-    expect(teamFaults(team, { op: "ADD", role: "CONSULTANT", personId: "new" }, staff("se", ["pm"]), ACTIVE)).toEqual([{ code: "NOT_LEAD" }]);
+describe("who changes the team (WSEC-2, amending WB-7)", () => {
+  it("the Project manager, and the S.O. beside them; anyone else is refused", () => {
+    expect(mayChangeTeam(lead, CHANGERS)).toBe(true);
+    expect(mayChangeTeam(staff("so", ["pm"]), CHANGERS)).toBe(true);
+    expect(mayChangeTeam(staff("se", ["pm"]), CHANGERS)).toBe(false);
+    expect(teamFaults(team, { op: "ADD", role: "CONSULTANT", personId: "new" }, staff("se", ["pm"]), ACTIVE, CHANGERS)).toEqual([{ code: "NOT_LEAD" }]);
+    expect(teamFaults(team, { op: "ADD", role: "CONSULTANT", personId: "new" }, staff("so", ["pm"]), ACTIVE, CHANGERS)).toEqual([]);
   });
-  it("with no lead, any staff reader of the case, so the first manager can be named", () => {
-    expect(teamFaults([], { op: "ADD", role: "PROJECT_MANAGER", personId: "new" }, staff("hafiz", []), ACTIVE)).toEqual([]);
+  it("the S.O. names the first manager", () => {
+    expect(teamFaults([], { op: "ADD", role: "PROJECT_MANAGER", personId: "new" }, staff("so", ["so"]), ACTIVE, ["so"])).toEqual([]);
+  });
+  it("no lead: nobody may, and any staff reader of the case is refused (was: anyone, so the first manager could be named)", () => {
+    expect(teamFaults([], { op: "ADD", role: "PROJECT_MANAGER", personId: "new" }, staff("hafiz", []), ACTIVE, [])).toEqual([{ code: "NOT_LEAD" }]);
+    expect(teamChangeFaults(staff("pm", ["pm"]), [])).toEqual([{ code: "NOT_LEAD" }]);
   });
   it("never the contractor, nor someone who may not read the case", () => {
-    expect(mayChangeTeam({ side: "CONTRACTOR", personId: null, leadIds: [], mayReadContract: true })).toBe(false);
-    expect(mayChangeTeam({ ...staff("hafiz", []), mayReadContract: false })).toBe(false);
+    expect(mayChangeTeam({ side: "CONTRACTOR", personId: null, leadIds: [], mayReadContract: true }, ["pm"])).toBe(false);
+    expect(mayChangeTeam({ ...staff("pm", []), mayReadContract: false }, ["pm"])).toBe(false);
   });
 });
 
 describe("teamFaults", () => {
   it("a second Project manager is refused: change the manager instead", () => {
-    expect(teamFaults(team, { op: "ADD", role: "PROJECT_MANAGER", personId: "new" }, lead, ACTIVE)).toEqual([{ code: "MANAGER_NAMED" }]);
+    expect(teamFaults(team, { op: "ADD", role: "PROJECT_MANAGER", personId: "new" }, lead, ACTIVE, CHANGERS)).toEqual([{ code: "MANAGER_NAMED" }]);
   });
   it("the same person twice in one role is refused; in another role is fine", () => {
-    expect(teamFaults(team, { op: "ADD", role: "CONTRACT_ADMINISTRATOR", personId: "ca" }, lead, ACTIVE)).toEqual([{ code: "ALREADY_IN_ROLE" }]);
-    expect(teamFaults(team, { op: "ADD", role: "SITE_ENGINEER", personId: "ca" }, lead, ACTIVE)).toEqual([]);
-    expect(teamFaults(team, { op: "ADD", role: "CONTRACT_ADMINISTRATOR", personId: "ca2" }, lead, ACTIVE)).toEqual([]);
+    expect(teamFaults(team, { op: "ADD", role: "CONTRACT_ADMINISTRATOR", personId: "ca" }, lead, ACTIVE, CHANGERS)).toEqual([{ code: "ALREADY_IN_ROLE" }]);
+    expect(teamFaults(team, { op: "ADD", role: "SITE_ENGINEER", personId: "ca" }, lead, ACTIVE, CHANGERS)).toEqual([]);
+    expect(teamFaults(team, { op: "ADD", role: "CONTRACT_ADMINISTRATOR", personId: "ca2" }, lead, ACTIVE, CHANGERS)).toEqual([]);
   });
   it("an inactive person, or one who may not read the case, is refused", () => {
-    expect(teamFaults(team, { op: "ADD", role: "CONSULTANT", personId: "gone" }, lead, ACTIVE)).toEqual([{ code: "PERSON_NOT_ELIGIBLE" }]);
-    expect(teamFaults(team, { op: "CHANGE_MANAGER", personId: "gone" }, lead, ACTIVE)).toEqual([{ code: "PERSON_NOT_ELIGIBLE" }]);
+    expect(teamFaults(team, { op: "ADD", role: "CONSULTANT", personId: "gone" }, lead, ACTIVE, CHANGERS)).toEqual([{ code: "PERSON_NOT_ELIGIBLE" }]);
+    expect(teamFaults(team, { op: "CHANGE_MANAGER", personId: "gone" }, lead, ACTIVE, CHANGERS)).toEqual([{ code: "PERSON_NOT_ELIGIBLE" }]);
   });
   it("changing the manager: to someone else, or naming the first; never to the same person", () => {
-    expect(teamFaults(team, { op: "CHANGE_MANAGER", personId: "new" }, lead, ACTIVE)).toEqual([]);
-    expect(teamFaults([], { op: "CHANGE_MANAGER", personId: "new" }, staff("hafiz", []), ACTIVE)).toEqual([]);
-    expect(teamFaults(team, { op: "CHANGE_MANAGER", personId: "pm" }, lead, ACTIVE)).toEqual([{ code: "ALREADY_IN_ROLE" }]);
+    expect(teamFaults(team, { op: "CHANGE_MANAGER", personId: "new" }, lead, ACTIVE, CHANGERS)).toEqual([]);
+    expect(teamFaults([], { op: "CHANGE_MANAGER", personId: "new" }, staff("so", []), ACTIVE, CHANGERS)).toEqual([]);
+    expect(teamFaults(team, { op: "CHANGE_MANAGER", personId: "pm" }, lead, ACTIVE, CHANGERS)).toEqual([{ code: "ALREADY_IN_ROLE" }]);
   });
   it("removing asks a reason, and the row must be there", () => {
-    expect(teamFaults(team, { op: "REMOVE", role: "SITE_ENGINEER", personId: "se", reason: "Moved site" }, lead, ACTIVE)).toEqual([]);
-    expect(teamFaults(team, { op: "REMOVE", role: "SITE_ENGINEER", personId: "se", reason: "  " }, lead, ACTIVE)).toEqual([{ code: "REASON_NEEDED" }]);
-    expect(teamFaults(team, { op: "REMOVE", role: "CONSULTANT", personId: "se", reason: "x" }, lead, ACTIVE)).toEqual([{ code: "NOT_ON_TEAM" }]);
+    expect(teamFaults(team, { op: "REMOVE", role: "SITE_ENGINEER", personId: "se", reason: "Moved site" }, lead, ACTIVE, CHANGERS)).toEqual([]);
+    expect(teamFaults(team, { op: "REMOVE", role: "SITE_ENGINEER", personId: "se", reason: "  " }, lead, ACTIVE, CHANGERS)).toEqual([{ code: "REASON_NEEDED" }]);
+    expect(teamFaults(team, { op: "REMOVE", role: "CONSULTANT", personId: "se", reason: "x" }, lead, ACTIVE, CHANGERS)).toEqual([{ code: "NOT_ON_TEAM" }]);
   });
 });
 

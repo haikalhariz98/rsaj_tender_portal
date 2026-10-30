@@ -3,7 +3,8 @@
  * re-read: sharing later never re-classifies an earlier comment. A file has no audience column: the portal reads it from when it was attached. Pure.
  *
  * - Unshared item: every comment is INTERNAL, whatever was chosen; no choice is shown.
- * - Shared item: staff choose Reply or Internal note; the composer's default is `DEFAULT_AUDIENCE` (0008 §4.5, kept as settled: WB-9).
+ * - Shared item: staff choose Reply or Internal note; the composer's PRESET is `DEFAULT_AUDIENCE` (0008 §4.5, kept as settled: WB-9). The composer always posts its choice,
+ *   so a post with NO choice is internal on the server (WSEC-1): sharing is one-way, and a missing value must never resolve to the more public audience.
  * - The contractor's comment is always a Reply (CHECK `WorkItemComment_contractor_replies`).
  * - Send back writes a Reply on an item the contractor holds (it must see why it came back); on any other item it stays internal.
  * - A Reply needs the item shared at or before the comment's instant (PA056): `audienceFaults`.
@@ -17,7 +18,7 @@ import { isOpen } from "./move";
 import { isContractor } from "./party";
 import type { Audience, FieldFault, WorkActor, WorkItemFacts } from "./types";
 
-/// The composer's default on a shared item (0008 §4.5; WB-9 sends option (b) to the founder). One constant: changing it changes nothing else.
+/// The composer's preset on a shared item (0008 §4.5; WB-9). A screen default only: the server never falls back to it (WSEC-1). One constant: changing it changes nothing else.
 export const DEFAULT_AUDIENCE: Audience = "REPLY";
 
 type Facts = Pick<WorkItemFacts, "sharedAt" | "assignee">;
@@ -27,7 +28,7 @@ export function commentAudience(item: Facts, side: "STAFF" | "CONTRACTOR", choic
   if (side === "CONTRACTOR") return "REPLY";
   if (item.sharedAt === null) return "INTERNAL";
   if (action === "SEND_BACK") return isContractor(item.assignee) ? "REPLY" : "INTERNAL";
-  return choice ?? DEFAULT_AUDIENCE;
+  return choice ?? "INTERNAL";
 }
 
 /// A Reply on an item not shared by the comment's instant is NOT_SHARED (PA056: `sharedAt` ≤ `recordedAt`; equal is shared).

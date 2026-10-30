@@ -14,6 +14,7 @@ import {
   PORTAL_EMPTY_WORDS,
   PORTAL_YOU_WORDS,
   portalGroupWords,
+  portalMoveFaultText,
   removeFileWords,
   PRIORITY_WORDS,
   RESULT_WORDS,
@@ -170,6 +171,11 @@ describe("3b words", () => {
     expect(t).toBe("Only the organisation can do this.");
   });
 
+  it("a closed item refuses the contractor in words that name no one and say what to do (WSEC-5); the staff words say to reopen it", () => {
+    expect(portalMoveFaultText({ code: "ITEM_CLOSED" })).toBe("This is closed. If something is still open, raise a new item.");
+    expect(moveFaultText({ code: "ITEM_CLOSED" }, null, who)).toBe("Reopen it first.");
+  });
+
   it("the contractor is the company, by the awardee's name (B-4)", () => {
     expect(contractorActorWords("Binaan Jaya Sdn Bhd").en).toBe("Binaan Jaya Sdn Bhd");
     expect(viewWords("contractor", "Binaan Jaya Sdn Bhd").en).toBe("Waiting on Binaan Jaya Sdn Bhd");
@@ -184,19 +190,21 @@ describe("3b words", () => {
 
 describe("3b step 3: the team's and the removed file's words", () => {
   const lead = { roleLabel: "Project manager", names: ["Aisyah"] };
+  const changers = [lead];
   const FAULTS: TeamFault[] = [{ code: "NOT_LEAD" }, { code: "MANAGER_NAMED" }, { code: "ALREADY_IN_ROLE" }, { code: "PERSON_NOT_ELIGIBLE" }, { code: "NOT_ON_TEAM" }, { code: "REASON_NEEDED" }];
 
   it("every team fault has one sentence, and none shows a code", () => {
     for (const f of FAULTS) {
-      const t = teamFaultText(f, lead);
+      const t = teamFaultText(f, changers);
       expect(t, f.code).toMatch(/^[A-Z].*\.$/);
       expect(t, f.code).not.toMatch(/[A-Z]_[A-Z]|PROJECT_MANAGER/);
     }
   });
 
-  it("NOT_LEAD names the lead's office and people; with no lead it still says who", () => {
-    expect(teamFaultText({ code: "NOT_LEAD" }, lead)).toBe("Only the Project manager (Aisyah) can change the team.");
-    expect(teamFaultText({ code: "NOT_LEAD" }, null)).toBe("Only the lead can change the team.");
+  it("NOT_LEAD names the Project manager and the S.O. who may change the team; with neither it says what to set (WSEC-2)", () => {
+    expect(teamFaultText({ code: "NOT_LEAD" }, changers)).toBe("Only the Project manager (Aisyah) can change the team.");
+    expect(teamFaultText({ code: "NOT_LEAD" }, [lead, { roleLabel: "S.O.", names: ["Nurul", "Hafiz"] }])).toBe("Only the Project manager (Aisyah) or the S.O. (Nurul, Hafiz) can change the team.");
+    expect(teamFaultText({ code: "NOT_LEAD" }, [])).toBe("Nobody can change the team yet. Set the S.O. for this contract, or the organisation's time zone.");
   });
 
   it("who may remove a file names the person who attached it and the lead", () => {

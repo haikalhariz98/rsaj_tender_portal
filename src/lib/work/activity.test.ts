@@ -90,6 +90,22 @@ describe("a link line says what was linked", () => {
   });
 });
 
+describe("WSEC-3 and WSEC-9: addresses read as type and number; closing an RFI says the answer was accepted", () => {
+  const link = (changes: ActivityAuditRow["changes"]): ActivityAuditRow => ({ id: "l", entity: "WorkItemLink", action: "CREATE", changes, actorName: "Hafiz", at: at(1) });
+  it("the audit holds the address form (RFI-12, Incident-3); the line shows the type word and the number", () => {
+    expect(activityFeed([], [link([{ field: "linkedTo", before: null, after: "RFI-12 · Slab" }])], KL)[0]).toMatchObject({ text: "added a link to RFI 12 · Slab" });
+    expect(activityFeed([], [link([{ field: "linkedTo", before: null, after: "Incident-3 · Fall from height" }])], KL)[0]).toMatchObject({ text: "added a link to Incident 3 · Fall from height" });
+    // A document's title is left alone.
+    expect(activityFeed([], [link([{ field: "linkedTo", before: null, after: "Layout-2 plan" }])], KL)[0]).toMatchObject({ text: "added a link to Layout-2 plan" });
+  });
+  it("the accepted answer is a line of its own that quotes nothing", () => {
+    const row: ActivityAuditRow = { id: "m", entity: "WorkItem", action: "UPDATE", changes: [{ field: "status", before: "IN_PROGRESS", after: "DONE" }, { field: "answerAccepted", before: null, after: "Use 20 mm bars." }], actorName: "Hafiz", at: at(1) };
+    const text = activityFeed([], [row], KL)[0];
+    expect(text).toMatchObject({ kind: "CHANGE", text: "Status: In progress → Done; Answer accepted" });
+    expect(JSON.stringify(text)).not.toContain("20 mm");
+  });
+});
+
 describe("3b step 3: sharing, the company as assignee, a removed file, a comment's audience", () => {
   const withContractor = new Map([["p-hafiz", "Hafiz"], ["contractor", "Acme Builders Sdn Bhd"]]);
   const row = (id: string, entity: string, action: ActivityAuditRow["action"], changes: ActivityAuditRow["changes"]): ActivityAuditRow => ({ id, entity, action, changes, actorName: "Aisyah", at: at(1) });

@@ -62,6 +62,7 @@ function valueText(field: string, v: string | null, names: ReadonlyMap<string, s
 function changeText(c: FieldChange, names: ReadonlyMap<string, string>, timeZone: string | null): string | null {
   const label = FIELD_WORDS[c.field]?.en;
   if (!label) return null;
+  if (c.field === "answerAccepted") return label; // the text itself is the Answer's; this line says it was accepted as it stood (WSEC-9)
   if (LONG_TEXT.has(c.field)) return `${label} ${c.before ? (c.after ? "changed" : "cleared") : "added"}`;
   return `${label}: ${valueText(c.field, c.before, names, timeZone)} → ${valueText(c.field, c.after, names, timeZone)}`;
 }
@@ -70,7 +71,8 @@ function auditLine(r: ActivityAuditRow, names: ReadonlyMap<string, string>, time
   const key = `${r.entity}:${r.action}`;
   // A link line says what was linked (the audit diff's `linkedTo`).
   const linked = r.entity === "WorkItemLink" ? r.changes.find((c) => c.field === "linkedTo") : undefined;
-  const to = linked?.after ?? linked?.before;
+  // The audit holds the address form ("RFI-12"); a screen shows the type word and the number ("RFI 12", "Incident 3": WSEC-3).
+  const to = (linked?.after ?? linked?.before)?.replace(/^([A-Za-z]+)-(\d+) · /, "$1 $2 · ");
   const fixed = ACT_WORDS[key] && to ? `${ACT_WORDS[key]} to ${to}` : ACT_WORDS[key];
   const text = fixed ?? (r.action === "UPDATE" ? r.changes.map((c) => changeText(c, names, timeZone)).filter((t) => t !== null).join("; ") : "");
   return text ? { kind: "CHANGE", id: r.id, who: r.actorName ?? SOMEONE, at: r.at, text } : null;
