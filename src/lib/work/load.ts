@@ -516,7 +516,8 @@ export async function loadMyWork(i: { organisationId: string; personId: string; 
   const where = { organisationId: i.organisationId, ...myWorkWhere({ personId: i.personId }) } as Prisma.WorkItemWhereInput;
   // C3: the cap cuts the least urgent. "To check" is the first group, so it is fetched first; the rest (late first, by due day) fills what is left of the cap.
   const toCheck: Prisma.WorkItemWhereInput = { AND: [where, { raisedByPersonId: i.personId, status: "IN_REVIEW" }] };
-  const rest: Prisma.WorkItemWhereInput = { AND: [where, { NOT: { raisedByPersonId: i.personId, status: "IN_REVIEW" } }] };
+  // Spelled as an OR, not NOT(...): SQL NOT over a NULL raiser (a contractor-raised item) is NULL, which dropped the row.
+  const rest: Prisma.WorkItemWhereInput = { AND: [where, { OR: [{ raisedByPersonId: null }, { raisedByPersonId: { not: i.personId } }, { status: { not: "IN_REVIEW" } }] }] };
   const select = {
         id: true,
         contractId: true,
