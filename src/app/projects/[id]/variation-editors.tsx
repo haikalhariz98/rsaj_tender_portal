@@ -63,7 +63,7 @@ export function VariationRecordDrawer({ id, people, origins, exemptions, values,
       fields={[
         hidden("id"),
         hidden("variationId"),
-        choose("origin", "Originated by", origins),
+        choose("origin", "Raised through", origins),
         by("Variation.originator", "originatorPersonId", people, { named: "required" }),
         { kind: "textarea", name: "description", label: "Description", required: true },
         { kind: "textarea", name: "reason", label: "Reason it is done as a variation", required: true },
