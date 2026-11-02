@@ -25,6 +25,25 @@ npm run setup           # Postgres, migrations, one organisation and its starter
 npm run dev             # http://localhost:3000
 ```
 
+### Or start from the demo snapshot
+
+`prisma/demo-snapshot/demo-2026-11-02.sql.gz` is a copy of the demonstration database as it stood on 2 Nov 2026:
+the invented organisation (`ORGANISATION_CODE=ORG`, Demo Utilities Sdn Bhd), its requisitions, exercises, sittings,
+contracts, work items, uploaded documents and full audit trail. It holds no customer data. Restore it into a **new,
+empty** volume instead of `npm run setup`:
+
+```bash
+cp .env.example .env    # then set ORGANISATION_CODE=ORG
+npm install
+npm run db:up
+gunzip -c prisma/demo-snapshot/demo-2026-11-02.sql.gz | docker compose exec -T db psql -v ON_ERROR_STOP=1 -U perolehan -d perolehan
+npm run db:deploy       # applies any migration newer than the snapshot
+npm run dev
+```
+
+Staff sign in as `demo.chen.wei.ling`, `demo.imran.hakim`, `demo.bala.krishnan` and the other `demo.*` accounts, or
+`demo.admin` for configuration. Ask the project owner for the demo password; it is not kept in the repository.
+
 Set who you are in `.env`:
 
 ```
